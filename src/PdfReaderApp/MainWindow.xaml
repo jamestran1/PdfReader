@@ -23,14 +23,31 @@
 
         <!-- Toolbar -->
         <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#EEE" BorderBrush="#CCC" BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Margin="10,0">
+            <StackPanel Orientation="Horizontal" Margin="10,0" VerticalAlignment="Center">
                 <Button Content="Open PDF" Command="{Binding OpenFileCommand}" Margin="0,0,10,0" Padding="10,5"/>
-                <Button Content="Highlight" Margin="0,0,10,0" Padding="10,5"/>
+                
+                <Separator Margin="5,0,15,0" />
+                
+                <Button Content="-" Command="{Binding ZoomOutCommand}" Width="30" Margin="0,0,5,0" Padding="5"/>
+                <TextBlock Text="{Binding ZoomLevel, StringFormat={}{0:P0}}" VerticalAlignment="Center" Width="45" TextAlignment="Center"/>
+                <Button Content="+" Command="{Binding ZoomInCommand}" Width="30" Margin="5,0,10,0" Padding="5"/>
+                
+                <Separator Margin="5,0,15,0" />
+                
+                <Button Content="&lt;" Command="{Binding PreviousPageCommand}" Width="30" Margin="0,0,5,0" Padding="5"/>
+                <TextBlock VerticalAlignment="Center" Margin="5,0">
+                    <Run Text="{Binding CurrentPage}" /> / <Run Text="{Binding TotalPages}" />
+                </TextBlock>
+                <Button Content="&gt;" Command="{Binding NextPageCommand}" Width="30" Margin="5,0,10,0" Padding="5"/>
             </StackPanel>
         </Border>
 
         <!-- PDF Viewer -->
-        <controls:PdfViewerControl Grid.Row="1" Grid.Column="0" DocumentSource="{Binding FilePath}"/>
+        <controls:PdfViewerControl Grid.Row="1" Grid.Column="0" 
+                                   DocumentSource="{Binding FilePath}"
+                                   CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
+                                   TotalPages="{Binding TotalPages, Mode=TwoWay}"
+                                   ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}" />
 
         <!-- AI Sidebar -->
         <Border Grid.Row="1" Grid.Column="1" Background="#F9F9F9" BorderBrush="#CCC" BorderThickness="1,0,0,0">
