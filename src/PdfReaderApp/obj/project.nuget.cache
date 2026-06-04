@@ -1,10 +1,12 @@
 {
   "version": 2,
-  "dgSpecHash": "TxyyNso1x9g=",
+  "dgSpecHash": "8NEsh3X7vD0=",
   "success": true,
   "projectFilePath": "C:\\Users\\jamet\\source\\repos\\pdfreader\\src\\PdfReaderApp\\PdfReaderApp.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\jamet\\.nuget\\packages\\communitytoolkit.mvvm\\8.4.2\\communitytoolkit.mvvm.8.4.2.nupkg.sha512"
+    "C:\\Users\\jamet\\.nuget\\packages\\bblanchon.pdfium.win32\\130.0.6721\\bblanchon.pdfium.win32.130.0.6721.nupkg.sha512",
+    "C:\\Users\\jamet\\.nuget\\packages\\communitytoolkit.mvvm\\8.4.2\\communitytoolkit.mvvm.8.4.2.nupkg.sha512",
+    "C:\\Users\\jamet\\.nuget\\packages\\pdfiumviewer.net.wpf\\3.0.4\\pdfiumviewer.net.wpf.3.0.4.nupkg.sha512"
   ],
   "logs": []
 }

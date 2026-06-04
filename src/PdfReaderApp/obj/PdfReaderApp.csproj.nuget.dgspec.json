@@ -54,6 +54,10 @@
             "CommunityToolkit.Mvvm": {
               "target": "Package",
               "version": "[8.4.2, )"
+            },
+            "PdfiumViewer.Net.WPF": {
+              "target": "Package",
+              "version": "[3.0.4, )"
             }
           },
           "imports": [

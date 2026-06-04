@@ -8,10 +8,30 @@
     ".NETCoreApp,Version=v10.0": {
       "PdfReaderApp/1.0.0": {
         "dependencies": {
-          "CommunityToolkit.Mvvm": "8.4.2"
+          "CommunityToolkit.Mvvm": "8.4.2",
+          "PdfiumViewer.Net.WPF": "3.0.4"
         },
         "runtime": {
           "PdfReaderApp.dll": {}
+        }
+      },
+      "bblanchon.PDFium.Win32/130.0.6721": {
+        "runtimeTargets": {
+          "runtimes/win-arm64/native/pdfium.dll": {
+            "rid": "win-arm64",
+            "assetType": "native",
+            "fileVersion": "130.0.6721.0"
+          },
+          "runtimes/win-x64/native/pdfium.dll": {
+            "rid": "win-x64",
+            "assetType": "native",
+            "fileVersion": "130.0.6721.0"
+          },
+          "runtimes/win-x86/native/pdfium.dll": {
+            "rid": "win-x86",
+            "assetType": "native",
+            "fileVersion": "130.0.6721.0"
+          }
         }
       },
       "CommunityToolkit.Mvvm/8.4.2": {
@@ -19,6 +39,17 @@
           "lib/net8.0/CommunityToolkit.Mvvm.dll": {
             "assemblyVersion": "8.4.0.0",
             "fileVersion": "8.4.2.1"
+          }
+        }
+      },
+      "PdfiumViewer.Net.WPF/3.0.4": {
+        "dependencies": {
+          "bblanchon.PDFium.Win32": "130.0.6721"
+        },
+        "runtime": {
+          "lib/net8.0-windows7.0/PdfiumViewer.dll": {
+            "assemblyVersion": "3.0.4.0",
+            "fileVersion": "3.0.4.0"
           }
         }
       }
@@ -30,12 +61,26 @@
       "serviceable": false,
       "sha512": ""
     },
+    "bblanchon.PDFium.Win32/130.0.6721": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-lP+F3IdHich8riSWg/9RuwZGIt6GJvk6t2e1mIb9sQoIUVfLYU2Npocc1yYOq6SQDifs5Ux2+MRw7je3A8c5cg==",
+      "path": "bblanchon.pdfium.win32/130.0.6721",
+      "hashPath": "bblanchon.pdfium.win32.130.0.6721.nupkg.sha512"
+    },
     "CommunityToolkit.Mvvm/8.4.2": {
       "type": "package",
       "serviceable": true,
       "sha512": "sha512-WadCzGEc2U+3e20avRLng4qNtt4zoOGWrdUISqJWrHe3/FSnrYjuM5Sb4yQb09LhkBXrrI4Zt3dLKgRMbItsrg==",
       "path": "communitytoolkit.mvvm/8.4.2",
       "hashPath": "communitytoolkit.mvvm.8.4.2.nupkg.sha512"
+    },
+    "PdfiumViewer.Net.WPF/3.0.4": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-vULDmhvnaTWliulpd3Ch9HYBJdhFKC4Vvbuie4sjsXWYg1vZgjOA+9WY5Jjp7e9p0IQ+neYKhKOllBl9hb5Fsg==",
+      "path": "pdfiumviewer.net.wpf/3.0.4",
+      "hashPath": "pdfiumviewer.net.wpf.3.0.4.nupkg.sha512"
     }
   }
 }
