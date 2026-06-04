@@ -6,8 +6,7 @@
              xmlns:pdf="clr-namespace:PdfiumViewer;assembly=PdfiumViewer"
              mc:Ignorable="d" d:DesignHeight="450" d:DesignWidth="800">
     <Grid Background="#525659">
-        <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-            <pdf:PDFViewer x:Name="pdfViewer" Background="White" Margin="10" />
-        </ScrollViewer>
+        <!-- Đã loại bỏ ScrollViewer bọc ngoài vì PDFViewer có cơ chế cuộn nội bộ -->
+        <pdf:PDFViewer x:Name="pdfViewer" Background="White" Margin="10" />
     </Grid>
 </UserControl>
