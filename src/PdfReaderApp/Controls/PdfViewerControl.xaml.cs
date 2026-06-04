@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
@@ -66,7 +67,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void OnPdfViewerPageChanged(object? sender, EventArgs e)
     {
-        // Internal page is 0-based
         int newPage = pdfViewer.Page + 1;
         if (CurrentPage != newPage)
         {
@@ -121,14 +121,20 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             DisposeCurrentDocument();
 
-            _currentDocument = PdfDocument.Load(path);
+            if (!File.Exists(path)) return;
+
+            // Sử dụng Stream để nạp file giúp ổn định hơn với file lớn
+            byte[] fileBytes = File.ReadAllBytes(path);
+            var ms = new MemoryStream(fileBytes);
+            
+            _currentDocument = PdfDocument.Load(ms);
             pdfViewer.Document = _currentDocument;
             
             TotalPages = _currentDocument.PageCount;
             CurrentPage = 1;
             ZoomLevel = pdfViewer.Zoom;
 
-            System.Diagnostics.Debug.WriteLine($"Successfully loaded PDF: {path}");
+            System.Diagnostics.Debug.WriteLine($"Successfully loaded PDF via Stream: {path} ({fileBytes.Length} bytes)");
         }
         catch (Exception ex)
         {
@@ -163,7 +169,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             if (disposing)
             {
-                // Unhook descriptors
                 var pageDescriptor = DependencyPropertyDescriptor.FromProperty(PdfiumViewer.PDFViewer.PageProperty, typeof(PdfiumViewer.PDFViewer));
                 pageDescriptor?.RemoveValueChanged(pdfViewer, OnPdfViewerPageChanged);
 

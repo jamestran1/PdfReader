@@ -3,70 +3,163 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:local="clr-namespace:PdfReaderApp"
         xmlns:viewmodels="clr-namespace:PdfReaderApp.ViewModels"
         xmlns:controls="clr-namespace:PdfReaderApp.Controls"
         mc:Ignorable="d"
-        Title="{Binding WindowTitle}" Height="720" Width="1080">
+        Title="{Binding WindowTitle}" Height="800" Width="1200"
+        TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+        Background="{DynamicResource MaterialDesignPaper}"
+        TextElement.FontWeight="Medium"
+        TextElement.FontSize="14"
+        FontFamily="{materialDesign:MaterialDesignFont}">
     <Window.DataContext>
         <viewmodels:MainViewModel />
     </Window.DataContext>
     <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="50"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="300"/>
+            <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Toolbar -->
-        <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#EEE" BorderBrush="#CCC" BorderThickness="0,0,0,1">
-            <StackPanel Orientation="Horizontal" Margin="10,0" VerticalAlignment="Center">
-                <Button Content="Open PDF" Command="{Binding OpenFileCommand}" Margin="0,0,10,0" Padding="10,5"/>
-                
-                <Separator Margin="5,0,15,0" />
-                
-                <Button Content="-" Command="{Binding ZoomOutCommand}" Width="30" Margin="0,0,5,0" Padding="5"/>
-                <TextBlock Text="{Binding ZoomLevel, StringFormat={}{0:P0}}" VerticalAlignment="Center" Width="45" TextAlignment="Center"/>
-                <Button Content="+" Command="{Binding ZoomInCommand}" Width="30" Margin="5,0,10,0" Padding="5"/>
-                
-                <Separator Margin="5,0,15,0" />
-                
-                <Button Content="&lt;" Command="{Binding PreviousPageCommand}" Width="30" Margin="0,0,5,0" Padding="5"/>
-                <TextBlock VerticalAlignment="Center" Margin="5,0">
-                    <Run Text="{Binding CurrentPage}" /> / <Run Text="{Binding TotalPages}" />
-                </TextBlock>
-                <Button Content="&gt;" Command="{Binding NextPageCommand}" Width="30" Margin="5,0,10,0" Padding="5"/>
-            </StackPanel>
-        </Border>
-
-        <!-- PDF Viewer -->
-        <controls:PdfViewerControl Grid.Row="1" Grid.Column="0" 
-                                   DocumentSource="{Binding FilePath}"
-                                   CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
-                                   TotalPages="{Binding TotalPages, Mode=TwoWay}"
-                                   ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}" />
-
-        <!-- AI Sidebar -->
-        <Border Grid.Row="1" Grid.Column="1" Background="#F9F9F9" BorderBrush="#CCC" BorderThickness="1,0,0,0">
+        <!-- Navigation Rail -->
+        <materialDesign:ColorZone Grid.Column="0" Mode="PrimaryMid" VerticalAlignment="Stretch">
             <Grid>
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <ScrollViewer Grid.Row="0" Margin="10">
-                    <StackPanel>
-                        <TextBlock Text="AI Chat" FontWeight="Bold" Margin="0,0,0,10"/>
-                        <TextBlock Text="Xin chào! Bạn có câu hỏi nào về tài liệu này?" TextWrapping="Wrap"/>
-                    </StackPanel>
-                </ScrollViewer>
-                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10">
-                    <TextBox Width="200" Margin="0,0,10,0" Padding="5"/>
-                    <Button Content="Gửi" Padding="10,5"/>
+                
+                <StackPanel Grid.Row="0" Margin="0,20">
+                     <materialDesign:PackIcon Kind="PdfBox" Width="40" Height="40" HorizontalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Read">
+                        <materialDesign:PackIcon Kind="BookOpenVariant" Width="24" Height="24"/>
+                    </Button>
+                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Edit">
+                        <materialDesign:PackIcon Kind="Pencil" Width="24" Height="24"/>
+                    </Button>
+                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="AI Assistant">
+                        <materialDesign:PackIcon Kind="Robot" Width="24" Height="24"/>
+                    </Button>
+                </StackPanel>
+
+                <StackPanel Grid.Row="2" Margin="0,0,0,20">
+                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Settings">
+                        <materialDesign:PackIcon Kind="Settings" Width="24" Height="24"/>
+                    </Button>
                 </StackPanel>
             </Grid>
-        </Border>
+        </materialDesign:ColorZone>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Top Toolbar -->
+            <materialDesign:ColorZone Mode="Standard" Padding="16" materialDesign:ElevationAssist.Elevation="Dp2">
+                <DockPanel>
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                        <Button Style="{StaticResource MaterialDesignRaisedButton}" 
+                                Command="{Binding OpenFileCommand}" 
+                                Content="OPEN PDF" 
+                                materialDesign:ButtonAssist.CornerRadius="20"/>
+                        
+                        <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
+                        
+                        <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ZoomOutCommand}" ToolTip="Zoom Out">
+                            <materialDesign:PackIcon Kind="Minus" />
+                        </Button>
+                        <TextBlock Text="{Binding ZoomLevel, StringFormat={}{0:P0}}" VerticalAlignment="Center" Margin="8,0" Width="50" TextAlignment="Center" FontWeight="Bold"/>
+                        <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ZoomInCommand}" ToolTip="Zoom In">
+                            <materialDesign:PackIcon Kind="Plus" />
+                        </Button>
+                        
+                        <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
+                        
+                        <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding PreviousPageCommand}" ToolTip="Previous Page">
+                            <materialDesign:PackIcon Kind="ChevronLeft" />
+                        </Button>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
+                            <TextBox Text="{Binding CurrentPage}" Width="30" TextAlignment="Center" materialDesign:TextFieldAssist.HasClearButton="False"/>
+                            <TextBlock Text="{Binding TotalPages, StringFormat='/ {0}'}" VerticalAlignment="Center" Margin="4,0"/>
+                        </StackPanel>
+                        <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding NextPageCommand}" ToolTip="Next Page">
+                            <materialDesign:PackIcon Kind="ChevronRight" />
+                        </Button>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                        <materialDesign:ColorZone Mode="Standard" CornerRadius="20" materialDesign:ElevationAssist.Elevation="Dp0" Background="{DynamicResource MaterialDesignTextFieldBoxBackground}" Padding="8,2">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <materialDesign:PackIcon Kind="Search" VerticalAlignment="Center" Margin="8,0" Opacity=".5" />
+                                <TextBox Grid.Column="1" Width="150" materialDesign:HintAssist.Hint="Search..." BorderThickness="0" materialDesign:TextFieldAssist.DecorationVisibility="Collapsed" />
+                            </Grid>
+                        </materialDesign:ColorZone>
+                    </StackPanel>
+                </DockPanel>
+            </materialDesign:ColorZone>
+
+            <!-- PDF Viewer Surface -->
+            <controls:PdfViewerControl Grid.Row="1" 
+                                       DocumentSource="{Binding FilePath}"
+                                       CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
+                                       TotalPages="{Binding TotalPages, Mode=TwoWay}"
+                                       ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}" />
+        </Grid>
+
+        <!-- Right Sidebar (AI) -->
+        <materialDesign:Card Grid.Column="2" Width="350" Margin="4" materialDesign:ElevationAssist.Elevation="Dp1" UniformCornerRadius="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <materialDesign:ColorZone Mode="PrimaryMid" Padding="16">
+                    <TextBlock Text="AI ASSISTANT" FontWeight="Bold"/>
+                </materialDesign:ColorZone>
+
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="16">
+                        <materialDesign:Card Background="{DynamicResource MaterialDesignSecondaryContainerLow}" Padding="12" Margin="0,0,0,16">
+                            <TextBlock Text="Xin chào! Tôi có thể giúp gì cho bạn về tài liệu này?" TextWrapping="Wrap"/>
+                        </materialDesign:Card>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Grid Grid.Row="2" Margin="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox Style="{StaticResource MaterialDesignOutlinedTextBox}" 
+                             materialDesign:HintAssist.Hint="Ask a question..." 
+                             TextWrapping="Wrap" 
+                             AcceptsReturn="True" 
+                             VerticalScrollBarVisibility="Auto"
+                             Height="80"/>
+                    <Button Grid.Column="1" 
+                            Style="{StaticResource MaterialDesignFloatingActionMiniButton}" 
+                            Margin="8,0,0,0" 
+                            VerticalAlignment="Bottom">
+                        <materialDesign:PackIcon Kind="Send" />
+                    </Button>
+                </Grid>
+            </Grid>
+        </materialDesign:Card>
     </Grid>
 </Window>

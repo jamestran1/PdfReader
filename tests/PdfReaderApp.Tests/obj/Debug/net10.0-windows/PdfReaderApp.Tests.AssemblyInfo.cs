@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("PdfReaderApp.Tests")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b5c8b0106a2703f9e987b6a63afa77594e128cbc")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e93b52f6092c6fe0d4385b9bdf43d04c4512fe7e")]
 [assembly: System.Reflection.AssemblyProductAttribute("PdfReaderApp.Tests")]
 [assembly: System.Reflection.AssemblyTitleAttribute("PdfReaderApp.Tests")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
