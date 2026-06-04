@@ -3,11 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
-             xmlns:pdf="clr-namespace:PdfiumViewer;assembly=PdfiumViewer.Net.WPF"
+             xmlns:pdf="clr-namespace:PdfiumViewer;assembly=PdfiumViewer"
              mc:Ignorable="d" d:DesignHeight="450" d:DesignWidth="800">
     <Grid Background="#525659">
         <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
-            <pdf:PdfRenderer x:Name="pdfRenderer" Background="White" Margin="10" />
+            <pdf:PDFViewer x:Name="pdfViewer" Background="White" Margin="10" />
         </ScrollViewer>
     </Grid>
 </UserControl>
