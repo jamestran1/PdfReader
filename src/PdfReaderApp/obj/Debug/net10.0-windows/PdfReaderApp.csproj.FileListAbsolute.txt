@@ -44,3 +44,5 @@ C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\bin\Debug\net10.0-windows
 C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\bin\Debug\net10.0-windows\runtimes\win-x86\native\libSkiaSharp.dll
 C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\bin\Debug\net10.0-windows\runtimes\win-x86\native\libSkiaSharp.pdb
 C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\obj\Debug\net10.0-windows\App.baml
+C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\obj\Debug\net10.0-windows\Controls\MicroEditor.baml
+C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\obj\Debug\net10.0-windows\Controls\MicroEditor.g.cs

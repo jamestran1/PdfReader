@@ -11,6 +11,7 @@ using SkiaSharp.Views.WPF;
 using SkiaSharp.Views.Desktop;
 using PdfiumViewer.Core;
 using PdfReaderApp.Core;
+using PdfReaderApp.Core.Commands;
 
 namespace PdfReaderApp.Controls;
 
@@ -19,10 +20,12 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private PdfDocument? _currentDocument;
     private RenderEngine _renderEngine = new();
     private PdfObjectManager _objectManager = new();
+    private Stack<IUndoCommand> _undoStack = new();
     private Dictionary<int, SKBitmap> _pageCache = new();
     private bool _disposed;
 
     private List<Rect> _pageRects = new();
+    private PdfObjectManager.GhostText? _activeEditTarget;
 
     public static readonly DependencyProperty DocumentSourceProperty =
         DependencyProperty.Register("DocumentSource", typeof(string), typeof(PdfViewerControl), 
@@ -69,34 +72,83 @@ public partial class PdfViewerControl : UserControl, IDisposable
         InitializeComponent();
         this.Unloaded += PdfViewerControl_Unloaded;
         skiaCanvas.MouseDown += OnCanvasMouseDown;
+        
+        TextEditor.EditingFinished += TextEditor_EditingFinished;
+        TextEditor.EditingCancelled += TextEditor_EditingCancelled;
     }
 
     private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (TextEditor.Visibility == Visibility.Visible)
+        {
+            HideEditor();
+        }
+
+        if (e.ClickCount == 2)
+        {
+            HandleDoubleClick(e);
+        }
+    }
+
+    private void HandleDoubleClick(MouseButtonEventArgs e)
     {
         if (_currentDocument == null) return;
 
         var screenPoint = e.GetPosition(skiaCanvas);
         float scale = (float)ZoomLevel;
 
-        // Find which page was clicked
         for (int i = 0; i < _pageRects.Count; i++)
         {
             var rect = _pageRects[i];
             if (rect.Contains(screenPoint))
             {
-                // Convert screen point to PDF point (origin bottom-left usually, but Pdfium often uses top-left for text)
-                // Let's assume top-left for now as Pdfium text API usually does.
                 double pdfX = (screenPoint.X - rect.Left) / scale;
                 double pdfY = (screenPoint.Y - rect.Top) / scale;
 
                 var hit = _objectManager.HitTest(i, new Point(pdfX, pdfY));
                 if (hit != null)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Hit Char: '{hit.Text}' at index {hit.CharIndex} on page {i + 1}");
+                    ShowEditor(hit, rect, scale);
                 }
                 break;
             }
         }
+    }
+
+    private void ShowEditor(PdfObjectManager.GhostText hit, Rect pageRect, float scale)
+    {
+        _activeEditTarget = hit;
+        
+        Canvas.SetLeft(TextEditor, pageRect.Left + hit.Bounds.Left * scale - 5);
+        Canvas.SetTop(TextEditor, pageRect.Top + hit.Bounds.Top * scale - 3);
+        
+        TextEditor.Visibility = Visibility.Visible;
+        TextEditor.StartEditing(hit.Text, new Rect(0, 0, hit.Bounds.Width * scale, hit.Bounds.Height * scale));
+    }
+
+    private void TextEditor_EditingFinished(object? sender, string newText)
+    {
+        if (_activeEditTarget != null && _activeEditTarget.Text != newText)
+        {
+            var command = new EditTextCommand(_activeEditTarget.PageIndex, _activeEditTarget.CharIndex, _activeEditTarget.Text, newText);
+            command.Execute();
+            _undoStack.Push(command);
+            
+            _activeEditTarget.Text = newText;
+        }
+        HideEditor();
+    }
+
+    private void TextEditor_EditingCancelled(object? sender, EventArgs e)
+    {
+        HideEditor();
+    }
+
+    private void HideEditor()
+    {
+        TextEditor.Visibility = Visibility.Collapsed;
+        _activeEditTarget = null;
+        skiaCanvas.Focus();
     }
 
     private static void OnDocumentSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -139,6 +191,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             CurrentPage = 1;
             
             _objectManager.Clear();
+            _undoStack.Clear();
             RefreshLayout();
             System.Diagnostics.Debug.WriteLine($"Successfully loaded PDF via Skia: {path}");
         }
@@ -171,6 +224,9 @@ public partial class PdfViewerControl : UserControl, IDisposable
             maxWidth = Math.Max(maxWidth, w);
         }
 
+        InteractionCanvas.Width = maxWidth + 20;
+        InteractionCanvas.Height = currentY;
+        
         skiaCanvas.Width = maxWidth;
         skiaCanvas.Height = currentY;
         
@@ -202,7 +258,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
             
             if (rect.Bottom >= viewTop && rect.Top <= viewBottom)
             {
-                // Ensure page is mapped for hit testing
                 _objectManager.MapPage(_currentDocument.Pages[i], i);
 
                 if (!_pageCache.ContainsKey(i))
@@ -218,7 +273,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             }
             else
             {
-                if (_pageCache.Count > 10 && _pageCache.ContainsKey(i))
+                if (_pageCache.Count > 20 && _pageCache.ContainsKey(i))
                 {
                     _pageCache[i].Dispose();
                     _pageCache.Remove(i);
@@ -255,6 +310,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
             _objectManager.Clear();
+            _undoStack.Clear();
             _currentDocument.Dispose();
             _currentDocument = null;
         }
