@@ -2,6 +2,29 @@
   "version": 3,
   "targets": {
     "net10.0-windows7.0": {
+      "bblanchon.PDFium.Win32/130.0.6721": {
+        "type": "package",
+        "compile": {
+          "lib/netstandard2.0/_._": {}
+        },
+        "runtime": {
+          "lib/netstandard2.0/_._": {}
+        },
+        "runtimeTargets": {
+          "runtimes/win-arm64/native/pdfium.dll": {
+            "assetType": "native",
+            "rid": "win-arm64"
+          },
+          "runtimes/win-x64/native/pdfium.dll": {
+            "assetType": "native",
+            "rid": "win-x64"
+          },
+          "runtimes/win-x86/native/pdfium.dll": {
+            "assetType": "native",
+            "rid": "win-x86"
+          }
+        }
+      },
       "CommunityToolkit.Mvvm/8.4.2": {
         "type": "package",
         "compile": {
@@ -17,10 +40,73 @@
         "build": {
           "buildTransitive/CommunityToolkit.Mvvm.targets": {}
         }
+      },
+      "PdfiumViewer.Net.WPF/3.0.4": {
+        "type": "package",
+        "dependencies": {
+          "bblanchon.PDFium.Win32": "130.0.6721"
+        },
+        "compile": {
+          "lib/net8.0-windows7.0/PdfiumViewer.dll": {}
+        },
+        "runtime": {
+          "lib/net8.0-windows7.0/PdfiumViewer.dll": {}
+        },
+        "frameworkReferences": [
+          "Microsoft.WindowsDesktop.App.WPF"
+        ]
       }
     }
   },
   "libraries": {
+    "bblanchon.PDFium.Win32/130.0.6721": {
+      "sha512": "lP+F3IdHich8riSWg/9RuwZGIt6GJvk6t2e1mIb9sQoIUVfLYU2Npocc1yYOq6SQDifs5Ux2+MRw7je3A8c5cg==",
+      "type": "package",
+      "path": "bblanchon.pdfium.win32/130.0.6721",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "README.md",
+        "bblanchon.pdfium.win32.130.0.6721.nupkg.sha512",
+        "bblanchon.pdfium.win32.nuspec",
+        "build/native/bblanchon.PDFium.Win32.targets",
+        "build/native/include/pdfium/cpp/fpdf_deleters.h",
+        "build/native/include/pdfium/cpp/fpdf_scopers.h",
+        "build/native/include/pdfium/fpdf_annot.h",
+        "build/native/include/pdfium/fpdf_attachment.h",
+        "build/native/include/pdfium/fpdf_catalog.h",
+        "build/native/include/pdfium/fpdf_dataavail.h",
+        "build/native/include/pdfium/fpdf_doc.h",
+        "build/native/include/pdfium/fpdf_edit.h",
+        "build/native/include/pdfium/fpdf_ext.h",
+        "build/native/include/pdfium/fpdf_flatten.h",
+        "build/native/include/pdfium/fpdf_formfill.h",
+        "build/native/include/pdfium/fpdf_fwlevent.h",
+        "build/native/include/pdfium/fpdf_javascript.h",
+        "build/native/include/pdfium/fpdf_ppo.h",
+        "build/native/include/pdfium/fpdf_progressive.h",
+        "build/native/include/pdfium/fpdf_save.h",
+        "build/native/include/pdfium/fpdf_searchex.h",
+        "build/native/include/pdfium/fpdf_signature.h",
+        "build/native/include/pdfium/fpdf_structtree.h",
+        "build/native/include/pdfium/fpdf_sysfontinfo.h",
+        "build/native/include/pdfium/fpdf_text.h",
+        "build/native/include/pdfium/fpdf_thumbnail.h",
+        "build/native/include/pdfium/fpdf_transformpage.h",
+        "build/native/include/pdfium/fpdfview.h",
+        "build/native/lib/win-arm64/pdfium.dll.lib",
+        "build/native/lib/win-x64/pdfium.dll.lib",
+        "build/native/lib/win-x86/pdfium.dll.lib",
+        "build/net461/bblanchon.PDFium.Win32.targets",
+        "buildTransitive/net461/bblanchon.PDFium.Win32.targets",
+        "icon.png",
+        "lib/native/_._",
+        "lib/netstandard2.0/_._",
+        "runtimes/win-arm64/native/pdfium.dll",
+        "runtimes/win-x64/native/pdfium.dll",
+        "runtimes/win-x86/native/pdfium.dll"
+      ]
+    },
     "CommunityToolkit.Mvvm/8.4.2": {
       "sha512": "WadCzGEc2U+3e20avRLng4qNtt4zoOGWrdUISqJWrHe3/FSnrYjuM5Sb4yQb09LhkBXrrI4Zt3dLKgRMbItsrg==",
       "type": "package",
@@ -60,11 +146,25 @@
         "lib/netstandard2.1/CommunityToolkit.Mvvm.dll",
         "lib/netstandard2.1/CommunityToolkit.Mvvm.xml"
       ]
+    },
+    "PdfiumViewer.Net.WPF/3.0.4": {
+      "sha512": "vULDmhvnaTWliulpd3Ch9HYBJdhFKC4Vvbuie4sjsXWYg1vZgjOA+9WY5Jjp7e9p0IQ+neYKhKOllBl9hb5Fsg==",
+      "type": "package",
+      "path": "pdfiumviewer.net.wpf/3.0.4",
+      "files": [
+        ".nupkg.metadata",
+        ".signature.p7s",
+        "LICENSE",
+        "lib/net8.0-windows7.0/PdfiumViewer.dll",
+        "pdfiumviewer.net.wpf.3.0.4.nupkg.sha512",
+        "pdfiumviewer.net.wpf.nuspec"
+      ]
     }
   },
   "projectFileDependencyGroups": {
     "net10.0-windows7.0": [
-      "CommunityToolkit.Mvvm >= 8.4.2"
+      "CommunityToolkit.Mvvm >= 8.4.2",
+      "PdfiumViewer.Net.WPF >= 3.0.4"
     ]
   },
   "packageFolders": {
@@ -121,6 +221,10 @@
           "CommunityToolkit.Mvvm": {
             "target": "Package",
             "version": "[8.4.2, )"
+          },
+          "PdfiumViewer.Net.WPF": {
+            "target": "Package",
+            "version": "[3.0.4, )"
           }
         },
         "imports": [

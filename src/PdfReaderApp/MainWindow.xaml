@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:PdfReaderApp"
         xmlns:viewmodels="clr-namespace:PdfReaderApp.ViewModels"
+        xmlns:controls="clr-namespace:PdfReaderApp.Controls"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}" Height="720" Width="1080">
     <Window.DataContext>
@@ -23,15 +24,13 @@
         <!-- Toolbar -->
         <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#EEE" BorderBrush="#CCC" BorderThickness="0,0,0,1">
             <StackPanel Orientation="Horizontal" Margin="10,0">
-                <Button Content="Open PDF" Margin="0,0,10,0" Padding="10,5"/>
+                <Button Content="Open PDF" Command="{Binding OpenFileCommand}" Margin="0,0,10,0" Padding="10,5"/>
                 <Button Content="Highlight" Margin="0,0,10,0" Padding="10,5"/>
             </StackPanel>
         </Border>
 
-        <!-- PDF Viewer Placeholder -->
-        <Border Grid.Row="1" Grid.Column="0" Background="#525659">
-            <TextBlock Text="PDF Viewer Component" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-        </Border>
+        <!-- PDF Viewer -->
+        <controls:PdfViewerControl Grid.Row="1" Grid.Column="0" DocumentSource="{Binding FilePath}"/>
 
         <!-- AI Sidebar -->
         <Border Grid.Row="1" Grid.Column="1" Background="#F9F9F9" BorderBrush="#CCC" BorderThickness="1,0,0,0">
