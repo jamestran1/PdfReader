@@ -134,11 +134,18 @@
                 </materialDesign:ColorZone>
 
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="16">
-                        <materialDesign:Card Background="{DynamicResource MaterialDesignSecondaryContainerLow}" Padding="12" Margin="0,0,0,16">
-                            <TextBlock Text="Xin chào! Tôi có thể giúp gì cho bạn về tài liệu này?" TextWrapping="Wrap"/>
-                        </materialDesign:Card>
-                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding ChatMessages}" Margin="16">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <materialDesign:Card Padding="12" Margin="0,0,0,12" UniformCornerRadius="8">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
+                                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </materialDesign:Card>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </ScrollViewer>
 
                 <Grid Grid.Row="2" Margin="16">
@@ -148,12 +155,18 @@
                     </Grid.ColumnDefinitions>
                     <TextBox Style="{StaticResource MaterialDesignOutlinedTextBox}" 
                              materialDesign:HintAssist.Hint="Ask a question..." 
+                             Text="{Binding ChatInput, UpdateSourceTrigger=PropertyChanged}"
                              TextWrapping="Wrap" 
                              AcceptsReturn="True" 
                              VerticalScrollBarVisibility="Auto"
-                             Height="80"/>
+                             Height="80">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding SendMessageCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
                     <Button Grid.Column="1" 
                             Style="{StaticResource MaterialDesignFloatingActionMiniButton}" 
+                            Command="{Binding SendMessageCommand}"
                             Margin="8,0,0,0" 
                             VerticalAlignment="Bottom">
                         <materialDesign:PackIcon Kind="Send" />

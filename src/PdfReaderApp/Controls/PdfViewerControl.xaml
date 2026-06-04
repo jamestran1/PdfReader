@@ -4,6 +4,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:skia="clr-namespace:SkiaSharp.Views.WPF;assembly=SkiaSharp.Views.WPF"
+             xmlns:local="clr-namespace:PdfReaderApp.Controls"
              mc:Ignorable="d" d:DesignHeight="450" d:DesignWidth="800">
     <Grid Background="#525659">
         <ScrollViewer x:Name="PagesScrollViewer" 
@@ -11,9 +12,17 @@
                       VerticalScrollBarVisibility="Auto" 
                       HorizontalScrollBarVisibility="Auto"
                       ScrollChanged="PagesScrollViewer_ScrollChanged">
-            <skia:SKElement x:Name="skiaCanvas" 
-                            PaintSurface="OnPaintCanvas" 
-                            Margin="10" />
+            <Grid>
+                <!-- GPU Render Layer -->
+                <skia:SKElement x:Name="skiaCanvas" 
+                                PaintSurface="OnPaintCanvas" 
+                                Margin="10" />
+                
+                <!-- Interaction / Editing Overlay -->
+                <Canvas x:Name="InteractionCanvas" Margin="10" Background="Transparent">
+                    <local:MicroEditor x:Name="TextEditor" Visibility="Collapsed" />
+                </Canvas>
+            </Grid>
         </ScrollViewer>
     </Grid>
 </UserControl>
