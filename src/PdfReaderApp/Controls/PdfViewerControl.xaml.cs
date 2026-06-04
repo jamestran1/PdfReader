@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using SkiaSharp;
 using SkiaSharp.Views.WPF;
 using SkiaSharp.Views.Desktop;
@@ -17,12 +18,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
 {
     private PdfDocument? _currentDocument;
     private RenderEngine _renderEngine = new();
+    private PdfObjectManager _objectManager = new();
     private Dictionary<int, SKBitmap> _pageCache = new();
     private bool _disposed;
 
-    // Viewport and Layout state
-    private double _viewportHeight;
-    private double _viewportWidth;
     private List<Rect> _pageRects = new();
 
     public static readonly DependencyProperty DocumentSourceProperty =
@@ -69,6 +68,35 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         InitializeComponent();
         this.Unloaded += PdfViewerControl_Unloaded;
+        skiaCanvas.MouseDown += OnCanvasMouseDown;
+    }
+
+    private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_currentDocument == null) return;
+
+        var screenPoint = e.GetPosition(skiaCanvas);
+        float scale = (float)ZoomLevel;
+
+        // Find which page was clicked
+        for (int i = 0; i < _pageRects.Count; i++)
+        {
+            var rect = _pageRects[i];
+            if (rect.Contains(screenPoint))
+            {
+                // Convert screen point to PDF point (origin bottom-left usually, but Pdfium often uses top-left for text)
+                // Let's assume top-left for now as Pdfium text API usually does.
+                double pdfX = (screenPoint.X - rect.Left) / scale;
+                double pdfY = (screenPoint.Y - rect.Top) / scale;
+
+                var hit = _objectManager.HitTest(i, new Point(pdfX, pdfY));
+                if (hit != null)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Hit Char: '{hit.Text}' at index {hit.CharIndex} on page {i + 1}");
+                }
+                break;
+            }
+        }
     }
 
     private static void OnDocumentSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -110,6 +138,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             TotalPages = _currentDocument.PageCount;
             CurrentPage = 1;
             
+            _objectManager.Clear();
             RefreshLayout();
             System.Diagnostics.Debug.WriteLine($"Successfully loaded PDF via Skia: {path}");
         }
@@ -164,7 +193,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
         float scale = (float)ZoomLevel;
         
-        // Find visible pages
         double viewTop = PagesScrollViewer.VerticalOffset;
         double viewBottom = viewTop + PagesScrollViewer.ViewportHeight;
 
@@ -172,9 +200,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             var rect = _pageRects[i];
             
-            // Check if page is visible in viewport
             if (rect.Bottom >= viewTop && rect.Top <= viewBottom)
             {
+                // Ensure page is mapped for hit testing
+                _objectManager.MapPage(_currentDocument.Pages[i], i);
+
                 if (!_pageCache.ContainsKey(i))
                 {
                     _pageCache[i] = _renderEngine.RenderPage(_currentDocument.Pages[i], scale);
@@ -183,13 +213,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
                 var bitmap = _pageCache[i];
                 canvas.DrawBitmap(bitmap, (float)rect.Left, (float)rect.Top);
                 
-                // Draw border
                 using var paint = new SKPaint { Color = SKColors.Black, IsStroke = true, StrokeWidth = 1 };
                 canvas.DrawRect((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height, paint);
             }
             else
             {
-                // Simple cache management: remove non-visible pages if cache grows too large
                 if (_pageCache.Count > 10 && _pageCache.ContainsKey(i))
                 {
                     _pageCache[i].Dispose();
@@ -205,7 +233,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
         skiaCanvas.InvalidateVisual();
 
-        // Update CurrentPage based on scroll position
         double middleY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
         for (int i = 0; i < _pageRects.Count; i++)
         {
@@ -227,6 +254,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
+            _objectManager.Clear();
             _currentDocument.Dispose();
             _currentDocument = null;
         }
@@ -249,6 +277,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             if (disposing)
             {
+                skiaCanvas.MouseDown -= OnCanvasMouseDown;
                 DisposeCurrentDocument();
                 _renderEngine.Dispose();
             }
