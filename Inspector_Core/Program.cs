@@ -5,10 +5,15 @@ using System.Reflection;
 try
 {
     var assembly = Assembly.Load("PdfiumViewer");
-    var types = assembly.GetTypes().Where(t => t.Name == "PdfRenderFlags");
-    foreach (var type in types)
+    var type = assembly.GetType("PdfiumViewer.Core.PdfPage");
+    var method = type.GetMethod("GetCountChars");
+    Console.WriteLine($"Method: {method?.Name}, Returns: {method?.ReturnType.Name}");
+
+    method = type.GetMethod("GetCharIndexAtPos");
+    Console.WriteLine($"Method: {method?.Name}");
+    foreach (var param in method?.GetParameters() ?? Array.Empty<ParameterInfo>())
     {
-        Console.WriteLine($"Type: {type.FullName}");
+        Console.WriteLine($"  Param: {param.Name} ({param.ParameterType.Name})");
     }
 }
 catch (Exception ex)
