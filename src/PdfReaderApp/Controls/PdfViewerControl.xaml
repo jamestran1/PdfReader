@@ -3,12 +3,11 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:pdf="clr-namespace:PdfiumViewer;assembly=PdfiumViewer.Net.WPF"
              mc:Ignorable="d" d:DesignHeight="450" d:DesignWidth="800">
     <Grid Background="#525659">
-        <ScrollViewer x:Name="PagesScrollViewer" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-            <ItemsControl x:Name="PagesContainer">
-                <!-- Nội dung trang PDF sẽ được render động vào đây -->
-            </ItemsControl>
+        <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+            <pdf:PdfRenderer x:Name="pdfRenderer" Background="White" Margin="10" />
         </ScrollViewer>
     </Grid>
 </UserControl>
