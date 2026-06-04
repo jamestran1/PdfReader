@@ -11,6 +11,46 @@
         <viewmodels:MainViewModel />
     </Window.DataContext>
     <Grid>
-        <TextBlock Text="Welcome to PDF Reader &amp; AI" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="24"/>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="50"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="300"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="0" Grid.ColumnSpan="2" Background="#EEE" BorderBrush="#CCC" BorderThickness="0,0,0,1">
+            <StackPanel Orientation="Horizontal" Margin="10,0">
+                <Button Content="Open PDF" Margin="0,0,10,0" Padding="10,5"/>
+                <Button Content="Highlight" Margin="0,0,10,0" Padding="10,5"/>
+            </StackPanel>
+        </Border>
+
+        <!-- PDF Viewer Placeholder -->
+        <Border Grid.Row="1" Grid.Column="0" Background="#525659">
+            <TextBlock Text="PDF Viewer Component" Foreground="White" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- AI Sidebar -->
+        <Border Grid.Row="1" Grid.Column="1" Background="#F9F9F9" BorderBrush="#CCC" BorderThickness="1,0,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <ScrollViewer Grid.Row="0" Margin="10">
+                    <StackPanel>
+                        <TextBlock Text="AI Chat" FontWeight="Bold" Margin="0,0,0,10"/>
+                        <TextBlock Text="Xin chào! Bạn có câu hỏi nào về tài liệu này?" TextWrapping="Wrap"/>
+                    </StackPanel>
+                </ScrollViewer>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="10">
+                    <TextBox Width="200" Margin="0,0,10,0" Padding="5"/>
+                    <Button Content="Gửi" Padding="10,5"/>
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>
