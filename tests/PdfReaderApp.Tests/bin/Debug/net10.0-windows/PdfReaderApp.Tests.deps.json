@@ -502,6 +502,7 @@
           "MaterialDesignColors": "5.3.2",
           "MaterialDesignThemes": "5.1.0",
           "PdfiumViewer.Net.WPF": "3.0.4",
+          "SkiaSharp.Views.Desktop.Common": "3.119.4",
           "SkiaSharp.Views.WPF": "3.119.4"
         },
         "runtime": {
