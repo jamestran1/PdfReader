@@ -1,11 +1,15 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
-using PdfiumViewer;
+using PdfiumViewer.Core; // For PdfDocument
 
 namespace PdfReaderApp.Controls;
 
-public partial class PdfViewerControl : UserControl
+public partial class PdfViewerControl : UserControl, IDisposable
 {
+    private PdfDocument? _currentDocument;
+    private bool _disposed;
+
     public static readonly DependencyProperty DocumentSourceProperty =
         DependencyProperty.Register("DocumentSource", typeof(string), typeof(PdfViewerControl), 
             new PropertyMetadata(null, OnDocumentSourceChanged));
@@ -19,6 +23,7 @@ public partial class PdfViewerControl : UserControl
     public PdfViewerControl()
     {
         InitializeComponent();
+        this.Unloaded += PdfViewerControl_Unloaded;
     }
 
     private static void OnDocumentSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -31,7 +36,54 @@ public partial class PdfViewerControl : UserControl
 
     private void LoadDocument(string path)
     {
-        // Logic render đơn giản: Hiển thị tên file để verify binding trước
-        System.Diagnostics.Debug.WriteLine($"Loading PDF: {path}");
+        try
+        {
+            // Giải phóng tài liệu cũ trước khi mở tài liệu mới
+            DisposeCurrentDocument();
+
+            _currentDocument = PdfDocument.Load(path);
+            pdfViewer.Document = _currentDocument;
+            
+            System.Diagnostics.Debug.WriteLine($"Successfully loaded PDF: {path}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Lỗi khi mở file PDF: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void DisposeCurrentDocument()
+    {
+        if (_currentDocument != null)
+        {
+            // Set Document of renderer to null to detach it
+            pdfViewer.Document = null;
+            
+            _currentDocument.Dispose();
+            _currentDocument = null;
+        }
+    }
+
+    private void PdfViewerControl_Unloaded(object sender, RoutedEventArgs e)
+    {
+        Dispose();
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                DisposeCurrentDocument();
+            }
+            _disposed = true;
+        }
     }
 }
