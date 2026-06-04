@@ -1,0 +1,14 @@
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\bin\Debug\net10.0\Inspector_Core.exe
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\bin\Debug\net10.0\Inspector_Core.deps.json
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\bin\Debug\net10.0\Inspector_Core.runtimeconfig.json
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\bin\Debug\net10.0\Inspector_Core.dll
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\bin\Debug\net10.0\Inspector_Core.pdb
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\obj\Debug\net10.0\Inspector_Core.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\obj\Debug\net10.0\Inspector_Core.AssemblyInfoInputs.cache
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\obj\Debug\net10.0\Inspector_Core.AssemblyInfo.cs
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\obj\Debug\net10.0\Inspector_Core.csproj.CoreCompileInputs.cache
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\obj\Debug\net10.0\Inspector_Core.dll
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\obj\Debug\net10.0\refint\Inspector_Core.dll
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\obj\Debug\net10.0\Inspector_Core.pdb
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\obj\Debug\net10.0\Inspector_Core.genruntimeconfig.cache
+C:\Users\jamet\source\repos\pdfreader\Inspector_Core\obj\Debug\net10.0\ref\Inspector_Core.dll
