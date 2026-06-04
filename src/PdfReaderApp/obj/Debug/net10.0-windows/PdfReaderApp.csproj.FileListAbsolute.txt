@@ -21,3 +21,4 @@ C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\obj\Debug\net10.0-windows
 C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\obj\Debug\net10.0-windows\PdfReaderApp.pdb
 C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\obj\Debug\net10.0-windows\PdfReaderApp.genruntimeconfig.cache
 C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\obj\Debug\net10.0-windows\ref\PdfReaderApp.dll
+C:\Users\jamet\source\repos\pdfreader\src\PdfReaderApp\obj\Debug\net10.0-windows\GeneratedInternalTypeHelper.g.cs

@@ -1,12 +1,16 @@
-﻿<Window x:Class="PdfReaderApp.MainWindow"
+<Window x:Class="PdfReaderApp.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:PdfReaderApp"
+        xmlns:viewmodels="clr-namespace:PdfReaderApp.ViewModels"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="{Binding WindowTitle}" Height="720" Width="1080">
+    <Window.DataContext>
+        <viewmodels:MainViewModel />
+    </Window.DataContext>
     <Grid>
-
+        <TextBlock Text="Welcome to PDF Reader &amp; AI" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="24"/>
     </Grid>
 </Window>
