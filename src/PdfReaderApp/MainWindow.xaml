@@ -14,6 +14,10 @@
         TextElement.FontWeight="Medium"
         TextElement.FontSize="14"
         FontFamily="{materialDesign:MaterialDesignFont}">
+    <Window.Resources>
+        <local:RoleToBrushConverter x:Key="RoleToBrushConverter" />
+        <local:RoleToAlignConverter x:Key="RoleToAlignConverter" />
+    </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
     </Window.DataContext>
@@ -137,7 +141,10 @@
                     <ItemsControl ItemsSource="{Binding ChatMessages}" Margin="16">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <materialDesign:Card Padding="12" Margin="0,0,0,12" UniformCornerRadius="8">
+                                <materialDesign:Card Background="{Binding Role, Converter={StaticResource RoleToBrushConverter}}" 
+                                                    Padding="12" Margin="0,0,0,12" 
+                                                    UniformCornerRadius="8"
+                                                    HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignConverter}}">
                                     <StackPanel>
                                         <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
                                         <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Margin="0,4,0,0"/>
