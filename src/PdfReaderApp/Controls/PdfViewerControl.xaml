@@ -7,17 +7,18 @@
              xmlns:local="clr-namespace:PdfReaderApp.Controls"
              mc:Ignorable="d" d:DesignHeight="450" d:DesignWidth="800">
     <Grid Background="#525659">
+        <!-- GPU Render Layer (Fixed to Viewport) -->
+        <skia:SKElement x:Name="skiaCanvas" 
+                        PaintSurface="OnPaintCanvas" 
+                        Margin="10" />
+        
+        <!-- Virtualized Scroll Area -->
         <ScrollViewer x:Name="PagesScrollViewer" 
                       CanContentScroll="True" 
                       VerticalScrollBarVisibility="Auto" 
                       HorizontalScrollBarVisibility="Auto"
                       ScrollChanged="PagesScrollViewer_ScrollChanged">
             <Grid>
-                <!-- GPU Render Layer -->
-                <skia:SKElement x:Name="skiaCanvas" 
-                                PaintSurface="OnPaintCanvas" 
-                                Margin="10" />
-                
                 <!-- Interaction / Editing Overlay -->
                 <Canvas x:Name="InteractionCanvas" Margin="10" Background="Transparent">
                     <local:MicroEditor x:Name="TextEditor" Visibility="Collapsed" />
