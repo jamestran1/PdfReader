@@ -16,9 +16,42 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            System.IO.File.WriteAllText("crash_log.txt", $"XAML Load Error: {ex.Message}\n\nInner: {ex.InnerException?.Message}\n\nStack Trace: {ex.StackTrace}");
+            string detail = GetExceptionDetails(ex);
+            try
+            {
+                System.IO.File.WriteAllText("pdf_crash_log.txt", detail);
+            }
+            catch { }
+            
+            MessageBox.Show(detail, "Lỗi Khởi tạo Hệ thống", MessageBoxButton.OK, MessageBoxImage.Error);
             Application.Current.Shutdown();
         }
+    }
+
+    private static string GetExceptionDetails(Exception? ex)
+    {
+        if (ex == null) return "No exception details available.";
+        
+        System.Text.StringBuilder sb = new();
+        sb.AppendLine("=== PDF READER CRASH LOG ===");
+        sb.AppendLine($"Time: {DateTime.Now}");
+        sb.AppendLine();
+
+        int depth = 0;
+        Exception? current = ex;
+        while (current != null)
+        {
+            sb.AppendLine($"[Level {depth}] {current.GetType().FullName}");
+            sb.AppendLine($"Message: {current.Message}");
+            sb.AppendLine("Stack Trace:");
+            sb.AppendLine(current.StackTrace);
+            sb.AppendLine(new string('-', 40));
+            
+            current = current.InnerException;
+            depth++;
+        }
+        
+        return sb.ToString();
     }
 }
 

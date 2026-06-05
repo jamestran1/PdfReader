@@ -9,7 +9,7 @@ public class MainViewModelTests
     public void MainViewModel_ShouldInitializeWithDefaultValues()
     {
         var viewModel = new MainViewModel();
-        Assert.Equal("PDF Reader & AI", viewModel.WindowTitle);
+        Assert.Equal("Ultimate PDF Reader & Editor", viewModel.WindowTitle);
         Assert.Equal(1, viewModel.CurrentPage);
         Assert.Equal(1, viewModel.TotalPages);
         Assert.Equal(1.0, viewModel.ZoomLevel);
