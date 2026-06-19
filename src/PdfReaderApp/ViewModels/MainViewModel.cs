@@ -55,7 +55,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (dialog.ShowDialog() != true) return;
 
         FilePath = dialog.FileName;
-        _documentService.LoadFile(FilePath);
+        try
+        {
+            _documentService.LoadFile(FilePath);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(
+                $"Không thể mở file PDF: {ex.Message}",
+                "Lỗi mở file",
+                System.Windows.MessageBoxButton.OK,
+                System.Windows.MessageBoxImage.Warning);
+            FilePath = null;
+        }
     }
 
     [RelayCommand]
