@@ -9,11 +9,12 @@ using PdfReaderApp.Services;
 
 namespace PdfReaderApp.ViewModels;
 
-public partial class MainViewModel : ObservableObject
+public partial class MainViewModel : ObservableObject, IDisposable
 {
     private readonly AIService _aiService = new();
-    private readonly PdfStructureAnalyzer _analyzer = new();
-    
+    private readonly IPdfDocumentService _documentService;
+    private readonly PdfStructureAnalyzer _analyzer;
+
     [ObservableProperty]
     private string windowTitle = "Ultimate PDF Reader & Editor";
 
@@ -34,8 +35,12 @@ public partial class MainViewModel : ObservableObject
 
     public ObservableCollection<ChatMessage> ChatMessages { get; } = new();
 
-    public MainViewModel()
+    public MainViewModel() : this(new ITextPdfDocumentService()) { }
+
+    public MainViewModel(IPdfDocumentService documentService)
     {
+        _documentService = documentService;
+        _analyzer = new PdfStructureAnalyzer(_documentService);
         ChatMessages.Add(new ChatMessage { Role = "AI", Content = "Xin chào! Tôi có thể giúp gì cho bạn về tài liệu này?" });
     }
 
@@ -47,10 +52,10 @@ public partial class MainViewModel : ObservableObject
             Filter = "PDF Files (*.pdf)|*.pdf|All Files (*.*)|*.*"
         };
 
-        if (dialog.ShowDialog() == true)
-        {
-            FilePath = dialog.FileName;
-        }
+        if (dialog.ShowDialog() != true) return;
+
+        FilePath = dialog.FileName;
+        _documentService.LoadFile(FilePath);
     }
 
     [RelayCommand]
@@ -60,49 +65,51 @@ public partial class MainViewModel : ObservableObject
 
         string question = ChatInput;
         ChatInput = string.Empty;
-        
+
         ChatMessages.Add(new ChatMessage { Role = "User", Content = question });
 
-        // Simple RAG context: For now just use first 1000 chars of current page text
-        // In a real implementation, we'd use the analyzer's chunks and a vector search
-        string context = "Ngữ cảnh từ tài liệu..."; 
-        
+        string context = BuildContextFromDocument();
         var response = await _aiService.AskQuestionAsync(question, context);
         ChatMessages.Add(new ChatMessage { Role = "AI", Content = response });
+    }
+
+    private string BuildContextFromDocument()
+    {
+        if (string.IsNullOrEmpty(FilePath)) return string.Empty;
+
+        try
+        {
+            var chunks = _analyzer.Analyze();
+            return string.Join("\n", chunks.Take(50).Select(c => c.Text));
+        }
+        catch
+        {
+            return string.Empty;
+        }
     }
 
     [RelayCommand]
     private void NextPage()
     {
-        if (CurrentPage < TotalPages)
-        {
-            CurrentPage++;
-        }
+        if (CurrentPage < TotalPages) CurrentPage++;
     }
 
     [RelayCommand]
     private void PreviousPage()
     {
-        if (CurrentPage > 1)
-        {
-            CurrentPage--;
-        }
+        if (CurrentPage > 1) CurrentPage--;
     }
 
     [RelayCommand]
-    private void ZoomIn()
-    {
-        ZoomLevel += 0.2;
-    }
+    private void ZoomIn() => ZoomLevel += 0.2;
 
     [RelayCommand]
     private void ZoomOut()
     {
-        if (ZoomLevel > 0.4)
-        {
-            ZoomLevel -= 0.2;
-        }
+        if (ZoomLevel > 0.4) ZoomLevel -= 0.2;
     }
+
+    public void Dispose() => _documentService.Dispose();
 }
 
 public class ChatMessage
