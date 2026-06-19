@@ -480,3 +480,7 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Local agent/tooling folders (do not commit) - migrated from Gemini memory
+conductor/
+.serena/
