@@ -15,6 +15,8 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
     {
         _pdfDoc?.Close();
         _pdfReader?.Close();
+        _pdfDoc = null;
+        _pdfReader = null;
 
         _pdfReader = new PdfReader(filePath);
         _pdfDoc = new PdfDocument(_pdfReader);
