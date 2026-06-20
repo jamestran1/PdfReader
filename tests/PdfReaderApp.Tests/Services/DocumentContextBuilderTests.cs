@@ -1,0 +1,55 @@
+using System.Collections.Generic;
+using PdfReaderApp.Models;
+using PdfReaderApp.Services;
+
+namespace PdfReaderApp.Tests.Services;
+
+public class DocumentContextBuilderTests
+{
+    private static TextBlock Block(string text, int pageIndex) =>
+        new(text, 0f, 0f, 0f, 0f, 12f, pageIndex, "Paragraph");
+
+    private static List<TextBlock> FivePages() => new()
+    {
+        Block("page0", 0), Block("page1", 1), Block("page2", 2),
+        Block("page3", 3), Block("page4", 4)
+    };
+
+    [Fact]
+    public void BuildAround_IncludesWindowPagesOnly()
+    {
+        // currentPage=3 (1-based) -> index 2; window 1 -> indices 1,2,3
+        var ctx = DocumentContextBuilder.BuildAround(FivePages(), currentPageOneBased: 3, window: 1);
+
+        Assert.Contains("page1", ctx);
+        Assert.Contains("page2", ctx);
+        Assert.Contains("page3", ctx);
+        Assert.DoesNotContain("page0", ctx);
+        Assert.DoesNotContain("page4", ctx);
+    }
+
+    [Fact]
+    public void BuildAround_FirstPage_DoesNotFailOnNegativeLowerBound()
+    {
+        var ctx = DocumentContextBuilder.BuildAround(FivePages(), currentPageOneBased: 1, window: 2);
+
+        Assert.Contains("page0", ctx);
+        Assert.Contains("page2", ctx);
+        Assert.DoesNotContain("page3", ctx);
+    }
+
+    [Fact]
+    public void BuildAround_EmptyBlocks_ReturnsEmptyString()
+    {
+        var ctx = DocumentContextBuilder.BuildAround(new List<TextBlock>(), currentPageOneBased: 1, window: 2);
+        Assert.Equal(string.Empty, ctx);
+    }
+
+    [Fact]
+    public void BuildAround_TruncatesToMaxChars()
+    {
+        var blocks = new List<TextBlock> { Block(new string('x', 100), 0) };
+        var ctx = DocumentContextBuilder.BuildAround(blocks, currentPageOneBased: 1, window: 0, maxChars: 10);
+        Assert.True(ctx.Length <= 10);
+    }
+}
