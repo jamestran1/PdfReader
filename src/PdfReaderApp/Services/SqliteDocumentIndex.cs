@@ -17,7 +17,7 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
 
     public SqliteDocumentIndex(string dbPath, string vec0Path)
     {
-        _conn = new SqliteConnection($"Data Source={dbPath}");
+        _conn = new SqliteConnection($"Data Source={dbPath};Pooling=False");
         _conn.Open();
         Exec("PRAGMA journal_mode=WAL;");
         try
@@ -79,39 +79,40 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         }
     }
 
+    private void DeleteDocumentCore(string documentId)
+    {
+        var deletes = new List<string>
+        {
+            "DELETE FROM chunks_fts WHERE rowid IN (SELECT chunk_id FROM chunks WHERE document_id=$id)",
+            "DELETE FROM chunks WHERE document_id=$id",
+            "DELETE FROM documents WHERE document_id=$id"
+        };
+        if (_vecAvailable)
+            deletes.Insert(1, "DELETE FROM vec_chunks WHERE document_id=$id");
+
+        using var tx = _conn.BeginTransaction();
+        foreach (var sql in deletes)
+        {
+            using var cmd = _conn.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$id", documentId);
+            cmd.ExecuteNonQuery();
+        }
+        tx.Commit();
+    }
+
     public void DeleteDocument(string documentId)
     {
-        lock (_lock)
-        {
-            var deletes = new List<string>
-            {
-                "DELETE FROM chunks_fts WHERE rowid IN (SELECT chunk_id FROM chunks WHERE document_id=$id)",
-                "DELETE FROM chunks WHERE document_id=$id",
-                "DELETE FROM documents WHERE document_id=$id"
-            };
-            if (_vecAvailable)
-                deletes.Insert(1, "DELETE FROM vec_chunks WHERE document_id=$id");
-
-            using var tx = _conn.BeginTransaction();
-            foreach (var sql in deletes)
-            {
-                using var cmd = _conn.CreateCommand();
-                cmd.Transaction = tx;
-                cmd.CommandText = sql;
-                cmd.Parameters.AddWithValue("$id", documentId);
-                cmd.ExecuteNonQuery();
-            }
-            tx.Commit();
-        }
+        lock (_lock) { DeleteDocumentCore(documentId); }
     }
 
     public IReadOnlyList<long> WriteChunks(
         string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks)
     {
-        DeleteDocument(documentId); // idempotent re-index (takes _lock internally)
-
         lock (_lock)
         {
+            DeleteDocumentCore(documentId); // idempotent re-index, atomic with inserts
             var ids = new List<long>();
             using var tx = _conn.BeginTransaction();
 
