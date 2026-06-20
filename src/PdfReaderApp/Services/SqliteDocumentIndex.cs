@@ -233,9 +233,30 @@ LIMIT $lim";
         }
     }
 
-    // Task 5 implements this (wrap body in lock (_lock); return empty if !_vecAvailable).
     public List<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5)
-        => throw new NotImplementedException();
+    {
+        if (!_vecAvailable) return new List<Chunk>(); // degrade: caller falls back to per-page context
+        lock (_lock)
+        {
+            var results = new List<Chunk>();
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = @"
+SELECT c.document_id, c.page_index, c.ordinal, c.text
+FROM vec_chunks v
+JOIN chunks c ON c.chunk_id = v.chunk_id
+WHERE v.document_id = $id AND v.embedding MATCH $vec AND k = $k
+ORDER BY distance";
+            cmd.Parameters.AddWithValue("$id", documentId);
+            cmd.Parameters.AddWithValue("$vec", ToJson(queryVector));
+            cmd.Parameters.AddWithValue("$k", k);
+
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                results.Add(new Chunk(r.GetString(0), r.GetInt32(1), r.GetInt32(2), r.GetString(3)));
+
+            return results;
+        }
+    }
 
     internal static string ToJson(float[] vector) =>
         "[" + string.Join(",", vector.Select(f => f.ToString(CultureInfo.InvariantCulture))) + "]";
