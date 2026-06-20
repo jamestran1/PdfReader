@@ -124,7 +124,7 @@
                             </Grid>
                         </materialDesign:ColorZone>
 
-                        <Popup IsOpen="{Binding SearchResults.Count, Converter={StaticResource CountToBoolConverter}}"
+                        <Popup IsOpen="{Binding SearchResults.Count, Converter={StaticResource CountToBoolConverter}, Mode=OneWay}"
                                PlacementTarget="{Binding ElementName=SearchBox}" Placement="Bottom"
                                StaysOpen="False" MaxHeight="300" Width="320">
                             <materialDesign:Card Padding="4" Background="{DynamicResource MaterialDesignPaper}">
