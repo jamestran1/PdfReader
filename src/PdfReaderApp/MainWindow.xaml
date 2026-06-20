@@ -54,7 +54,8 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="2" Margin="0,0,0,20">
-                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Settings">
+                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Settings"
+                            Command="{Binding OpenSettingsCommand}">
                         <materialDesign:PackIcon Kind="Settings" Width="24" Height="24"/>
                     </Button>
                 </StackPanel>
