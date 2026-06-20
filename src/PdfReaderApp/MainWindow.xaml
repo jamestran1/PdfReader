@@ -18,6 +18,7 @@
         <local:RoleToBrushConverter x:Key="RoleToBrushConverter" />
         <local:RoleToAlignConverter x:Key="RoleToAlignConverter" />
         <local:CountToBoolConverter x:Key="CountToBoolConverter" />
+        <local:PageDisplayConverter x:Key="PageDisplayConverter" />
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -135,7 +136,7 @@
                                                     Command="{Binding DataContext.SelectSearchResultCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding PageIndex, StringFormat='Trang {0}'}" FontWeight="Bold" FontSize="11"/>
+                                                    <TextBlock Text="{Binding PageIndex, Converter={StaticResource PageDisplayConverter}, StringFormat='Trang {0}'}" FontWeight="Bold" FontSize="11"/>
                                                     <TextBlock Text="{Binding Snippet}" TextWrapping="Wrap" FontSize="11" Opacity="0.8"/>
                                                 </StackPanel>
                                             </Button>

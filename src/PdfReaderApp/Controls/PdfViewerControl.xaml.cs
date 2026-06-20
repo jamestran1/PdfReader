@@ -399,20 +399,20 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void DrawHighlights(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
     {
+        if (_currentDocument == null) return;
+
         string query = HighlightQuery;
         if (string.IsNullOrWhiteSpace(query)) return;
 
         var blocks = Blocks;
         if (blocks is null || blocks.Count == 0) return;
 
-        // PdfCoordinateMapper uses scale * (dpi/72). PDFium renders at 96 DPI by default.
-        // The render engine renders at scale * 96 DPI; points -> pixels = scale * (96/72).
-        // However, the bitmap was produced by RenderEngine which applies 'scale' directly to
-        // the PDFium render size (width/height in points * scale), so pixelsPerPoint = scale.
-        // We construct the mapper with dpi=72 so that pixelsPerPoint = scale * (72/72) = scale.
-        var pageSize = _currentDocument!.Pages[pageIndex].Size;
+        // RenderEngine.RenderPage renders at 96 DPI, so pixelsPerPoint = scale * (96/72).
+        // PdfCoordinateMapper(pageHeightPt, scale, dpi) computes ppp = scale * (dpi/72).
+        // Using dpi=96 gives the correct mapping to match the rendered bitmap.
+        var pageSize = _currentDocument.Pages[pageIndex].Size;
         float pageHeightPt = (float)pageSize.Height;
-        var mapper = new PdfCoordinateMapper(pageHeightPt, scale, 72);
+        var mapper = new PdfCoordinateMapper(pageHeightPt, scale, 96);
 
         using var highlightPaint = new SKPaint
         {

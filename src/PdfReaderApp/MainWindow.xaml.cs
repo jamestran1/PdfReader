@@ -90,3 +90,9 @@ public sealed class CountToBoolConverter : IValueConverter
     public object Convert(object value, Type t, object p, CultureInfo c) => value is int n && n > 0;
     public object ConvertBack(object value, Type t, object p, CultureInfo c) => throw new NotSupportedException();
 }
+
+public sealed class PageDisplayConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object p, CultureInfo c) => value is int n ? n + 1 : value;
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => throw new NotSupportedException();
+}
