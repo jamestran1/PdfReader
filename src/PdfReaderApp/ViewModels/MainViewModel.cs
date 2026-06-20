@@ -142,8 +142,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenSettings()
     {
-        // Replaced by the real dialog in Task 6.
-        System.Windows.MessageBox.Show("Cài đặt API key (sẽ hoàn thiện ở bước kế tiếp).");
+        var window = new SettingsWindow
+        {
+            Owner = System.Windows.Application.Current?.MainWindow
+        };
+
+        if (window.ShowDialog() == true && !string.IsNullOrWhiteSpace(window.ApiKey))
+        {
+            _settingsService.SaveApiKey(window.ApiKey.Trim());
+        }
     }
 
     [RelayCommand]
