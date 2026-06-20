@@ -484,3 +484,5 @@ $RECYCLE.BIN/
 # Local agent/tooling folders (do not commit) - migrated from Gemini memory
 conductor/
 .serena/
+
+/PdfReaderApp.slnx
