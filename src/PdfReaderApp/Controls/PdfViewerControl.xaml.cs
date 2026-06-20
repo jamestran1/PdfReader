@@ -12,6 +12,7 @@ using SkiaSharp.Views.Desktop;
 using PdfiumViewer.Core;
 using PdfReaderApp.Core;
 using PdfReaderApp.Core.Commands;
+using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Controls;
 
@@ -65,6 +66,31 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         get => (double)GetValue(ZoomLevelProperty);
         set => SetValue(ZoomLevelProperty, value);
+    }
+
+    // HighlightQuery: text to highlight on the visible page (bound to SelectedSearchQuery)
+    public static readonly DependencyProperty HighlightQueryProperty =
+        DependencyProperty.Register(nameof(HighlightQuery), typeof(string), typeof(PdfViewerControl),
+            new PropertyMetadata(string.Empty, OnHighlightChanged));
+
+    public string HighlightQuery
+    {
+        get => (string)GetValue(HighlightQueryProperty);
+        set => SetValue(HighlightQueryProperty, value);
+    }
+
+    private static void OnHighlightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => ((PdfViewerControl)d).skiaCanvas.InvalidateVisual();
+
+    // Blocks: all TextBlocks from the document (bound to MainViewModel.DocumentBlocks)
+    public static readonly DependencyProperty BlocksProperty =
+        DependencyProperty.Register(nameof(Blocks), typeof(IReadOnlyList<Models.TextBlock>), typeof(PdfViewerControl),
+            new PropertyMetadata(null, OnHighlightChanged));
+
+    public IReadOnlyList<Models.TextBlock>? Blocks
+    {
+        get => (IReadOnlyList<Models.TextBlock>?)GetValue(BlocksProperty);
+        set => SetValue(BlocksProperty, value);
     }
 
     public PdfViewerControl()
@@ -350,12 +376,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
                 }
 
                 var bitmap = _pageCache[i];
-                
+
                 // Draw at the pre-calculated centered coordinates
                 canvas.DrawBitmap(bitmap, (float)rect.Left, (float)rect.Top);
-                
+
                 using var paint = new SKPaint { Color = SKColors.Black, IsStroke = true, StrokeWidth = 1 };
                 canvas.DrawRect((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height, paint);
+
+                // Draw yellow highlight rects for matching TextBlocks on this page
+                DrawHighlights(canvas, i, rect, scale);
             }
             else
             {
@@ -365,6 +394,52 @@ public partial class PdfViewerControl : UserControl, IDisposable
                     _pageCache.Remove(i);
                 }
             }
+        }
+    }
+
+    private void DrawHighlights(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
+    {
+        if (_currentDocument == null) return;
+
+        string query = HighlightQuery;
+        if (string.IsNullOrWhiteSpace(query)) return;
+
+        var blocks = Blocks;
+        if (blocks is null || blocks.Count == 0) return;
+
+        // RenderEngine.RenderPage renders at 96 DPI, so pixelsPerPoint = scale * (96/72).
+        // PdfCoordinateMapper(pageHeightPt, scale, dpi) computes ppp = scale * (dpi/72).
+        // Using dpi=96 gives the correct mapping to match the rendered bitmap.
+        var pageSize = _currentDocument.Pages[pageIndex].Size;
+        float pageHeightPt = (float)pageSize.Height;
+        var mapper = new PdfCoordinateMapper(pageHeightPt, scale, 96);
+
+        using var highlightPaint = new SKPaint
+        {
+            Color = new SKColor(255, 235, 59, 110),
+            IsStroke = false
+        };
+
+        foreach (Models.TextBlock block in blocks)
+        {
+            if (block.PageIndex != pageIndex) continue;
+            if (!block.Text.Contains(query, StringComparison.OrdinalIgnoreCase)) continue;
+
+            // PdfY in TextBlock is the top edge in PDF user-space (bottom-left origin).
+            // PdfPointToRender(x, y) maps: renderY = (pageHeight - y) * ppp
+            // For the top-left corner of the block in render space:
+            //   top of block in PDF coords = PdfY + Height (since PDF Y grows up)
+            var (rx, ry) = mapper.PdfPointToRender(block.PdfX, block.PdfY + block.Height);
+            float rw = block.Width * scale;
+            float rh = block.Height * scale;
+
+            var highlightRect = SKRect.Create(
+                (float)pageRect.Left + rx,
+                (float)pageRect.Top + ry,
+                rw,
+                rh);
+
+            canvas.DrawRect(highlightRect, highlightPaint);
         }
     }
 

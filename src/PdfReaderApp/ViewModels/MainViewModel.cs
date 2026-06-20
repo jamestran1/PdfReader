@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -19,8 +20,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly PdfStructureAnalyzer _analyzer;
     private readonly AiChatService _chatService;
 
+    // SP2 Task 8: index, indexing service, RAG context
+    private readonly IDocumentIndex _documentIndex;
+    private readonly DocumentIndexingService _indexingService;
+    private readonly RagContextService _ragContext;
+
     private List<TextBlock> _documentBlocks = new();
+    public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
     private bool _isSending;
+
+    private string? _documentId;
+    private CancellationTokenSource? _indexCts;
+
+    [ObservableProperty]
+    private string _indexingStatusText = string.Empty;
+
+    public ObservableCollection<SearchResult> SearchResults { get; } = new();
+
+    [ObservableProperty]
+    private string _searchQuery = string.Empty;
+
+    [ObservableProperty]
+    private string _selectedSearchQuery = string.Empty;
 
     [ObservableProperty]
     private string windowTitle = "Ultimate PDF Reader & Editor";
@@ -42,18 +63,39 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<ChatMessage> ChatMessages { get; } = new();
 
+    private static string IndexDbPath()
+    {
+        string dir = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfReaderApp");
+        System.IO.Directory.CreateDirectory(dir);
+        return System.IO.Path.Combine(dir, "index.db");
+    }
+
     public MainViewModel()
-        : this(new ITextPdfDocumentService(), new WindowsSettingsService(), new OpenAiChatClientFactory()) { }
+        : this(new ITextPdfDocumentService(),
+               new WindowsSettingsService(),
+               new OpenAiChatClientFactory(),
+               new SqliteDocumentIndex(IndexDbPath(),
+                   System.IO.Path.Combine(AppContext.BaseDirectory, "vec0.dll")),
+               new OpenAiEmbeddingGeneratorFactory())
+    { }
 
     public MainViewModel(
         IPdfDocumentService documentService,
         ISettingsService settingsService,
-        IChatClientFactory chatClientFactory)
+        IChatClientFactory chatClientFactory,
+        IDocumentIndex documentIndex,
+        IEmbeddingGeneratorFactory embeddingFactory)
     {
         _documentService = documentService;
         _settingsService = settingsService;
         _analyzer = new PdfStructureAnalyzer(_documentService);
         _chatService = new AiChatService(settingsService, chatClientFactory);
+
+        _documentIndex = documentIndex;
+        _documentIndex.EnsureSchema();
+        _indexingService = new DocumentIndexingService(_documentIndex, embeddingFactory, settingsService);
+        _ragContext = new RagContextService(_documentIndex, embeddingFactory, settingsService);
 
         ChatMessages.Add(new ChatMessage
         {
@@ -77,11 +119,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             _documentService.LoadFile(FilePath);
             _documentBlocks = _analyzer.AnalyzeRich();
+
+            _documentId = DocumentId.FromFile(FilePath);
             _chatService.ResetConversation();
+            SearchResults.Clear();
+            StartBackgroundIndexing();
         }
         catch (Exception ex)
         {
             _documentBlocks = new List<TextBlock>();
+            _documentId = null;
             System.Windows.MessageBox.Show(
                 $"Không thể mở file PDF: {ex.Message}",
                 "Lỗi mở file",
@@ -89,6 +136,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 System.Windows.MessageBoxImage.Warning);
             FilePath = null;
         }
+    }
+
+    private void StartBackgroundIndexing()
+    {
+        if (_documentId is null) return;
+
+        _indexCts?.Cancel();
+        _indexCts = new CancellationTokenSource();
+        var ct = _indexCts.Token;
+        string docId = _documentId;
+        string? path = FilePath;
+        var blocks = _documentBlocks;
+
+        var progress = new Progress<IndexingProgress>(p =>
+            IndexingStatusText = p.Status == "complete"
+                ? string.Empty
+                : $"Đang lập chỉ mục: {p.Done}/{p.Total}");
+
+        _ = Task.Run(async () =>
+        {
+            try { await _indexingService.IndexAsync(docId, path, blocks, progress, ct); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+                    IndexingStatusText = $"Lập chỉ mục lỗi: {ex.Message}");
+            }
+        }, ct);
     }
 
     [RelayCommand]
@@ -114,7 +189,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            string context = DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
+            string context;
+            if (_documentId is not null)
+            {
+                string? rag = null;
+                try { rag = await _ragContext.BuildContextAsync(_documentId, question); }
+                catch { rag = null; }
+                context = rag ?? DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
+            }
+            else
+            {
+                context = DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
+            }
 
             var aiMessage = new ChatMessage { Role = "AI", Content = string.Empty };
             ChatMessages.Add(aiMessage);
@@ -148,6 +234,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
         AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
         _ => "Đã xảy ra lỗi khi gọi AI."
     };
+
+    [RelayCommand]
+    private void Search()
+    {
+        SearchResults.Clear();
+        if (_documentId is null || string.IsNullOrWhiteSpace(SearchQuery)) return;
+
+        try
+        {
+            foreach (var hit in _documentIndex.SearchText(_documentId, SearchQuery))
+                SearchResults.Add(hit);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show($"Tìm kiếm lỗi: {ex.Message}", "Search",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+        }
+    }
+
+    [RelayCommand]
+    private void SelectSearchResult(SearchResult? result)
+    {
+        if (result is null) return;
+        CurrentPage = result.PageIndex + 1;
+        SelectedSearchQuery = SearchQuery;
+    }
 
     [RelayCommand]
     private void OpenSettings()
@@ -186,6 +298,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        _indexCts?.Cancel();
+        _documentIndex.Dispose();
         _documentService.Dispose();
         _chatService.Dispose();
     }
