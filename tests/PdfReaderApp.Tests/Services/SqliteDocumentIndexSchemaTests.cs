@@ -69,8 +69,8 @@ public class SqliteDocumentIndexSchemaTests : IDisposable
 
     public void Dispose()
     {
-        // Release SQLite connection pool file handles before deleting the temp dir (Windows WAL lock).
-        SqliteConnection.ClearAllPools();
+        // With Pooling=False the index's own Dispose() fully releases the file handle.
+        // No need for ClearAllPools(); just delete the temp dir.
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
     }
 }
