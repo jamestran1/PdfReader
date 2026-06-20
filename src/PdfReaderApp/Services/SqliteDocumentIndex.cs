@@ -235,6 +235,7 @@ LIMIT $lim";
 
     public List<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5)
     {
+        ArgumentNullException.ThrowIfNull(queryVector);
         if (!_vecAvailable) return new List<Chunk>(); // degrade: caller falls back to per-page context
         lock (_lock)
         {
@@ -250,9 +251,16 @@ ORDER BY distance";
             cmd.Parameters.AddWithValue("$vec", ToJson(queryVector));
             cmd.Parameters.AddWithValue("$k", k);
 
-            using var r = cmd.ExecuteReader();
-            while (r.Read())
-                results.Add(new Chunk(r.GetString(0), r.GetInt32(1), r.GetInt32(2), r.GetString(3)));
+            try
+            {
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                    results.Add(new Chunk(r.GetString(0), r.GetInt32(1), r.GetInt32(2), r.GetString(3)));
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+                return new List<Chunk>(); // degrade: vec0 query error, caller falls back
+            }
 
             return results;
         }

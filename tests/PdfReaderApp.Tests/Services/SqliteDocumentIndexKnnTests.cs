@@ -51,7 +51,7 @@ public class SqliteDocumentIndexKnnTests : IDisposable
     public void RetrieveRelevant_RespectsK()
     {
         var results = _idx.RetrieveRelevant("doc1", Hot(0), k: 2);
-        Assert.True(results.Count <= 2);
+        Assert.InRange(results.Count, 1, 2);
     }
 
     public void Dispose()
