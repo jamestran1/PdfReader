@@ -20,6 +20,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\native\vec0.dll">
+      <Link>vec0.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\PdfReaderApp\PdfReaderApp.csproj" />
   </ItemGroup>
 
