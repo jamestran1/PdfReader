@@ -51,6 +51,7 @@ Specs ở `docs/superpowers/specs/`, plans ở `docs/superpowers/plans/`. Các f
 - **KHÔNG add/commit thư mục `conductor/`** vào git (đã có trong `.gitignore`). Đây là thư mục công cụ cục bộ. (Quy tắc kế thừa từ memory của Gemini agent.)
 - File `obj/` và `bin/` không commit — chỉ sửa source thật, bỏ qua `*_wpftmp.*` (file tạm WPF trong `obj/`).
 - AI/LLM: nếu nối API thật, **không** hardcode API key trong source; dùng biến môi trường / user-secrets.
+- **Model selection:** khi brainstorming và planning dùng **Opus 4.8**; khi code (implement) dùng **Sonnet 4.6**.
 
 ## Trạng thái tính năng (tính đến 2026-06-18)
 
