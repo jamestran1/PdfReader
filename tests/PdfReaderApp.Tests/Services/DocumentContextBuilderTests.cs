@@ -51,5 +51,31 @@ public class DocumentContextBuilderTests
         var blocks = new List<TextBlock> { Block(new string('x', 100), 0) };
         var ctx = DocumentContextBuilder.BuildAround(blocks, currentPageOneBased: 1, window: 0, maxChars: 10);
         Assert.True(ctx.Length <= 10);
+        Assert.Equal(new string('x', 10), ctx);
+    }
+
+    [Fact]
+    public void BuildAround_NegativeMaxChars_ReturnsEmpty()
+    {
+        var blocks = new List<TextBlock> { Block("hello world", 0) };
+        var ctx = DocumentContextBuilder.BuildAround(blocks, currentPageOneBased: 1, window: 0, maxChars: -1);
+        Assert.Equal(string.Empty, ctx);
+    }
+
+    [Fact]
+    public void BuildAround_DoesNotSplitSurrogatePair()
+    {
+        // "😀" is U+1F600, encoded as two UTF-16 code units (high + low surrogate).
+        // Build a string of 9 'x' chars followed by "😀" so the high surrogate lands at index 9
+        // (i.e. exactly at the cut point when maxChars=10).
+        // The method must back up one char and return 9 'x' chars instead of splitting the pair.
+        string emoji = "\U0001F600"; // high surrogate at [0], low surrogate at [1]
+        string text = new string('x', 9) + emoji; // length = 11; high surrogate is at index 9
+        var blocks = new List<TextBlock> { Block(text, 0) };
+        var ctx = DocumentContextBuilder.BuildAround(blocks, currentPageOneBased: 1, window: 0, maxChars: 10);
+
+        // Result must not end with a lone high surrogate
+        Assert.False(ctx.Length > 0 && char.IsHighSurrogate(ctx[^1]),
+            "Result must not end with an unpaired high surrogate.");
     }
 }
