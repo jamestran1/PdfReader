@@ -71,10 +71,69 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         InitializeComponent();
         this.Unloaded += PdfViewerControl_Unloaded;
-        skiaCanvas.MouseDown += OnCanvasMouseDown;
+        InteractionCanvas.MouseDown += OnCanvasMouseDown;
+        
+        this.SizeChanged += PdfViewerControl_SizeChanged;
+        this.PreviewMouseWheel += PdfViewerControl_PreviewMouseWheel;
         
         TextEditor.EditingFinished += TextEditor_EditingFinished;
         TextEditor.EditingCancelled += TextEditor_EditingCancelled;
+    }
+
+    private void PdfViewerControl_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (_currentDocument != null)
+        {
+            RefreshLayout(keepCache: true);
+        }
+    }
+
+    private void PdfViewerControl_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            e.Handled = true;
+
+            if (_currentDocument == null) return;
+
+            // 1. Capture initial state
+            Point mousePos = e.GetPosition(PagesScrollViewer);
+            double oldHOffset = PagesScrollViewer.HorizontalOffset;
+            double oldVOffset = PagesScrollViewer.VerticalOffset;
+            double oldZoom = ZoomLevel;
+
+            double absoluteX = oldHOffset + mousePos.X;
+            double absoluteY = oldVOffset + mousePos.Y;
+
+            double relX = absoluteX / oldZoom;
+            double relY = absoluteY / oldZoom;
+
+            // 2. Calculate new zoom level
+            double zoomDelta = e.Delta > 0 ? 0.1 : -0.1;
+            double newZoom = oldZoom + zoomDelta;
+
+            // Constrain zoom
+            newZoom = Math.Max(0.1, Math.Min(5.0, newZoom));
+            
+            // If hitting limits, don't jump layout
+            if (Math.Abs(newZoom - oldZoom) < 0.01) return;
+
+            // This updates DependencyProperty and triggers RefreshLayout via OnZoomLevelChanged
+            ZoomLevel = newZoom;
+
+            // Force layout update so ScrollViewer knows about new InteractionCanvas size
+            this.UpdateLayout();
+
+            // 3. Adjust scroll offsets to anchor cursor
+            double newAbsoluteX = relX * newZoom;
+            double newAbsoluteY = relY * newZoom;
+
+            double newHOffset = newAbsoluteX - mousePos.X;
+            double newVOffset = newAbsoluteY - mousePos.Y;
+
+            PagesScrollViewer.ScrollToHorizontalOffset(newHOffset);
+            PagesScrollViewer.ScrollToVerticalOffset(newVOffset);
+        }
     }
 
     private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
@@ -94,7 +153,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (_currentDocument == null) return;
 
-        var screenPoint = e.GetPosition(skiaCanvas);
+        var screenPoint = e.GetPosition(InteractionCanvas);
         float scale = (float)ZoomLevel;
 
         for (int i = 0; i < _pageRects.Count; i++)
@@ -171,7 +230,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (d is PdfViewerControl control && control._currentDocument != null)
         {
-            control.RefreshLayout();
+            control.RefreshLayout(keepCache: false);
         }
     }
 
@@ -201,34 +260,52 @@ public partial class PdfViewerControl : UserControl, IDisposable
         }
     }
 
-    private void RefreshLayout()
+    private void RefreshLayout(bool keepCache = false)
     {
         if (_currentDocument == null) return;
 
         _pageRects.Clear();
-        _pageCache.Values.ToList().ForEach(b => b.Dispose());
-        _pageCache.Clear();
+        
+        if (!keepCache)
+        {
+            _pageCache.Values.ToList().ForEach(b => b.Dispose());
+            _pageCache.Clear();
+        }
 
         double currentY = 0;
-        double maxWidth = 0;
+        double maxPageWidth = 0;
         float scale = (float)ZoomLevel;
 
+        // Pass 1: Find the maximum page width
+        for (int i = 0; i < _currentDocument.PageCount; i++)
+        {
+            var pageSize = _currentDocument.Pages[i].Size;
+            double w = pageSize.Width * scale;
+            maxPageWidth = Math.Max(maxPageWidth, w);
+        }
+
+        // Determine container width. Fallback to ActualWidth if ViewportWidth is 0.
+        double viewportWidth = PagesScrollViewer.ViewportWidth;
+        if (viewportWidth == 0) viewportWidth = this.ActualWidth;
+        
+        double containerWidth = Math.Max(maxPageWidth, viewportWidth);
+
+        // Pass 2: Calculate centered rects
         for (int i = 0; i < _currentDocument.PageCount; i++)
         {
             var pageSize = _currentDocument.Pages[i].Size;
             double w = pageSize.Width * scale;
             double h = pageSize.Height * scale;
             
-            _pageRects.Add(new Rect(0, currentY, w, h));
+            // Center the page horizontally
+            double x = (containerWidth - w) / 2;
+            
+            _pageRects.Add(new Rect(x, currentY, w, h));
             currentY += h + 20; // 20px spacing
-            maxWidth = Math.Max(maxWidth, w);
         }
 
-        InteractionCanvas.Width = maxWidth + 20;
+        InteractionCanvas.Width = containerWidth;
         InteractionCanvas.Height = currentY;
-        
-        skiaCanvas.Width = maxWidth;
-        skiaCanvas.Height = currentY;
         
         skiaCanvas.InvalidateVisual();
     }
@@ -242,7 +319,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void OnPaintCanvas(object sender, SKPaintSurfaceEventArgs e)
     {
-        if (_currentDocument == null) return;
+        if (_currentDocument == null || e.Surface == null) return;
 
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.DimGray);
@@ -251,11 +328,18 @@ public partial class PdfViewerControl : UserControl, IDisposable
         
         double viewTop = PagesScrollViewer.VerticalOffset;
         double viewBottom = viewTop + PagesScrollViewer.ViewportHeight;
+        
+        // Retrieve horizontal offset
+        double viewLeft = PagesScrollViewer.HorizontalOffset;
+
+        // Translate canvas for BOTH X and Y scrolling
+        canvas.Translate((float)-viewLeft, (float)-viewTop);
 
         for (int i = 0; i < _pageRects.Count; i++)
         {
             var rect = _pageRects[i];
             
+            // Only vertical culling is strictly necessary here, but horizontal culling could be added for performance if pages are very wide.
             if (rect.Bottom >= viewTop && rect.Top <= viewBottom)
             {
                 _objectManager.MapPage(_currentDocument.Pages[i], i);
@@ -266,6 +350,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
                 }
 
                 var bitmap = _pageCache[i];
+                
+                // Draw at the pre-calculated centered coordinates
                 canvas.DrawBitmap(bitmap, (float)rect.Left, (float)rect.Top);
                 
                 using var paint = new SKPaint { Color = SKColors.Black, IsStroke = true, StrokeWidth = 1 };
@@ -333,7 +419,13 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             if (disposing)
             {
-                skiaCanvas.MouseDown -= OnCanvasMouseDown;
+                InteractionCanvas.MouseDown -= OnCanvasMouseDown;
+                this.SizeChanged -= PdfViewerControl_SizeChanged;
+                this.PreviewMouseWheel -= PdfViewerControl_PreviewMouseWheel;
+                
+                TextEditor.EditingFinished -= TextEditor_EditingFinished;
+                TextEditor.EditingCancelled -= TextEditor_EditingCancelled;
+                
                 DisposeCurrentDocument();
                 _renderEngine.Dispose();
             }
