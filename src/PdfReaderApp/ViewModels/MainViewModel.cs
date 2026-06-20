@@ -26,6 +26,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly RagContextService _ragContext;
 
     private List<TextBlock> _documentBlocks = new();
+    public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
     private bool _isSending;
 
     private string? _documentId;
