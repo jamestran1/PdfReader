@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text;
 using PdfReaderApp.Services;
 
@@ -27,5 +28,18 @@ public class DocumentIdTests
         var a = DocumentId.FromBytes(Encoding.UTF8.GetBytes("hello"));
         Assert.Equal(64, a.Length);
         Assert.All(a, c => Assert.Contains(c, "0123456789abcdef"));
+    }
+
+    [Fact]
+    public void FromFile_MatchesFromBytes()
+    {
+        var bytes = Encoding.UTF8.GetBytes("pdf content here");
+        string tmp = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        File.WriteAllBytes(tmp, bytes);
+        try
+        {
+            Assert.Equal(DocumentId.FromBytes(bytes), DocumentId.FromFile(tmp));
+        }
+        finally { File.Delete(tmp); }
     }
 }
