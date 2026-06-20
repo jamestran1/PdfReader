@@ -197,9 +197,32 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         }
     }
 
-    // Task 4 implements this (wrap body in lock (_lock)).
     public List<SearchResult> SearchText(string documentId, string query, int limit = 50)
-        => throw new NotImplementedException();
+    {
+        lock (_lock)
+        {
+        var results = new List<SearchResult>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
+SELECT c.page_index,
+       snippet(chunks_fts, 0, '[', ']', '...', 12) AS snip,
+       c.chunk_id
+FROM chunks_fts
+JOIN chunks c ON c.chunk_id = chunks_fts.rowid
+WHERE chunks_fts MATCH $q AND c.document_id = $id
+ORDER BY rank
+LIMIT $lim";
+        cmd.Parameters.AddWithValue("$q", query);
+        cmd.Parameters.AddWithValue("$id", documentId);
+        cmd.Parameters.AddWithValue("$lim", limit);
+
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            results.Add(new SearchResult(r.GetInt32(0), r.GetString(1), r.GetInt64(2)));
+
+        return results;
+        }
+    }
 
     // Task 5 implements this (wrap body in lock (_lock); return empty if !_vecAvailable).
     public List<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5)
