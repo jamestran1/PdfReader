@@ -53,6 +53,20 @@ public class SqliteDocumentIndexSearchTests : IDisposable
         Assert.Empty(_idx.SearchText("doc1", "elephant"));
     }
 
+    [Fact]
+    public void SearchText_MalformedQuery_ReturnsEmpty()
+    {
+        // An unbalanced quote is invalid FTS5 syntax and must not throw.
+        var results = _idx.SearchText("doc1", "\"foo");
+        Assert.Empty(results);
+    }
+
+    [Fact]
+    public void SearchText_EmptyQuery_ReturnsEmpty()
+    {
+        Assert.Empty(_idx.SearchText("doc1", "  "));
+    }
+
     public void Dispose()
     {
         _idx.Dispose();

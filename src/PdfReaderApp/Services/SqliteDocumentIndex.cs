@@ -199,11 +199,13 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
     public List<SearchResult> SearchText(string documentId, string query, int limit = 50)
     {
+        if (string.IsNullOrWhiteSpace(query)) return new List<SearchResult>();
+
         lock (_lock)
         {
-        var results = new List<SearchResult>();
-        using var cmd = _conn.CreateCommand();
-        cmd.CommandText = @"
+            var results = new List<SearchResult>();
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = @"
 SELECT c.page_index,
        snippet(chunks_fts, 0, '[', ']', '...', 12) AS snip,
        c.chunk_id
@@ -212,15 +214,22 @@ JOIN chunks c ON c.chunk_id = chunks_fts.rowid
 WHERE chunks_fts MATCH $q AND c.document_id = $id
 ORDER BY rank
 LIMIT $lim";
-        cmd.Parameters.AddWithValue("$q", query);
-        cmd.Parameters.AddWithValue("$id", documentId);
-        cmd.Parameters.AddWithValue("$lim", limit);
+            cmd.Parameters.AddWithValue("$q", query);
+            cmd.Parameters.AddWithValue("$id", documentId);
+            cmd.Parameters.AddWithValue("$lim", limit);
 
-        using var r = cmd.ExecuteReader();
-        while (r.Read())
-            results.Add(new SearchResult(r.GetInt32(0), r.GetString(1), r.GetInt64(2)));
+            try
+            {
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                    results.Add(new SearchResult(r.GetInt32(0), r.GetString(1), r.GetInt64(2)));
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+                return new List<SearchResult>();
+            }
 
-        return results;
+            return results;
         }
     }
 
