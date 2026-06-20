@@ -45,6 +45,7 @@ public sealed class AiChatService
 
         if (_client is null || _clientKey != key)
         {
+            _client?.Dispose();
             _client = _factory.Create(key);
             _clientKey = key;
         }
@@ -65,6 +66,7 @@ public sealed class AiChatService
         }
         catch (Exception ex)
         {
+            _history.RemoveAt(_history.Count - 1);
             throw new AiChatException(AiErrorClassifier.Classify(ex), "Lỗi gọi dịch vụ AI.", ex);
         }
 
@@ -89,7 +91,10 @@ public sealed class AiChatService
                 }
 
                 if (fatal != null)
+                {
+                    _history.RemoveAt(_history.Count - 1);
                     throw fatal;
+                }
 
                 if (interrupted)
                 {

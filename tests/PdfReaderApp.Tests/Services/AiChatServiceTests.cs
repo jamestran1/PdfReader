@@ -63,6 +63,41 @@ public class AiChatServiceTests
         public IChatClient Create(string apiKey) => _client;
     }
 
+    /// <summary>Factory that returns clients from a queue, one per Create call.</summary>
+    private sealed class SequentialFactory : IChatClientFactory
+    {
+        private readonly Queue<IChatClient> _clients;
+        public SequentialFactory(params IChatClient[] clients) => _clients = new Queue<IChatClient>(clients);
+        public IChatClient Create(string apiKey) => _clients.Dequeue();
+    }
+
+    /// <summary>Throws on the first MoveNextAsync — simulates a fatal pre-token error.</summary>
+    private sealed class ThrowOnFirstMoveClient : IChatClient
+    {
+        public List<ChatMessage> LastMessages { get; private set; } = new();
+
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            LastMessages = messages.ToList();
+            await Task.Yield();
+            throw new InvalidOperationException("fatal before first token");
+#pragma warning disable CS0162
+            yield break; // makes this an async iterator
+#pragma warning restore CS0162
+        }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
+
     private static async Task<List<string>> Collect(IAsyncEnumerable<string> stream)
     {
         var list = new List<string>();
@@ -151,5 +186,32 @@ public class AiChatServiceTests
         var texts = client.LastMessages.Select(m => m.Text ?? "").ToList();
         Assert.DoesNotContain(texts, t => t.Contains("Hỏi 1"));
         Assert.Contains(texts, t => t.Contains("Hỏi 2"));
+    }
+
+    [Fact]
+    public async Task AskStreaming_FatalBeforeFirstToken_RollsBackUserTurn()
+    {
+        // Arrange: first call uses a client that throws before yielding any token.
+        // Second call uses a good client; key rotation forces _client rebuild so
+        // SequentialFactory hands out the good client on the second Create().
+        var mutSettings = new FakeSettings("sk-first");
+        var throwingClient = new ThrowOnFirstMoveClient();
+        var goodClient = new FakeChatClient(new[] { "ok" });
+        var svc = new AiChatService(mutSettings, new SequentialFactory(throwingClient, goodClient));
+
+        // Act 1: fatal error before any token -- must throw AiChatException.
+        await Assert.ThrowsAsync<AiChatException>(
+            async () => await Collect(svc.AskStreamingAsync("Câu hỏi lỗi", "ctx")));
+
+        // Rotate key to force _client rebuild on next call (SequentialFactory -> goodClient).
+        mutSettings.SaveApiKey("sk-second");
+
+        // Act 2: successful call.
+        await Collect(svc.AskStreamingAsync("Câu hỏi hợp lệ", "ctx"));
+
+        // Assert: history sent to goodClient must NOT contain the rolled-back failed question.
+        var texts = goodClient.LastMessages.Select(m => m.Text ?? "").ToList();
+        Assert.DoesNotContain(texts, t => t.Contains("Câu hỏi lỗi"));
+        Assert.Contains(texts, t => t.Contains("Câu hỏi hợp lệ"));
     }
 }
