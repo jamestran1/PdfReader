@@ -28,6 +28,12 @@ public class AiErrorClassifierTests
     }
 
     [Fact]
+    public void Classify_TimeoutException_IsNetwork()
+    {
+        Assert.Equal(AiChatError.Network, AiErrorClassifier.Classify(new TimeoutException()));
+    }
+
+    [Fact]
     public void Classify_GenericException_IsUnknown()
     {
         Assert.Equal(AiChatError.Unknown, AiErrorClassifier.Classify(new InvalidOperationException()));
