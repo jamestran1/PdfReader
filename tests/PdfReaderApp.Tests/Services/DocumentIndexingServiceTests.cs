@@ -24,6 +24,21 @@ public class DocumentIndexingServiceTests
         public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey) => new FakeGen();
     }
 
+    private sealed class ThrowingEmbedFactory : IEmbeddingGeneratorFactory
+    {
+        public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey) => new ThrowingGen();
+    }
+
+    private sealed class ThrowingGen : IEmbeddingGenerator<string, Embedding<float>>
+    {
+        public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
+            IEnumerable<string> values, EmbeddingGenerationOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => throw new InvalidOperationException("embedding failure");
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
+
     private sealed class FakeGen : IEmbeddingGenerator<string, Embedding<float>>
     {
         public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
@@ -119,5 +134,17 @@ public class DocumentIndexingServiceTests
         // Progress is captured asynchronously; allow the sync context to drain.
         await Task.Delay(50);
         Assert.NotEmpty(reports);
+    }
+
+    [Fact]
+    public async Task IndexAsync_EmbeddingThrows_SetsPartialAndRethrows()
+    {
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new ThrowingEmbedFactory(), new FakeSettings("sk-x"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => svc.IndexAsync("doc1", "a.pdf", Blocks("some text"), null, CancellationToken.None));
+
+        Assert.Equal(DocumentIndexStatus.Partial, index.FinalStatus);
     }
 }

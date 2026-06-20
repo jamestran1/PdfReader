@@ -45,26 +45,38 @@ public sealed class DocumentIndexingService
             return;
         }
 
-        var generator = _embedFactory.Create(key);
+        using var generator = _embedFactory.Create(key);
         int done = 0;
 
-        for (int i = 0; i < chunks.Count; i += BatchSize)
+        try
         {
-            ct.ThrowIfCancellationRequested();
+            for (int i = 0; i < chunks.Count; i += BatchSize)
+            {
+                ct.ThrowIfCancellationRequested();
 
-            var batchChunks = chunks.Skip(i).Take(BatchSize).ToList();
-            var batchIds = chunkIds.Skip(i).Take(BatchSize).ToList();
+                var batchChunks = chunks.Skip(i).Take(BatchSize).ToList();
+                var batchIds = chunkIds.Skip(i).Take(BatchSize).ToList();
 
-            var embeddings = await generator.GenerateAsync(
-                batchChunks.Select(c => c.Text), cancellationToken: ct);
+                var embeddings = await generator.GenerateAsync(
+                    batchChunks.Select(c => c.Text), cancellationToken: ct);
 
-            var pairs = new List<(long, float[])>();
-            for (int j = 0; j < batchChunks.Count; j++)
-                pairs.Add((batchIds[j], embeddings[j].Vector.ToArray()));
+                var pairs = new List<(long, float[])>();
+                for (int j = 0; j < batchChunks.Count; j++)
+                    pairs.Add((batchIds[j], embeddings[j].Vector.ToArray()));
 
-            _index.WriteEmbeddings(pairs);
-            done += batchChunks.Count;
-            progress?.Report(new IndexingProgress(done, chunks.Count, "indexing"));
+                _index.WriteEmbeddings(pairs);
+                done += batchChunks.Count;
+                progress?.Report(new IndexingProgress(done, chunks.Count, "indexing"));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            _index.SetStatus(documentId, DocumentIndexStatus.Partial, EmbeddingModel);
+            throw;
         }
 
         _index.SetStatus(documentId, DocumentIndexStatus.Complete, EmbeddingModel);
