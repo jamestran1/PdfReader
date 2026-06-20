@@ -38,7 +38,7 @@
                 </Grid.RowDefinitions>
                 
                 <StackPanel Grid.Row="0" Margin="0,20">
-                     <materialDesign:PackIcon Kind="PdfBox" Width="40" Height="40" HorizontalAlignment="Center"/>
+                     <materialDesign:PackIcon Kind="FilePdfBox" Width="40" Height="40" HorizontalAlignment="Center"/>
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" VerticalAlignment="Center">
