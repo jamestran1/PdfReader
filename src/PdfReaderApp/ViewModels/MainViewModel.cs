@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly AiChatService _chatService;
 
     private List<TextBlock> _documentBlocks = new();
+    private bool _isSending;
 
     [ObservableProperty]
     private string windowTitle = "Ultimate PDF Reader & Editor";
@@ -94,40 +95,49 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(ChatInput)) return;
-
-        string question = ChatInput;
-        ChatInput = string.Empty;
-        ChatMessages.Add(new ChatMessage { Role = "User", Content = question });
-
-        if (!_chatService.IsConfigured)
-        {
-            ChatMessages.Add(new ChatMessage
-            {
-                Role = "AI",
-                Content = "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key."
-            });
-            return;
-        }
-
-        string context = DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
-
-        var aiMessage = new ChatMessage { Role = "AI", Content = string.Empty };
-        ChatMessages.Add(aiMessage);
+        if (_isSending) return;
+        _isSending = true;
 
         try
         {
-            await foreach (var token in _chatService.AskStreamingAsync(question, context))
+            string question = ChatInput;
+            ChatInput = string.Empty;
+            ChatMessages.Add(new ChatMessage { Role = "User", Content = question });
+
+            if (!_chatService.IsConfigured)
             {
-                aiMessage.Content += token;
+                ChatMessages.Add(new ChatMessage
+                {
+                    Role = "AI",
+                    Content = "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key."
+                });
+                return;
+            }
+
+            string context = DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
+
+            var aiMessage = new ChatMessage { Role = "AI", Content = string.Empty };
+            ChatMessages.Add(aiMessage);
+
+            try
+            {
+                await foreach (var token in _chatService.AskStreamingAsync(question, context))
+                {
+                    aiMessage.Content += token;
+                }
+            }
+            catch (AiChatException ex)
+            {
+                aiMessage.Content = MapError(ex.Error);
+            }
+            catch (Exception)
+            {
+                aiMessage.Content = "Đã xảy ra lỗi không xác định khi gọi AI.";
             }
         }
-        catch (AiChatException ex)
+        finally
         {
-            aiMessage.Content = MapError(ex.Error);
-        }
-        catch (Exception)
-        {
-            aiMessage.Content = "Đã xảy ra lỗi không xác định khi gọi AI.";
+            _isSending = false;
         }
     }
 
@@ -174,7 +184,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (ZoomLevel > 0.4) ZoomLevel -= 0.2;
     }
 
-    public void Dispose() => _documentService.Dispose();
+    public void Dispose()
+    {
+        _documentService.Dispose();
+        _chatService.Dispose();
+    }
 }
 
 public partial class ChatMessage : ObservableObject

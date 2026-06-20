@@ -4,7 +4,7 @@ using Microsoft.Extensions.AI;
 
 namespace PdfReaderApp.Services;
 
-public sealed class AiChatService
+public sealed class AiChatService : IDisposable
 {
     private const string SystemPrompt =
         "Bạn là trợ lý đọc tài liệu PDF. Trả lời bằng tiếng Việt, ngắn gọn, " +
@@ -121,4 +121,6 @@ public sealed class AiChatService
 
         _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
     }
+
+    public void Dispose() => _client?.Dispose();
 }
