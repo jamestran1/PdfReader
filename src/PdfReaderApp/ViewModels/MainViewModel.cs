@@ -160,8 +160,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
+                string message = AiErrorClassifier.Classify(ex) switch
+                {
+                    AiChatError.InsufficientQuota => "Lập chỉ mục AI bị bỏ qua: tài khoản OpenAI hết credits/quota (tìm kiếm văn bản vẫn dùng được).",
+                    AiChatError.Unauthorized => "Lập chỉ mục AI bị bỏ qua: API key không hợp lệ (tìm kiếm văn bản vẫn dùng được).",
+                    AiChatError.Network => "Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).",
+                    _ => $"Lập chỉ mục lỗi: {ex.Message}"
+                };
                 System.Windows.Application.Current?.Dispatcher.Invoke(() =>
-                    IndexingStatusText = $"Lập chỉ mục lỗi: {ex.Message}");
+                    IndexingStatusText = message);
             }
         }, ct);
     }
@@ -231,6 +238,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         AiChatError.Unauthorized => "API key không hợp lệ, vui lòng kiểm tra lại trong Cài đặt.",
         AiChatError.RateLimit => "Đã vượt giới hạn yêu cầu, vui lòng thử lại sau.",
+        AiChatError.InsufficientQuota => "Tài khoản OpenAI không đủ credits/quota. Vui lòng nạp credits và kiểm tra Billing tại platform.openai.com.",
         AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
         _ => "Đã xảy ra lỗi khi gọi AI."
     };
