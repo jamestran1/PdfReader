@@ -22,7 +22,7 @@ public sealed class DocumentIndexingService
     }
 
     public async Task IndexAsync(
-        string documentId, string? filePath, IReadOnlyList<TextBlock> blocks,
+        string documentId, string? filePath, IReadOnlyList<PageText> pages,
         IProgress<IndexingProgress>? progress, CancellationToken ct)
     {
         // Already fully indexed with the current embedding model → reuse, skip re-embedding.
@@ -32,8 +32,8 @@ public sealed class DocumentIndexingService
             return;
         }
 
-        var chunks = TextChunker.Chunk(documentId, blocks);
-        int pageCount = blocks.Count == 0 ? 0 : blocks.Max(b => b.PageIndex) + 1;
+        var chunks = TextChunker.ChunkPages(documentId, pages);
+        int pageCount = pages.Count == 0 ? 0 : pages.Max(p => p.PageIndex) + 1;
 
         if (chunks.Count == 0)
         {

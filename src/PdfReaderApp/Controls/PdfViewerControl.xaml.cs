@@ -408,6 +408,17 @@ public partial class PdfViewerControl : UserControl, IDisposable
         var blocks = Blocks;
         if (blocks is null || blocks.Count == 0) return;
 
+        // Collect only the blocks for this page.
+        var pageBlocks = blocks.Where(b => b.PageIndex == pageIndex).ToList();
+        if (pageBlocks.Count == 0) return;
+
+        // Build logical lines so a phrase query can match across glyph fragments.
+        var lines = Services.HighlightLineBuilder.BuildLines(pageBlocks);
+        if (lines.Count == 0) return;
+
+        string foldedQuery = SearchNormalizer.Fold(query);
+        if (foldedQuery.Length == 0) return;
+
         // RenderEngine.RenderPage renders at 96 DPI, so pixelsPerPoint = scale * (96/72).
         // PdfCoordinateMapper(pageHeightPt, scale, dpi) computes ppp = scale * (dpi/72).
         // Using dpi=96 gives the correct mapping to match the rendered bitmap.
@@ -421,18 +432,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
             IsStroke = false
         };
 
-        foreach (Models.TextBlock block in blocks)
+        foreach (var line in lines)
         {
-            if (block.PageIndex != pageIndex) continue;
-            if (!SearchNormalizer.Fold(block.Text).Contains(SearchNormalizer.Fold(query), StringComparison.Ordinal)) continue;
+            if (!SearchNormalizer.Fold(line.Text).Contains(foldedQuery, StringComparison.Ordinal)) continue;
 
-            // PdfY in TextBlock is the top edge in PDF user-space (bottom-left origin).
-            // PdfPointToRender(x, y) maps: renderY = (pageHeight - y) * ppp
-            // For the top-left corner of the block in render space:
-            //   top of block in PDF coords = PdfY + Height (since PDF Y grows up)
-            var (rx, ry) = mapper.PdfPointToRender(block.PdfX, block.PdfY + block.Height);
-            float rw = block.Width * scale;
-            float rh = block.Height * scale;
+            // line.PdfY is the bottom of the line in PDF user-space (bottom-left origin).
+            // top of line in PDF coords = PdfY + Height (since PDF Y grows upward).
+            var (rx, ry) = mapper.PdfPointToRender(line.PdfX, line.PdfY + line.Height);
+            float rw = line.Width * scale;
+            float rh = line.Height * scale;
 
             var highlightRect = SKRect.Create(
                 (float)pageRect.Left + rx,
