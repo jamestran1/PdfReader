@@ -1,3 +1,4 @@
+using System;
 using System.Text;
 using PdfReaderApp.Services;
 
@@ -78,5 +79,43 @@ public class SearchNormalizerTests
     public void Fold_TabSeparated_CollapsesToSingleSpace()
     {
         Assert.Equal("kinh hanh", SearchNormalizer.Fold("kinh\t\thành"));
+    }
+
+    [Fact]
+    public void FoldWithMap_FoldedMatchesFold()
+    {
+        string[] inputs = { "Tiếng Việt", "Đường", "kinh  hành", "  Tiếng   Việt ", "bảo hiểm" };
+        foreach (var s in inputs)
+        {
+            var (folded, _) = SearchNormalizer.FoldWithMap(s);
+            Assert.Equal(SearchNormalizer.Fold(s), folded);
+        }
+    }
+
+    [Fact]
+    public void FoldWithMap_MapLengthEqualsFoldedLength()
+    {
+        var (folded, map) = SearchNormalizer.FoldWithMap("  Tiếng   Việt ");
+        Assert.Equal(folded.Length, map.Length);
+    }
+
+    [Fact]
+    public void FoldWithMap_MapsMatchBackToOriginal()
+    {
+        // "bảo hiểm" -> folded "bao hiem"; folded index 4 ('h') maps to original index 4 ('h')
+        string s = "bảo hiểm";
+        var (folded, map) = SearchNormalizer.FoldWithMap(s);
+        int idx = folded.IndexOf("hiem", StringComparison.Ordinal);
+        Assert.True(idx >= 0);
+        Assert.Equal('h', s[map[idx]]);
+        Assert.Equal('ể', s[map[idx + 2]]); // folded 'e' (3rd char of "hiem") maps to 'ể'
+    }
+
+    [Fact]
+    public void FoldWithMap_Empty_ReturnsEmpty()
+    {
+        var (folded, map) = SearchNormalizer.FoldWithMap("");
+        Assert.Equal("", folded);
+        Assert.Empty(map);
     }
 }
