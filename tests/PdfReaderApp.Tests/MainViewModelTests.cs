@@ -1,3 +1,4 @@
+using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using PdfReaderApp.ViewModels;
 using Xunit;
@@ -110,5 +111,24 @@ public class MainViewModelTests
         vm.SelectSearchResultCommand.Execute(result);
         Assert.Equal(3, vm.CurrentPage);
         Assert.Equal("hành", vm.SelectedSearchQuery);
+    }
+
+    [Fact]
+    public void ViewMode_DefaultsToContinuous()
+    {
+        Assert.Equal(PdfViewMode.Continuous, new MainViewModel().ViewMode);
+    }
+
+    [Fact]
+    public void ShowCoverSeparately_DefaultsToTrue()
+    {
+        Assert.True(new MainViewModel().ShowCoverSeparately);
+    }
+
+    [Fact]
+    public void ViewMode_CanChange()
+    {
+        var vm = new MainViewModel { ViewMode = PdfViewMode.Facing };
+        Assert.Equal(PdfViewMode.Facing, vm.ViewMode);
     }
 }

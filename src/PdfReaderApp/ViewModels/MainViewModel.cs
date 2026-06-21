@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
+using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
@@ -77,6 +78,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private double _zoomLevel = 1.0;
+
+    [ObservableProperty]
+    private PdfViewMode _viewMode = PdfViewMode.Continuous;
+
+    [ObservableProperty]
+    private bool _showCoverSeparately = true;
 
     [ObservableProperty]
     private string _chatInput = string.Empty;
