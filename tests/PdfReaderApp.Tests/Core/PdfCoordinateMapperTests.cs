@@ -53,6 +53,25 @@ public class PdfCoordinateMapperTests
     }
 
     [Fact]
+    public void HighlightMapping_MustMatchPageLayoutScale_Dpi72()
+    {
+        // The viewer lays out each page at pageSize * scale (1 PDF point = `scale` pixels).
+        // The highlight overlay shares that canvas, so its mapper MUST produce the same
+        // pixels-per-point: dpi=72. (dpi=96 over-scales by 96/72 and rects drift off the text.)
+        const float pageH = 643f;
+        const float scale = 2.6f;
+        var mapper = new PdfCoordinateMapper(pageH, scale, 72);
+
+        // Bottom of page (pdfY=0) must map to the bottom of the laid-out page rect (pageH*scale).
+        var (_, ry) = mapper.PdfPointToRender(0f, 0f);
+        Assert.Equal(pageH * scale, ry, 3);
+
+        // A point at x maps to x*scale (matches pageRect width scaling).
+        var (rx, _) = mapper.PdfPointToRender(100f, 0f);
+        Assert.Equal(100f * scale, rx, 3);
+    }
+
+    [Fact]
     public void RenderPointToPdf_RoundTrip_ReturnsOriginalPoint()
     {
         var mapper = LetterAt72Dpi();

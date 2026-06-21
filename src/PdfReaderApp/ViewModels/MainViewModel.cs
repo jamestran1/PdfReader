@@ -27,6 +27,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private List<TextBlock> _documentBlocks = new();
     public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
+
+    // Exposed so PdfViewerControl can ask iText for exact keyword match rectangles to highlight.
+    public IPdfDocumentService PdfService => _documentService;
     private bool _isSending;
 
     private List<PageText> _pageTexts = new();

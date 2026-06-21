@@ -152,11 +152,15 @@
                                     <ItemsControl ItemsSource="{Binding SearchResults}">
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Button HorizontalContentAlignment="Left"
-                                                        Padding="10,8"
-                                                        Style="{StaticResource MaterialDesignFlatButton}"
-                                                        Command="{Binding DataContext.SelectSearchResultCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}">
+                                                <!-- Border (not a Button): MaterialDesignFlatButton forces ~32px height and
+                                                     its Ripple clips overflow, hiding the multi-line snippet. A Border sizes
+                                                     to content; MouseBinding keeps click-to-navigate. -->
+                                                <Border Background="Transparent" Padding="10,8" Cursor="Hand">
+                                                    <Border.InputBindings>
+                                                        <MouseBinding MouseAction="LeftClick"
+                                                                      Command="{Binding DataContext.SelectSearchResultCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                      CommandParameter="{Binding}"/>
+                                                    </Border.InputBindings>
                                                     <StackPanel>
                                                         <TextBlock Text="{Binding PageIndex, Converter={StaticResource PageDisplayConverter}, StringFormat='Trang {0}'}"
                                                                    FontWeight="Bold" FontSize="13"
@@ -166,7 +170,7 @@
                                                                    local:SearchSnippetHighlighter.Text="{Binding Snippet}"
                                                                    local:SearchSnippetHighlighter.Query="{Binding DataContext.ExecutedSearchQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
                                                     </StackPanel>
-                                                </Button>
+                                                </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -184,7 +188,7 @@
                                        TotalPages="{Binding TotalPages, Mode=TwoWay}"
                                        ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
                                        HighlightQuery="{Binding SelectedSearchQuery}"
-                                       Blocks="{Binding DocumentBlocks}" />
+                                       MatchSource="{Binding PdfService}" />
         </Grid>
 
         <!-- Right Sidebar (AI) -->

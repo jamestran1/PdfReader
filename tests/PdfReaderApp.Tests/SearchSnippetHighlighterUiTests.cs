@@ -59,6 +59,49 @@ public class SearchSnippetHighlighterUiTests
 
     public sealed record VmStub(string Snippet, string Q);
 
+    private static T? FindVisualChild<T>(System.Windows.DependencyObject root) where T : System.Windows.DependencyObject
+    {
+        int n = System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);
+        for (int i = 0; i < n; i++)
+        {
+            var c = System.Windows.Media.VisualTreeHelper.GetChild(root, i);
+            if (c is T hit) return hit;
+            var deeper = FindVisualChild<T>(c);
+            if (deeper != null) return deeper;
+        }
+        return null;
+    }
+
+    [Fact]
+    public void Reproduce_TemplatedBinding_RendersSnippet()
+    {
+        RunSta(() =>
+        {
+            // Mirror the popup DataTemplate: attached props delivered by XAML bindings inside a template.
+            string xaml =
+                "<DataTemplate xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation' " +
+                "xmlns:local='clr-namespace:PdfReaderApp;assembly=PdfReaderApp'>" +
+                "<TextBlock local:SearchSnippetHighlighter.Text='{Binding Snippet}' " +
+                "local:SearchSnippetHighlighter.Query='{Binding Q}'/>" +
+                "</DataTemplate>";
+            var template = (System.Windows.DataTemplate)System.Windows.Markup.XamlReader.Parse(xaml);
+
+            var cc = new ContentControl
+            {
+                ContentTemplate = template,
+                Content = new VmStub("ngài đi ký sinh trùng ở đây", "ký sinh trùng")
+            };
+            cc.Measure(new System.Windows.Size(460, 200));
+            cc.Arrange(new System.Windows.Rect(0, 0, 460, 200));
+            cc.UpdateLayout();
+
+            var tb = FindVisualChild<TextBlock>(cc);
+            Assert.NotNull(tb);
+            string rendered = string.Concat(tb!.Inlines.OfType<Run>().Select(r => r.Text));
+            Assert.Equal("ngài đi ký sinh trùng ở đây", rendered);
+        });
+    }
+
     [Fact]
     public void BindingBothAttachedProps_ViaBindings_PopulatesInlines()
     {
