@@ -423,7 +423,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
                     using var cmd = _conn.CreateCommand();
                     cmd.CommandText = @"
 SELECT c.page_index,
-       snippet(chunks_fts, 0, '[', ']', '...', 12) AS snip,
+       c.text,
        c.chunk_id
 FROM chunks_fts
 JOIN chunks c ON c.chunk_id = chunks_fts.rowid
@@ -436,14 +436,17 @@ LIMIT $lim";
 
                     using var r = cmd.ExecuteReader();
                     while (r.Read())
-                        results.Add(new SearchResult(r.GetInt32(0), r.GetString(1), r.GetInt64(2)));
+                        results.Add(new SearchResult(
+                            r.GetInt32(0),
+                            SearchSnippetBuilder.Build(r.GetString(1), query),
+                            r.GetInt64(2)));
                 }
                 else
                 {
                     // LIKE fallback for phrases shorter than 3 chars (trigram can't index them)
                     using var cmd = _conn.CreateCommand();
                     cmd.CommandText =
-                        "SELECT page_index, substr(search_text,1,80), chunk_id FROM chunks " +
+                        "SELECT page_index, text, chunk_id FROM chunks " +
                         "WHERE document_id=$id AND search_text LIKE $p LIMIT $lim";
                     cmd.Parameters.AddWithValue("$id", documentId);
                     cmd.Parameters.AddWithValue("$p", "%" + phrase + "%");
@@ -451,7 +454,10 @@ LIMIT $lim";
 
                     using var r = cmd.ExecuteReader();
                     while (r.Read())
-                        results.Add(new SearchResult(r.GetInt32(0), r.GetString(1), r.GetInt64(2)));
+                        results.Add(new SearchResult(
+                            r.GetInt32(0),
+                            SearchSnippetBuilder.Build(r.GetString(1), query),
+                            r.GetInt64(2)));
                 }
             }
             catch (Microsoft.Data.Sqlite.SqliteException)

@@ -83,15 +83,35 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private static void OnHighlightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         => ((PdfViewerControl)d).skiaCanvas.InvalidateVisual();
 
-    // Blocks: all TextBlocks from the document (bound to MainViewModel.DocumentBlocks)
-    public static readonly DependencyProperty BlocksProperty =
-        DependencyProperty.Register(nameof(Blocks), typeof(IReadOnlyList<Models.TextBlock>), typeof(PdfViewerControl),
+    // MatchSource: text engine that locates exact keyword rectangles (bound to MainViewModel.PdfService).
+    public static readonly DependencyProperty MatchSourceProperty =
+        DependencyProperty.Register(nameof(MatchSource), typeof(Services.IPdfDocumentService), typeof(PdfViewerControl),
             new PropertyMetadata(null, OnHighlightChanged));
 
-    public IReadOnlyList<Models.TextBlock>? Blocks
+    public Services.IPdfDocumentService? MatchSource
     {
-        get => (IReadOnlyList<Models.TextBlock>?)GetValue(BlocksProperty);
-        set => SetValue(BlocksProperty, value);
+        get => (Services.IPdfDocumentService?)GetValue(MatchSourceProperty);
+        set => SetValue(MatchSourceProperty, value);
+    }
+
+    // Per-page cache of match rects for the current query; running iText extraction on every paint
+    // would be far too expensive. Cleared when the query or the document changes.
+    private string? _matchCacheQuery;
+    private readonly Dictionary<int, List<Models.MatchRect>> _matchCache = new();
+
+    private IReadOnlyList<Models.MatchRect> GetMatchRects(int pageIndex, string query)
+    {
+        if (_matchCacheQuery != query)
+        {
+            _matchCache.Clear();
+            _matchCacheQuery = query;
+        }
+        if (!_matchCache.TryGetValue(pageIndex, out var rects))
+        {
+            rects = MatchSource?.FindMatchRects(pageIndex, query) ?? new List<Models.MatchRect>();
+            _matchCache[pageIndex] = rects;
+        }
+        return rects;
     }
 
     public PdfViewerControl()
@@ -257,7 +277,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (d is PdfViewerControl control && control._currentDocument != null)
         {
-            control.RefreshLayout(keepCache: false);
+            control.RefreshLayoutPreservingAnchor();
         }
     }
 
@@ -273,6 +293,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
             var ms = new MemoryStream(fileBytes);
             
             _currentDocument = PdfDocument.Load(ms);
+            _matchCache.Clear();
+            _matchCacheQuery = null;
             TotalPages = _currentDocument.PageCount;
             CurrentPage = 1;
             
@@ -285,6 +307,37 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             MessageBox.Show($"Lỗi khi mở file PDF: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    // Zoom changes every page size, so the absolute scroll offset would point at a different page
+    // after relayout (the view "jumps far"). Anchor on the document point at the viewport center:
+    // capture page + fraction before relayout, then restore the same point afterwards.
+    private void RefreshLayoutPreservingAnchor()
+    {
+        int anchorPage = 0;
+        double anchorFrac = 0;
+        double centerY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
+        for (int i = 0; i < _pageRects.Count; i++)
+        {
+            var r = _pageRects[i];
+            if (centerY < r.Bottom || i == _pageRects.Count - 1)
+            {
+                anchorPage = i;
+                anchorFrac = r.Height > 0 ? Math.Clamp((centerY - r.Top) / r.Height, 0, 1) : 0;
+                break;
+            }
+        }
+
+        RefreshLayout(keepCache: false);
+
+        // The ScrollViewer extent updates on the next layout pass, so restore after it.
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (anchorPage < 0 || anchorPage >= _pageRects.Count) return;
+            var nr = _pageRects[anchorPage];
+            double newCenterY = nr.Top + anchorFrac * nr.Height;
+            PagesScrollViewer.ScrollToVerticalOffset(newCenterY - PagesScrollViewer.ViewportHeight / 2);
+        }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
 
     private void RefreshLayout(bool keepCache = false)
@@ -403,28 +456,19 @@ public partial class PdfViewerControl : UserControl, IDisposable
         if (_currentDocument == null) return;
 
         string query = HighlightQuery;
-        if (string.IsNullOrWhiteSpace(query)) return;
+        if (string.IsNullOrWhiteSpace(query) || MatchSource == null) return;
 
-        var blocks = Blocks;
-        if (blocks is null || blocks.Count == 0) return;
+        // iText computes the exact keyword rectangles (PDF user-space) from the real glyph layout.
+        var rects = GetMatchRects(pageIndex, query);
+        if (rects.Count == 0) return;
 
-        // Collect only the blocks for this page.
-        var pageBlocks = blocks.Where(b => b.PageIndex == pageIndex).ToList();
-        if (pageBlocks.Count == 0) return;
-
-        // Build logical lines so a phrase query can match across glyph fragments.
-        var lines = Services.HighlightLineBuilder.BuildLines(pageBlocks);
-        if (lines.Count == 0) return;
-
-        string foldedQuery = SearchNormalizer.Fold(query);
-        if (foldedQuery.Length == 0) return;
-
-        // RenderEngine.RenderPage renders at 96 DPI, so pixelsPerPoint = scale * (96/72).
-        // PdfCoordinateMapper(pageHeightPt, scale, dpi) computes ppp = scale * (dpi/72).
-        // Using dpi=96 gives the correct mapping to match the rendered bitmap.
+        // The page is laid out on the canvas at pageSize * scale (see _pageRects: w/h = pageSize * scale),
+        // i.e. 1 PDF point = `scale` pixels. The highlight mapper must use the SAME pixels-per-point,
+        // which means dpi=72 (ppp = scale * 72/72 = scale). Using 96 over-scales by 1.333x and the
+        // rects drift away from the text (worse further from the origin).
         var pageSize = _currentDocument.Pages[pageIndex].Size;
         float pageHeightPt = (float)pageSize.Height;
-        var mapper = new PdfCoordinateMapper(pageHeightPt, scale, 96);
+        var mapper = new PdfCoordinateMapper(pageHeightPt, scale, 72);
 
         using var highlightPaint = new SKPaint
         {
@@ -432,21 +476,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
             IsStroke = false
         };
 
-        foreach (var line in lines)
+        foreach (var m in rects)
         {
-            if (!SearchNormalizer.Fold(line.Text).Contains(foldedQuery, StringComparison.Ordinal)) continue;
-
-            // line.PdfY is the bottom of the line in PDF user-space (bottom-left origin).
-            // top of line in PDF coords = PdfY + Height (since PDF Y grows upward).
-            var (rx, ry) = mapper.PdfPointToRender(line.PdfX, line.PdfY + line.Height);
-            float rw = line.Width * scale;
-            float rh = line.Height * scale;
-
+            // MatchRect (PdfX, PdfY) is the bottom-left; top = PdfY + Height (PDF Y grows upward).
+            var (rx, ry) = mapper.PdfPointToRender(m.PdfX, m.PdfY + m.Height);
             var highlightRect = SKRect.Create(
                 (float)pageRect.Left + rx,
                 (float)pageRect.Top + ry,
-                rw,
-                rh);
+                m.Width * scale,
+                m.Height * scale);
 
             canvas.DrawRect(highlightRect, highlightPaint);
         }

@@ -124,9 +124,10 @@
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <materialDesign:PackIcon Kind="Search" VerticalAlignment="Center" Margin="8,0" Opacity=".5" />
-                                <TextBox x:Name="SearchBox" Grid.Column="1" Width="150"
+                                <TextBox x:Name="SearchBox" Grid.Column="1" Width="220"
                                          materialDesign:HintAssist.Hint="Search..." BorderThickness="0"
                                          materialDesign:TextFieldAssist.DecorationVisibility="Collapsed"
                                          Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}">
@@ -134,28 +135,46 @@
                                         <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
                                     </TextBox.InputBindings>
                                 </TextBox>
+                                <Button Grid.Column="2" Style="{StaticResource MaterialDesignFlatButton}"
+                                        Padding="4" MinWidth="0" VerticalAlignment="Center"
+                                        ToolTip="Xóa tìm kiếm"
+                                        Command="{Binding ClearSearchCommand}">
+                                    <materialDesign:PackIcon Kind="Close" Opacity=".6" />
+                                </Button>
                             </Grid>
                         </materialDesign:ColorZone>
 
                         <Popup IsOpen="{Binding SearchResults.Count, Converter={StaticResource CountToBoolConverter}, Mode=OneWay}"
                                PlacementTarget="{Binding ElementName=SearchBox}" Placement="Bottom"
-                               StaysOpen="False" MaxHeight="300" Width="320">
-                            <materialDesign:Card Padding="4" Background="{DynamicResource MaterialDesignPaper}">
-                                <ItemsControl ItemsSource="{Binding SearchResults}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Button HorizontalContentAlignment="Left"
-                                                    Style="{StaticResource MaterialDesignFlatButton}"
-                                                    Command="{Binding DataContext.SelectSearchResultCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                    CommandParameter="{Binding}">
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding PageIndex, Converter={StaticResource PageDisplayConverter}, StringFormat='Trang {0}'}" FontWeight="Bold" FontSize="11"/>
-                                                    <TextBlock Text="{Binding Snippet}" TextWrapping="Wrap" FontSize="11" Opacity="0.8"/>
-                                                </StackPanel>
-                                            </Button>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
+                               StaysOpen="False" MaxHeight="420" Width="460">
+                            <materialDesign:Card Padding="6" Background="{DynamicResource MaterialDesignPaper}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="408">
+                                    <ItemsControl ItemsSource="{Binding SearchResults}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <!-- Border (not a Button): MaterialDesignFlatButton forces ~32px height and
+                                                     its Ripple clips overflow, hiding the multi-line snippet. A Border sizes
+                                                     to content; MouseBinding keeps click-to-navigate. -->
+                                                <Border Background="Transparent" Padding="10,8" Cursor="Hand">
+                                                    <Border.InputBindings>
+                                                        <MouseBinding MouseAction="LeftClick"
+                                                                      Command="{Binding DataContext.SelectSearchResultCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                      CommandParameter="{Binding}"/>
+                                                    </Border.InputBindings>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding PageIndex, Converter={StaticResource PageDisplayConverter}, StringFormat='Trang {0}'}"
+                                                                   FontWeight="Bold" FontSize="13"
+                                                                   Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+                                                        <TextBlock TextWrapping="Wrap" FontSize="14" Opacity="0.9" Margin="0,2,0,0"
+                                                                   Foreground="{DynamicResource MaterialDesignBody}"
+                                                                   local:SearchSnippetHighlighter.Text="{Binding Snippet}"
+                                                                   local:SearchSnippetHighlighter.Query="{Binding DataContext.ExecutedSearchQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
                             </materialDesign:Card>
                         </Popup>
                     </StackPanel>
@@ -169,7 +188,7 @@
                                        TotalPages="{Binding TotalPages, Mode=TwoWay}"
                                        ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
                                        HighlightQuery="{Binding SelectedSearchQuery}"
-                                       Blocks="{Binding DocumentBlocks}" />
+                                       MatchSource="{Binding PdfService}" />
         </Grid>
 
         <!-- Right Sidebar (AI) -->

@@ -177,6 +177,50 @@ public class ITextPdfDocumentServiceTests : IDisposable
         }
     }
 
+    [Fact]
+    public void FindMatchRects_AccentInsensitivePhrase_ReturnsPositiveRect()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "Trước khi đi kinh hành ta phải xác định", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            // Folded query (no diacritics) must still locate the accented phrase on the page.
+            var rects = service.FindMatchRects(0, "kinh hanh");
+
+            Assert.NotEmpty(rects);
+            Assert.All(rects, r =>
+            {
+                Assert.True(r.Width > 0f, $"width={r.Width}");
+                Assert.True(r.Height > 0f, $"height={r.Height}");
+            });
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void FindMatchRects_AbsentPhrase_ReturnsEmpty()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "Trước khi đi kinh hành", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            Assert.Empty(service.FindMatchRects(0, "ky sinh trung"));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     private static void CreateTwoPagePdf(string path, string page1Text, string page2Text)
     {
         using var writer = new PdfWriter(path);

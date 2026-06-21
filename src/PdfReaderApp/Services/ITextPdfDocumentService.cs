@@ -69,6 +69,33 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         return blocks;
     }
 
+    public List<MatchRect> FindMatchRects(int pageIndex, string query)
+    {
+        if (_pdfDoc is null)
+            throw new InvalidOperationException("Call LoadFile before FindMatchRects.");
+
+        var result = new List<MatchRect>();
+        if (string.IsNullOrWhiteSpace(query)) return result;
+        if (pageIndex < 0 || pageIndex >= _pdfDoc.GetNumberOfPages()) return result;
+
+        string pattern = AccentInsensitiveRegex.BuildPattern(query);
+        if (pattern.Length == 0) return result;
+
+        // iText computes the match rectangle from the real glyph layout, so it tracks the keyword
+        // exactly (no per-glyph reconstruction guesswork).
+        var strategy = new RegexBasedLocationExtractionStrategy(pattern);
+        var processor = new PdfCanvasProcessor(strategy);
+        processor.ProcessPageContent(_pdfDoc.GetPage(pageIndex + 1));
+
+        foreach (var loc in strategy.GetResultantLocations())
+        {
+            var r = loc.GetRectangle();
+            if (r is null) continue;
+            result.Add(new MatchRect(r.GetX(), r.GetY(), r.GetWidth(), r.GetHeight()));
+        }
+        return result;
+    }
+
     private static string ClassifyStructure(string text, float fontSize)
     {
         if (fontSize >= 14f) return "Heading";
