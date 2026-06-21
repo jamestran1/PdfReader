@@ -131,4 +131,20 @@ public class MainViewModelTests
         var vm = new MainViewModel { ViewMode = PdfViewMode.Facing };
         Assert.Equal(PdfViewMode.Facing, vm.ViewMode);
     }
+
+    [Fact]
+    public void FirstPageCommand_GoesToPageOne()
+    {
+        var vm = new MainViewModel { TotalPages = 10, CurrentPage = 7 };
+        vm.FirstPageCommand.Execute(null);
+        Assert.Equal(1, vm.CurrentPage);
+    }
+
+    [Fact]
+    public void LastPageCommand_GoesToLastPage()
+    {
+        var vm = new MainViewModel { TotalPages = 10, CurrentPage = 3 };
+        vm.LastPageCommand.Execute(null);
+        Assert.Equal(10, vm.CurrentPage);
+    }
 }

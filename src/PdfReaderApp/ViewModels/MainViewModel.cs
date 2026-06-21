@@ -339,6 +339,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void FirstPage() => CurrentPage = 1;
+
+    [RelayCommand]
+    private void LastPage() => CurrentPage = TotalPages;
+
+    [RelayCommand]
     private void ReindexDocument()
     {
         if (_documentId is null) return;

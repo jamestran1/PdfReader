@@ -13,6 +13,7 @@
         Background="{DynamicResource MaterialDesignPaper}"
         TextElement.FontWeight="Medium"
         TextElement.FontSize="14"
+        PreviewKeyDown="Window_PreviewKeyDown"
         FontFamily="{materialDesign:MaterialDesignFont}">
     <Window.Resources>
         <local:RoleToBrushConverter x:Key="RoleToBrushConverter" />
@@ -24,6 +25,17 @@
     <Window.DataContext>
         <viewmodels:MainViewModel />
     </Window.DataContext>
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Control" Key="OemPlus" Command="{Binding ZoomInCommand}" />
+        <KeyBinding Modifiers="Control" Key="Add" Command="{Binding ZoomInCommand}" />
+        <KeyBinding Modifiers="Control" Key="OemMinus" Command="{Binding ZoomOutCommand}" />
+        <KeyBinding Modifiers="Control" Key="Subtract" Command="{Binding ZoomOutCommand}" />
+        <KeyBinding Key="PageDown" Command="{Binding NextPageCommand}" />
+        <KeyBinding Key="PageUp" Command="{Binding PreviousPageCommand}" />
+        <KeyBinding Modifiers="Control" Key="Home" Command="{Binding FirstPageCommand}" />
+        <KeyBinding Modifiers="Control" Key="End" Command="{Binding LastPageCommand}" />
+        <KeyBinding Modifiers="Control" Key="O" Command="{Binding OpenFileCommand}" />
+    </Window.InputBindings>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
@@ -129,7 +141,8 @@
                             <materialDesign:PackIcon Kind="ChevronLeft" />
                         </Button>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
-                            <TextBox Text="{Binding CurrentPage}" Width="30" TextAlignment="Center" materialDesign:TextFieldAssist.HasClearButton="False"/>
+                            <TextBox x:Name="PageBox" Text="{Binding CurrentPage}" Width="30" TextAlignment="Center"
+                                     materialDesign:TextFieldAssist.HasClearButton="False" KeyDown="PageBox_KeyDown"/>
                             <TextBlock Text="{Binding TotalPages, StringFormat='/ {0}'}" VerticalAlignment="Center" Margin="4,0"/>
                         </StackPanel>
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding NextPageCommand}" ToolTip="Next Page">
@@ -215,7 +228,7 @@
             </materialDesign:ColorZone>
 
             <!-- PDF Viewer Surface -->
-            <controls:PdfViewerControl Grid.Row="1"
+            <controls:PdfViewerControl Grid.Row="1" x:Name="PdfViewer"
                                        DocumentSource="{Binding FilePath}"
                                        CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
                                        TotalPages="{Binding TotalPages, Mode=TwoWay}"
