@@ -8,7 +8,7 @@ namespace PdfReaderApp.Services;
 public sealed class SqliteDocumentIndex : IDocumentIndex
 {
     private const string EmbeddingDim = "1536";
-    private const int SchemaVersion = 2;
+    private const int SchemaVersion = 3;
     private readonly SqliteConnection _conn;
     private readonly object _lock = new();
     private bool _vecAvailable;
@@ -57,6 +57,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
             // Re-fold search_text if Fold logic changed (version gate)
             RefoldSearchTextIfStale();
+
+            // v3: chunk source changed (LocationTextExtractionStrategy) → wipe and force re-index
+            WipeIfPreV3();
         }
     }
 
@@ -187,6 +190,60 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         }
 
         // Stamp the new version
+        using (var ver = _conn.CreateCommand())
+        {
+            ver.Transaction = tx;
+            ver.CommandText = $"PRAGMA user_version = {SchemaVersion}";
+            ver.ExecuteNonQuery();
+        }
+
+        tx.Commit();
+    }
+
+    private void WipeIfPreV3()
+    {
+        int currentVersion;
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "PRAGMA user_version";
+            currentVersion = Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        if (currentVersion >= SchemaVersion) return;
+
+        // Chunk text source changed (per-fragment blocks -> LocationTextExtractionStrategy page text).
+        // Wipe all indexed data so every document re-indexes cleanly on next open.
+        using var tx = _conn.BeginTransaction();
+
+        using (var del = _conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM chunks_fts;";
+            del.ExecuteNonQuery();
+        }
+
+        if (_vecAvailable)
+        {
+            using var del = _conn.CreateCommand();
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM vec_chunks;";
+            del.ExecuteNonQuery();
+        }
+
+        using (var del = _conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM chunks;";
+            del.ExecuteNonQuery();
+        }
+
+        using (var del = _conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM documents;";
+            del.ExecuteNonQuery();
+        }
+
         using (var ver = _conn.CreateCommand())
         {
             ver.Transaction = tx;

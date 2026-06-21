@@ -22,6 +22,22 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         _pdfDoc = new PdfDocument(_pdfReader);
     }
 
+    public List<PageText> ExtractPageTexts()
+    {
+        if (_pdfDoc is null)
+            throw new InvalidOperationException("Call LoadFile before ExtractPageTexts.");
+
+        var result = new List<PageText>();
+        int pageCount = _pdfDoc.GetNumberOfPages();
+        for (int i = 0; i < pageCount; i++)
+        {
+            var page = _pdfDoc.GetPage(i + 1);
+            string text = PdfTextExtractor.GetTextFromPage(page, new LocationTextExtractionStrategy());
+            result.Add(new PageText(i, text));
+        }
+        return result;
+    }
+
     public List<TextBlock> ExtractStructure()
     {
         if (_pdfDoc is null)
