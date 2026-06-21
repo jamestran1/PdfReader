@@ -59,6 +59,7 @@ public static class PageLayoutCalculator
         {
             int cur = 0;
             for (int u = 0; u < units.Count; u++)
+                // Clamp (don't throw): the UI may pass a transient out-of-range page during navigation.
                 if (units[u].Contains(Math.Clamp(currentPageIndex, 0, pages.Count - 1))) { cur = u; break; }
             firstUnit = lastUnit = cur;
         }
@@ -88,13 +89,15 @@ public static class PageLayoutCalculator
             double startX = (contentWidth - w) / 2; // center the unit within the content area
             unitStarts.Add(u[0]);
             double x = startX;
-            foreach (var pi in u)
+            for (int i = 0; i < u.Count; i++)
             {
+                int pi = u[i];
                 double pw = pages[pi].WidthPt * scale;
                 double ph = pages[pi].HeightPt * scale;
                 double py = y + (h - ph) / 2; // vertical-center pages of differing height in the row
                 slots.Add(new PageSlot(pi, x, py, pw, ph));
-                x += pw + pageGap;
+                x += pw;
+                if (i < u.Count - 1) x += pageGap;
             }
             y += h + unitGap;
         }

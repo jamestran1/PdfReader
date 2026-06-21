@@ -89,6 +89,17 @@ public class PageLayoutCalculatorTests
     }
 
     [Fact]
+    public void Facing_NoCover_OddPageCount_LastUnitIsSingleton()
+    {
+        // 3 pages, no cover: units (0,1) then (2). current=2 -> singleton last unit.
+        var r = Run(PdfViewMode.Facing, false, 3, current: 2);
+        Assert.Single(r.Slots);
+        Assert.Equal(2, r.Slots[0].PageIndex);
+        // single page (100 wide) centered in 500 -> X=200
+        Assert.Equal(200, r.Slots[0].X, 3);
+    }
+
+    [Fact]
     public void EmptyDocument_ReturnsEmpty()
     {
         var r = PageLayoutCalculator.Compute(PdfViewMode.Continuous, true,
