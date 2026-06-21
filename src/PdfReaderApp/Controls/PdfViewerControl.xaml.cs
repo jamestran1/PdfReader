@@ -217,26 +217,21 @@ public partial class PdfViewerControl : UserControl, IDisposable
             if (e.Delta < 0 && atBottom && CurrentPage < TotalPages)
             {
                 e.Handled = true;
-                int step = ViewMode == Core.PdfViewMode.Facing ? FacingStep(forward: true) : 1;
-                CurrentPage = Math.Min(TotalPages, CurrentPage + step);
+                if (ViewMode == Core.PdfViewMode.Facing)
+                    CurrentPage = Math.Clamp(Core.PageLayoutCalculator.AdjacentFacingUnitFirstPage(ShowCover, TotalPages, CurrentPage - 1, forward: true) + 1, 1, TotalPages);
+                else
+                    CurrentPage = Math.Min(TotalPages, CurrentPage + 1);
                 PagesScrollViewer.ScrollToVerticalOffset(0);
             }
             else if (e.Delta > 0 && atTop && CurrentPage > 1)
             {
                 e.Handled = true;
-                int step = ViewMode == Core.PdfViewMode.Facing ? FacingStep(forward: false) : 1;
-                CurrentPage = Math.Max(1, CurrentPage - step);
+                if (ViewMode == Core.PdfViewMode.Facing)
+                    CurrentPage = Math.Clamp(Core.PageLayoutCalculator.AdjacentFacingUnitFirstPage(ShowCover, TotalPages, CurrentPage - 1, forward: false) + 1, 1, TotalPages);
+                else
+                    CurrentPage = Math.Max(1, CurrentPage - 1);
             }
         }
-    }
-
-    // So trang can buoc de den don vi facing ke tiep/truoc tu trang hien tai.
-    private int FacingStep(bool forward)
-    {
-        // Voi cover rieng, trang 1 la don vi 1 trang; cac don vi con lai la cap 2 trang.
-        if (ShowCover)
-            return CurrentPage == 1 ? 1 : 2; // tu cover -> cap ke la +1; nguoc lai la +2
-        return 2;
     }
 
     private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)

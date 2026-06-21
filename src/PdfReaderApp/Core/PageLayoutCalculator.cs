@@ -104,4 +104,29 @@ public static class PageLayoutCalculator
         double contentHeight = measured.Count > 0 ? y - unitGap : 0;
         return new LayoutResult(slots, contentWidth, contentHeight, unitStarts);
     }
+
+    /// <summary>
+    /// 0-based first page of the facing unit adjacent (forward/back) to the unit containing
+    /// currentPageIndex. Mirrors the unit grouping in Compute so navigation stays consistent
+    /// with the layout. Clamped to the first/last unit at the ends.
+    /// </summary>
+    public static int AdjacentFacingUnitFirstPage(bool showCover, int pageCount, int currentPageIndex, bool forward)
+    {
+        if (pageCount <= 0) return 0;
+        var units = new List<List<int>>();
+        int i = 0;
+        if (showCover) { units.Add(new List<int> { 0 }); i = 1; }
+        for (; i < pageCount; i += 2)
+        {
+            var u = new List<int> { i };
+            if (i + 1 < pageCount) u.Add(i + 1);
+            units.Add(u);
+        }
+        int clamped = Math.Clamp(currentPageIndex, 0, pageCount - 1);
+        int cur = 0;
+        for (int u = 0; u < units.Count; u++)
+            if (units[u].Contains(clamped)) { cur = u; break; }
+        int target = Math.Clamp(cur + (forward ? 1 : -1), 0, units.Count - 1);
+        return units[target][0];
+    }
 }

@@ -107,4 +107,29 @@ public class PageLayoutCalculatorTests
         Assert.Empty(r.Slots);
         Assert.Equal(0, r.ContentHeight, 3);
     }
+
+    [Fact]
+    public void AdjacentFacingUnitFirstPage_ShowCover_NavigatesUnits()
+    {
+        // units: (0),(1,2),(3,4)
+        Assert.Equal(1, PageLayoutCalculator.AdjacentFacingUnitFirstPage(true, 5, 0, forward: true));  // cover -> pair
+        Assert.Equal(0, PageLayoutCalculator.AdjacentFacingUnitFirstPage(true, 5, 2, forward: false)); // pair(1,2) -> cover
+        Assert.Equal(1, PageLayoutCalculator.AdjacentFacingUnitFirstPage(true, 5, 4, forward: false)); // pair(3,4) -> pair(1,2)
+        Assert.Equal(3, PageLayoutCalculator.AdjacentFacingUnitFirstPage(true, 5, 2, forward: true));  // pair(1,2) -> pair(3,4)
+    }
+
+    [Fact]
+    public void AdjacentFacingUnitFirstPage_NoCover_NavigatesUnits()
+    {
+        // units: (0,1),(2,3)
+        Assert.Equal(2, PageLayoutCalculator.AdjacentFacingUnitFirstPage(false, 4, 0, forward: true));  // (0,1)->(2,3)
+        Assert.Equal(0, PageLayoutCalculator.AdjacentFacingUnitFirstPage(false, 4, 3, forward: false)); // (2,3)->(0,1)
+    }
+
+    [Fact]
+    public void AdjacentFacingUnitFirstPage_ClampsAtEnds()
+    {
+        Assert.Equal(0, PageLayoutCalculator.AdjacentFacingUnitFirstPage(true, 5, 0, forward: false)); // cover, back -> stays cover
+        Assert.Equal(3, PageLayoutCalculator.AdjacentFacingUnitFirstPage(true, 5, 4, forward: true));  // last pair, fwd -> stays
+    }
 }
