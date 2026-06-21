@@ -299,6 +299,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void ReindexDocument()
+    {
+        if (_documentId is null) return;
+        try { _documentIndex.DeleteDocument(_documentId); } catch { }
+        StartBackgroundIndexing();
+    }
+
+    [RelayCommand]
     private void ZoomIn() => ZoomLevel += 0.2;
 
     [RelayCommand]

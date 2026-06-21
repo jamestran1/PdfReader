@@ -8,7 +8,7 @@ namespace PdfReaderApp.Services;
 public sealed class SqliteDocumentIndex : IDocumentIndex
 {
     private const string EmbeddingDim = "1536";
-    private const int SchemaVersion = 3;
+    private const int SchemaVersion = 4;
     private readonly SqliteConnection _conn;
     private readonly object _lock = new();
     private bool _vecAvailable;
@@ -58,8 +58,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             // Re-fold search_text if Fold logic changed (version gate)
             RefoldSearchTextIfStale();
 
-            // v3: chunk source changed (LocationTextExtractionStrategy) → wipe and force re-index
-            WipeIfPreV3();
+            // v4: phrase-search extraction pipeline changed → wipe stuck v3 indexes and force re-index
+            WipeIfPreV4();
         }
     }
 
@@ -200,7 +200,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         tx.Commit();
     }
 
-    private void WipeIfPreV3()
+    private void WipeIfPreV4()
     {
         int currentVersion;
         using (var cmd = _conn.CreateCommand())
@@ -211,7 +211,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
         if (currentVersion >= SchemaVersion) return;
 
-        // Chunk text source changed (per-fragment blocks -> LocationTextExtractionStrategy page text).
+        // user_version < 4: DB may be a stuck v3 index with garbled extraction data.
         // Wipe all indexed data so every document re-indexes cleanly on next open.
         using var tx = _conn.BeginTransaction();
 
