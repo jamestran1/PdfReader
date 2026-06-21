@@ -439,19 +439,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
     }
 
     // Đặt zoom ban đầu sao cho trang đầu vừa khung nhìn (fit whole page), chừa lề nhỏ.
-    private void FitToViewport()
-    {
-        if (_currentDocument == null || _currentDocument.PageCount == 0) return;
-        double vpW = skiaCanvas.ActualWidth > 0 ? skiaCanvas.ActualWidth : this.ActualWidth - 20;
-        double vpH = skiaCanvas.ActualHeight > 0 ? skiaCanvas.ActualHeight : this.ActualHeight - 20;
-        if (vpW <= 0 || vpH <= 0) return;
-        var size = _currentDocument.Pages[0].Size;
-        if (size.Width <= 0 || size.Height <= 0) return;
-        double fit = Math.Min((vpW - 24) / size.Width, (vpH - 24) / size.Height);
-        ZoomLevel = Math.Clamp(fit, 0.4, 4.0);
-    }
-
-    // Đặt zoom ban đầu sao cho trang đầu vừa khung nhìn (fit whole page), chừa lề nhỏ.
     public void FitToViewport()
     {
         if (_currentDocument == null || _currentDocument.PageCount == 0) return;
