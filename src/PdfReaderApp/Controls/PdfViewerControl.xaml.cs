@@ -357,9 +357,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
             _matchCacheQuery = null;
             TotalPages = _currentDocument.PageCount;
             CurrentPage = 1;
-            
+
             _objectManager.Clear();
             _undoStack.Clear();
+            FitToViewport();   // zoom trang đầu vừa khung trước khi layout
             RefreshLayout();
             System.Diagnostics.Debug.WriteLine($"Successfully loaded PDF via Skia: {path}");
         }
@@ -437,6 +438,19 @@ public partial class PdfViewerControl : UserControl, IDisposable
         skiaCanvas.InvalidateVisual();
     }
 
+    // Đặt zoom ban đầu sao cho trang đầu vừa khung nhìn (fit whole page), chừa lề nhỏ.
+    private void FitToViewport()
+    {
+        if (_currentDocument == null || _currentDocument.PageCount == 0) return;
+        double vpW = skiaCanvas.ActualWidth > 0 ? skiaCanvas.ActualWidth : this.ActualWidth - 20;
+        double vpH = skiaCanvas.ActualHeight > 0 ? skiaCanvas.ActualHeight : this.ActualHeight - 20;
+        if (vpW <= 0 || vpH <= 0) return;
+        var size = _currentDocument.Pages[0].Size;
+        if (size.Width <= 0 || size.Height <= 0) return;
+        double fit = Math.Min((vpW - 24) / size.Width, (vpH - 24) / size.Height);
+        ZoomLevel = Math.Clamp(fit, 0.4, 4.0);
+    }
+
     private void ScrollToPage(int page)
     {
         int pageIndex = page - 1;
@@ -452,11 +466,18 @@ public partial class PdfViewerControl : UserControl, IDisposable
         var canvas = e.Surface.Canvas;
         canvas.Clear(SKColors.DimGray);
 
+        // The Skia surface is in DEVICE PIXELS (ActualWidth * DPI scale), but all layout/scroll
+        // coordinates below are in DIPs. On a >100% display this mismatch pushed the page into the
+        // top-left and shrank it. Scale the canvas so DIP coordinates map onto the full pixel surface.
+        float dpiX = skiaCanvas.ActualWidth > 0 ? (float)(e.Info.Width / skiaCanvas.ActualWidth) : 1f;
+        float dpiY = skiaCanvas.ActualHeight > 0 ? (float)(e.Info.Height / skiaCanvas.ActualHeight) : 1f;
+        canvas.Scale(dpiX, dpiY);
+
         float scale = (float)ZoomLevel;
-        
+
         double viewTop = PagesScrollViewer.VerticalOffset;
         double viewBottom = viewTop + PagesScrollViewer.ViewportHeight;
-        
+
         // Retrieve horizontal offset
         double viewLeft = PagesScrollViewer.HorizontalOffset;
 
@@ -470,11 +491,13 @@ public partial class PdfViewerControl : UserControl, IDisposable
             {
                 _objectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
 
+                // Render at device-pixel resolution (zoom * DPI) so the page stays crisp when the
+                // canvas is scaled by DPI; draw into the DIP dest rect so it maps 1:1 in pixels.
                 if (!_pageCache.ContainsKey(slot.PageIndex))
-                    _pageCache[slot.PageIndex] = _renderEngine.RenderPage(_currentDocument.Pages[slot.PageIndex], scale);
+                    _pageCache[slot.PageIndex] = _renderEngine.RenderPage(_currentDocument.Pages[slot.PageIndex], scale * dpiX);
 
                 var bitmap = _pageCache[slot.PageIndex];
-                canvas.DrawBitmap(bitmap, (float)rect.Left, (float)rect.Top);
+                canvas.DrawBitmap(bitmap, SKRect.Create((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height));
 
                 using var paint = new SKPaint { Color = SKColors.Black, IsStroke = true, StrokeWidth = 1 };
                 canvas.DrawRect((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height, paint);

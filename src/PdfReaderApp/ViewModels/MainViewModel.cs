@@ -85,6 +85,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showCoverSeparately = true;
 
+    // Đặt chế độ xem (radio-style): bấm nút luôn set mode, không bao giờ bỏ chọn mode hiện tại.
+    [RelayCommand]
+    private void SetViewMode(string mode)
+    {
+        if (Enum.TryParse<PdfViewMode>(mode, out var m)) ViewMode = m;
+    }
+
     [ObservableProperty]
     private string _chatInput = string.Empty;
 

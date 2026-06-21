@@ -96,22 +96,27 @@
 
                         <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
 
-                        <!-- View mode toggles (radio-style via ViewMode binding) -->
+                        <!-- View mode toggles: IsChecked OneWay (display) + Command sets the mode,
+                             so clicking always selects a mode and the active one cannot be unchecked. -->
                         <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Single Page"
-                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=SinglePage}">
-                            <materialDesign:PackIcon Kind="Note" />
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=SinglePage, Mode=OneWay}"
+                                      Command="{Binding SetViewModeCommand}" CommandParameter="SinglePage">
+                            <materialDesign:PackIcon Kind="FileOutline" />
                         </ToggleButton>
                         <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Continuous"
-                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Continuous}">
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Continuous, Mode=OneWay}"
+                                      Command="{Binding SetViewModeCommand}" CommandParameter="Continuous">
                             <materialDesign:PackIcon Kind="ViewSequential" />
                         </ToggleButton>
                         <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Facing"
-                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Facing}">
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Facing, Mode=OneWay}"
+                                      Command="{Binding SetViewModeCommand}" CommandParameter="Facing">
                             <materialDesign:PackIcon Kind="BookOpenPageVariant" />
                         </ToggleButton>
                         <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Continuous Facing"
-                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=ContinuousFacing}">
-                            <materialDesign:PackIcon Kind="ViewGrid" />
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=ContinuousFacing, Mode=OneWay}"
+                                      Command="{Binding SetViewModeCommand}" CommandParameter="ContinuousFacing">
+                            <materialDesign:PackIcon Kind="ViewGridOutline" />
                         </ToggleButton>
                         <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Tách bìa (facing)"
                                       IsChecked="{Binding ShowCoverSeparately, Mode=TwoWay}">
