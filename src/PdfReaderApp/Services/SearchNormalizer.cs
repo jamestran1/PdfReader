@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace PdfReaderApp.Services;
 
@@ -10,6 +11,8 @@ namespace PdfReaderApp.Services;
 /// </summary>
 public static class SearchNormalizer
 {
+    private static readonly Regex _whitespace = new(@"\s+", RegexOptions.Compiled);
+
     public static string Fold(string s)
     {
         if (string.IsNullOrEmpty(s)) return "";
@@ -29,6 +32,9 @@ public static class SearchNormalizer
         }
 
         // Step 4: lowercase
-        return sb.ToString().ToLowerInvariant();
+        s = sb.ToString().ToLowerInvariant();
+
+        // Step 5: collapse any run of whitespace to a single space and trim
+        return _whitespace.Replace(s, " ").Trim();
     }
 }
