@@ -26,7 +26,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private Dictionary<int, SKBitmap> _pageCache = new();
     private bool _disposed;
 
-    private List<Rect> _pageRects = new();
+    private readonly List<Core.PageSlot> _slots = new();
     private PdfObjectManager.GhostText? _activeEditTarget;
 
     public static readonly DependencyProperty DocumentSourceProperty =
@@ -112,6 +112,32 @@ public partial class PdfViewerControl : UserControl, IDisposable
             _matchCache[pageIndex] = rects;
         }
         return rects;
+    }
+
+    public static readonly DependencyProperty ViewModeProperty =
+        DependencyProperty.Register(nameof(ViewMode), typeof(Core.PdfViewMode), typeof(PdfViewerControl),
+            new PropertyMetadata(Core.PdfViewMode.Continuous, OnViewOptionChanged));
+
+    public Core.PdfViewMode ViewMode
+    {
+        get => (Core.PdfViewMode)GetValue(ViewModeProperty);
+        set => SetValue(ViewModeProperty, value);
+    }
+
+    public static readonly DependencyProperty ShowCoverProperty =
+        DependencyProperty.Register(nameof(ShowCover), typeof(bool), typeof(PdfViewerControl),
+            new PropertyMetadata(true, OnViewOptionChanged));
+
+    public bool ShowCover
+    {
+        get => (bool)GetValue(ShowCoverProperty);
+        set => SetValue(ShowCoverProperty, value);
+    }
+
+    private static void OnViewOptionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is PdfViewerControl c && c._currentDocument != null)
+            c.RefreshLayout(keepCache: false);
     }
 
     public PdfViewerControl()
@@ -203,15 +229,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
         var screenPoint = e.GetPosition(InteractionCanvas);
         float scale = (float)ZoomLevel;
 
-        for (int i = 0; i < _pageRects.Count; i++)
+        foreach (var slot in _slots)
         {
-            var rect = _pageRects[i];
+            var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
             if (rect.Contains(screenPoint))
             {
                 double pdfX = (screenPoint.X - rect.Left) / scale;
                 double pdfY = (screenPoint.Y - rect.Top) / scale;
 
-                var hit = _objectManager.HitTest(i, new Point(pdfX, pdfY));
+                var hit = _objectManager.HitTest(slot.PageIndex, new Point(pdfX, pdfY));
                 if (hit != null)
                 {
                     ShowEditor(hit, rect, scale);
@@ -269,7 +295,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (d is PdfViewerControl control && control._currentDocument != null)
         {
-            control.ScrollToPage((int)e.NewValue);
+            // Modalitati cu o singura unitate necesita re-layout la schimbarea paginii.
+            if (control.ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing)
+                control.RefreshLayout(keepCache: true);
+            else
+                control.ScrollToPage((int)e.NewValue);
         }
     }
 
@@ -314,16 +344,16 @@ public partial class PdfViewerControl : UserControl, IDisposable
     // capture page + fraction before relayout, then restore the same point afterwards.
     private void RefreshLayoutPreservingAnchor()
     {
-        int anchorPage = 0;
+        int anchorSlot = 0;
         double anchorFrac = 0;
         double centerY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
-        for (int i = 0; i < _pageRects.Count; i++)
+        for (int i = 0; i < _slots.Count; i++)
         {
-            var r = _pageRects[i];
-            if (centerY < r.Bottom || i == _pageRects.Count - 1)
+            var s = _slots[i];
+            if (centerY < s.Y + s.Height || i == _slots.Count - 1)
             {
-                anchorPage = i;
-                anchorFrac = r.Height > 0 ? Math.Clamp((centerY - r.Top) / r.Height, 0, 1) : 0;
+                anchorSlot = i;
+                anchorFrac = s.Height > 0 ? Math.Clamp((centerY - s.Y) / s.Height, 0, 1) : 0;
                 break;
             }
         }
@@ -333,9 +363,9 @@ public partial class PdfViewerControl : UserControl, IDisposable
         // The ScrollViewer extent updates on the next layout pass, so restore after it.
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            if (anchorPage < 0 || anchorPage >= _pageRects.Count) return;
-            var nr = _pageRects[anchorPage];
-            double newCenterY = nr.Top + anchorFrac * nr.Height;
+            if (anchorSlot < 0 || anchorSlot >= _slots.Count) return;
+            var ns = _slots[anchorSlot];
+            double newCenterY = ns.Y + anchorFrac * ns.Height;
             PagesScrollViewer.ScrollToVerticalOffset(newCenterY - PagesScrollViewer.ViewportHeight / 2);
         }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
@@ -344,57 +374,45 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (_currentDocument == null) return;
 
-        _pageRects.Clear();
-        
+        _slots.Clear();
         if (!keepCache)
         {
             _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
         }
 
-        double currentY = 0;
-        double maxPageWidth = 0;
-        float scale = (float)ZoomLevel;
-
-        // Pass 1: Find the maximum page width
+        var sizes = new List<(double WidthPt, double HeightPt)>(_currentDocument.PageCount);
         for (int i = 0; i < _currentDocument.PageCount; i++)
         {
-            var pageSize = _currentDocument.Pages[i].Size;
-            double w = pageSize.Width * scale;
-            maxPageWidth = Math.Max(maxPageWidth, w);
+            var s = _currentDocument.Pages[i].Size;
+            sizes.Add((s.Width, s.Height));
         }
 
-        // Determine container width. Fallback to ActualWidth if ViewportWidth is 0.
-        double viewportWidth = PagesScrollViewer.ViewportWidth;
-        if (viewportWidth == 0) viewportWidth = this.ActualWidth;
-        
-        double containerWidth = Math.Max(maxPageWidth, viewportWidth);
+        // Center contre la largeur reelle du canvas Skia (pas ScrollViewer.ViewportWidth).
+        // skiaCanvas a Margin=10, donc on utilise ActualWidth - 20 comme fallback.
+        double viewportWidth = skiaCanvas.ActualWidth > 0
+            ? skiaCanvas.ActualWidth
+            : Math.Max(0, this.ActualWidth - 20);
 
-        // Pass 2: Calculate centered rects
-        for (int i = 0; i < _currentDocument.PageCount; i++)
-        {
-            var pageSize = _currentDocument.Pages[i].Size;
-            double w = pageSize.Width * scale;
-            double h = pageSize.Height * scale;
-            
-            // Center the page horizontally
-            double x = (containerWidth - w) / 2;
-            
-            _pageRects.Add(new Rect(x, currentY, w, h));
-            currentY += h + 20; // 20px spacing
-        }
+        int currentPageIndex = Math.Clamp(CurrentPage - 1, 0, _currentDocument.PageCount - 1);
+        var layout = Core.PageLayoutCalculator.Compute(
+            ViewMode, ShowCover, sizes,
+            scale: ZoomLevel, viewportWidth: viewportWidth,
+            pageGap: 12, unitGap: 20, currentPageIndex: currentPageIndex);
 
-        InteractionCanvas.Width = containerWidth;
-        InteractionCanvas.Height = currentY;
-        
+        _slots.AddRange(layout.Slots);
+        InteractionCanvas.Width = layout.ContentWidth;
+        InteractionCanvas.Height = layout.ContentHeight;
+
         skiaCanvas.InvalidateVisual();
     }
 
     private void ScrollToPage(int page)
     {
-        if (page < 1 || page > _pageRects.Count) return;
-        var rect = _pageRects[page - 1];
-        PagesScrollViewer.ScrollToVerticalOffset(rect.Top);
+        int pageIndex = page - 1;
+        var slot = _slots.FirstOrDefault(s => s.PageIndex == pageIndex);
+        if (slot != null)
+            PagesScrollViewer.ScrollToVerticalOffset(slot.Y);
     }
 
     private void OnPaintCanvas(object sender, SKPaintSurfaceEventArgs e)
@@ -415,38 +433,23 @@ public partial class PdfViewerControl : UserControl, IDisposable
         // Translate canvas for BOTH X and Y scrolling
         canvas.Translate((float)-viewLeft, (float)-viewTop);
 
-        for (int i = 0; i < _pageRects.Count; i++)
+        foreach (var slot in _slots)
         {
-            var rect = _pageRects[i];
-            
-            // Only vertical culling is strictly necessary here, but horizontal culling could be added for performance if pages are very wide.
+            var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
             if (rect.Bottom >= viewTop && rect.Top <= viewBottom)
             {
-                _objectManager.MapPage(_currentDocument.Pages[i], i);
+                _objectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
 
-                if (!_pageCache.ContainsKey(i))
-                {
-                    _pageCache[i] = _renderEngine.RenderPage(_currentDocument.Pages[i], scale);
-                }
+                if (!_pageCache.ContainsKey(slot.PageIndex))
+                    _pageCache[slot.PageIndex] = _renderEngine.RenderPage(_currentDocument.Pages[slot.PageIndex], scale);
 
-                var bitmap = _pageCache[i];
-
-                // Draw at the pre-calculated centered coordinates
+                var bitmap = _pageCache[slot.PageIndex];
                 canvas.DrawBitmap(bitmap, (float)rect.Left, (float)rect.Top);
 
                 using var paint = new SKPaint { Color = SKColors.Black, IsStroke = true, StrokeWidth = 1 };
                 canvas.DrawRect((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height, paint);
 
-                // Draw yellow highlight rects for matching TextBlocks on this page
-                DrawHighlights(canvas, i, rect, scale);
-            }
-            else
-            {
-                if (_pageCache.Count > 20 && _pageCache.ContainsKey(i))
-                {
-                    _pageCache[i].Dispose();
-                    _pageCache.Remove(i);
-                }
+                DrawHighlights(canvas, slot.PageIndex, rect, scale);
             }
         }
     }
@@ -462,7 +465,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         var rects = GetMatchRects(pageIndex, query);
         if (rects.Count == 0) return;
 
-        // The page is laid out on the canvas at pageSize * scale (see _pageRects: w/h = pageSize * scale),
+        // The page is laid out on the canvas at pageSize * scale (PageLayoutCalculator scales slots by scale),
         // i.e. 1 PDF point = `scale` pixels. The highlight mapper must use the SAME pixels-per-point,
         // which means dpi=72 (ppp = scale * 72/72 = scale). Using 96 over-scales by 1.333x and the
         // rects drift away from the text (worse further from the origin).
@@ -492,20 +495,17 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void PagesScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        if (_currentDocument == null || _pageRects.Count == 0) return;
+        if (_currentDocument == null || _slots.Count == 0) return;
 
         skiaCanvas.InvalidateVisual();
 
         double middleY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
-        for (int i = 0; i < _pageRects.Count; i++)
+        foreach (var slot in _slots)
         {
-            if (middleY >= _pageRects[i].Top && middleY <= _pageRects[i].Bottom)
+            if (middleY >= slot.Y && middleY <= slot.Y + slot.Height)
             {
-                int newPage = i + 1;
-                if (CurrentPage != newPage)
-                {
-                    CurrentPage = newPage;
-                }
+                int newPage = slot.PageIndex + 1;
+                if (CurrentPage != newPage) CurrentPage = newPage;
                 break;
             }
         }
