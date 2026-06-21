@@ -19,6 +19,7 @@
         <local:RoleToAlignConverter x:Key="RoleToAlignConverter" />
         <local:CountToBoolConverter x:Key="CountToBoolConverter" />
         <local:PageDisplayConverter x:Key="PageDisplayConverter" />
+        <local:ViewModeToBoolConverter x:Key="ViewModeToBoolConverter" />
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -85,11 +86,38 @@
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ZoomOutCommand}" ToolTip="Zoom Out">
                             <materialDesign:PackIcon Kind="Minus" />
                         </Button>
-                        <TextBlock Text="{Binding ZoomLevel, StringFormat={}{0:P0}}" VerticalAlignment="Center" Margin="8,0" Width="50" TextAlignment="Center" FontWeight="Bold"/>
+                        <Slider Width="120" VerticalAlignment="Center" Minimum="0.4" Maximum="4.0"
+                                Value="{Binding ZoomLevel, Mode=TwoWay}"
+                                TickFrequency="0.1" IsSnapToTickEnabled="False" ToolTip="Zoom"/>
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ZoomInCommand}" ToolTip="Zoom In">
                             <materialDesign:PackIcon Kind="Plus" />
                         </Button>
-                        
+                        <TextBlock Text="{Binding ZoomLevel, StringFormat={}{0:P0}}" VerticalAlignment="Center" Margin="8,0" Width="50" TextAlignment="Center" FontWeight="Bold"/>
+
+                        <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
+
+                        <!-- View mode toggles (radio-style via ViewMode binding) -->
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Single Page"
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=SinglePage}">
+                            <materialDesign:PackIcon Kind="Note" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Continuous"
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Continuous}">
+                            <materialDesign:PackIcon Kind="ViewSequential" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Facing"
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Facing}">
+                            <materialDesign:PackIcon Kind="BookOpenPageVariant" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Continuous Facing"
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=ContinuousFacing}">
+                            <materialDesign:PackIcon Kind="ViewGrid" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Tách bìa (facing)"
+                                      IsChecked="{Binding ShowCoverSeparately, Mode=TwoWay}">
+                            <materialDesign:PackIcon Kind="BookOpenBlankVariant" />
+                        </ToggleButton>
+
                         <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
                         
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding PreviousPageCommand}" ToolTip="Previous Page">
@@ -188,7 +216,9 @@
                                        TotalPages="{Binding TotalPages, Mode=TwoWay}"
                                        ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
                                        HighlightQuery="{Binding SelectedSearchQuery}"
-                                       MatchSource="{Binding PdfService}" />
+                                       MatchSource="{Binding PdfService}"
+                                       ViewMode="{Binding ViewMode}"
+                                       ShowCover="{Binding ShowCoverSeparately}" />
         </Grid>
 
         <!-- Right Sidebar (AI) -->
