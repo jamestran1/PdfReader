@@ -40,8 +40,8 @@ public static class SearchNormalizer
     }
 
     /// <summary>
-    /// Nhu Fold nhung tra them ban do vi tri: map[i] la chi so ky tu trong chuoi goc
-    /// tuong ung ky tu folded thu i. Dung de dinh vi match tren text goc (giu dau).
+    /// Như Fold nhưng trả thêm bản đồ vị trí: map[i] là chỉ số ký tự trong chuỗi gốc
+    /// tương ứng ký tự folded thứ i. Dùng để định vị match trên text gốc (giữ dấu).
     /// </summary>
     public static (string folded, int[] map) FoldWithMap(string s)
     {

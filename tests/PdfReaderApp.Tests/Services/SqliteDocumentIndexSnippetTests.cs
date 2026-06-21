@@ -35,6 +35,15 @@ public class SqliteDocumentIndexSnippetTests : IDisposable
         Assert.Contains("bảo hiểm", hit.Snippet);
     }
 
+    [Fact]
+    public void SearchText_LikeFallback_ShortQuery_PreservesDiacritics()
+    {
+        // Query < 3 ký tự đi qua nhánh LIKE fallback; snippet vẫn phải giữ dấu.
+        var results = _idx.SearchText(DocId, "ky");
+        var hit = results.First(r => r.PageIndex == 0);
+        Assert.Contains("ký", hit.Snippet);
+    }
+
     public void Dispose()
     {
         _idx.Dispose();

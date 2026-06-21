@@ -8,8 +8,8 @@ using PdfReaderApp.Services;
 namespace PdfReaderApp;
 
 /// <summary>
-/// Tach snippet thanh cac doan thuong/khop (accent-insensitive) de in dam tu khoa,
-/// va expose attached property gan vao TextBlock.
+/// Tách snippet thành các đoạn thường/khớp (accent-insensitive) để in đậm từ khóa,
+/// và expose attached property gắn vào TextBlock.
 /// </summary>
 public static class SearchSnippetHighlighter
 {
@@ -31,7 +31,7 @@ public static class SearchSnippetHighlighter
 
             int srcStart = map[idx];
             int srcEnd = map[idx + fq.Length - 1] + 1;
-            if (srcStart < srcPos) srcStart = srcPos; // an toan khi gop whitespace
+            if (srcStart < srcPos) srcStart = srcPos; // an toàn khi gộp whitespace
 
             if (srcStart > srcPos)
                 segs.Add((text.Substring(srcPos, srcStart - srcPos), false));

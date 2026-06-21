@@ -3,8 +3,8 @@ using System;
 namespace PdfReaderApp.Services;
 
 /// <summary>
-/// Dung doan snippet hien thi tu text GOC (giu dau) quanh vi tri match,
-/// du index/match chay tren text da fold (bo dau).
+/// Dựng đoạn snippet hiển thị từ text GỐC (giữ dấu) quanh vị trí match,
+/// dù index/match chạy trên text đã fold (bỏ dấu).
 /// </summary>
 public static class SearchSnippetBuilder
 {
@@ -21,7 +21,7 @@ public static class SearchSnippetBuilder
 
         if (hit < 0)
         {
-            // Khong dinh vi duoc match: tra phan dau text goc.
+            // Không định vị được match: trả phần đầu text gốc.
             if (originalText.Length <= contextChars * 2) return originalText.Trim();
             return originalText.Substring(0, contextChars * 2).Trim() + "...";
         }

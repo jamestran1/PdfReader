@@ -48,8 +48,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _executedSearchQuery = string.Empty;
 
-    // Moi khi nguoi dung sua/xoa o tim: tat highlight tren trang ngay lap tuc.
-    // Neu o rong: xoa luon danh sach ket qua va query da chay.
+    // Mỗi khi người dùng sửa/xóa ô tìm: tắt highlight trên trang ngay lập tức.
+    // Nếu ô rỗng: xóa luôn danh sách kết quả và query đã chạy.
     partial void OnSearchQueryChanged(string value)
     {
         SelectedSearchQuery = string.Empty;

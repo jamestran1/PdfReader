@@ -105,10 +105,10 @@ public class MainViewModelTests
     [Fact]
     public void SelectSearchResult_SetsPageAndHighlightQuery()
     {
-        var vm = new MainViewModel { SearchQuery = "hanh" };
+        var vm = new MainViewModel { SearchQuery = "hành" };
         var result = new SearchResult(2, "snip", 1);
         vm.SelectSearchResultCommand.Execute(result);
         Assert.Equal(3, vm.CurrentPage);
-        Assert.Equal("hanh", vm.SelectedSearchQuery);
+        Assert.Equal("hành", vm.SelectedSearchQuery);
     }
 }
