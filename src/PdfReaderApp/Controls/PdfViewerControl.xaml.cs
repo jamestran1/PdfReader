@@ -13,6 +13,7 @@ using PdfiumViewer.Core;
 using PdfReaderApp.Core;
 using PdfReaderApp.Core.Commands;
 using PdfReaderApp.Models;
+using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Controls;
 
@@ -423,7 +424,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         foreach (Models.TextBlock block in blocks)
         {
             if (block.PageIndex != pageIndex) continue;
-            if (!block.Text.Contains(query, StringComparison.OrdinalIgnoreCase)) continue;
+            if (!SearchNormalizer.Fold(block.Text).Contains(SearchNormalizer.Fold(query), StringComparison.Ordinal)) continue;
 
             // PdfY in TextBlock is the top edge in PDF user-space (bottom-left origin).
             // PdfPointToRender(x, y) maps: renderY = (pageHeight - y) * ppp

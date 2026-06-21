@@ -42,14 +42,100 @@ CREATE TABLE IF NOT EXISTS documents (
   chunk_count INTEGER, embedding_model TEXT, status TEXT, indexed_at INTEGER);
 CREATE TABLE IF NOT EXISTS chunks (
   chunk_id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL,
-  page_index INTEGER NOT NULL, ordinal INTEGER NOT NULL, text TEXT NOT NULL);
+  page_index INTEGER NOT NULL, ordinal INTEGER NOT NULL, text TEXT NOT NULL,
+  search_text TEXT);
 CREATE INDEX IF NOT EXISTS idx_chunks_doc ON chunks(document_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-  text, content='chunks', content_rowid='chunk_id');");
+  search_text, content='chunks', content_rowid='chunk_id', tokenize='trigram');");
             if (_vecAvailable)
                 Exec(@"CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
   document_id TEXT partition key, chunk_id INTEGER PRIMARY KEY, embedding FLOAT[" + EmbeddingDim + "]);");
+
+            // Migration: ensure existing DBs have search_text column and trigram FTS
+            MigrateToTrigramIfNeeded();
         }
+    }
+
+    private void MigrateToTrigramIfNeeded()
+    {
+        // Check whether search_text column exists in chunks
+        bool hasSearchText = false;
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "PRAGMA table_info(chunks)";
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+            {
+                if (r.GetString(1) == "search_text") { hasSearchText = true; break; }
+            }
+        }
+
+        // Check whether chunks_fts is already a trigram table
+        bool isTrigram = false;
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "SELECT sql FROM sqlite_master WHERE name='chunks_fts'";
+            var val = cmd.ExecuteScalar() as string;
+            isTrigram = val != null && val.Contains("trigram", StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (hasSearchText && isTrigram) return; // nothing to migrate
+
+        using var tx = _conn.BeginTransaction();
+
+        if (!hasSearchText)
+        {
+            using var alter = _conn.CreateCommand();
+            alter.Transaction = tx;
+            alter.CommandText = "ALTER TABLE chunks ADD COLUMN search_text TEXT;";
+            alter.ExecuteNonQuery();
+        }
+
+        // Recreate FTS as trigram (drop old non-trigram version)
+        using (var drop = _conn.CreateCommand())
+        {
+            drop.Transaction = tx;
+            drop.CommandText = "DROP TABLE IF EXISTS chunks_fts;";
+            drop.ExecuteNonQuery();
+        }
+        using (var create = _conn.CreateCommand())
+        {
+            create.Transaction = tx;
+            create.CommandText = @"CREATE VIRTUAL TABLE chunks_fts USING fts5(
+  search_text, content='chunks', content_rowid='chunk_id', tokenize='trigram');";
+            create.ExecuteNonQuery();
+        }
+
+        // Backfill search_text and FTS for existing rows
+        var rowsToBackfill = new List<(long ChunkId, string Text)>();
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.Transaction = tx;
+            sel.CommandText = "SELECT chunk_id, text FROM chunks";
+            using var r = sel.ExecuteReader();
+            while (r.Read())
+                rowsToBackfill.Add((r.GetInt64(0), r.GetString(1)));
+        }
+
+        foreach (var (chunkId, text) in rowsToBackfill)
+        {
+            string folded = SearchNormalizer.Fold(text);
+            using var upd = _conn.CreateCommand();
+            upd.Transaction = tx;
+            upd.CommandText = "UPDATE chunks SET search_text=$st WHERE chunk_id=$id";
+            upd.Parameters.AddWithValue("$st", folded);
+            upd.Parameters.AddWithValue("$id", chunkId);
+            upd.ExecuteNonQuery();
+
+            using var ins = _conn.CreateCommand();
+            ins.Transaction = tx;
+            ins.CommandText = "INSERT INTO chunks_fts(rowid, search_text) VALUES($id,$st)";
+            ins.Parameters.AddWithValue("$id", chunkId);
+            ins.Parameters.AddWithValue("$st", folded);
+            ins.ExecuteNonQuery();
+        }
+
+        tx.Commit();
     }
 
     public DocumentIndexStatus GetStatus(string documentId, string embeddingModel)
@@ -133,23 +219,25 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             foreach (var c in chunks)
             {
                 long id;
+                string folded = SearchNormalizer.Fold(c.Text);
                 using (var cmd = _conn.CreateCommand())
                 {
                     cmd.Transaction = tx;
-                    cmd.CommandText = @"INSERT INTO chunks (document_id, page_index, ordinal, text)
-                        VALUES ($d,$p,$o,$t); SELECT last_insert_rowid();";
+                    cmd.CommandText = @"INSERT INTO chunks (document_id, page_index, ordinal, text, search_text)
+                        VALUES ($d,$p,$o,$t,$st); SELECT last_insert_rowid();";
                     cmd.Parameters.AddWithValue("$d", c.DocumentId);
                     cmd.Parameters.AddWithValue("$p", c.PageIndex);
                     cmd.Parameters.AddWithValue("$o", c.Ordinal);
                     cmd.Parameters.AddWithValue("$t", c.Text);
+                    cmd.Parameters.AddWithValue("$st", folded);
                     id = (long)cmd.ExecuteScalar()!;
                 }
                 using (var fts = _conn.CreateCommand())
                 {
                     fts.Transaction = tx;
-                    fts.CommandText = "INSERT INTO chunks_fts (rowid, text) VALUES ($id,$t)";
+                    fts.CommandText = "INSERT INTO chunks_fts (rowid, search_text) VALUES ($id,$st)";
                     fts.Parameters.AddWithValue("$id", id);
-                    fts.Parameters.AddWithValue("$t", c.Text);
+                    fts.Parameters.AddWithValue("$st", folded);
                     fts.ExecuteNonQuery();
                 }
                 ids.Add(id);
@@ -203,9 +291,24 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
         lock (_lock)
         {
+            var terms = SearchNormalizer.Fold(query)
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            if (terms.Length == 0) return new List<SearchResult>();
+
             var results = new List<SearchResult>();
-            using var cmd = _conn.CreateCommand();
-            cmd.CommandText = @"
+
+            try
+            {
+                bool allLongEnough = terms.All(t => t.Length >= 3);
+
+                if (allLongEnough)
+                {
+                    // Trigram MATCH path: AND of quoted substrings
+                    string matchExpr = string.Join(" AND ",
+                        terms.Select(t => "\"" + t.Replace("\"", "\"\"") + "\""));
+
+                    using var cmd = _conn.CreateCommand();
+                    cmd.CommandText = @"
 SELECT c.page_index,
        snippet(chunks_fts, 0, '[', ']', '...', 12) AS snip,
        c.chunk_id
@@ -214,15 +317,34 @@ JOIN chunks c ON c.chunk_id = chunks_fts.rowid
 WHERE chunks_fts MATCH $q AND c.document_id = $id
 ORDER BY rank
 LIMIT $lim";
-            cmd.Parameters.AddWithValue("$q", query);
-            cmd.Parameters.AddWithValue("$id", documentId);
-            cmd.Parameters.AddWithValue("$lim", limit);
+                    cmd.Parameters.AddWithValue("$q", matchExpr);
+                    cmd.Parameters.AddWithValue("$id", documentId);
+                    cmd.Parameters.AddWithValue("$lim", limit);
 
-            try
-            {
-                using var r = cmd.ExecuteReader();
-                while (r.Read())
-                    results.Add(new SearchResult(r.GetInt32(0), r.GetString(1), r.GetInt64(2)));
+                    using var r = cmd.ExecuteReader();
+                    while (r.Read())
+                        results.Add(new SearchResult(r.GetInt32(0), r.GetString(1), r.GetInt64(2)));
+                }
+                else
+                {
+                    // LIKE fallback for terms shorter than 3 chars
+                    var sb = new System.Text.StringBuilder(
+                        "SELECT page_index, substr(search_text,1,80), chunk_id FROM chunks WHERE document_id=$id");
+                    for (int i = 0; i < terms.Length; i++)
+                        sb.Append($" AND search_text LIKE $p{i}");
+                    sb.Append(" LIMIT $lim");
+
+                    using var cmd = _conn.CreateCommand();
+                    cmd.CommandText = sb.ToString();
+                    cmd.Parameters.AddWithValue("$id", documentId);
+                    for (int i = 0; i < terms.Length; i++)
+                        cmd.Parameters.AddWithValue($"$p{i}", "%" + terms[i] + "%");
+                    cmd.Parameters.AddWithValue("$lim", limit);
+
+                    using var r = cmd.ExecuteReader();
+                    while (r.Read())
+                        results.Add(new SearchResult(r.GetInt32(0), r.GetString(1), r.GetInt64(2)));
+                }
             }
             catch (Microsoft.Data.Sqlite.SqliteException)
             {
