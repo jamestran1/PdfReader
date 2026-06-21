@@ -38,4 +38,32 @@ public class AiErrorClassifierTests
     {
         Assert.Equal(AiChatError.Unknown, AiErrorClassifier.Classify(new InvalidOperationException()));
     }
+
+    [Fact]
+    public void ClassifyResponse_429WithInsufficientQuota_IsInsufficientQuota()
+    {
+        // OpenAI returns HTTP 429 with code "insufficient_quota" when the account has no credits.
+        var detail = "Service request failed. Status: 429. {\"error\":{\"code\":\"insufficient_quota\"}}";
+        Assert.Equal(AiChatError.InsufficientQuota, AiErrorClassifier.ClassifyResponse(429, detail));
+    }
+
+    [Fact]
+    public void ClassifyResponse_429RateLimit_IsRateLimit()
+    {
+        Assert.Equal(AiChatError.RateLimit,
+            AiErrorClassifier.ClassifyResponse(429, "Rate limit reached for requests"));
+    }
+
+    [Fact]
+    public void ClassifyResponse_429NullDetail_IsRateLimit()
+    {
+        Assert.Equal(AiChatError.RateLimit, AiErrorClassifier.ClassifyResponse(429, null));
+    }
+
+    [Fact]
+    public void ClassifyResponse_401_IsUnauthorized()
+    {
+        Assert.Equal(AiChatError.Unauthorized,
+            AiErrorClassifier.ClassifyResponse(401, "insufficient_quota")); // non-429 ignores quota text
+    }
 }
