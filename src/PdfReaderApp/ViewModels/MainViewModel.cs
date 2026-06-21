@@ -136,6 +136,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             _documentService.LoadFile(FilePath);
             _documentBlocks = _analyzer.AnalyzeRich();
+            // DocumentBlocks là property thường (không [ObservableProperty]); phải báo đổi
+            // để binding Blocks của PdfViewerControl cập nhật, nếu không highlight sẽ không có dữ liệu.
+            OnPropertyChanged(nameof(DocumentBlocks));
             _pageTexts = _documentService.ExtractPageTexts();
 
             _documentId = DocumentId.FromFile(FilePath);
@@ -146,6 +149,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _documentBlocks = new List<TextBlock>();
+            OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
             System.Windows.MessageBox.Show(
                 $"Không thể mở file PDF: {ex.Message}",

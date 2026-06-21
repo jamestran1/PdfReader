@@ -162,6 +162,7 @@
                                                                    FontWeight="Bold" FontSize="13"
                                                                    Foreground="{DynamicResource PrimaryHueMidBrush}"/>
                                                         <TextBlock TextWrapping="Wrap" FontSize="14" Opacity="0.9" Margin="0,2,0,0"
+                                                                   Foreground="{DynamicResource MaterialDesignBody}"
                                                                    local:SearchSnippetHighlighter.Text="{Binding Snippet}"
                                                                    local:SearchSnippetHighlighter.Query="{Binding DataContext.ExecutedSearchQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
                                                     </StackPanel>
