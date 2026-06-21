@@ -25,6 +25,13 @@ public sealed class DocumentIndexingService
         string documentId, string? filePath, IReadOnlyList<TextBlock> blocks,
         IProgress<IndexingProgress>? progress, CancellationToken ct)
     {
+        // Already fully indexed with the current embedding model → reuse, skip re-embedding.
+        if (_index.GetStatus(documentId, EmbeddingModel) == DocumentIndexStatus.Complete)
+        {
+            progress?.Report(new IndexingProgress(0, 0, "complete"));
+            return;
+        }
+
         var chunks = TextChunker.Chunk(documentId, blocks);
         int pageCount = blocks.Count == 0 ? 0 : blocks.Max(b => b.PageIndex) + 1;
 

@@ -104,6 +104,13 @@
                         </Button>
                     </StackPanel>
 
+                    <!-- Indexing status (blank when idle) -->
+                    <TextBlock DockPanel.Dock="Left"
+                               Text="{Binding IndexingStatusText}"
+                               VerticalAlignment="Center" Margin="16,0"
+                               Foreground="{DynamicResource PrimaryHueMidBrush}"
+                               FontStyle="Italic" TextTrimming="CharacterEllipsis"/>
+
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
                         <materialDesign:ColorZone Mode="Standard" CornerRadius="20" materialDesign:ElevationAssist.Elevation="Dp0"
                                                   Background="{DynamicResource MaterialDesignTextFieldBoxBackground}" Padding="8,2">
