@@ -31,9 +31,16 @@ public static class SearchSnippetBuilder
         int from = Math.Max(0, srcStart - contextChars);
         int to = Math.Min(originalText.Length, srcEnd + contextChars);
 
-        string window = originalText.Substring(from, to - from).Trim();
-        string prefix = from > 0 ? "..." : "";
-        string suffix = to < originalText.Length ? "..." : "";
+        string raw = originalText.Substring(from, to - from);
+        int leadTrim = raw.Length - raw.TrimStart().Length;
+        int trailTrim = raw.Length - raw.TrimEnd().Length;
+        string window = raw.Trim();
+
+        // Show "..." only when real (non-whitespace) content was actually cut off.
+        bool cutBefore = originalText.Substring(0, from + leadTrim).Trim().Length > 0;
+        bool cutAfter = originalText.Substring(to - trailTrim).Trim().Length > 0;
+        string prefix = cutBefore ? "..." : "";
+        string suffix = cutAfter ? "..." : "";
         return prefix + window + suffix;
     }
 }

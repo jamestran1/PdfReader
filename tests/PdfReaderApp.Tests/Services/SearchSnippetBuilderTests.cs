@@ -26,7 +26,7 @@ public class SearchSnippetBuilderTests
     {
         string text = "Một đoạn văn bản dài để kiểm tra fallback";
         string snip = SearchSnippetBuilder.Build(text, "khongcotrongday");
-        Assert.False(string.IsNullOrEmpty(snip));
+        Assert.StartsWith("Một đoạn", snip);
     }
 
     [Fact]
