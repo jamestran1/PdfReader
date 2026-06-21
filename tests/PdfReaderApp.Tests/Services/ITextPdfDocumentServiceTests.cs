@@ -1,4 +1,6 @@
 using System.IO;
+using iText.IO.Font;
+using iText.Kernel.Font;
 using iText.Kernel.Pdf;
 using iText.Layout;
 using iText.Layout.Element;
@@ -180,9 +182,13 @@ public class ITextPdfDocumentServiceTests : IDisposable
         using var writer = new PdfWriter(path);
         using var pdfDoc = new PdfDocument(writer);
         using var doc = new Document(pdfDoc);
-        doc.Add(new Paragraph(page1Text));
+        var font = PdfFontFactory.CreateFont(
+            @"C:\Windows\Fonts\arial.ttf",
+            PdfEncodings.IDENTITY_H,
+            PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
+        doc.Add(new Paragraph(page1Text).SetFont(font));
         doc.Add(new iText.Layout.Element.AreaBreak(iText.Layout.Properties.AreaBreakType.NEXT_PAGE));
-        doc.Add(new Paragraph(page2Text));
+        doc.Add(new Paragraph(page2Text).SetFont(font));
     }
 
     public void Dispose()
