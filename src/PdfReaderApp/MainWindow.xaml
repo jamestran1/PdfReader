@@ -13,16 +13,29 @@
         Background="{DynamicResource MaterialDesignPaper}"
         TextElement.FontWeight="Medium"
         TextElement.FontSize="14"
+        PreviewKeyDown="Window_PreviewKeyDown"
         FontFamily="{materialDesign:MaterialDesignFont}">
     <Window.Resources>
         <local:RoleToBrushConverter x:Key="RoleToBrushConverter" />
         <local:RoleToAlignConverter x:Key="RoleToAlignConverter" />
         <local:CountToBoolConverter x:Key="CountToBoolConverter" />
         <local:PageDisplayConverter x:Key="PageDisplayConverter" />
+        <local:ViewModeToBoolConverter x:Key="ViewModeToBoolConverter" />
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
     </Window.DataContext>
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Control" Key="OemPlus" Command="{Binding ZoomInCommand}" />
+        <KeyBinding Modifiers="Control" Key="Add" Command="{Binding ZoomInCommand}" />
+        <KeyBinding Modifiers="Control" Key="OemMinus" Command="{Binding ZoomOutCommand}" />
+        <KeyBinding Modifiers="Control" Key="Subtract" Command="{Binding ZoomOutCommand}" />
+        <KeyBinding Key="PageDown" Command="{Binding NextPageCommand}" />
+        <KeyBinding Key="PageUp" Command="{Binding PreviousPageCommand}" />
+        <KeyBinding Modifiers="Control" Key="Home" Command="{Binding FirstPageCommand}" />
+        <KeyBinding Modifiers="Control" Key="End" Command="{Binding LastPageCommand}" />
+        <KeyBinding Modifiers="Control" Key="O" Command="{Binding OpenFileCommand}" />
+    </Window.InputBindings>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
@@ -85,18 +98,51 @@
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ZoomOutCommand}" ToolTip="Zoom Out">
                             <materialDesign:PackIcon Kind="Minus" />
                         </Button>
-                        <TextBlock Text="{Binding ZoomLevel, StringFormat={}{0:P0}}" VerticalAlignment="Center" Margin="8,0" Width="50" TextAlignment="Center" FontWeight="Bold"/>
+                        <Slider Width="120" VerticalAlignment="Center" Minimum="0.4" Maximum="4.0"
+                                Value="{Binding ZoomLevel, Mode=TwoWay}"
+                                TickFrequency="0.1" IsSnapToTickEnabled="False" ToolTip="Zoom"/>
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ZoomInCommand}" ToolTip="Zoom In">
                             <materialDesign:PackIcon Kind="Plus" />
                         </Button>
-                        
+                        <TextBlock Text="{Binding ZoomLevel, StringFormat={}{0:P0}}" VerticalAlignment="Center" Margin="8,0" Width="50" TextAlignment="Center" FontWeight="Bold"/>
+
+                        <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
+
+                        <!-- View mode toggles: IsChecked OneWay (display) + Command sets the mode,
+                             so clicking always selects a mode and the active one cannot be unchecked. -->
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Single Page"
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=SinglePage, Mode=OneWay}"
+                                      Command="{Binding SetViewModeCommand}" CommandParameter="SinglePage">
+                            <materialDesign:PackIcon Kind="FileOutline" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Continuous"
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Continuous, Mode=OneWay}"
+                                      Command="{Binding SetViewModeCommand}" CommandParameter="Continuous">
+                            <materialDesign:PackIcon Kind="ViewSequential" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Facing"
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Facing, Mode=OneWay}"
+                                      Command="{Binding SetViewModeCommand}" CommandParameter="Facing">
+                            <materialDesign:PackIcon Kind="BookOpenPageVariant" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Continuous Facing"
+                                      IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=ContinuousFacing, Mode=OneWay}"
+                                      Command="{Binding SetViewModeCommand}" CommandParameter="ContinuousFacing">
+                            <materialDesign:PackIcon Kind="ViewGridOutline" />
+                        </ToggleButton>
+                        <ToggleButton Style="{StaticResource MaterialDesignFlatToggleButton}" ToolTip="Tách bìa (facing)"
+                                      IsChecked="{Binding ShowCoverSeparately, Mode=TwoWay}">
+                            <materialDesign:PackIcon Kind="BookOpenBlankVariant" />
+                        </ToggleButton>
+
                         <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
                         
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding PreviousPageCommand}" ToolTip="Previous Page">
                             <materialDesign:PackIcon Kind="ChevronLeft" />
                         </Button>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0">
-                            <TextBox Text="{Binding CurrentPage}" Width="30" TextAlignment="Center" materialDesign:TextFieldAssist.HasClearButton="False"/>
+                            <TextBox x:Name="PageBox" Text="{Binding CurrentPage}" Width="30" TextAlignment="Center"
+                                     materialDesign:TextFieldAssist.HasClearButton="False" KeyDown="PageBox_KeyDown"/>
                             <TextBlock Text="{Binding TotalPages, StringFormat='/ {0}'}" VerticalAlignment="Center" Margin="4,0"/>
                         </StackPanel>
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding NextPageCommand}" ToolTip="Next Page">
@@ -182,13 +228,15 @@
             </materialDesign:ColorZone>
 
             <!-- PDF Viewer Surface -->
-            <controls:PdfViewerControl Grid.Row="1"
+            <controls:PdfViewerControl Grid.Row="1" x:Name="PdfViewer"
                                        DocumentSource="{Binding FilePath}"
                                        CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
                                        TotalPages="{Binding TotalPages, Mode=TwoWay}"
                                        ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
                                        HighlightQuery="{Binding SelectedSearchQuery}"
-                                       MatchSource="{Binding PdfService}" />
+                                       MatchSource="{Binding PdfService}"
+                                       ViewMode="{Binding ViewMode}"
+                                       ShowCover="{Binding ShowCoverSeparately}" />
         </Grid>
 
         <!-- Right Sidebar (AI) -->
