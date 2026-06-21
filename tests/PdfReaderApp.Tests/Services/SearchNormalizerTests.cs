@@ -84,7 +84,7 @@ public class SearchNormalizerTests
     [Fact]
     public void FoldWithMap_FoldedMatchesFold()
     {
-        string[] inputs = { "Tiếng Việt", "Đường", "kinh  hành", "  Tiếng   Việt ", "bảo hiểm" };
+        string[] inputs = { "Tiếng Việt", "Đường", "kinh  hành", "  Tiếng   Việt ", "bảo hiểm", "kinh\t\thành", "kinh\nhành" };
         foreach (var s in inputs)
         {
             var (folded, _) = SearchNormalizer.FoldWithMap(s);

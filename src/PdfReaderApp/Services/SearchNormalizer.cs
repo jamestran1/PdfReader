@@ -70,7 +70,7 @@ public static class SearchNormalizer
         var sb = new StringBuilder(chars.Count);
         var map = new List<int>(chars.Count);
         bool pendingSpace = false;
-        int pendingSrc = 0;
+        int pendingSrc = -1;
         for (int k = 0; k < chars.Count; k++)
         {
             if (char.IsWhiteSpace(chars[k]))
@@ -80,6 +80,7 @@ public static class SearchNormalizer
             }
             if (pendingSpace && sb.Length > 0) // run whitespace noi bo -> 1 space
             {
+                // map collapsed internal whitespace to the FIRST whitespace char of the run
                 sb.Append(' ');
                 map.Add(pendingSrc);
             }
