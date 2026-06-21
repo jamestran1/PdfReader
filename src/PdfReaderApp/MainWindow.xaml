@@ -102,6 +102,12 @@
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding NextPageCommand}" ToolTip="Next Page">
                             <materialDesign:PackIcon Kind="ChevronRight" />
                         </Button>
+
+                        <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
+
+                        <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ReindexDocumentCommand}" ToolTip="Lập chỉ mục lại">
+                            <materialDesign:PackIcon Kind="DatabaseRefresh" />
+                        </Button>
                     </StackPanel>
 
                     <!-- Indexing status (blank when idle) -->

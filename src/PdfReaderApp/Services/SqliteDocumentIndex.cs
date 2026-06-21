@@ -8,6 +8,7 @@ namespace PdfReaderApp.Services;
 public sealed class SqliteDocumentIndex : IDocumentIndex
 {
     private const string EmbeddingDim = "1536";
+    private const int SchemaVersion = 4;
     private readonly SqliteConnection _conn;
     private readonly object _lock = new();
     private bool _vecAvailable;
@@ -53,6 +54,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
             // Migration: ensure existing DBs have search_text column and trigram FTS
             MigrateToTrigramIfNeeded();
+
+            // Re-fold search_text if Fold logic changed (version gate)
+            RefoldSearchTextIfStale();
+
+            // v4: phrase-search extraction pipeline changed → wipe stuck v3 indexes and force re-index
+            WipeIfPreV4();
         }
     }
 
@@ -133,6 +140,115 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             ins.Parameters.AddWithValue("$id", chunkId);
             ins.Parameters.AddWithValue("$st", folded);
             ins.ExecuteNonQuery();
+        }
+
+        tx.Commit();
+    }
+
+    private void RefoldSearchTextIfStale()
+    {
+        // Read current user_version
+        int currentVersion;
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "PRAGMA user_version";
+            currentVersion = Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        if (currentVersion >= SchemaVersion) return;
+
+        // Re-fold every chunk's search_text with the current Fold logic,
+        // then rebuild the external-content FTS index in one shot.
+        var rowsToRefold = new List<(long ChunkId, string Text)>();
+        using (var sel = _conn.CreateCommand())
+        {
+            sel.CommandText = "SELECT chunk_id, text FROM chunks";
+            using var r = sel.ExecuteReader();
+            while (r.Read())
+                rowsToRefold.Add((r.GetInt64(0), r.GetString(1)));
+        }
+
+        using var tx = _conn.BeginTransaction();
+
+        foreach (var (chunkId, text) in rowsToRefold)
+        {
+            string folded = SearchNormalizer.Fold(text);
+            using var upd = _conn.CreateCommand();
+            upd.Transaction = tx;
+            upd.CommandText = "UPDATE chunks SET search_text=$st WHERE chunk_id=$id";
+            upd.Parameters.AddWithValue("$st", folded);
+            upd.Parameters.AddWithValue("$id", chunkId);
+            upd.ExecuteNonQuery();
+        }
+
+        // Rebuild FTS index from updated content table
+        using (var rebuild = _conn.CreateCommand())
+        {
+            rebuild.Transaction = tx;
+            rebuild.CommandText = "INSERT INTO chunks_fts(chunks_fts) VALUES('rebuild')";
+            rebuild.ExecuteNonQuery();
+        }
+
+        // Stamp the new version
+        using (var ver = _conn.CreateCommand())
+        {
+            ver.Transaction = tx;
+            ver.CommandText = $"PRAGMA user_version = {SchemaVersion}";
+            ver.ExecuteNonQuery();
+        }
+
+        tx.Commit();
+    }
+
+    private void WipeIfPreV4()
+    {
+        int currentVersion;
+        using (var cmd = _conn.CreateCommand())
+        {
+            cmd.CommandText = "PRAGMA user_version";
+            currentVersion = Convert.ToInt32(cmd.ExecuteScalar());
+        }
+
+        if (currentVersion >= SchemaVersion) return;
+
+        // user_version < 4: DB may be a stuck v3 index with garbled extraction data.
+        // Wipe all indexed data so every document re-indexes cleanly on next open.
+        using var tx = _conn.BeginTransaction();
+
+        using (var del = _conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM chunks_fts;";
+            del.ExecuteNonQuery();
+        }
+
+        if (_vecAvailable)
+        {
+            using var del = _conn.CreateCommand();
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM vec_chunks;";
+            del.ExecuteNonQuery();
+        }
+
+        using (var del = _conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM chunks;";
+            del.ExecuteNonQuery();
+        }
+
+        using (var del = _conn.CreateCommand())
+        {
+            del.Transaction = tx;
+            del.CommandText = "DELETE FROM documents;";
+            del.ExecuteNonQuery();
+        }
+
+        using (var ver = _conn.CreateCommand())
+        {
+            ver.Transaction = tx;
+            ver.CommandText = $"PRAGMA user_version = {SchemaVersion}";
+            ver.ExecuteNonQuery();
         }
 
         tx.Commit();
@@ -291,21 +407,18 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
         lock (_lock)
         {
-            var terms = SearchNormalizer.Fold(query)
-                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-            if (terms.Length == 0) return new List<SearchResult>();
+            string phrase = SearchNormalizer.Fold(query);
+            if (phrase.Length == 0) return new List<SearchResult>();
 
             var results = new List<SearchResult>();
 
             try
             {
-                bool allLongEnough = terms.All(t => t.Length >= 3);
-
-                if (allLongEnough)
+                if (phrase.Length >= 3)
                 {
-                    // Trigram MATCH path: AND of quoted substrings
-                    string matchExpr = string.Join(" AND ",
-                        terms.Select(t => "\"" + t.Replace("\"", "\"\"") + "\""));
+                    // Trigram MATCH path: match the whole folded phrase as a single quoted string
+                    // so "kinh hanh" matches the contiguous substring, not AND-of-words.
+                    string matchExpr = "\"" + phrase.Replace("\"", "\"\"") + "\"";
 
                     using var cmd = _conn.CreateCommand();
                     cmd.CommandText = @"
@@ -327,18 +440,13 @@ LIMIT $lim";
                 }
                 else
                 {
-                    // LIKE fallback for terms shorter than 3 chars
-                    var sb = new System.Text.StringBuilder(
-                        "SELECT page_index, substr(search_text,1,80), chunk_id FROM chunks WHERE document_id=$id");
-                    for (int i = 0; i < terms.Length; i++)
-                        sb.Append($" AND search_text LIKE $p{i}");
-                    sb.Append(" LIMIT $lim");
-
+                    // LIKE fallback for phrases shorter than 3 chars (trigram can't index them)
                     using var cmd = _conn.CreateCommand();
-                    cmd.CommandText = sb.ToString();
+                    cmd.CommandText =
+                        "SELECT page_index, substr(search_text,1,80), chunk_id FROM chunks " +
+                        "WHERE document_id=$id AND search_text LIKE $p LIMIT $lim";
                     cmd.Parameters.AddWithValue("$id", documentId);
-                    for (int i = 0; i < terms.Length; i++)
-                        cmd.Parameters.AddWithValue($"$p{i}", "%" + terms[i] + "%");
+                    cmd.Parameters.AddWithValue("$p", "%" + phrase + "%");
                     cmd.Parameters.AddWithValue("$lim", limit);
 
                     using var r = cmd.ExecuteReader();

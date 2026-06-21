@@ -82,8 +82,8 @@ public class DocumentIndexingServiceTests
         public void Dispose() { }
     }
 
-    private static List<TextBlock> Blocks(params string[] texts) =>
-        texts.Select((t, i) => new TextBlock(t, 0, 0, 0, 0, 12, i, "Paragraph")).ToList();
+    private static List<PageText> Pages(params string[] texts) =>
+        texts.Select((t, i) => new PageText(i, t)).ToList();
 
     [Fact]
     public async Task IndexAsync_WithKey_WritesChunksEmbeddingsAndCompletes()
@@ -91,7 +91,7 @@ public class DocumentIndexingServiceTests
         var index = new RecordingIndex();
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
 
-        await svc.IndexAsync("doc1", "a.pdf", Blocks("page zero text", "page one text"), null, CancellationToken.None);
+        await svc.IndexAsync("doc1", "a.pdf", Pages("page zero text", "page one text"), null, CancellationToken.None);
 
         Assert.NotEmpty(index.Written);
         Assert.Equal(index.Written.Count, index.Embeddings.Count);
@@ -104,7 +104,7 @@ public class DocumentIndexingServiceTests
         var index = new RecordingIndex();
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings(null));
 
-        await svc.IndexAsync("doc1", null, Blocks("hello world"), null, CancellationToken.None);
+        await svc.IndexAsync("doc1", null, Pages("hello world"), null, CancellationToken.None);
 
         Assert.NotEmpty(index.Written);
         Assert.Empty(index.Embeddings);
@@ -117,7 +117,7 @@ public class DocumentIndexingServiceTests
         var index = new RecordingIndex();
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
 
-        await svc.IndexAsync("doc1", null, new List<TextBlock>(), null, CancellationToken.None);
+        await svc.IndexAsync("doc1", null, new List<PageText>(), null, CancellationToken.None);
 
         Assert.Equal(DocumentIndexStatus.Empty, index.FinalStatus);
     }
@@ -130,7 +130,7 @@ public class DocumentIndexingServiceTests
         var reports = new List<IndexingProgress>();
         var progress = new Progress<IndexingProgress>(p => reports.Add(p));
 
-        await svc.IndexAsync("doc1", null, Blocks(new string('a', 2000)), progress, CancellationToken.None);
+        await svc.IndexAsync("doc1", null, Pages(new string('a', 2000)), progress, CancellationToken.None);
 
         // Progress is captured asynchronously; allow the sync context to drain.
         await Task.Delay(50);
@@ -144,7 +144,7 @@ public class DocumentIndexingServiceTests
         var svc = new DocumentIndexingService(index, new ThrowingEmbedFactory(), new FakeSettings("sk-x"));
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => svc.IndexAsync("doc1", "a.pdf", Blocks("some text"), null, CancellationToken.None));
+            () => svc.IndexAsync("doc1", "a.pdf", Pages("some text"), null, CancellationToken.None));
 
         Assert.Equal(DocumentIndexStatus.Partial, index.FinalStatus);
     }
@@ -155,7 +155,7 @@ public class DocumentIndexingServiceTests
         var index = new RecordingIndex { StatusToReturn = DocumentIndexStatus.Complete };
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
 
-        await svc.IndexAsync("doc1", "a.pdf", Blocks("page text"), null, CancellationToken.None);
+        await svc.IndexAsync("doc1", "a.pdf", Pages("page text"), null, CancellationToken.None);
 
         Assert.Empty(index.Written);    // did not re-write chunks
         Assert.Empty(index.Embeddings); // did not re-embed (no quota wasted)
