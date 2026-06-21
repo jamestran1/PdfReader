@@ -207,6 +207,36 @@ public partial class PdfViewerControl : UserControl, IDisposable
             PagesScrollViewer.ScrollToHorizontalOffset(newHOffset);
             PagesScrollViewer.ScrollToVerticalOffset(newVOffset);
         }
+        else if (ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing && _currentDocument != null)
+        {
+            // The current unit fills the view. If it is taller than the viewport, let the wheel scroll
+            // within it first; only advance to the next/prev unit when already at the boundary.
+            bool atTop = PagesScrollViewer.VerticalOffset <= 0.5;
+            bool atBottom = PagesScrollViewer.VerticalOffset >= PagesScrollViewer.ScrollableHeight - 0.5;
+
+            if (e.Delta < 0 && atBottom && CurrentPage < TotalPages)
+            {
+                e.Handled = true;
+                int step = ViewMode == Core.PdfViewMode.Facing ? FacingStep(forward: true) : 1;
+                CurrentPage = Math.Min(TotalPages, CurrentPage + step);
+                PagesScrollViewer.ScrollToVerticalOffset(0);
+            }
+            else if (e.Delta > 0 && atTop && CurrentPage > 1)
+            {
+                e.Handled = true;
+                int step = ViewMode == Core.PdfViewMode.Facing ? FacingStep(forward: false) : 1;
+                CurrentPage = Math.Max(1, CurrentPage - step);
+            }
+        }
+    }
+
+    // So trang can buoc de den don vi facing ke tiep/truoc tu trang hien tai.
+    private int FacingStep(bool forward)
+    {
+        // Voi cover rieng, trang 1 la don vi 1 trang; cac don vi con lai la cap 2 trang.
+        if (ShowCover)
+            return CurrentPage == 1 ? 1 : 2; // tu cover -> cap ke la +1; nguoc lai la +2
+        return 2;
     }
 
     private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
