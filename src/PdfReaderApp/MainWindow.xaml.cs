@@ -2,6 +2,7 @@ using System;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Media;
 
 namespace PdfReaderApp;
@@ -26,6 +27,39 @@ public partial class MainWindow : Window
             MessageBox.Show(detail, "Lỗi Khởi tạo Hệ thống", MessageBoxButton.OK, MessageBoxImage.Error);
             Application.Current.Shutdown();
         }
+    }
+
+    // Phím tắt không gắn command: Ctrl+F focus ô tìm kiếm, Ctrl+0 fit trang vừa khung.
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+        if (ctrl && e.Key == Key.F)
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
+            e.Handled = true;
+        }
+        else if (ctrl && (e.Key == Key.D0 || e.Key == Key.NumPad0))
+        {
+            PdfViewer.FitToViewport();
+            e.Handled = true;
+        }
+        else if (ctrl && e.Key == Key.G)
+        {
+            PageBox.Focus();
+            PageBox.SelectAll();
+            e.Handled = true;
+        }
+    }
+
+    // Enter trong ô số trang: parse + kẹp về [1, TotalPages] rồi nhảy tới trang, sau đó nhả focus.
+    private void PageBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter) return;
+        if (DataContext is ViewModels.MainViewModel vm && int.TryParse(PageBox.Text, out var page))
+            vm.CurrentPage = Math.Clamp(page, 1, Math.Max(1, vm.TotalPages));
+        PdfViewer.Focus();
+        e.Handled = true;
     }
 
     private static string GetExceptionDetails(Exception? ex)
@@ -95,4 +129,16 @@ public sealed class PageDisplayConverter : IValueConverter
 {
     public object Convert(object value, Type t, object p, CultureInfo c) => value is int n ? n + 1 : value;
     public object ConvertBack(object value, Type t, object p, CultureInfo c) => throw new NotSupportedException();
+}
+
+// Checks a PdfViewMode against the mode name passed as ConverterParameter, for radio-style toggles.
+public sealed class ViewModeToBoolConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object parameter, CultureInfo c)
+        => value is PdfReaderApp.Core.PdfViewMode m && parameter is string p
+           && string.Equals(m.ToString(), p, StringComparison.Ordinal);
+
+    public object? ConvertBack(object value, Type t, object parameter, CultureInfo c)
+        => value is true && parameter is string p
+           && Enum.TryParse<PdfReaderApp.Core.PdfViewMode>(p, out var m) ? m : Binding.DoNothing;
 }

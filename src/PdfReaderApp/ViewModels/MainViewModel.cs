@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
+using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
@@ -77,6 +78,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private double _zoomLevel = 1.0;
+
+    [ObservableProperty]
+    private PdfViewMode _viewMode = PdfViewMode.Continuous;
+
+    [ObservableProperty]
+    private bool _showCoverSeparately = true;
+
+    // Đặt chế độ xem (radio-style): bấm nút luôn set mode, không bao giờ bỏ chọn mode hiện tại.
+    [RelayCommand]
+    private void SetViewMode(string mode)
+    {
+        if (Enum.TryParse<PdfViewMode>(mode, out var m)) ViewMode = m;
+    }
 
     [ObservableProperty]
     private string _chatInput = string.Empty;
@@ -323,6 +337,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (CurrentPage > 1) CurrentPage--;
     }
+
+    [RelayCommand]
+    private void FirstPage() => CurrentPage = 1;
+
+    [RelayCommand]
+    private void LastPage() => CurrentPage = TotalPages;
 
     [RelayCommand]
     private void ReindexDocument()
