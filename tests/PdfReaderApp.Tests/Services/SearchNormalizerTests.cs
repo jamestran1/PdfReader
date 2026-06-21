@@ -55,4 +55,28 @@ public class SearchNormalizerTests
             Assert.Equal(once, twice);
         }
     }
+
+    [Fact]
+    public void Fold_DoubleSpace_CollapsesToSingle()
+    {
+        Assert.Equal("kinh hanh", SearchNormalizer.Fold("kinh  hành"));
+    }
+
+    [Fact]
+    public void Fold_Newline_CollapsesToSingleSpace()
+    {
+        Assert.Equal("kinh hanh", SearchNormalizer.Fold("kinh\nhành"));
+    }
+
+    [Fact]
+    public void Fold_LeadingTrailingWhitespace_Trimmed()
+    {
+        Assert.Equal("tieng viet", SearchNormalizer.Fold("  Tiếng   Việt "));
+    }
+
+    [Fact]
+    public void Fold_TabSeparated_CollapsesToSingleSpace()
+    {
+        Assert.Equal("kinh hanh", SearchNormalizer.Fold("kinh\t\thành"));
+    }
 }
