@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -36,5 +37,59 @@ public static class SearchNormalizer
 
         // Step 5: collapse any run of whitespace to a single space and trim
         return _whitespace.Replace(s, " ").Trim();
+    }
+
+    /// <summary>
+    /// Như Fold nhưng trả thêm bản đồ vị trí: map[i] là chỉ số ký tự trong chuỗi gốc
+    /// tương ứng ký tự folded thứ i. Dùng để định vị match trên text gốc (giữ dấu).
+    /// </summary>
+    public static (string folded, int[] map) FoldWithMap(string s)
+    {
+        if (string.IsNullOrEmpty(s)) return ("", System.Array.Empty<int>());
+
+        // Phase 1: fold theo tung ky tu goc, ghi nho chi so nguon.
+        var chars = new List<char>(s.Length);
+        var src = new List<int>(s.Length);
+        for (int i = 0; i < s.Length; i++)
+        {
+            char c0 = s[i];
+            if (c0 == 'đ') c0 = 'd';
+            else if (c0 == 'Đ') c0 = 'D';
+
+            string decomposed = c0.ToString().Normalize(NormalizationForm.FormD);
+            foreach (char d in decomposed)
+            {
+                if (CharUnicodeInfo.GetUnicodeCategory(d) == UnicodeCategory.NonSpacingMark)
+                    continue;
+                chars.Add(char.ToLowerInvariant(d));
+                src.Add(i);
+            }
+        }
+
+        // Phase 2: gop run whitespace thanh 1 space, trim hai dau (khop _whitespace.Replace + Trim).
+        var sb = new StringBuilder(chars.Count);
+        var map = new List<int>(chars.Count);
+        bool pendingSpace = false;
+        int pendingSrc = -1;
+        for (int k = 0; k < chars.Count; k++)
+        {
+            if (char.IsWhiteSpace(chars[k]))
+            {
+                if (!pendingSpace) { pendingSpace = true; pendingSrc = src[k]; }
+                continue;
+            }
+            if (pendingSpace && sb.Length > 0) // run whitespace noi bo -> 1 space
+            {
+                // map collapsed internal whitespace to the FIRST whitespace char of the run
+                sb.Append(' ');
+                map.Add(pendingSrc);
+            }
+            pendingSpace = false;
+            sb.Append(chars[k]);
+            map.Add(src[k]);
+        }
+        // pendingSpace con lai o cuoi bi bo (trim trailing).
+
+        return (sb.ToString(), map.ToArray());
     }
 }

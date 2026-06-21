@@ -1,3 +1,4 @@
+using PdfReaderApp.Models;
 using PdfReaderApp.ViewModels;
 using Xunit;
 
@@ -69,5 +70,45 @@ public class MainViewModelTests
         var viewModel = new MainViewModel { ZoomLevel = 0.4 };
         viewModel.ZoomOutCommand.Execute(null);
         Assert.Equal(0.4, viewModel.ZoomLevel, 1);
+    }
+
+    [Fact]
+    public void OnSearchQueryChanged_ClearsPageHighlight()
+    {
+        var vm = new MainViewModel();
+        vm.SelectedSearchQuery = "abc";
+        vm.SearchQuery = "x";
+        Assert.Equal(string.Empty, vm.SelectedSearchQuery);
+    }
+
+    [Fact]
+    public void SearchQuery_SetEmpty_ClearsResultsAndExecutedQuery()
+    {
+        var vm = new MainViewModel();
+        vm.SearchQuery = "abc";
+        vm.ExecutedSearchQuery = "abc";
+        vm.SearchQuery = "";
+        Assert.Empty(vm.SearchResults);
+        Assert.Equal(string.Empty, vm.ExecutedSearchQuery);
+    }
+
+    [Fact]
+    public void ClearSearchCommand_ClearsQueryAndResults()
+    {
+        var vm = new MainViewModel();
+        vm.SearchQuery = "abc";
+        vm.ClearSearchCommand.Execute(null);
+        Assert.Equal(string.Empty, vm.SearchQuery);
+        Assert.Empty(vm.SearchResults);
+    }
+
+    [Fact]
+    public void SelectSearchResult_SetsPageAndHighlightQuery()
+    {
+        var vm = new MainViewModel { SearchQuery = "hành" };
+        var result = new SearchResult(2, "snip", 1);
+        vm.SelectSearchResultCommand.Execute(result);
+        Assert.Equal(3, vm.CurrentPage);
+        Assert.Equal("hành", vm.SelectedSearchQuery);
     }
 }

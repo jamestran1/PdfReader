@@ -27,6 +27,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private List<TextBlock> _documentBlocks = new();
     public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
+
+    // Exposed so PdfViewerControl can ask iText for exact keyword match rectangles to highlight.
+    public IPdfDocumentService PdfService => _documentService;
     private bool _isSending;
 
     private List<PageText> _pageTexts = new();
@@ -44,6 +47,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private string _selectedSearchQuery = string.Empty;
+
+    [ObservableProperty]
+    private string _executedSearchQuery = string.Empty;
+
+    // Mỗi khi người dùng sửa/xóa ô tìm: tắt highlight trên trang ngay lập tức.
+    // Nếu ô rỗng: xóa luôn danh sách kết quả và query đã chạy.
+    partial void OnSearchQueryChanged(string value)
+    {
+        SelectedSearchQuery = string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            SearchResults.Clear();
+            ExecutedSearchQuery = string.Empty;
+        }
+    }
 
     [ObservableProperty]
     private string windowTitle = "Ultimate PDF Reader & Editor";
@@ -121,6 +139,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             _documentService.LoadFile(FilePath);
             _documentBlocks = _analyzer.AnalyzeRich();
+            // DocumentBlocks là property thường (không [ObservableProperty]); phải báo đổi
+            // để binding Blocks của PdfViewerControl cập nhật, nếu không highlight sẽ không có dữ liệu.
+            OnPropertyChanged(nameof(DocumentBlocks));
             _pageTexts = _documentService.ExtractPageTexts();
 
             _documentId = DocumentId.FromFile(FilePath);
@@ -131,6 +152,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             _documentBlocks = new List<TextBlock>();
+            OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
             System.Windows.MessageBox.Show(
                 $"Không thể mở file PDF: {ex.Message}",
@@ -254,6 +276,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
+            ExecutedSearchQuery = SearchQuery;
             foreach (var hit in _documentIndex.SearchText(_documentId, SearchQuery))
                 SearchResults.Add(hit);
         }
@@ -271,6 +294,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         CurrentPage = result.PageIndex + 1;
         SelectedSearchQuery = SearchQuery;
     }
+
+    [RelayCommand]
+    private void ClearSearch() => SearchQuery = string.Empty;
 
     [RelayCommand]
     private void OpenSettings()
