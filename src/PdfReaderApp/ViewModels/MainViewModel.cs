@@ -46,6 +46,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _selectedSearchQuery = string.Empty;
 
     [ObservableProperty]
+    private string _executedSearchQuery = string.Empty;
+
+    // Moi khi nguoi dung sua/xoa o tim: tat highlight tren trang ngay lap tuc.
+    // Neu o rong: xoa luon danh sach ket qua va query da chay.
+    partial void OnSearchQueryChanged(string value)
+    {
+        SelectedSearchQuery = string.Empty;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            SearchResults.Clear();
+            ExecutedSearchQuery = string.Empty;
+        }
+    }
+
+    [ObservableProperty]
     private string windowTitle = "Ultimate PDF Reader & Editor";
 
     [ObservableProperty]
@@ -254,6 +269,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         try
         {
+            ExecutedSearchQuery = SearchQuery;
             foreach (var hit in _documentIndex.SearchText(_documentId, SearchQuery))
                 SearchResults.Add(hit);
         }
@@ -271,6 +287,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         CurrentPage = result.PageIndex + 1;
         SelectedSearchQuery = SearchQuery;
     }
+
+    [RelayCommand]
+    private void ClearSearch() => SearchQuery = string.Empty;
 
     [RelayCommand]
     private void OpenSettings()
