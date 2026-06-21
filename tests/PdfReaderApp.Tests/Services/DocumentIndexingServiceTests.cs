@@ -64,9 +64,10 @@ public class DocumentIndexingServiceTests
         public List<(long, float[])> Embeddings = new();
         public string? FinalStatusDoc;
         public DocumentIndexStatus FinalStatus;
+        public DocumentIndexStatus StatusToReturn = DocumentIndexStatus.None;
 
         public void EnsureSchema() { }
-        public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) => DocumentIndexStatus.None;
+        public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) => StatusToReturn;
         public void DeleteDocument(string documentId) { }
         public IReadOnlyList<long> WriteChunks(string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks)
         {
@@ -146,5 +147,17 @@ public class DocumentIndexingServiceTests
             () => svc.IndexAsync("doc1", "a.pdf", Blocks("some text"), null, CancellationToken.None));
 
         Assert.Equal(DocumentIndexStatus.Partial, index.FinalStatus);
+    }
+
+    [Fact]
+    public async Task IndexAsync_AlreadyComplete_SkipsReindexing()
+    {
+        var index = new RecordingIndex { StatusToReturn = DocumentIndexStatus.Complete };
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+
+        await svc.IndexAsync("doc1", "a.pdf", Blocks("page text"), null, CancellationToken.None);
+
+        Assert.Empty(index.Written);    // did not re-write chunks
+        Assert.Empty(index.Embeddings); // did not re-embed (no quota wasted)
     }
 }
