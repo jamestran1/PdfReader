@@ -137,7 +137,12 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private static void OnViewOptionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         if (d is PdfViewerControl c && c._currentDocument != null)
+        {
             c.RefreshLayout(keepCache: false);
+            // Single-unit modes show one unit at Y=0; reset scroll so it is in view after switching.
+            if (c.ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing)
+                c.PagesScrollViewer.ScrollToVerticalOffset(0);
+        }
     }
 
     public PdfViewerControl()
@@ -320,7 +325,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (d is PdfViewerControl control && control._currentDocument != null)
         {
-            // Modalitati cu o singura unitate necesita re-layout la schimbarea paginii.
+            // Chế độ single-unit chỉ layout một đơn vị nên đổi trang phải re-layout.
             if (control.ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing)
                 control.RefreshLayout(keepCache: true);
             else
@@ -413,7 +418,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             sizes.Add((s.Width, s.Height));
         }
 
-        // Center contre la largeur reelle du canvas Skia (pas ScrollViewer.ViewportWidth).
+        // Canh giữa theo bề rộng thực của canvas Skia (không phải ScrollViewer.ViewportWidth).
         // skiaCanvas a Margin=10, donc on utilise ActualWidth - 20 comme fallback.
         double viewportWidth = skiaCanvas.ActualWidth > 0
             ? skiaCanvas.ActualWidth
