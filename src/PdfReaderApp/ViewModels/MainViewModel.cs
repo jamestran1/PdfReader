@@ -29,6 +29,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
     private bool _isSending;
 
+    private List<PageText> _pageTexts = new();
+
     private string? _documentId;
     private CancellationTokenSource? _indexCts;
 
@@ -119,6 +121,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             _documentService.LoadFile(FilePath);
             _documentBlocks = _analyzer.AnalyzeRich();
+            _pageTexts = _documentService.ExtractPageTexts();
 
             _documentId = DocumentId.FromFile(FilePath);
             _chatService.ResetConversation();
@@ -147,7 +150,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var ct = _indexCts.Token;
         string docId = _documentId;
         string? path = FilePath;
-        var blocks = _documentBlocks;
+        IReadOnlyList<PageText> pageTexts = _pageTexts;
 
         var progress = new Progress<IndexingProgress>(p =>
             IndexingStatusText = p.Status == "complete"
@@ -156,7 +159,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _ = Task.Run(async () =>
         {
-            try { await _indexingService.IndexAsync(docId, path, blocks, progress, ct); }
+            try { await _indexingService.IndexAsync(docId, path, pageTexts, progress, ct); }
             catch (OperationCanceledException) { }
             catch (Exception ex)
             {
