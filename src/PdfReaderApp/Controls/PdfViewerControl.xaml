@@ -22,6 +22,10 @@
                 <!-- Interaction / Editing Overlay -->
                 <Canvas x:Name="InteractionCanvas" Margin="10" Background="Transparent">
                     <local:MicroEditor x:Name="TextEditor" Visibility="Collapsed" />
+                    <Button x:Name="AddNoteButton" Visibility="Collapsed" Panel.ZIndex="100"
+                            Style="{StaticResource MaterialDesignRaisedButton}"
+                            Content="Thêm ghi chú" Padding="8,2" FontSize="12"
+                            Click="AddNoteButton_Click"/>
                 </Canvas>
             </Grid>
         </ScrollViewer>
