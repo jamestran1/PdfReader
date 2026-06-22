@@ -21,6 +21,11 @@
         <local:CountToBoolConverter x:Key="CountToBoolConverter" />
         <local:PageDisplayConverter x:Key="PageDisplayConverter" />
         <local:ViewModeToBoolConverter x:Key="ViewModeToBoolConverter" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
+        <local:CountToInverseVisibilityConverter x:Key="CountToInverseVisibilityConverter" />
+        <local:UnixToDateConverter x:Key="UnixToDateConverter" />
+        <local:PathToImageConverter x:Key="PathToImageConverter" />
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -57,7 +62,8 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" VerticalAlignment="Center">
-                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Read">
+                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Thư viện"
+                            Command="{Binding ShowLibraryViewCommand}">
                         <materialDesign:PackIcon Kind="BookOpenVariant" Width="24" Height="24"/>
                     </Button>
                     <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Edit">
@@ -236,7 +242,56 @@
                                        HighlightQuery="{Binding SelectedSearchQuery}"
                                        MatchSource="{Binding PdfService}"
                                        ViewMode="{Binding ViewMode}"
-                                       ShowCover="{Binding ShowCoverSeparately}" />
+                                       ShowCover="{Binding ShowCoverSeparately}"
+                                       Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+            <!-- Library grid (shown when ShowLibrary) -->
+            <Border Grid.Row="1" Background="{DynamicResource MaterialDesignPaper}"
+                    Visibility="{Binding ShowLibrary, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid>
+                    <TextBlock Text="Chưa có tài liệu — bấm OPEN PDF để thêm vào thư viện."
+                               HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6"
+                               Visibility="{Binding Library.Count, Converter={StaticResource CountToInverseVisibilityConverter}}"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
+                        <ItemsControl ItemsSource="{Binding Library}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <materialDesign:Card Width="180" Margin="8" materialDesign:ElevationAssist.Elevation="Dp2">
+                                        <Grid>
+                                            <!-- Border (không phải MaterialDesignFlatButton: style đó ép ~32px + Ripple clip ảnh).
+                                                 Border co theo nội dung; MouseBinding mở tài liệu khi bấm. -->
+                                            <Border Background="Transparent" Cursor="Hand">
+                                                <Border.InputBindings>
+                                                    <MouseBinding MouseAction="LeftClick"
+                                                                  Command="{Binding DataContext.OpenLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                  CommandParameter="{Binding}"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <Image Source="{Binding ThumbPath, Converter={StaticResource PathToImageConverter}}" Height="220" Stretch="Uniform" Margin="0,8"/>
+                                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" Margin="8,0" FontWeight="Bold"/>
+                                                    <TextBlock Text="{Binding PageCount, StringFormat='{}{0} trang'}" Margin="8,0" Opacity="0.7" FontSize="11"/>
+                                                    <TextBlock Text="{Binding LastOpenedAtUnix, Converter={StaticResource UnixToDateConverter}, StringFormat='Mở: {0}'}"
+                                                               Margin="8,0,8,8" Opacity="0.6" FontSize="10"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <!-- Nút xoá đè góc phải; bấm vào đây xoá, bấm chỗ khác mở tài liệu -->
+                                            <Button Style="{StaticResource MaterialDesignIconButton}" Width="30" Height="30"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="Xoá khỏi thư viện"
+                                                    Command="{Binding DataContext.RemoveLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}">
+                                                <materialDesign:PackIcon Kind="Delete" Width="16" Height="16" />
+                                            </Button>
+                                        </Grid>
+                                    </materialDesign:Card>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
         </Grid>
 
         <!-- Right Sidebar (AI) -->

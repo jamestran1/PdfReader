@@ -85,6 +85,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showCoverSeparately = true;
 
+    [ObservableProperty]
+    private bool _showLibrary = true;
+
+    public ObservableCollection<LibraryItem> Library { get; } = new();
+
+    private readonly LibraryService _library;
+
     // Đặt chế độ xem (radio-style): bấm nút luôn set mode, không bao giờ bỏ chọn mode hiện tại.
     [RelayCommand]
     private void SetViewMode(string mode)
@@ -96,6 +103,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private string _chatInput = string.Empty;
 
     public ObservableCollection<ChatMessage> ChatMessages { get; } = new();
+
+    private static string AppDir()
+    {
+        string dir = System.IO.Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfReaderApp");
+        System.IO.Directory.CreateDirectory(dir);
+        return dir;
+    }
 
     private static string IndexDbPath()
     {
@@ -131,6 +146,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _indexingService = new DocumentIndexingService(_documentIndex, embeddingFactory, settingsService);
         _ragContext = new RagContextService(_documentIndex, embeddingFactory, settingsService);
 
+        var libraryStore = new SqliteLibraryStore(System.IO.Path.Combine(AppDir(), "library.db"));
+        libraryStore.EnsureSchema();
+        _library = new LibraryService(libraryStore,
+            System.IO.Path.Combine(AppDir(), "library"),
+            System.IO.Path.Combine(AppDir(), "library", "thumbs"),
+            new PdfReaderApp.Core.RenderEngine());
+        ReloadLibrary();
+
         ChatMessages.Add(new ChatMessage
         {
             Role = "AI",
@@ -145,20 +168,66 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             Filter = "PDF Files (*.pdf)|*.pdf|All Files (*.*)|*.*"
         };
-
         if (dialog.ShowDialog() != true) return;
 
-        FilePath = dialog.FileName;
         try
         {
-            _documentService.LoadFile(FilePath);
+            var item = _library.Import(dialog.FileName, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            ReloadLibrary();
+            OpenLibraryItem(item);
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show($"Không thể import file PDF: {ex.Message}", "Lỗi",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+        }
+    }
+
+    [RelayCommand]
+    private void ShowLibraryView()
+    {
+        ReloadLibrary();
+        ShowLibrary = true;
+    }
+
+    [RelayCommand]
+    private void OpenLibraryItem(LibraryItem? item)
+    {
+        if (item is null) return;
+        LoadActiveDocument(item.StoredPath);
+        if (_documentId != null)
+        {
+            _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            ShowLibrary = false;
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveLibraryItem(LibraryItem? item)
+    {
+        if (item is null) return;
+        _library.Remove(item);
+        Library.Remove(item);
+    }
+
+    private void ReloadLibrary()
+    {
+        Library.Clear();
+        foreach (var i in _library.GetAll()) Library.Add(i);
+    }
+
+    // Nạp tài liệu đang hoạt động từ đường dẫn (đã copy trong thư viện). Tái dùng cho cả OpenFile lẫn mở từ thư viện.
+    private void LoadActiveDocument(string path)
+    {
+        FilePath = path;
+        try
+        {
+            _documentService.LoadFile(path);
             _documentBlocks = _analyzer.AnalyzeRich();
-            // DocumentBlocks là property thường (không [ObservableProperty]); phải báo đổi
-            // để binding Blocks của PdfViewerControl cập nhật, nếu không highlight sẽ không có dữ liệu.
             OnPropertyChanged(nameof(DocumentBlocks));
             _pageTexts = _documentService.ExtractPageTexts();
 
-            _documentId = DocumentId.FromFile(FilePath);
+            _documentId = DocumentId.FromFile(path);
             _chatService.ResetConversation();
             SearchResults.Clear();
             StartBackgroundIndexing();
@@ -168,11 +237,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _documentBlocks = new List<TextBlock>();
             OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
-            System.Windows.MessageBox.Show(
-                $"Không thể mở file PDF: {ex.Message}",
-                "Lỗi mở file",
-                System.Windows.MessageBoxButton.OK,
-                System.Windows.MessageBoxImage.Warning);
+            System.Windows.MessageBox.Show($"Không thể mở file PDF: {ex.Message}", "Lỗi mở file",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             FilePath = null;
         }
     }
