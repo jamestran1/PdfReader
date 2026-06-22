@@ -35,6 +35,19 @@ public sealed class AiChatService : IDisposable
         _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
     }
 
+    /// <summary>Dựng lại lịch sử hội thoại LLM từ các lượt đã lưu (nội dung sạch, không kèm
+    /// khối ngữ cảnh tài liệu). Dùng khi mở lại một sách để AI nhớ tiếp mạch.</summary>
+    public void SeedHistory(IEnumerable<(string role, string content)> turns)
+    {
+        _history.Clear();
+        _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
+        foreach (var (role, content) in turns)
+        {
+            var chatRole = role == "AI" ? ChatRole.Assistant : ChatRole.User;
+            _history.Add(new ChatMessage(chatRole, content));
+        }
+    }
+
     public async IAsyncEnumerable<string> AskStreamingAsync(
         string question, string documentContext,
         [EnumeratorCancellation] CancellationToken ct = default)
