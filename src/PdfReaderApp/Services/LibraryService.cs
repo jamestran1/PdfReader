@@ -9,8 +9,8 @@ using SkiaSharp;
 namespace PdfReaderApp.Services;
 
 /// <summary>
-/// Quan ly thu vien: import (copy file vao thu muc app + render thumbnail bia + ghi store),
-/// liet ke, xoa, cap nhat lan mo cuoi. Dedup theo DocumentId (hash noi dung).
+/// Quản lý thư viện: import (copy file vào thư mục app + render thumbnail bìa + ghi store),
+/// liệt kê, xoá, cập nhật lần mở cuối. Dedup theo DocumentId (hash nội dung).
 /// </summary>
 public sealed class LibraryService
 {
@@ -58,7 +58,7 @@ public sealed class LibraryService
         {
             pageCount = doc.PageCount;
             try { RenderThumbnail(doc.Pages[0], thumbPath); }
-            catch { thumbPath = null; } // thumbnail la phu; thieu van import duoc
+            catch { thumbPath = null; } // thumbnail là phụ; thiếu vẫn import được
         }
 
         var item = new LibraryItem(id, Path.GetFileName(sourcePath), storedPath, thumbPath,

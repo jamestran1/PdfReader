@@ -216,7 +216,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         foreach (var i in _library.GetAll()) Library.Add(i);
     }
 
-    // Nap tai lieu dang hoat dong tu duong dan (da copy trong thu vien). Tai dung cho ca OpenFile lan mo tu thu vien.
+    // Nạp tài liệu đang hoạt động từ đường dẫn (đã copy trong thư viện). Tái dùng cho cả OpenFile lẫn mở từ thư viện.
     private void LoadActiveDocument(string path)
     {
         FilePath = path;

@@ -4,7 +4,7 @@ using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
 
-/// <summary>Luu metadata thu vien trong library.db, tach khoi index.db cua AI.</summary>
+/// <summary>Lưu metadata thư viện trong library.db, tách khỏi index.db của AI.</summary>
 public sealed class SqliteLibraryStore : ILibraryStore
 {
     private readonly string _connectionString;

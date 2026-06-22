@@ -1,6 +1,6 @@
 namespace PdfReaderApp.Models;
 
-/// <summary>Mot tai lieu trong thu vien (da copy vao thu muc app). Thoi gian la unix seconds.</summary>
+/// <summary>Một tài liệu trong thư viện (đã copy vào thư mục app). Thời gian là unix seconds.</summary>
 public sealed record LibraryItem(
     string DocumentId,
     string Title,
