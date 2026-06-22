@@ -641,22 +641,17 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (_selPageIndex != pageIndex || _selectionRectsPdf.Count == 0 || _currentDocument == null) return;
 
-        var pageSize = _currentDocument.Pages[pageIndex].Size;
-        float pageHeightPt = (float)pageSize.Height;
-        var mapper = new PdfCoordinateMapper(pageHeightPt, scale, 72);
-
+        // GhostText.Bounds là top-origin (Y hướng xuống) - cùng hệ với double-click/ShowEditor
+        // (đặt tại pageRect.Top + Bounds.Top*scale). KHÔNG lật Y như DrawHighlights (vốn dùng
+        // MatchRect bottom-origin của iText). Chỉ cần nhân scale + cộng offset của trang.
         using var paint = new SKPaint { Color = new SKColor(33, 150, 243, 90), Style = SKPaintStyle.Fill };
         foreach (var r in _selectionRectsPdf)
         {
-            // GhostText.Bounds dùng PDF user-space: Y gốc ở đáy trang, Top > Bottom.
-            // Truyền Top (giá trị lớn hơn) làm pdfY cho góc trên của rect trong PDF space.
-            var (rx1, ry1) = mapper.PdfPointToRender((float)r.Left, (float)r.Top);
-            var (rx2, ry2) = mapper.PdfPointToRender((float)r.Right, (float)r.Bottom);
             canvas.DrawRect(SKRect.Create(
-                (float)pageRect.Left + MathF.Min(rx1, rx2),
-                (float)pageRect.Top + MathF.Min(ry1, ry2),
-                MathF.Abs(rx2 - rx1),
-                MathF.Abs(ry2 - ry1)), paint);
+                (float)(pageRect.Left + r.Left * scale),
+                (float)(pageRect.Top + r.Top * scale),
+                (float)(r.Width * scale),
+                (float)(r.Height * scale)), paint);
         }
     }
 
