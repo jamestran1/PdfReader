@@ -11,14 +11,14 @@ Mỗi quyển sách có một tập ghi chú dạng thẻ rời, lưu bền vữ
 ## Quyết định (gồm kết quả review)
 
 1. **Note dạng nhiều thẻ rời** (không phải một cuốn sổ dài).
-2. **Panel Notes nằm chung sidebar phải với Chat**, dạng 2 "tab" tự dựng (KHÔNG dùng `TabControl` MaterialDesign).
+2. **Panel Notes nằm chung sidebar phải với Chat**, dạng 2 tab dùng `TabControl` MaterialDesign (Chat | Notes).
 3. **Mỗi note tự neo trang hiện tại** lúc tạo; click note nhảy tới trang.
 4. **Có lọc client-side + sắp theo trang** ngay ở v1.
 5. **Seam workspace-ready ngay từ Layer 1:** tách `owner_key` (phạm vi, = documentId ở v1) khỏi `document_id` (anchor, nullable); định danh **GUID**; có `PRAGMA user_version` + nhánh migration.
 
 ## Vì sao một số thứ làm khác bản nháp đầu (theo review)
 
-- **`TabControl` MD hủy/dựng lại nội dung khi chuyển tab** → mất vị trí cuộn chat + trạng thái stream. Dùng 2 panel + toggle `Visibility`.
+- **`TabControl` MD (bằng chứng từ template v5.1.0):** `ControlTemplate` của `MaterialDesignTabControl` chỉ có một `ContentPresenter x:Name="PART_SelectedContentHost"` (`ContentSource="SelectedContent"`) → nội dung tab không-chọn **gỡ khỏi visual tree**. Hệ quả THẬT chỉ là **có thể reset cuộn/focus** khi chuyển tab; **dữ liệu/stream chat KHÔNG mất** (nằm ở `ChatMessages` trong VM). Quyết định: **dùng `TabControl` MD**; verify cuộn ở GUI; nếu khó chịu thì áp fix keep-alive (template giữ cả hai content host) — không làm trước khi có bằng chứng cần.
 - **Reload cả danh sách sau mỗi sửa/xóa** làm mất scroll + focus → cập nhật `ObservableCollection` tại chỗ; chỉ nạp lại khi đổi sách.
 - **Khóa chỉ bằng documentId + id autoincrement** trái nguyên tắc epic và khó xuất/chia sẻ về sau → `owner_key` + anchor nullable + GUID.
 - **`PageIndex` bare + hash nội dung làm note "mất" khi đổi file:** trong kiến trúc hiện tại library **copy file vào app và không ghi đè**, nên bản lưu *bất biến* → hash ổn định, anchor trang không lệch. Chỉ thành vấn đề khi có *sửa-PDF-ghi-đè* (chưa có). → Hoãn "định danh ổn định + nối phiên bản" (ghi nhận ở epic), không thêm fingerprint trang ở v1.
@@ -87,20 +87,16 @@ Ctor: `NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int>
 - Ctor: dựng `SqliteNoteStore(Path.Combine(AppDir(),"notes.db"))` + `EnsureSchema()`; `Notes = new NotesViewModel(noteStore, () => _documentId is null ? (int?)null : CurrentPage - 1, idx => CurrentPage = idx + 1);`. Tham số ctor tùy chọn `INoteStore? noteStore = null` để test inject.
 - `public NotesViewModel Notes { get; }`.
 - `LoadActiveDocument` nhánh thành công: `Notes.LoadFor(_documentId)`; nhánh catch (`_documentId=null`): `Notes.LoadFor(null)`.
-- Tab phải: `[ObservableProperty] string _rightPanelTab = "Chat";` + `[RelayCommand] void SetRightPanelTab(string tab) => RightPanelTab = tab;`.
+- (Không cần state tab ở VM — `TabControl` tự quản lý selection.)
 
 ### XAML (MainWindow.xaml)
 
-Trong Card sidebar phải (giữ nguyên `Grid.Column`, Visibility theo `ShowLibrary`, width binding):
-- Header: 2 nút "Chat" | "Notes" (đặt `RightPanelTab` qua `SetRightPanelTabCommand`).
-- Vùng nội dung chứa 2 panel chồng, mỗi panel `Visibility` bind `RightPanelTab` qua converter mới `StringMatchToVisibilityConverter` (param = "Chat"/"Notes"):
-  - Panel **Chat**: chuyển toàn bộ UI chat hiện có vào đây.
-  - Panel **Notes**:
-    - Ô lọc: TextBox bind `Notes.FilterText`.
-    - Composer: TextBox bind `Notes.Draft` (`AcceptsReturn=True`; `KeyBinding Ctrl+Enter` → `Notes.SaveCommand`; gợi ý "Ctrl+Enter để lưu"); IsEnabled bind `Notes.CanAddNote`; nút Lưu; nút Hủy hiện khi `Notes.IsEditing`.
-    - Danh sách: `ItemsControl ItemsSource="{Binding Notes.NotesView}"`. Mỗi thẻ: nội dung, badge "Trang {PageIndex+1}" nếu có anchor, icon sửa/xóa. Lệnh trong DataTemplate bind qua `RelativeSource AncestorType=ItemsControl` → `DataContext.Notes.{BeginEdit|Delete|Open}Command`, `CommandParameter="{Binding}"` (đúng pattern repo đang dùng).
-
-Converter mới `StringMatchToVisibilityConverter`: `value (string) == parameter (string)` → Visible, else Collapsed.
+Trong Card sidebar phải (giữ nguyên `Grid.Column`, Visibility theo `ShowLibrary`, width binding), thay nội dung Card bằng `TabControl` style `MaterialDesignTabControl` với 2 `TabItem`:
+- TabItem **Chat**: chuyển toàn bộ UI chat hiện có vào đây (nội dung là phần tử trực tiếp, không DataTemplate).
+- TabItem **Notes**:
+  - Ô lọc: TextBox bind `Notes.FilterText`.
+  - Composer: TextBox bind `Notes.Draft` (`AcceptsReturn=True`; `KeyBinding Ctrl+Enter` → `Notes.SaveCommand`; gợi ý "Ctrl+Enter để lưu"); IsEnabled bind `Notes.CanAddNote`; nút Lưu; nút Hủy hiện khi `Notes.IsEditing`.
+  - Danh sách: `ItemsControl ItemsSource="{Binding Notes.NotesView}"`. Mỗi thẻ: nội dung, badge "Trang {PageIndex+1}" nếu có anchor, icon sửa/xóa. Lệnh trong DataTemplate bind qua `RelativeSource AncestorType=ItemsControl` → `DataContext.Notes.{BeginEdit|Delete|Open}Command`, `CommandParameter="{Binding}"` (đúng pattern repo đang dùng).
 
 ## Xử lý lỗi / edge
 
@@ -132,7 +128,7 @@ Converter mới `StringMatchToVisibilityConverter`: `value (string) == parameter
 - `LoadFor(id)` nạp đúng danh sách + `CanAddNote=true`; `LoadFor(null)` làm rỗng + `CanAddNote=false`.
 - `MatchesFilter`: rỗng → true; chứa (không phân biệt hoa thường) → true; không chứa → false.
 
-**Verify GUI thủ công:** chuyển tab Chat/Notes không mất cuộn/stream chat; tạo/sửa/xóa note không nhảy scroll; lọc; click thẻ nhảy trang; composer khóa khi ở thư viện; Ctrl+Enter lưu.
+**Verify GUI thủ công:** chuyển tab Chat/Notes — **kiểm tra cuộn chat + focus có bị reset không** (nếu có và khó chịu → áp fix keep-alive template, ghi nhận); nội dung/stream chat phải còn nguyên; tạo/sửa/xóa note không nhảy scroll danh sách note; lọc; click thẻ nhảy trang; composer khóa khi ở thư viện; Ctrl+Enter lưu.
 
 ## Loại trừ (Layer sau)
 
