@@ -24,6 +24,7 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
         <local:CountToInverseVisibilityConverter x:Key="CountToInverseVisibilityConverter" />
+        <local:UnixToDateConverter x:Key="UnixToDateConverter" />
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -258,15 +259,26 @@
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <materialDesign:Card Width="180" Margin="8" materialDesign:ElevationAssist.Elevation="Dp2">
-                                        <Button Style="{StaticResource MaterialDesignFlatButton}" Padding="0" HorizontalContentAlignment="Stretch"
-                                                Command="{Binding DataContext.OpenLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}">
-                                            <StackPanel>
-                                                <Image Source="{Binding ThumbPath}" Height="220" Stretch="Uniform" Margin="0,8"/>
-                                                <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" Margin="8,0" FontWeight="Bold"/>
-                                                <TextBlock Text="{Binding PageCount, StringFormat='{}{0} trang'}" Margin="8,0,8,8" Opacity="0.7" FontSize="11"/>
-                                            </StackPanel>
-                                        </Button>
+                                        <Grid>
+                                            <Button Style="{StaticResource MaterialDesignFlatButton}" Padding="0" HorizontalContentAlignment="Stretch"
+                                                    Command="{Binding DataContext.OpenLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}">
+                                                <StackPanel>
+                                                    <Image Source="{Binding ThumbPath}" Height="220" Stretch="Uniform" Margin="0,8"/>
+                                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" Margin="8,0" FontWeight="Bold"/>
+                                                    <TextBlock Text="{Binding PageCount, StringFormat='{}{0} trang'}" Margin="8,0" Opacity="0.7" FontSize="11"/>
+                                                    <TextBlock Text="{Binding LastOpenedAtUnix, Converter={StaticResource UnixToDateConverter}, StringFormat='Mở: {0}'}"
+                                                               Margin="8,0,8,8" Opacity="0.6" FontSize="10"/>
+                                                </StackPanel>
+                                            </Button>
+                                            <!-- Nút xoá đè góc phải; bấm vào đây xoá, bấm chỗ khác mở tài liệu -->
+                                            <Button Style="{StaticResource MaterialDesignIconButton}" Width="30" Height="30"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="Xoá khỏi thư viện"
+                                                    Command="{Binding DataContext.RemoveLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}">
+                                                <materialDesign:PackIcon Kind="Delete" Width="16" Height="16" />
+                                            </Button>
+                                        </Grid>
                                     </materialDesign:Card>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>

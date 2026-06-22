@@ -145,6 +145,14 @@ public sealed class CountToInverseVisibilityConverter : IValueConverter
     public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
 }
 
+// Unix seconds -> chuỗi ngày địa phương (cho nhãn "lần mở cuối" trên thẻ thư viện).
+public sealed class UnixToDateConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object p, CultureInfo c)
+        => value is long secs ? DateTimeOffset.FromUnixTimeSeconds(secs).LocalDateTime.ToString("dd/MM/yyyy") : "";
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+}
+
 // Checks a PdfViewMode against the mode name passed as ConverterParameter, for radio-style toggles.
 public sealed class ViewModeToBoolConverter : IValueConverter
 {
