@@ -135,6 +135,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<ChatMessage> ChatMessages { get; } = new();
 
+    public NotesViewModel Notes { get; }
+
     private static string AppDir()
     {
         string dir = System.IO.Path.Combine(
@@ -166,7 +168,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IChatClientFactory chatClientFactory,
         IDocumentIndex documentIndex,
         IEmbeddingGeneratorFactory embeddingFactory,
-        IChatHistoryStore? chatHistory = null)
+        IChatHistoryStore? chatHistory = null,
+        INoteStore? noteStore = null)
     {
         _documentService = documentService;
         _settingsService = settingsService;
@@ -188,6 +191,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _chatHistory = chatHistory ?? new SqliteChatHistoryStore(System.IO.Path.Combine(AppDir(), "chats.db"));
         _chatHistory.EnsureSchema();
+
+        var notes = noteStore ?? new SqliteNoteStore(System.IO.Path.Combine(AppDir(), "notes.db"));
+        notes.EnsureSchema();
+        Notes = new NotesViewModel(notes,
+            () => _documentId is null ? (int?)null : CurrentPage - 1,
+            idx => CurrentPage = idx + 1);
 
         LoadChatHistory();
     }
@@ -261,6 +270,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             _documentId = DocumentId.FromFile(path);
             LoadChatHistory();
+            Notes.LoadFor(_documentId);
             SearchResults.Clear();
             StartBackgroundIndexing();
         }
@@ -270,6 +280,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
             LoadChatHistory();
+            Notes.LoadFor(null);
             System.Windows.MessageBox.Show($"Không thể mở file PDF: {ex.Message}", "Lỗi mở file",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             FilePath = null;

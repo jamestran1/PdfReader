@@ -3,7 +3,7 @@
 Cập nhật: 2026-06-22. Quy ước trạng thái: ✅ done · 🔄 in progress · ⬜ backlog. Ưu tiên: P0 cao → P3 thấp.
 
 ## 🔄 Đang làm
-- ⬜ **Thư viện tài liệu (Document Library)** — P0. Import file → lưu lại; lần sau mở lại từ giao diện thư viện. (Đang brainstorm.)
+- 🔄 **Take note (ghi chú)** — P1. (Đang brainstorm.)
 
 ## ⬜ Backlog (theo ưu tiên, từ audit 2026-06-22)
 | P | Tính năng | Trạng thái hiện tại | Ghi chú |
@@ -14,9 +14,13 @@ Cập nhật: 2026-06-22. Quy ước trạng thái: ✅ done · 🔄 in progress
 | P1 | Nút Read/Edit ở rail trái | DEAD UI | Chưa bind command (chỉ Settings có) |
 | P2 | Annotation/markup (highlight thủ công, ghi chú, hình, bút) | THIẾU | Mới chỉ có highlight tìm kiếm (tạm) |
 | P2 | Thumbnail / Outline / Bookmark panel | THIẾU | Chưa có panel trang/mục lục |
+| P2 | Tỉa độ dài lịch sử LLM khi hội thoại quá dài | THIẾU | Ghi nhận khi làm PR #12: lịch sử chat nạp lại vào `SeedHistory` có thể phình, chạm giới hạn token. Cần tỉa (giữ N lượt gần nhất hoặc tóm tắt). |
 | P3 | Search: prev/next match + đếm "1/15" | DỞ | Chỉ popup + click, chưa nhảy match kế |
 
 ## ✅ Đã xong (gần đây)
+- ✅ Thư viện tài liệu: import → copy vào app + thumbnail + lưới thẻ, mở lại — PR #11.
+- ✅ Lịch sử chat theo từng sách (lưu SQLite, AI nhớ tiếp mạch) — PR #12.
+- ✅ Ẩn panel chat khi ở thư viện + kéo chỉnh bề rộng (GridSplitter) — PR #13.
 - ✅ AI chat + RAG (OpenAI streaming + embeddings + index SQLite) — PR #8/SP2.
 - ✅ Tìm kiếm: index, snippet có dấu + in đậm, click→nhảy + highlight đúng từ khóa (iText) — PR #9.
 - ✅ 4 chế độ view (Single/Continuous/Facing/Continuous Facing) + tách bìa — PR #10.

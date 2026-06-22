@@ -174,6 +174,22 @@ public sealed class PathToImageConverter : IValueConverter
     public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
 }
 
+// PageIndex (0-based, int?) -> chuỗi "Trang N" (N = index + 1). Null -> rỗng.
+public sealed class PageBadgeConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object p, CultureInfo c)
+        => value is int i ? $"Trang {i + 1}" : string.Empty;
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+}
+
+// Giá trị null -> Collapsed, có giá trị -> Visible (ẩn badge khi note không neo trang).
+public sealed class NullToCollapsedConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object p, CultureInfo c)
+        => value is null ? Visibility.Collapsed : Visibility.Visible;
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+}
+
 // Checks a PdfViewMode against the mode name passed as ConverterParameter, for radio-style toggles.
 public sealed class ViewModeToBoolConverter : IValueConverter
 {
