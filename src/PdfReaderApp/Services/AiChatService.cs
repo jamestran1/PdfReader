@@ -10,7 +10,7 @@ public sealed class AiChatService : IDisposable
         "Bạn là trợ lý đọc tài liệu PDF. Trả lời bằng tiếng Việt, ngắn gọn, " +
         "chỉ dựa trên nội dung tài liệu được cung cấp. Nếu chưa có tài liệu hoặc " +
         "nội dung không đủ, hãy nói rõ điều đó.";
-    private const string InterruptedSentinel = " ...[lỗi: phản hồi bị gián đoạn]";
+    public const string InterruptedSentinel = " ...[lỗi: phản hồi bị gián đoạn]";
     private const int MaxContextChars = 48000;
 
     private readonly ISettingsService _settings;

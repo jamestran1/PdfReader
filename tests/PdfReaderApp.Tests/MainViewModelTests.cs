@@ -51,6 +51,34 @@ public class MainViewModelTests
         Assert.Contains("docX", store.Deleted);
     }
 
+    [Fact]
+    public void MemoryTurns_ExcludesErrorEmptyAndInterruptedAiTurns_KeepsRest()
+    {
+        var turns = new (string role, string content)[]
+        {
+            ("User", "Câu hỏi 1"),
+            ("AI", "Trả lời tốt"),
+            ("User", "Câu hỏi 2"),
+            ("AI", "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key."),
+            ("AI", "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng."),
+            ("AI", "Một phần trả lời" + PdfReaderApp.Services.AiChatService.InterruptedSentinel),
+            ("AI", ""),
+            ("User", "Câu hỏi 3"),
+        };
+
+        var kept = MainViewModel.MemoryTurns(turns).ToList();
+
+        // Giữ: mọi lượt User + lượt AI là câu trả lời thật.
+        Assert.Contains(kept, t => t.content == "Câu hỏi 1");
+        Assert.Contains(kept, t => t.content == "Câu hỏi 3");
+        Assert.Contains(kept, t => t.content == "Trả lời tốt");
+        // Bỏ: AI báo lỗi (kể cả lỗi suy ra từ MapError), AI rỗng, AI gián đoạn.
+        Assert.DoesNotContain(kept, t => t.content.Contains("Chưa cấu hình"));
+        Assert.DoesNotContain(kept, t => t.content.Contains("Không kết nối được"));
+        Assert.DoesNotContain(kept, t => t.content.Contains(PdfReaderApp.Services.AiChatService.InterruptedSentinel));
+        Assert.DoesNotContain(kept, t => t.role == "AI" && t.content.Length == 0);
+    }
+
 
     [Fact]
     public void MainViewModel_ShouldInitializeWithDefaultValues()
