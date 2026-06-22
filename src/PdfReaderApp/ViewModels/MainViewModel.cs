@@ -88,6 +88,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showLibrary = true;
 
+    private const double DefaultChatWidthPx = 350;
+    private const double MinChatWidthPx = 280;
+    private double _savedChatWidthPx = DefaultChatWidthPx;
+
+    // Bề rộng cột chat (bind hai chiều tới ColumnDefinition.Width trong XAML). Mặc định 0 vì
+    // app mở ở thư viện -> panel ẩn. MinWidth cũng động: 0 khi ẩn, 280 khi hiện (nếu để cố định
+    // 280 thì không thu cột về 0 được khi ẩn).
+    [ObservableProperty]
+    private System.Windows.GridLength _chatColumnWidth = new System.Windows.GridLength(0);
+
+    [ObservableProperty]
+    private double _chatColumnMinWidth = 0;
+
+    // Vào thư viện: lưu bề rộng đang có rồi thu cột về 0. Rời thư viện: khôi phục bề rộng đã lưu.
+    partial void OnShowLibraryChanged(bool value)
+    {
+        if (value)
+        {
+            if (ChatColumnWidth.IsAbsolute && ChatColumnWidth.Value > 0)
+                _savedChatWidthPx = ChatColumnWidth.Value;
+            ChatColumnWidth = new System.Windows.GridLength(0);
+            ChatColumnMinWidth = 0;
+        }
+        else
+        {
+            ChatColumnMinWidth = MinChatWidthPx;
+            ChatColumnWidth = new System.Windows.GridLength(_savedChatWidthPx);
+        }
+    }
+
     public ObservableCollection<LibraryItem> Library { get; } = new();
 
     private readonly LibraryService _library;

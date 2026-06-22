@@ -4,6 +4,7 @@ using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 using PdfReaderApp.ViewModels;
+using System.Windows;
 using Xunit;
 
 namespace PdfReaderApp.Tests;
@@ -234,5 +235,34 @@ public class MainViewModelTests
     public void ShowLibrary_DefaultsTrue()
     {
         Assert.True(new MainViewModel().ShowLibrary);
+    }
+
+    [Fact]
+    public void ChatColumn_DefaultsHidden_WhenLibraryShown()
+    {
+        var vm = new MainViewModel(); // ShowLibrary mặc định true
+        Assert.Equal(0, vm.ChatColumnWidth.Value);
+        Assert.Equal(0, vm.ChatColumnMinWidth);
+    }
+
+    [Fact]
+    public void ChatColumn_RestoresDefaultWidth_WhenLeavingLibrary()
+    {
+        var vm = new MainViewModel();
+        vm.ShowLibrary = false;
+        Assert.Equal(350, vm.ChatColumnWidth.Value);
+        Assert.Equal(280, vm.ChatColumnMinWidth);
+    }
+
+    [Fact]
+    public void ChatColumn_RemembersResizedWidth_WithinSession()
+    {
+        var vm = new MainViewModel();
+        vm.ShowLibrary = false;                          // hiện panel: 350
+        vm.ChatColumnWidth = new GridLength(500);        // mô phỏng kéo GridSplitter
+        vm.ShowLibrary = true;                           // vào thư viện: lưu 500, thu về 0
+        Assert.Equal(0, vm.ChatColumnWidth.Value);
+        vm.ShowLibrary = false;                          // rời thư viện: khôi phục 500
+        Assert.Equal(500, vm.ChatColumnWidth.Value);
     }
 }
