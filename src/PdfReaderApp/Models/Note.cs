@@ -10,4 +10,3 @@ public sealed record Note(
     string Content,
     long CreatedAtUnixMs,
     long UpdatedAtUnixMs);
-EOF 2>&1

@@ -12,4 +12,3 @@ public interface INoteStore
     int Delete(string id);
     IReadOnlyList<Note> GetForOwner(string ownerKey);
 }
-EOF 2>&1

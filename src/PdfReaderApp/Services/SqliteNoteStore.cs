@@ -126,4 +126,3 @@ VALUES ($id, $owner, $doc, $page, $content, $created, $updated);";
         }
     }
 }
-EOF 2>&1

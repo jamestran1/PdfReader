@@ -96,4 +96,3 @@ public class SqliteNoteStoreTests : IDisposable
         try { Directory.Delete(_dir, true); } catch { }
     }
 }
-EOF 2>&1
