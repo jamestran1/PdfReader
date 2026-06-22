@@ -46,6 +46,10 @@ Thực thể và hướng tiến hóa:
 - OCR cho PDF scan.
 - Đồng bộ đám mây.
 
+## Hạn chế đã biết / hoãn (từ review Layer 1)
+
+- **Định danh tài liệu ổn định + nối note qua phiên bản file.** Hiện documentId = SHA256 nội dung; library copy file vào app và không ghi đè nên bản lưu bất biến → note/anchor ổn định. Nhưng khi có tính năng *sửa-PDF-ghi-đè* hoặc *re-import bản cập nhật*, note theo hash cũ sẽ không tự nối sang bản mới. Cần xử lý (định danh ổn định riêng + nối phiên bản, hoặc fingerprint trang) KHI tính năng Save/Export PDF xuất hiện. Áp dụng chung cho cả chat history (PR #12, cùng cách khóa).
+
 ## Trạng thái
 
 - Đã chốt vision (2026-06-22). Bắt đầu Layer 1.
