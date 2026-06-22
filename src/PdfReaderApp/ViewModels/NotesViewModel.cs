@@ -99,7 +99,7 @@ public sealed partial class NotesViewModel : ObservableObject
         if (_editingId == null)
         {
             var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, _ownerKey,
-                _currentPageIndex(), content, now, now);
+                _currentPageIndex(), null, content, now, now);
             try { _store.Add(note); }
             catch { return; }
             _all.Add(note);

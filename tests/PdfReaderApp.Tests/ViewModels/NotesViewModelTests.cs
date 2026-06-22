@@ -147,7 +147,7 @@ public class NotesViewModelTests
     public void LoadFor_PopulatesAndTogglesCanAdd()
     {
         var store = new FakeNoteStore();
-        store.Add(new Note("a", "doc1", "doc1", 1, "có sẵn", 1, 1));
+        store.Add(new Note("a", "doc1", "doc1", 1, null, "có sẵn", 1, 1));
         var vm = Make(store, 1);
 
         vm.LoadFor("doc1");
@@ -179,7 +179,7 @@ public class NotesViewModelTests
     [Fact]
     public void MatchesFilter_Rules()
     {
-        var n = new Note("a", "o", "o", 1, "Hello World", 1, 1);
+        var n = new Note("a", "o", "o", 1, null, "Hello World", 1, 1);
         Assert.True(NotesViewModel.MatchesFilter(n, ""));
         Assert.True(NotesViewModel.MatchesFilter(n, "  "));
         Assert.True(NotesViewModel.MatchesFilter(n, "WORLD"));
