@@ -131,6 +131,20 @@ public sealed class PageDisplayConverter : IValueConverter
     public object ConvertBack(object value, Type t, object p, CultureInfo c) => throw new NotSupportedException();
 }
 
+public sealed class InverseBoolToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object p, CultureInfo c)
+        => value is true ? Visibility.Collapsed : Visibility.Visible;
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+}
+
+public sealed class CountToInverseVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object p, CultureInfo c)
+        => value is int n && n > 0 ? Visibility.Collapsed : Visibility.Visible;
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+}
+
 // Checks a PdfViewMode against the mode name passed as ConverterParameter, for radio-style toggles.
 public sealed class ViewModeToBoolConverter : IValueConverter
 {
