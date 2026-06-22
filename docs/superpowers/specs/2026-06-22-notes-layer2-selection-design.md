@@ -77,7 +77,7 @@ public static class TextSelectionResolver
   - Bind `PdfViewer.AddNoteFromSelectionCommand` → `AddNoteFromSelectionCommand`.
   - `TabControl SelectedIndex="{Binding Notes.RightTabIndex, Mode=TwoWay}"`.
   - Trong ô soạn tab Notes: banner trích dẫn (TextBlock viền trái, `Text="{Binding Notes.PendingQuote}"`, `Visibility` ẩn khi null qua `NullToCollapsedConverter` đã có).
-  - Thẻ note: thêm khối Quote (viền trái, in nghiêng) phía trên Content, ẩn nếu Quote null.
+  - Thẻ note: thêm khối Quote (viền trái, in nghiêng, hơi mờ) phía trên Content, ẩn nếu Quote null. Quote dài **cắt gọn ~3 dòng** rồi "…" (`TextBlock` `MaxHeight` + `TextTrimming="CharacterEllipsis"`, hoặc `MaxLines`-style); xem đầy đủ để dành layer sau (tooltip/mở rộng).
 
 ## Xử lý lỗi / edge
 
