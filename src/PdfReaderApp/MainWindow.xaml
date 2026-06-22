@@ -26,6 +26,8 @@
         <local:CountToInverseVisibilityConverter x:Key="CountToInverseVisibilityConverter" />
         <local:UnixToDateConverter x:Key="UnixToDateConverter" />
         <local:PathToImageConverter x:Key="PathToImageConverter" />
+        <local:PageBadgeConverter x:Key="PageBadgeConverter"/>
+        <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -302,63 +304,153 @@
                       Background="{DynamicResource MaterialDesignDivider}"
                       Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
 
-        <!-- Right Sidebar (AI) -->
+        <!-- Right Sidebar (AI + Notes) -->
         <materialDesign:Card Grid.Column="3" Margin="4" materialDesign:ElevationAssist.Elevation="Dp1" UniformCornerRadius="12"
                              Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                
-                <materialDesign:ColorZone Mode="PrimaryMid" Padding="16">
-                    <TextBlock Text="AI ASSISTANT" FontWeight="Bold"/>
-                </materialDesign:ColorZone>
+            <TabControl Style="{StaticResource MaterialDesignTabControl}"
+                        materialDesign:ColorZoneAssist.Mode="PrimaryMid">
+                <TabItem Header="Chat">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                    <ItemsControl ItemsSource="{Binding ChatMessages}" Margin="16">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <materialDesign:Card Background="{Binding Role, Converter={StaticResource RoleToBrushConverter}}" 
-                                                    Padding="12" Margin="0,0,0,12" 
-                                                    UniformCornerRadius="8"
-                                                    HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignConverter}}">
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
-                                        <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                                    </StackPanel>
-                                </materialDesign:Card>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
+                        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding ChatMessages}" Margin="16">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <materialDesign:Card Background="{Binding Role, Converter={StaticResource RoleToBrushConverter}}"
+                                                            Padding="12" Margin="0,0,0,12"
+                                                            UniformCornerRadius="8"
+                                                            HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignConverter}}">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
+                                                <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                            </StackPanel>
+                                        </materialDesign:Card>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
 
-                <Grid Grid.Row="2" Margin="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBox Style="{StaticResource MaterialDesignOutlinedTextBox}" 
-                             materialDesign:HintAssist.Hint="Ask a question..." 
-                             Text="{Binding ChatInput, UpdateSourceTrigger=PropertyChanged}"
-                             TextWrapping="Wrap" 
-                             AcceptsReturn="True" 
-                             VerticalScrollBarVisibility="Auto"
-                             Height="80">
-                        <TextBox.InputBindings>
-                            <KeyBinding Key="Enter" Command="{Binding SendMessageCommand}" />
-                        </TextBox.InputBindings>
-                    </TextBox>
-                    <Button Grid.Column="1" 
-                            Style="{StaticResource MaterialDesignFloatingActionMiniButton}" 
-                            Command="{Binding SendMessageCommand}"
-                            Margin="8,0,0,0" 
-                            VerticalAlignment="Bottom">
-                        <materialDesign:PackIcon Kind="Send" />
-                    </Button>
-                </Grid>
-            </Grid>
+                        <Grid Grid.Row="1" Margin="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="Ask a question..."
+                                     Text="{Binding ChatInput, UpdateSourceTrigger=PropertyChanged}"
+                                     TextWrapping="Wrap"
+                                     AcceptsReturn="True"
+                                     VerticalScrollBarVisibility="Auto"
+                                     Height="80">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Key="Enter" Command="{Binding SendMessageCommand}" />
+                                </TextBox.InputBindings>
+                            </TextBox>
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
+                                    Command="{Binding SendMessageCommand}"
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Bottom">
+                                <materialDesign:PackIcon Kind="Send" />
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </TabItem>
+                <TabItem Header="Notes">
+                    <Grid Margin="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Ô lọc -->
+                        <TextBox Grid.Row="0" Margin="0,0,0,8"
+                                 materialDesign:HintAssist.Hint="Lọc ghi chú"
+                                 Text="{Binding Notes.FilterText, UpdateSourceTrigger=PropertyChanged}"/>
+
+                        <!-- Ô soạn -->
+                        <TextBox Grid.Row="1" MinHeight="60" Margin="0,0,0,4"
+                                 AcceptsReturn="True" TextWrapping="Wrap"
+                                 VerticalScrollBarVisibility="Auto"
+                                 IsEnabled="{Binding Notes.CanAddNote}"
+                                 materialDesign:HintAssist.Hint="Viết ghi chú (Ctrl+Enter để lưu)"
+                                 Text="{Binding Notes.Draft, UpdateSourceTrigger=PropertyChanged}">
+                            <TextBox.InputBindings>
+                                <KeyBinding Modifiers="Control" Key="Enter" Command="{Binding Notes.SaveCommand}"/>
+                            </TextBox.InputBindings>
+                        </TextBox>
+
+                        <!-- Hàng nút + thông báo -->
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Content="Lưu" Command="{Binding Notes.SaveCommand}"
+                                    Style="{StaticResource MaterialDesignFlatButton}"/>
+                            <Button Content="Hủy" Command="{Binding Notes.CancelEditCommand}"
+                                    Style="{StaticResource MaterialDesignFlatButton}"
+                                    Visibility="{Binding Notes.IsEditing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <TextBlock Text="{Binding Notes.StatusMessage}" VerticalAlignment="Center"
+                                       Margin="8,0,0,0" Foreground="{DynamicResource MaterialDesign.Brush.Primary}"/>
+                        </StackPanel>
+
+                        <!-- Danh sách note -->
+                        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                            <ItemsControl ItemsSource="{Binding Notes.Items}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <materialDesign:Card Margin="0,0,0,8" Padding="8" UniformCornerRadius="8">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Nội dung: click để nhảy trang -->
+                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Content}"
+                                                           TextWrapping="Wrap" Cursor="Hand">
+                                                    <TextBlock.InputBindings>
+                                                        <MouseBinding MouseAction="LeftClick"
+                                                            Command="{Binding DataContext.Notes.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"/>
+                                                    </TextBlock.InputBindings>
+                                                </TextBlock>
+
+                                                <Button Grid.Row="0" Grid.Column="1" Style="{StaticResource MaterialDesignIconButton}"
+                                                        Width="28" Height="28" ToolTip="Sửa"
+                                                        Command="{Binding DataContext.Notes.BeginEditCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <materialDesign:PackIcon Kind="Pencil" Width="16" Height="16"/>
+                                                </Button>
+                                                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource MaterialDesignIconButton}"
+                                                        Width="28" Height="28" ToolTip="Xóa"
+                                                        Command="{Binding DataContext.Notes.DeleteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <materialDesign:PackIcon Kind="Delete" Width="16" Height="16"/>
+                                                </Button>
+
+                                                <!-- Badge trang (PageIndex 0-based -> hiển thị +1); ẩn nếu null -->
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                                           Margin="0,4,0,0" FontSize="11" Opacity="0.7"
+                                                           Text="{Binding PageIndex, Converter={StaticResource PageBadgeConverter}}"
+                                                           Visibility="{Binding PageIndex, Converter={StaticResource NullToCollapsedConverter}}"/>
+                                            </Grid>
+                                        </materialDesign:Card>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </TabItem>
+            </TabControl>
         </materialDesign:Card>
     </Grid>
 </Window>
