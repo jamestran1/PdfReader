@@ -147,4 +147,19 @@ public class MainViewModelTests
         vm.LastPageCommand.Execute(null);
         Assert.Equal(10, vm.CurrentPage);
     }
+
+    [Fact]
+    public void ShowLibraryViewCommand_SetsShowLibraryTrue()
+    {
+        var vm = new MainViewModel();
+        vm.ShowLibrary = false;
+        vm.ShowLibraryViewCommand.Execute(null);
+        Assert.True(vm.ShowLibrary);
+    }
+
+    [Fact]
+    public void ShowLibrary_DefaultsTrue()
+    {
+        Assert.True(new MainViewModel().ShowLibrary);
+    }
 }
