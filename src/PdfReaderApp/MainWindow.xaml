@@ -46,6 +46,8 @@
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="{Binding ChatColumnWidth, Mode=TwoWay}"
+                              MinWidth="{Binding ChatColumnMinWidth}" MaxWidth="700"/>
         </Grid.ColumnDefinitions>
 
         <!-- Navigation Rail -->
@@ -294,8 +296,15 @@
             </Border>
         </Grid>
 
+        <!-- Thanh kéo chỉnh bề rộng panel chat (ẩn cùng panel khi ở thư viện) -->
+        <GridSplitter Grid.Column="2" Width="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
+                      Background="{DynamicResource MaterialDesignDivider}"
+                      Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+
         <!-- Right Sidebar (AI) -->
-        <materialDesign:Card Grid.Column="2" Width="350" Margin="4" materialDesign:ElevationAssist.Elevation="Dp1" UniformCornerRadius="12">
+        <materialDesign:Card Grid.Column="3" Margin="4" materialDesign:ElevationAssist.Elevation="Dp1" UniformCornerRadius="12"
+                             Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
