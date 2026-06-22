@@ -1,5 +1,8 @@
+using System.Collections.Generic;
+using System.Linq;
 using PdfReaderApp.Core;
 using PdfReaderApp.Models;
+using PdfReaderApp.Services;
 using PdfReaderApp.ViewModels;
 using Xunit;
 
@@ -7,6 +10,76 @@ namespace PdfReaderApp.Tests;
 
 public class MainViewModelTests
 {
+    private sealed class FakeChatHistoryStore : PdfReaderApp.Services.IChatHistoryStore
+    {
+        public readonly List<string> Deleted = new();
+        public readonly List<(string doc, string role, string content)> Appended = new();
+        private readonly List<PdfReaderApp.Models.ChatHistoryEntry> _entries = new();
+
+        public void EnsureSchema() { }
+        public void Append(string documentId, string role, string content, long createdAtUnix)
+        {
+            Appended.Add((documentId, role, content));
+            _entries.Add(new PdfReaderApp.Models.ChatHistoryEntry(documentId, role, content, createdAtUnix));
+        }
+        public System.Collections.Generic.IReadOnlyList<PdfReaderApp.Models.ChatHistoryEntry> GetAll(string documentId)
+            => _entries.Where(e => e.DocumentId == documentId).ToList();
+        public void DeleteForDocument(string documentId) => Deleted.Add(documentId);
+    }
+
+    private static MainViewModel VmWithChatStore(FakeChatHistoryStore store)
+        => new MainViewModel(
+            new PdfReaderApp.Services.ITextPdfDocumentService(),
+            new PdfReaderApp.Services.WindowsSettingsService(),
+            new PdfReaderApp.Services.OpenAiChatClientFactory(),
+            new PdfReaderApp.Services.SqliteDocumentIndex(
+                System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
+                System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
+            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            store);
+
+    [Fact]
+    public void RemoveLibraryItem_DeletesChatHistoryForThatDocument()
+    {
+        var store = new FakeChatHistoryStore();
+        var vm = VmWithChatStore(store);
+        var item = new PdfReaderApp.Models.LibraryItem("docX", "x.pdf", "/lib/x.pdf", null, 3, 1, 1);
+        vm.Library.Add(item);
+
+        vm.RemoveLibraryItemCommand.Execute(item);
+
+        Assert.Contains("docX", store.Deleted);
+    }
+
+    [Fact]
+    public void MemoryTurns_ExcludesErrorEmptyAndInterruptedAiTurns_KeepsRest()
+    {
+        var turns = new (string role, string content)[]
+        {
+            ("User", "Câu hỏi 1"),
+            ("AI", "Trả lời tốt"),
+            ("User", "Câu hỏi 2"),
+            ("AI", "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key."),
+            ("AI", "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng."),
+            ("AI", "Một phần trả lời" + PdfReaderApp.Services.AiChatService.InterruptedSentinel),
+            ("AI", ""),
+            ("User", "Câu hỏi 3"),
+        };
+
+        var kept = MainViewModel.MemoryTurns(turns).ToList();
+
+        // Giữ: mọi lượt User + lượt AI là câu trả lời thật.
+        Assert.Contains(kept, t => t.content == "Câu hỏi 1");
+        Assert.Contains(kept, t => t.content == "Câu hỏi 3");
+        Assert.Contains(kept, t => t.content == "Trả lời tốt");
+        // Bỏ: AI báo lỗi (kể cả lỗi suy ra từ MapError), AI rỗng, AI gián đoạn.
+        Assert.DoesNotContain(kept, t => t.content.Contains("Chưa cấu hình"));
+        Assert.DoesNotContain(kept, t => t.content.Contains("Không kết nối được"));
+        Assert.DoesNotContain(kept, t => t.content.Contains(PdfReaderApp.Services.AiChatService.InterruptedSentinel));
+        Assert.DoesNotContain(kept, t => t.role == "AI" && t.content.Length == 0);
+    }
+
+
     [Fact]
     public void MainViewModel_ShouldInitializeWithDefaultValues()
     {
