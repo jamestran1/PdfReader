@@ -91,6 +91,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<LibraryItem> Library { get; } = new();
 
     private readonly LibraryService _library;
+    private readonly IChatHistoryStore _chatHistory;
 
     // Đặt chế độ xem (radio-style): bấm nút luôn set mode, không bao giờ bỏ chọn mode hiện tại.
     [RelayCommand]
@@ -134,7 +135,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ISettingsService settingsService,
         IChatClientFactory chatClientFactory,
         IDocumentIndex documentIndex,
-        IEmbeddingGeneratorFactory embeddingFactory)
+        IEmbeddingGeneratorFactory embeddingFactory,
+        IChatHistoryStore? chatHistory = null)
     {
         _documentService = documentService;
         _settingsService = settingsService;
@@ -154,11 +156,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             new PdfReaderApp.Core.RenderEngine());
         ReloadLibrary();
 
-        ChatMessages.Add(new ChatMessage
-        {
-            Role = "AI",
-            Content = "Xin chào! Tôi có thể giúp gì cho bạn về tài liệu này?"
-        });
+        _chatHistory = chatHistory ?? new SqliteChatHistoryStore(System.IO.Path.Combine(AppDir(), "chats.db"));
+        _chatHistory.EnsureSchema();
+
+        LoadChatHistory();
     }
 
     [RelayCommand]
@@ -207,6 +208,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (item is null) return;
         _library.Remove(item);
+        try { _chatHistory.DeleteForDocument(item.DocumentId); } catch { }
         Library.Remove(item);
     }
 
@@ -228,7 +230,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _pageTexts = _documentService.ExtractPageTexts();
 
             _documentId = DocumentId.FromFile(path);
-            _chatService.ResetConversation();
+            LoadChatHistory();
             SearchResults.Clear();
             StartBackgroundIndexing();
         }
@@ -237,11 +239,85 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _documentBlocks = new List<TextBlock>();
             OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
+            LoadChatHistory();
             System.Windows.MessageBox.Show($"Không thể mở file PDF: {ex.Message}", "Lỗi mở file",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             FilePath = null;
         }
     }
+
+    // Nạp lại khung chat theo sách đang mở: hiện bong bóng cũ và dựng lại bộ nhớ LLM.
+    // Sách chưa có lịch sử (hoặc chưa mở sách nào) -> hiện 1 bong bóng chào, reset LLM.
+    private void LoadChatHistory()
+    {
+        ChatMessages.Clear();
+
+        if (_documentId is null)
+        {
+            ShowGreeting();
+            _chatService.ResetConversation();
+            return;
+        }
+
+        System.Collections.Generic.IReadOnlyList<ChatHistoryEntry> entries;
+        try { entries = _chatHistory.GetAll(_documentId); }
+        catch { entries = System.Array.Empty<ChatHistoryEntry>(); }
+
+        if (entries.Count == 0)
+        {
+            ShowGreeting();
+            _chatService.ResetConversation();
+            return;
+        }
+
+        // Hiển thị TẤT CẢ bong bóng để transcript trung thực, nhưng chỉ nạp các lượt
+        // "dùng được" làm trí nhớ LLM (bỏ AI rỗng / báo lỗi / bị gián đoạn).
+        foreach (var e in entries)
+            ChatMessages.Add(new ChatMessage { Role = e.Role, Content = e.Content });
+        _chatService.SeedHistory(MemoryTurns(entries.Select(e => (e.Role, e.Content))));
+    }
+
+    private void ShowGreeting() => ChatMessages.Add(new ChatMessage
+    {
+        Role = "AI",
+        Content = "Xin chào! Tôi có thể giúp gì cho bạn về tài liệu này?"
+    });
+
+    // Lọc các lượt để nạp làm trí nhớ LLM. Giữ mọi lượt User; bỏ lượt AI rỗng, là thông báo
+    // lỗi (suy ra từ MapError + các hằng số dưới), hoặc chứa sentinel gián đoạn. Bong bóng UI
+    // vẫn hiển thị đầy đủ, chỉ trí nhớ LLM được làm sạch để AI không "nhớ nhầm" câu lỗi.
+    internal static IEnumerable<(string role, string content)> MemoryTurns(
+        IEnumerable<(string role, string content)> turns)
+        => turns.Where(t => IsMemoryUsable(t.role, t.content));
+
+    internal static bool IsMemoryUsable(string role, string content)
+    {
+        if (role != "AI") return true;
+        if (string.IsNullOrEmpty(content)) return false;
+        if (content.Contains(AiChatService.InterruptedSentinel, StringComparison.Ordinal)) return false;
+        return !NonMemoryAiMessages.Contains(content);
+    }
+
+    // Các nội dung AI KHÔNG phải câu trả lời thật (thông báo lỗi). Suy ra từ chính MapError nên
+    // tự cập nhật nếu đổi lời lỗi, cộng 2 hằng số dùng ở các nhánh thoát sớm của SendMessage.
+    private static readonly System.Collections.Generic.HashSet<string> NonMemoryAiMessages
+        = BuildNonMemoryAiMessages();
+
+    private static System.Collections.Generic.HashSet<string> BuildNonMemoryAiMessages()
+    {
+        var set = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal)
+        {
+            NotConfiguredMessage,
+            UnknownErrorMessage,
+        };
+        foreach (AiChatError e in Enum.GetValues<AiChatError>())
+            set.Add(MapError(e));
+        return set;
+    }
+
+    private const string NotConfiguredMessage =
+        "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key.";
+    private const string UnknownErrorMessage = "Đã xảy ra lỗi không xác định khi gọi AI.";
 
     private void StartBackgroundIndexing()
     {
@@ -291,13 +367,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ChatInput = string.Empty;
             ChatMessages.Add(new ChatMessage { Role = "User", Content = question });
 
+            void PersistTurn(string answer)
+            {
+                if (_documentId is null) return;
+                try
+                {
+                    long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                    _chatHistory.Append(_documentId, "User", question, now);
+                    _chatHistory.Append(_documentId, "AI", answer, now);
+                }
+                catch { /* không chặn chat khi lưu lỗi */ }
+            }
+
             if (!_chatService.IsConfigured)
             {
-                ChatMessages.Add(new ChatMessage
-                {
-                    Role = "AI",
-                    Content = "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key."
-                });
+                ChatMessages.Add(new ChatMessage { Role = "AI", Content = NotConfiguredMessage });
+                PersistTurn(NotConfiguredMessage);
                 return;
             }
 
@@ -330,8 +415,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
             catch (Exception)
             {
-                aiMessage.Content = "Đã xảy ra lỗi không xác định khi gọi AI.";
+                aiMessage.Content = UnknownErrorMessage;
             }
+            PersistTurn(aiMessage.Content);
         }
         finally
         {

@@ -10,7 +10,7 @@ public sealed class AiChatService : IDisposable
         "Bạn là trợ lý đọc tài liệu PDF. Trả lời bằng tiếng Việt, ngắn gọn, " +
         "chỉ dựa trên nội dung tài liệu được cung cấp. Nếu chưa có tài liệu hoặc " +
         "nội dung không đủ, hãy nói rõ điều đó.";
-    private const string InterruptedSentinel = " ...[lỗi: phản hồi bị gián đoạn]";
+    public const string InterruptedSentinel = " ...[lỗi: phản hồi bị gián đoạn]";
     private const int MaxContextChars = 48000;
 
     private readonly ISettingsService _settings;
@@ -33,6 +33,19 @@ public sealed class AiChatService : IDisposable
     {
         _history.Clear();
         _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
+    }
+
+    /// <summary>Dựng lại lịch sử hội thoại LLM từ các lượt đã lưu (nội dung sạch, không kèm
+    /// khối ngữ cảnh tài liệu). Dùng khi mở lại một sách để AI nhớ tiếp mạch.</summary>
+    public void SeedHistory(IEnumerable<(string role, string content)> turns)
+    {
+        _history.Clear();
+        _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
+        foreach (var (role, content) in turns)
+        {
+            var chatRole = role == "AI" ? ChatRole.Assistant : ChatRole.User;
+            _history.Add(new ChatMessage(chatRole, content));
+        }
     }
 
     public async IAsyncEnumerable<string> AskStreamingAsync(

@@ -214,4 +214,45 @@ public class AiChatServiceTests
         Assert.DoesNotContain(texts, t => t.Contains("Câu hỏi lỗi"));
         Assert.Contains(texts, t => t.Contains("Câu hỏi hợp lệ"));
     }
+
+    [Fact]
+    public async Task SeedHistory_IncludesPriorTurnsBeforeNewQuestion()
+    {
+        var client = new FakeChatClient(new[] { "ok" });
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+
+        svc.SeedHistory(new[]
+        {
+            ("User", "Hỏi cũ"),
+            ("AI", "Đáp cũ"),
+        });
+        await Collect(svc.AskStreamingAsync("Hỏi mới", "ctx"));
+
+        var msgs = client.LastMessages;
+        // System đứng đầu, rồi 2 lượt cũ, rồi câu hỏi mới ở cuối.
+        Assert.Equal(ChatRole.System, msgs.First().Role);
+        var texts = msgs.Select(m => m.Text ?? "").ToList();
+        Assert.Contains(texts, t => t.Contains("Hỏi cũ"));
+        Assert.Contains(texts, t => t.Contains("Đáp cũ"));
+        Assert.Equal(ChatRole.Assistant, msgs[2].Role); // lượt "AI" cũ map sang Assistant
+        Assert.Contains("Hỏi mới", msgs.Last().Text);
+        Assert.Equal(ChatRole.User, msgs.Last().Role);
+        // Lịch sử cũ là nội dung sạch, không nhúng khối ngữ cảnh tài liệu.
+        Assert.DoesNotContain("Ngữ cảnh tài liệu", msgs[1].Text);
+    }
+
+    [Fact]
+    public async Task SeedHistory_Empty_LeavesOnlySystemPrompt()
+    {
+        var client = new FakeChatClient(new[] { "ok" });
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+
+        await Collect(svc.AskStreamingAsync("Hỏi 1", "ctx"));
+        svc.SeedHistory(System.Array.Empty<(string, string)>());
+        await Collect(svc.AskStreamingAsync("Hỏi 2", "ctx"));
+
+        var texts = client.LastMessages.Select(m => m.Text ?? "").ToList();
+        Assert.DoesNotContain(texts, t => t.Contains("Hỏi 1"));
+        Assert.Contains(texts, t => t.Contains("Hỏi 2"));
+    }
 }
