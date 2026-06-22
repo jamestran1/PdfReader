@@ -1,9 +1,11 @@
 using System;
 using System.Globalization;
+using System.IO;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace PdfReaderApp;
 
@@ -150,6 +152,25 @@ public sealed class UnixToDateConverter : IValueConverter
 {
     public object Convert(object value, Type t, object p, CultureInfo c)
         => value is long secs ? DateTimeOffset.FromUnixTimeSeconds(secs).LocalDateTime.ToString("dd/MM/yyyy") : "";
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+}
+
+// Đường dẫn file -> BitmapImage nạp với OnLoad + IgnoreImageCache: đọc hết vào RAM nên KHÔNG
+// khoá file (xoá/ghi lại được) và KHÔNG dùng ảnh cache cũ theo URI.
+public sealed class PathToImageConverter : IValueConverter
+{
+    public object? Convert(object value, Type t, object p, CultureInfo c)
+    {
+        if (value is not string path || string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
+        var bmp = new BitmapImage();
+        bmp.BeginInit();
+        bmp.CacheOption = BitmapCacheOption.OnLoad;
+        bmp.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
+        bmp.UriSource = new Uri(path);
+        bmp.EndInit();
+        bmp.Freeze();
+        return bmp;
+    }
     public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
 }
 
