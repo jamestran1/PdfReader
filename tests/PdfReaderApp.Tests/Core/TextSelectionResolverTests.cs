@@ -68,6 +68,28 @@ public class TextSelectionResolverTests
     }
 
     [Fact]
+    public void Resolve_SpaceWithDegenerateBounds_KeepsLineContiguous()
+    {
+        // Khoảng trắng giữa hai từ thường có bounds suy biến (chiều cao 0) từ PDFium.
+        // Không được tách dòng tại đó: cả dòng phải là MỘT rect liền phủ luôn khoảng trắng.
+        var line = new List<SelChar>
+        {
+            new SelChar(0, "e", new Rect(0, 0, 8, 10)),
+            new SelChar(1, "f", new Rect(8, 0, 8, 10)),
+            new SelChar(2, " ", new Rect(16, 5, 4, 0)),   // space: height 0 (suy biến)
+            new SelChar(3, "u", new Rect(20, 0, 8, 10)),
+            new SelChar(4, "s", new Rect(28, 0, 8, 10)),
+        };
+
+        var r = TextSelectionResolver.Resolve(line, 0, 4);
+
+        Assert.Single(r.LineRects);
+        // Rect liền trải từ trái 'e' (0) tới phải 's' (36), phủ cả khoảng trắng.
+        Assert.Equal(0, r.LineRects[0].Left);
+        Assert.Equal(36, r.LineRects[0].Right);
+    }
+
+    [Fact]
     public void Resolve_Empty_ReturnsEmpty()
     {
         var r = TextSelectionResolver.Resolve(new List<SelChar>(), 0, 0);

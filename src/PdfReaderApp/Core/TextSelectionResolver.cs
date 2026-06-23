@@ -32,17 +32,21 @@ public static class TextSelectionResolver
         foreach (var c in selected) sb.Append(c.Text);
 
         // Gộp rect theo dòng dựa trên CHỒNG LẤN theo chiều dọc (không theo tâm-Y).
-        // Cùng dòng nếu phần chồng dọc giữa dải dòng hiện tại và ký tự kế >= nửa chiều cao
-        // ký tự thấp hơn. Bền với chữ có dấu / cao thấp khác nhau (dấu câu thấp, ký tự có dấu
-        // cao) vẫn nằm chung dòng, nên không bị tách rời thành nhiều khối.
+        // Bỏ qua ký tự suy biến (chiều cao/rộng <= 0, ví dụ khoảng trắng từ PDFium) để không
+        // tách dòng nhầm tại dấu cách. Union các ký tự thật cùng dòng -> một rect liền phủ luôn
+        // khoảng trắng giữa từ. Bền với chữ có dấu / cao thấp khác nhau.
+        var realChars = selected.Where(c => c.Bounds.Height > 0 && c.Bounds.Width > 0).ToList();
         var lines = new List<Rect>();
-        Rect current = selected[0].Bounds;
-        for (int i = 1; i < selected.Count; i++)
+        if (realChars.Count == 0)
+            return new SelectionResult(sb.ToString(), lines);
+
+        Rect current = realChars[0].Bounds;
+        for (int i = 1; i < realChars.Count; i++)
         {
-            var b = selected[i].Bounds;
+            var b = realChars[i].Bounds;
             double overlap = Math.Min(current.Bottom, b.Bottom) - Math.Max(current.Top, b.Top);
             double minHeight = Math.Min(current.Height, b.Height);
-            if (minHeight > 0 && overlap >= minHeight * 0.5)
+            if (overlap >= minHeight * 0.5)
             {
                 current = Rect.Union(current, b);
             }
