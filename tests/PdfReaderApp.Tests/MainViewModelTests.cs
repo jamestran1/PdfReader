@@ -265,4 +265,5 @@ public class MainViewModelTests
         vm.ShowLibrary = false;                          // rời thư viện: khôi phục 500
         Assert.Equal(500, vm.ChatColumnWidth.Value);
     }
+
 }
