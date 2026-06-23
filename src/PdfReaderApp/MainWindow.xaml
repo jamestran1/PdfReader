@@ -329,6 +329,26 @@
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
                                                 <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                <Button HorizontalAlignment="Right" Margin="0,4,0,0"
+                                                        Padding="6,2" FontSize="11"
+                                                        ToolTip="Lưu thành ghi chú"
+                                                        Command="{Binding DataContext.SaveAnswerAsNoteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignFlatButton}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Role}" Value="AI">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <materialDesign:PackIcon Kind="NotePlusOutline" Width="14" Height="14" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Lưu thành ghi chú" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Button>
                                             </StackPanel>
                                         </materialDesign:Card>
                                     </DataTemplate>
