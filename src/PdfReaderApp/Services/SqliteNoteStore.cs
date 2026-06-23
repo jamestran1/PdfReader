@@ -8,7 +8,7 @@ namespace PdfReaderApp.Services;
 /// Schema có PRAGMA user_version để migrate ở các layer sau (thêm cột tag/màu/region).</summary>
 public sealed class SqliteNoteStore : INoteStore
 {
-    private const long SchemaVersion = 2;
+    private const long SchemaVersion = 3;
     private readonly string _connectionString;
     private readonly object _lock = new();
 
@@ -39,7 +39,9 @@ CREATE TABLE IF NOT EXISTS note (
   quote TEXT,
   content TEXT NOT NULL,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL);
+  updated_at INTEGER NOT NULL,
+  rects TEXT,
+  color TEXT);
 CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
             cmd.ExecuteNonQuery();
 
@@ -49,6 +51,20 @@ CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
                 using var alter = conn.CreateCommand();
                 alter.CommandText = "ALTER TABLE note ADD COLUMN quote TEXT;";
                 alter.ExecuteNonQuery();
+            }
+
+            // Db cũ (v2) chưa có cột rects/color: thêm nếu thiếu.
+            if (!ColumnExists(conn, "note", "rects"))
+            {
+                using var a1 = conn.CreateCommand();
+                a1.CommandText = "ALTER TABLE note ADD COLUMN rects TEXT;";
+                a1.ExecuteNonQuery();
+            }
+            if (!ColumnExists(conn, "note", "color"))
+            {
+                using var a2 = conn.CreateCommand();
+                a2.CommandText = "ALTER TABLE note ADD COLUMN color TEXT;";
+                a2.ExecuteNonQuery();
             }
 
             using var ver = conn.CreateCommand();
@@ -81,8 +97,8 @@ CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-INSERT INTO note (id, owner_key, document_id, page_index, quote, content, created_at, updated_at)
-VALUES ($id, $owner, $doc, $page, $quote, $content, $created, $updated);";
+INSERT INTO note (id, owner_key, document_id, page_index, quote, content, created_at, updated_at, rects, color)
+VALUES ($id, $owner, $doc, $page, $quote, $content, $created, $updated, $rects, $color);";
             cmd.Parameters.AddWithValue("$id", note.Id);
             cmd.Parameters.AddWithValue("$owner", note.OwnerKey);
             cmd.Parameters.AddWithValue("$doc", (object?)note.DocumentId ?? System.DBNull.Value);
@@ -91,6 +107,10 @@ VALUES ($id, $owner, $doc, $page, $quote, $content, $created, $updated);";
             cmd.Parameters.AddWithValue("$content", note.Content);
             cmd.Parameters.AddWithValue("$created", note.CreatedAtUnixMs);
             cmd.Parameters.AddWithValue("$updated", note.UpdatedAtUnixMs);
+            string? rectsJson = note.Rects == null ? null
+                : System.Text.Json.JsonSerializer.Serialize(note.Rects);
+            cmd.Parameters.AddWithValue("$rects", (object?)rectsJson ?? System.DBNull.Value);
+            cmd.Parameters.AddWithValue("$color", (object?)note.Color ?? System.DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -128,11 +148,18 @@ VALUES ($id, $owner, $doc, $page, $quote, $content, $created, $updated);";
             var list = new List<Note>();
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id, owner_key, document_id, page_index, quote, content, created_at, updated_at FROM note WHERE owner_key=$owner";
+            cmd.CommandText = "SELECT id, owner_key, document_id, page_index, quote, content, created_at, updated_at, rects, color FROM note WHERE owner_key=$owner";
             cmd.Parameters.AddWithValue("$owner", ownerKey);
             using var r = cmd.ExecuteReader();
             while (r.Read())
             {
+                IReadOnlyList<HighlightRect>? rects = null;
+                if (!r.IsDBNull(8))
+                {
+                    try { rects = System.Text.Json.JsonSerializer.Deserialize<List<HighlightRect>>(r.GetString(8)); }
+                    catch { rects = null; }
+                }
+                string? color = r.IsDBNull(9) ? null : r.GetString(9);
                 list.Add(new Note(
                     r.GetString(0),
                     r.GetString(1),
@@ -141,7 +168,9 @@ VALUES ($id, $owner, $doc, $page, $quote, $content, $created, $updated);";
                     r.IsDBNull(4) ? null : r.GetString(4),
                     r.GetString(5),
                     r.GetInt64(6),
-                    r.GetInt64(7)));
+                    r.GetInt64(7),
+                    rects,
+                    color));
             }
             return list;
         }
