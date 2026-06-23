@@ -136,6 +136,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ChatMessage> ChatMessages { get; } = new();
 
     public NotesViewModel Notes { get; }
+    // Lazy: SnackbarMessageQueue dùng Dispatcher nên khởi tạo khi truy cập lần đầu (tránh lỗi trong unit test).
+    private MaterialDesignThemes.Wpf.SnackbarMessageQueue? _notesSnackbar;
+    public MaterialDesignThemes.Wpf.SnackbarMessageQueue NotesSnackbar
+        => _notesSnackbar ??= new MaterialDesignThemes.Wpf.SnackbarMessageQueue();
 
     private static string AppDir()
     {
@@ -552,12 +556,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Notes.BeginNoteFromSelection(sel.Quote, sel.PageIndex);
     }
 
-    // Lưu một câu trả lời AI thành note: mở tab Notes, đưa nội dung vào banner trích dẫn (không neo trang).
+    // One-click lưu câu trả lời AI thành note (không chuyển tab); báo bằng snackbar.
     [RelayCommand]
     private void SaveAnswerAsNote(ChatMessage? msg)
     {
         if (msg is null || msg.Role != "AI" || string.IsNullOrWhiteSpace(msg.Content)) return;
-        Notes.BeginNoteFromText(msg.Content, null);
+        bool saved = Notes.AddNote(msg.Content, null, null);
+        NotesSnackbar.Enqueue(saved ? "Đã lưu vào ghi chú" : "Hãy mở một tài liệu để lưu ghi chú");
     }
 
     [RelayCommand]
