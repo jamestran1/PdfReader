@@ -247,6 +247,7 @@
                                        MatchSource="{Binding PdfService}"
                                        ViewMode="{Binding ViewMode}"
                                        ShowCover="{Binding ShowCoverSeparately}"
+                                       AddNoteFromSelectionCommand="{Binding AddNoteFromSelectionCommand}"
                                        Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
 
             <!-- Library grid (shown when ShowLibrary) -->
@@ -308,7 +309,8 @@
         <materialDesign:Card Grid.Column="3" Margin="4" materialDesign:ElevationAssist.Elevation="Dp1" UniformCornerRadius="12"
                              Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}">
             <TabControl Style="{StaticResource MaterialDesignTabControl}"
-                        materialDesign:ColorZoneAssist.Mode="PrimaryMid">
+                        materialDesign:ColorZoneAssist.Mode="PrimaryMid"
+                        SelectedIndex="{Binding Notes.RightTabIndex, Mode=TwoWay}">
                 <TabItem Header="Chat">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -366,6 +368,7 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
@@ -374,8 +377,17 @@
                                  materialDesign:HintAssist.Hint="Lọc ghi chú"
                                  Text="{Binding Notes.FilterText, UpdateSourceTrigger=PropertyChanged}"/>
 
+                        <!-- Banner trích dẫn (hiện khi có PendingQuote từ chọn text) -->
+                        <Border Grid.Row="1"
+                                BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="3,0,0,0"
+                                Padding="6,2" Margin="0,0,0,4"
+                                Visibility="{Binding Notes.PendingQuote, Converter={StaticResource NullToCollapsedConverter}}">
+                            <TextBlock Text="{Binding Notes.PendingQuote}" FontStyle="Italic" Opacity="0.8"
+                                       TextTrimming="CharacterEllipsis" MaxHeight="48" TextWrapping="Wrap"/>
+                        </Border>
+
                         <!-- Ô soạn -->
-                        <TextBox Grid.Row="1" MinHeight="60" Margin="0,0,0,4"
+                        <TextBox Grid.Row="2" MinHeight="60" Margin="0,0,0,4"
                                  AcceptsReturn="True" TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto"
                                  IsEnabled="{Binding Notes.CanAddNote}"
@@ -387,7 +399,7 @@
                         </TextBox>
 
                         <!-- Hàng nút + thông báo -->
-                        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,8">
                             <Button Content="Lưu" Command="{Binding Notes.SaveCommand}"
                                     Style="{StaticResource MaterialDesignFlatButton}"/>
                             <Button Content="Hủy" Command="{Binding Notes.CancelEditCommand}"
@@ -398,13 +410,14 @@
                         </StackPanel>
 
                         <!-- Danh sách note -->
-                        <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
+                        <ScrollViewer Grid.Row="4" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding Notes.Items}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <materialDesign:Card Margin="0,0,0,8" Padding="8" UniformCornerRadius="8">
                                             <Grid>
                                                 <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
@@ -414,8 +427,17 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
 
+                                                <!-- Khối trích dẫn (ẩn nếu null) -->
+                                                <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                                                        BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="3,0,0,0"
+                                                        Padding="6,0" Margin="0,0,0,4"
+                                                        Visibility="{Binding Quote, Converter={StaticResource NullToCollapsedConverter}}">
+                                                    <TextBlock Text="{Binding Quote}" FontStyle="Italic" Opacity="0.75"
+                                                               TextWrapping="Wrap" MaxHeight="60" TextTrimming="CharacterEllipsis"/>
+                                                </Border>
+
                                                 <!-- Nội dung: click để nhảy trang -->
-                                                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding Content}"
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="{Binding Content}"
                                                            TextWrapping="Wrap" Cursor="Hand">
                                                     <TextBlock.InputBindings>
                                                         <MouseBinding MouseAction="LeftClick"
@@ -424,13 +446,13 @@
                                                     </TextBlock.InputBindings>
                                                 </TextBlock>
 
-                                                <Button Grid.Row="0" Grid.Column="1" Style="{StaticResource MaterialDesignIconButton}"
+                                                <Button Grid.Row="1" Grid.Column="1" Style="{StaticResource MaterialDesignIconButton}"
                                                         Width="28" Height="28" ToolTip="Sửa"
                                                         Command="{Binding DataContext.Notes.BeginEditCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}">
                                                     <materialDesign:PackIcon Kind="Pencil" Width="16" Height="16"/>
                                                 </Button>
-                                                <Button Grid.Row="0" Grid.Column="2" Style="{StaticResource MaterialDesignIconButton}"
+                                                <Button Grid.Row="1" Grid.Column="2" Style="{StaticResource MaterialDesignIconButton}"
                                                         Width="28" Height="28" ToolTip="Xóa"
                                                         Command="{Binding DataContext.Notes.DeleteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}">
@@ -438,7 +460,7 @@
                                                 </Button>
 
                                                 <!-- Badge trang (PageIndex 0-based -> hiển thị +1); ẩn nếu null -->
-                                                <TextBlock Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                                <TextBlock Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                                                            Margin="0,4,0,0" FontSize="11" Opacity="0.7"
                                                            Text="{Binding PageIndex, Converter={StaticResource PageBadgeConverter}}"
                                                            Visibility="{Binding PageIndex, Converter={StaticResource NullToCollapsedConverter}}"/>

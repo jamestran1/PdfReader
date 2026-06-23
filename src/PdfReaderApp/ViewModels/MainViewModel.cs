@@ -546,6 +546,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
+    private void AddNoteFromSelection(PdfReaderApp.Models.NoteSelection? sel)
+    {
+        if (sel is null) return;
+        Notes.BeginNoteFromSelection(sel.Quote, sel.PageIndex);
+    }
+
+    [RelayCommand]
     private void ZoomIn() => ZoomLevel += 0.2;
 
     [RelayCommand]

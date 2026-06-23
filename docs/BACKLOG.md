@@ -3,7 +3,15 @@
 Cập nhật: 2026-06-22. Quy ước trạng thái: ✅ done · 🔄 in progress · ⬜ backlog. Ưu tiên: P0 cao → P3 thấp.
 
 ## 🔄 Đang làm
-- 🔄 **Take note (ghi chú)** — P1. (Đang brainstorm.)
+- (trống)
+
+## Epic: Taking Note → Research Workspace (NotebookLM)
+Vision: `docs/superpowers/specs/2026-06-22-taking-note-epic.md`.
+- ✅ **Layer 1** — note theo sách (store + NotesViewModel + tab Notes) — PR #14.
+- ⬜ **Layer 2** — bắt note từ vùng chọn text + highlight tô màu + lưu câu trả lời AI thành note.
+- ⬜ **Layer 3** — Workspace (gom nhiều tài liệu; chuyển phạm vi note/chat document→workspace).
+- ⬜ **Layer 4** — AI đa tài liệu (RAG/chat xuyên source, trích dẫn source+trang).
+- ⬜ **Layer 5** — tổ chức/tìm/xuất/chia sẻ workspace.
 
 ## ⬜ Backlog (theo ưu tiên, từ audit 2026-06-22)
 | P | Tính năng | Trạng thái hiện tại | Ghi chú |
@@ -18,6 +26,7 @@ Cập nhật: 2026-06-22. Quy ước trạng thái: ✅ done · 🔄 in progress
 | P3 | Search: prev/next match + đếm "1/15" | DỞ | Chỉ popup + click, chưa nhảy match kế |
 
 ## ✅ Đã xong (gần đây)
+- ✅ Taking Note Layer 1: note theo sách (SQLite + filter/sort + tab Notes, neo trang) — PR #14.
 - ✅ Thư viện tài liệu: import → copy vào app + thumbnail + lưới thẻ, mở lại — PR #11.
 - ✅ Lịch sử chat theo từng sách (lưu SQLite, AI nhớ tiếp mạch) — PR #12.
 - ✅ Ẩn panel chat khi ở thư viện + kéo chỉnh bề rộng (GridSplitter) — PR #13.

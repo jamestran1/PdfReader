@@ -147,7 +147,7 @@ public class NotesViewModelTests
     public void LoadFor_PopulatesAndTogglesCanAdd()
     {
         var store = new FakeNoteStore();
-        store.Add(new Note("a", "doc1", "doc1", 1, "có sẵn", 1, 1));
+        store.Add(new Note("a", "doc1", "doc1", 1, null, "có sẵn", 1, 1));
         var vm = Make(store, 1);
 
         vm.LoadFor("doc1");
@@ -179,10 +179,68 @@ public class NotesViewModelTests
     [Fact]
     public void MatchesFilter_Rules()
     {
-        var n = new Note("a", "o", "o", 1, "Hello World", 1, 1);
+        var n = new Note("a", "o", "o", 1, null, "Hello World", 1, 1);
         Assert.True(NotesViewModel.MatchesFilter(n, ""));
         Assert.True(NotesViewModel.MatchesFilter(n, "  "));
         Assert.True(NotesViewModel.MatchesFilter(n, "WORLD"));
         Assert.False(NotesViewModel.MatchesFilter(n, "xyz"));
+    }
+
+    [Fact]
+    public void BeginNoteFromSelection_SetsPendingQuoteAndSwitchesTab()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 9);
+        vm.LoadFor("doc1");
+
+        vm.BeginNoteFromSelection("đoạn trích", 4);
+
+        Assert.Equal("đoạn trích", vm.PendingQuote);
+        Assert.Equal(1, vm.RightTabIndex);
+    }
+
+    [Fact]
+    public void Save_WithPendingQuote_UsesSelectionPageAndStoresQuote()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 9); // trang hiện tại 9, nhưng đoạn chọn ở trang 4
+        vm.LoadFor("doc1");
+        vm.BeginNoteFromSelection("đoạn trích", 4);
+        vm.Draft = "ý của tôi";
+
+        vm.SaveCommand.Execute(null);
+
+        var saved = store.Rows.Single();
+        Assert.Equal("đoạn trích", saved.Quote);
+        Assert.Equal(4, saved.PageIndex);          // dùng trang đoạn chọn, không phải 9
+        Assert.Equal("ý của tôi", saved.Content);
+        Assert.Null(vm.PendingQuote);              // pending xóa sau lưu
+    }
+
+    [Fact]
+    public void Save_QuoteOnly_EmptyDraft_StillCreatesNote()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+        vm.LoadFor("doc1");
+        vm.BeginNoteFromSelection("chỉ trích dẫn", 0);
+        // Draft để rỗng
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Single(store.Rows);
+        Assert.Equal("chỉ trích dẫn", store.Rows[0].Quote);
+        Assert.Equal("", store.Rows[0].Content);
+    }
+
+    [Fact]
+    public void CancelEdit_ClearsPendingQuote()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+        vm.LoadFor("doc1");
+        vm.BeginNoteFromSelection("trích", 0);
+        vm.CancelEditCommand.Execute(null);
+        Assert.Null(vm.PendingQuote);
     }
 }

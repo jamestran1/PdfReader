@@ -1,12 +1,13 @@
 namespace PdfReaderApp.Models;
 
-/// <summary>Một ghi chú. v1: OwnerKey = DocumentId = documentId của sách; PageIndex = trang lúc tạo.
-/// OwnerKey là phạm vi (sau này = workspaceId), DocumentId là anchor (doc mà note trỏ tới).</summary>
+/// <summary>Một ghi chú. OwnerKey = phạm vi (v1 = documentId), DocumentId = anchor.
+/// Quote = đoạn trích dẫn bôi đen từ trang (nullable; null với note tự do).</summary>
 public sealed record Note(
     string Id,
     string OwnerKey,
     string? DocumentId,
     int? PageIndex,
+    string? Quote,
     string Content,
     long CreatedAtUnixMs,
     long UpdatedAtUnixMs);
