@@ -51,6 +51,23 @@ public class TextSelectionResolverTests
     }
 
     [Fact]
+    public void Resolve_SameLineVaryingHeights_MergesIntoOneRect()
+    {
+        // Một dòng: 'A' cao bình thường + dấu câu thấp nằm lệch xuống (chiều cao nhỏ, tâm-Y khác).
+        // Cùng dòng trực quan (chồng lấn dọc) nên phải gộp thành MỘT rect liền, không rời ra.
+        var line = new List<SelChar>
+        {
+            new SelChar(0, "A", new Rect(0, 0, 10, 10)),   // span Y [0,10]
+            new SelChar(1, ".", new Rect(10, 7, 5, 4)),    // span Y [7,11], thấp + lệch tâm-Y
+        };
+
+        var r = TextSelectionResolver.Resolve(line, 0, 1);
+
+        Assert.Single(r.LineRects);
+        Assert.Equal("A.", r.Text);
+    }
+
+    [Fact]
     public void Resolve_Empty_ReturnsEmpty()
     {
         var r = TextSelectionResolver.Resolve(new List<SelChar>(), 0, 0);

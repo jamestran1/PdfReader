@@ -31,15 +31,18 @@ public static class TextSelectionResolver
         var sb = new StringBuilder();
         foreach (var c in selected) sb.Append(c.Text);
 
-        // Gộp rect theo dòng: cùng dòng nếu chênh lệch tâm-Y nhỏ hơn nửa chiều cao ký tự.
+        // Gộp rect theo dòng dựa trên CHỒNG LẤN theo chiều dọc (không theo tâm-Y).
+        // Cùng dòng nếu phần chồng dọc giữa dải dòng hiện tại và ký tự kế >= nửa chiều cao
+        // ký tự thấp hơn. Bền với chữ có dấu / cao thấp khác nhau (dấu câu thấp, ký tự có dấu
+        // cao) vẫn nằm chung dòng, nên không bị tách rời thành nhiều khối.
         var lines = new List<Rect>();
         Rect current = selected[0].Bounds;
-        double lineCenterY = current.Top + current.Height / 2;
         for (int i = 1; i < selected.Count; i++)
         {
             var b = selected[i].Bounds;
-            double cy = b.Top + b.Height / 2;
-            if (Math.Abs(cy - lineCenterY) <= b.Height / 2)
+            double overlap = Math.Min(current.Bottom, b.Bottom) - Math.Max(current.Top, b.Top);
+            double minHeight = Math.Min(current.Height, b.Height);
+            if (minHeight > 0 && overlap >= minHeight * 0.5)
             {
                 current = Rect.Union(current, b);
             }
@@ -47,7 +50,6 @@ public static class TextSelectionResolver
             {
                 lines.Add(current);
                 current = b;
-                lineCenterY = cy;
             }
         }
         lines.Add(current);
