@@ -243,4 +243,59 @@ public class NotesViewModelTests
         vm.CancelEditCommand.Execute(null);
         Assert.Null(vm.PendingQuote);
     }
+
+    [Fact]
+    public void AddNote_CreatesNoteWithContentNoQuoteNoPage()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 9); // trang hiện tại 9 nhưng note AI không neo trang
+        vm.LoadFor("doc1");
+
+        bool ok = vm.AddNote("câu trả lời AI", null, null);
+
+        Assert.True(ok);
+        var saved = store.Rows.Single();
+        Assert.Equal("câu trả lời AI", saved.Content);
+        Assert.Null(saved.Quote);
+        Assert.Null(saved.PageIndex);
+        Assert.Contains(vm.Items, n => n.Content == "câu trả lời AI");
+    }
+
+    [Fact]
+    public void AddNote_NoDocumentOpen_ReturnsFalseAndAddsNothing()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+        vm.LoadFor(null); // chưa mở sách
+
+        bool ok = vm.AddNote("x", null, null);
+
+        Assert.False(ok);
+        Assert.Empty(store.Rows);
+    }
+
+    [Fact]
+    public void AddNote_EmptyContent_ReturnsFalse()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+        vm.LoadFor("doc1");
+
+        Assert.False(vm.AddNote("   ", null, null));
+        Assert.Empty(store.Rows);
+    }
+
+    [Fact]
+    public void AddNote_RespectsActiveFilter()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+        vm.LoadFor("doc1");
+        vm.FilterText = "xyz"; // không khớp note mới
+
+        bool ok = vm.AddNote("nội dung khác", null, null);
+
+        Assert.True(ok);                       // vẫn lưu vào store
+        Assert.Empty(vm.Items);                // nhưng bị lọc khỏi danh sách hiển thị
+    }
 }

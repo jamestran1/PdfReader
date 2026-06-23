@@ -85,13 +85,29 @@ public sealed partial class NotesViewModel : ObservableObject
         Items.Insert(i, note);
     }
 
-    // Bắt đầu tạo note từ vùng chọn: chuyển sang tab Notes, giữ trích dẫn + trang chờ.
+    // Bắt đầu tạo note từ vùng chọn trang: chuyển sang tab Notes, giữ trích dẫn + trang chờ.
     public void BeginNoteFromSelection(string quote, int pageIndex)
     {
         CancelEdit();
         PendingQuote = quote;
         _pendingPageIndex = pageIndex;
         RightTabIndex = 1; // 0=Chat, 1=Notes
+    }
+
+    // Tạo note trực tiếp (không qua Draft/composer). Dùng cho one-click lưu câu trả lời AI.
+    // Trả true nếu đã lưu (đang mở sách + content không rỗng).
+    public bool AddNote(string content, string? quote, int? pageIndex)
+    {
+        if (_ownerKey == null) return false;
+        string text = (content ?? string.Empty).Trim();
+        if (text.Length == 0) return false;
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, _ownerKey, pageIndex, quote, text, now, now);
+        try { _store.Add(note); }
+        catch { return false; }
+        _all.Add(note);
+        if (MatchesFilter(note, FilterText)) InsertSorted(note);
+        return true;
     }
 
     [RelayCommand]
