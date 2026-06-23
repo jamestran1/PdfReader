@@ -57,6 +57,9 @@ public class PdfObjectManager
         return null;
     }
 
+    public IReadOnlyList<GhostText> GetPageTexts(int pageIndex)
+        => _pageTextMap.TryGetValue(pageIndex, out var g) ? g : System.Array.Empty<GhostText>();
+
     public void Clear()
     {
         _pageTextMap.Clear();

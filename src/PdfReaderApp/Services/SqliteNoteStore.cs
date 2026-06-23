@@ -8,7 +8,7 @@ namespace PdfReaderApp.Services;
 /// Schema có PRAGMA user_version để migrate ở các layer sau (thêm cột tag/màu/region).</summary>
 public sealed class SqliteNoteStore : INoteStore
 {
-    private const long SchemaVersion = 1;
+    private const long SchemaVersion = 2;
     private readonly string _connectionString;
     private readonly object _lock = new();
 
@@ -36,13 +36,21 @@ CREATE TABLE IF NOT EXISTS note (
   owner_key TEXT NOT NULL,
   document_id TEXT,
   page_index INTEGER,
+  quote TEXT,
   content TEXT NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
             cmd.ExecuteNonQuery();
 
-            // Khung migration theo phiên bản schema (các layer sau dùng ALTER TABLE ADD COLUMN).
+            // Db cũ (v1) tạo trước khi có cột quote: thêm cột nếu thiếu.
+            if (!ColumnExists(conn, "note", "quote"))
+            {
+                using var alter = conn.CreateCommand();
+                alter.CommandText = "ALTER TABLE note ADD COLUMN quote TEXT;";
+                alter.ExecuteNonQuery();
+            }
+
             using var ver = conn.CreateCommand();
             ver.CommandText = "PRAGMA user_version;";
             long current = (long)(ver.ExecuteScalar() ?? 0L);
@@ -55,6 +63,17 @@ CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
         }
     }
 
+    private static bool ColumnExists(SqliteConnection conn, string table, string column)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({table});";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+            if (string.Equals(r.GetString(1), column, System.StringComparison.OrdinalIgnoreCase))
+                return true;
+        return false;
+    }
+
     public void Add(Note note)
     {
         lock (_lock)
@@ -62,12 +81,13 @@ CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-INSERT INTO note (id, owner_key, document_id, page_index, content, created_at, updated_at)
-VALUES ($id, $owner, $doc, $page, $content, $created, $updated);";
+INSERT INTO note (id, owner_key, document_id, page_index, quote, content, created_at, updated_at)
+VALUES ($id, $owner, $doc, $page, $quote, $content, $created, $updated);";
             cmd.Parameters.AddWithValue("$id", note.Id);
             cmd.Parameters.AddWithValue("$owner", note.OwnerKey);
             cmd.Parameters.AddWithValue("$doc", (object?)note.DocumentId ?? System.DBNull.Value);
             cmd.Parameters.AddWithValue("$page", (object?)note.PageIndex ?? System.DBNull.Value);
+            cmd.Parameters.AddWithValue("$quote", (object?)note.Quote ?? System.DBNull.Value);
             cmd.Parameters.AddWithValue("$content", note.Content);
             cmd.Parameters.AddWithValue("$created", note.CreatedAtUnixMs);
             cmd.Parameters.AddWithValue("$updated", note.UpdatedAtUnixMs);
@@ -108,7 +128,7 @@ VALUES ($id, $owner, $doc, $page, $content, $created, $updated);";
             var list = new List<Note>();
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id, owner_key, document_id, page_index, content, created_at, updated_at FROM note WHERE owner_key=$owner";
+            cmd.CommandText = "SELECT id, owner_key, document_id, page_index, quote, content, created_at, updated_at FROM note WHERE owner_key=$owner";
             cmd.Parameters.AddWithValue("$owner", ownerKey);
             using var r = cmd.ExecuteReader();
             while (r.Read())
@@ -118,9 +138,10 @@ VALUES ($id, $owner, $doc, $page, $content, $created, $updated);";
                     r.GetString(1),
                     r.IsDBNull(2) ? null : r.GetString(2),
                     r.IsDBNull(3) ? (int?)null : r.GetInt32(3),
-                    r.GetString(4),
-                    r.GetInt64(5),
-                    r.GetInt64(6)));
+                    r.IsDBNull(4) ? null : r.GetString(4),
+                    r.GetString(5),
+                    r.GetInt64(6),
+                    r.GetInt64(7)));
             }
             return list;
         }
