@@ -15,6 +15,7 @@ Vision: `docs/superpowers/specs/2026-06-22-taking-note-epic.md`.
 - ⬜ **Layer 3** — Workspace (gom nhiều tài liệu; chuyển phạm vi note/chat document→workspace).
 - ⬜ **Layer 4** — AI đa tài liệu (RAG/chat xuyên source, trích dẫn source+trang).
   - ⬜ **Citations / nguồn cho câu trả lời AI** (tính năng lớn, NotebookLM-style): mỗi đoạn trả lời gắn nguồn (trang + đoạn text AI dựa vào); click đoạn → nhảy tới trang + highlight đúng đoạn nguồn. Phụ thuộc: RAG giữ pageIndex+span của chunk, LLM phát citation marker (hoặc khớp post-hoc), và highlight-từ-text trên trang (2c). Ghi nhận 2026-06-23.
+  - ⬜ **Note làm nguồn cho AI ở task khác** (NotebookLM-style): các note đã lưu trở thành nguồn để AI tạo slide / tóm tắt / outline / soạn thảo... Chọn tập note → AI sinh sản phẩm. Phụ thuộc: chọn/nhóm note, prompt sinh sản phẩm, xuất. Ghi nhận 2026-06-23.
 - ⬜ **Layer 5** — tổ chức/tìm/xuất/chia sẻ workspace.
 
 ## ⬜ Backlog (theo ưu tiên, từ audit 2026-06-22)
