@@ -90,6 +90,26 @@ public class TextSelectionResolverTests
     }
 
     [Fact]
+    public void Resolve_WhitespaceWithMisplacedBounds_DoesNotSplitLine()
+    {
+        // Khoảng trắng đôi khi có bounds DƯƠNG nhưng đặt lệch (không overlap dải dòng) từ PDFium.
+        // Vẫn phải bỏ qua theo nội dung whitespace -> cả dòng là một rect liền.
+        var line = new List<SelChar>
+        {
+            new SelChar(0, "a", new Rect(0, 0, 8, 10)),
+            new SelChar(1, "b", new Rect(8, 0, 8, 10)),
+            new SelChar(2, " ", new Rect(16, 20, 6, 3)),  // space: height dương nhưng lệch hẳn xuống
+            new SelChar(3, "c", new Rect(22, 0, 8, 10)),
+            new SelChar(4, "d", new Rect(30, 0, 8, 10)),
+        };
+
+        var r = TextSelectionResolver.Resolve(line, 0, 4);
+
+        Assert.Single(r.LineRects);
+        Assert.Equal("ab cd", r.Text);   // text vẫn giữ dấu cách
+    }
+
+    [Fact]
     public void Resolve_Empty_ReturnsEmpty()
     {
         var r = TextSelectionResolver.Resolve(new List<SelChar>(), 0, 0);

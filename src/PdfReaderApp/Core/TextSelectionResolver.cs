@@ -32,10 +32,13 @@ public static class TextSelectionResolver
         foreach (var c in selected) sb.Append(c.Text);
 
         // Gộp rect theo dòng dựa trên CHỒNG LẤN theo chiều dọc (không theo tâm-Y).
-        // Bỏ qua ký tự suy biến (chiều cao/rộng <= 0, ví dụ khoảng trắng từ PDFium) để không
-        // tách dòng nhầm tại dấu cách. Union các ký tự thật cùng dòng -> một rect liền phủ luôn
-        // khoảng trắng giữa từ. Bền với chữ có dấu / cao thấp khác nhau.
-        var realChars = selected.Where(c => c.Bounds.Height > 0 && c.Bounds.Width > 0).ToList();
+        // Bỏ qua ký tự whitespace (theo NỘI DUNG) và ký tự suy biến (chiều cao/rộng <= 0) khi
+        // gộp dòng: bounds của khoảng trắng từ PDFium không đáng tin (có khi height=0, có khi
+        // dương nhưng đặt lệch hẳn), dễ làm tách dòng nhầm tại dấu cách. Union các chữ thật cùng
+        // dòng -> một rect liền phủ luôn khoảng trắng giữa từ. (Text của note vẫn giữ dấu cách.)
+        var realChars = selected
+            .Where(c => !string.IsNullOrWhiteSpace(c.Text) && c.Bounds.Height > 0 && c.Bounds.Width > 0)
+            .ToList();
         var lines = new List<Rect>();
         if (realChars.Count == 0)
             return new SelectionResult(sb.ToString(), lines);
