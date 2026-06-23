@@ -552,6 +552,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Notes.BeginNoteFromSelection(sel.Quote, sel.PageIndex);
     }
 
+    // Lưu một câu trả lời AI thành note: mở tab Notes, đưa nội dung vào banner trích dẫn (không neo trang).
+    [RelayCommand]
+    private void SaveAnswerAsNote(ChatMessage? msg)
+    {
+        if (msg is null || msg.Role != "AI" || string.IsNullOrWhiteSpace(msg.Content)) return;
+        Notes.BeginNoteFromText(msg.Content, null);
+    }
+
     [RelayCommand]
     private void ZoomIn() => ZoomLevel += 0.2;
 

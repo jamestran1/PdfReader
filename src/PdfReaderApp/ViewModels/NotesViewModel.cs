@@ -32,7 +32,7 @@ public sealed partial class NotesViewModel : ObservableObject
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private int _rightTabIndex;
     [ObservableProperty] private string? _pendingQuote;
-    private int _pendingPageIndex;
+    private int? _pendingPageIndex;
 
     public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex)
     {
@@ -85,14 +85,19 @@ public sealed partial class NotesViewModel : ObservableObject
         Items.Insert(i, note);
     }
 
-    // Bắt đầu tạo note từ vùng chọn: chuyển sang tab Notes, giữ trích dẫn + trang chờ.
-    public void BeginNoteFromSelection(string quote, int pageIndex)
+    // Bắt đầu tạo note từ một đoạn text bất kỳ (vùng chọn trang hoặc câu trả lời AI).
+    // pageIndex = null nghĩa là không neo trang.
+    public void BeginNoteFromText(string quote, int? pageIndex)
     {
         CancelEdit();
         PendingQuote = quote;
         _pendingPageIndex = pageIndex;
         RightTabIndex = 1; // 0=Chat, 1=Notes
     }
+
+    // Tạo note từ vùng chọn trang (luôn neo trang chứa đoạn chọn).
+    public void BeginNoteFromSelection(string quote, int pageIndex)
+        => BeginNoteFromText(quote, pageIndex);
 
     [RelayCommand]
     private void Save()

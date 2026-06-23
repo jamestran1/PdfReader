@@ -243,4 +243,50 @@ public class NotesViewModelTests
         vm.CancelEditCommand.Execute(null);
         Assert.Null(vm.PendingQuote);
     }
+
+    [Fact]
+    public void BeginNoteFromText_NullPage_SetsPendingAndTab()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 9);
+        vm.LoadFor("doc1");
+
+        vm.BeginNoteFromText("câu trả lời AI", null);
+
+        Assert.Equal("câu trả lời AI", vm.PendingQuote);
+        Assert.Equal(1, vm.RightTabIndex);
+    }
+
+    [Fact]
+    public void Save_FromTextNullPage_CreatesNoteWithNoPageAnchor()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 9); // trang hiện tại 9 nhưng note AI không neo trang
+        vm.LoadFor("doc1");
+        vm.BeginNoteFromText("câu trả lời AI", null);
+        vm.Draft = "ý của tôi";
+
+        vm.SaveCommand.Execute(null);
+
+        var saved = store.Rows.Single();
+        Assert.Equal("câu trả lời AI", saved.Quote);
+        Assert.Null(saved.PageIndex);            // không neo trang dù trang hiện tại = 9
+        Assert.Equal("ý của tôi", saved.Content);
+        Assert.Null(vm.PendingQuote);
+    }
+
+    [Fact]
+    public void Save_FromTextNullPage_EmptyDraft_StillCreates()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+        vm.LoadFor("doc1");
+        vm.BeginNoteFromText("chỉ câu trả lời", null);
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Single(store.Rows);
+        Assert.Equal("chỉ câu trả lời", store.Rows[0].Quote);
+        Assert.Null(store.Rows[0].PageIndex);
+    }
 }

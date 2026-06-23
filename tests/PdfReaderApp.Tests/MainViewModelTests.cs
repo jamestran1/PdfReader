@@ -265,4 +265,28 @@ public class MainViewModelTests
         vm.ShowLibrary = false;                          // rời thư viện: khôi phục 500
         Assert.Equal(500, vm.ChatColumnWidth.Value);
     }
+
+    [Fact]
+    public void SaveAnswerAsNote_AiMessage_SetsPendingQuoteAndOpensNotesTab()
+    {
+        var vm = new MainViewModel();
+        var msg = new ChatMessage { Role = "AI", Content = "Đây là câu trả lời." };
+
+        vm.SaveAnswerAsNoteCommand.Execute(msg);
+
+        Assert.Equal("Đây là câu trả lời.", vm.Notes.PendingQuote);
+        Assert.Equal(1, vm.Notes.RightTabIndex);
+    }
+
+    [Fact]
+    public void SaveAnswerAsNote_NonAiOrEmpty_DoesNothing()
+    {
+        var vm = new MainViewModel();
+
+        vm.SaveAnswerAsNoteCommand.Execute(new ChatMessage { Role = "User", Content = "hỏi" });
+        vm.SaveAnswerAsNoteCommand.Execute(new ChatMessage { Role = "AI", Content = "   " });
+        vm.SaveAnswerAsNoteCommand.Execute(null);
+
+        Assert.Null(vm.Notes.PendingQuote);
+    }
 }
