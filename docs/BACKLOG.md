@@ -1,6 +1,6 @@
 # Backlog — Ultimate PDF Reader & Editor
 
-Cập nhật: 2026-06-22. Quy ước trạng thái: ✅ done · 🔄 in progress · ⬜ backlog. Ưu tiên: P0 cao → P3 thấp.
+Cập nhật: 2026-06-23. Quy ước trạng thái: ✅ done · 🔄 in progress · ⬜ backlog. Ưu tiên: P0 cao → P3 thấp.
 
 ## 🔄 Đang làm
 - (trống)
@@ -8,9 +8,13 @@ Cập nhật: 2026-06-22. Quy ước trạng thái: ✅ done · 🔄 in progress
 ## Epic: Taking Note → Research Workspace (NotebookLM)
 Vision: `docs/superpowers/specs/2026-06-22-taking-note-epic.md`.
 - ✅ **Layer 1** — note theo sách (store + NotesViewModel + tab Notes) — PR #14.
-- ⬜ **Layer 2** — bắt note từ vùng chọn text + highlight tô màu + lưu câu trả lời AI thành note.
+- 🔶 **Layer 2** — đang dở:
+  - ✅ **2b** — chọn text → note trích dẫn (kéo-chọn theo dòng + neo trang) — PR #15.
+  - ⬜ **2a** — lưu câu trả lời AI thành note (dễ, độc lập).
+  - ⬜ **2c** — highlight tô màu LƯU + vẽ lại trên trang (dựa trên cơ chế chọn của 2b).
 - ⬜ **Layer 3** — Workspace (gom nhiều tài liệu; chuyển phạm vi note/chat document→workspace).
 - ⬜ **Layer 4** — AI đa tài liệu (RAG/chat xuyên source, trích dẫn source+trang).
+  - ⬜ **Citations / nguồn cho câu trả lời AI** (tính năng lớn, NotebookLM-style): mỗi đoạn trả lời gắn nguồn (trang + đoạn text AI dựa vào); click đoạn → nhảy tới trang + highlight đúng đoạn nguồn. Phụ thuộc: RAG giữ pageIndex+span của chunk, LLM phát citation marker (hoặc khớp post-hoc), và highlight-từ-text trên trang (2c). Ghi nhận 2026-06-23.
 - ⬜ **Layer 5** — tổ chức/tìm/xuất/chia sẻ workspace.
 
 ## ⬜ Backlog (theo ưu tiên, từ audit 2026-06-22)
@@ -26,6 +30,7 @@ Vision: `docs/superpowers/specs/2026-06-22-taking-note-epic.md`.
 | P3 | Search: prev/next match + đếm "1/15" | DỞ | Chỉ popup + click, chưa nhảy match kế |
 
 ## ✅ Đã xong (gần đây)
+- ✅ Taking Note Layer 2b: chọn text trên trang → note trích dẫn (resolver gộp dòng + neo trang) — PR #15.
 - ✅ Taking Note Layer 1: note theo sách (SQLite + filter/sort + tab Notes, neo trang) — PR #14.
 - ✅ Thư viện tài liệu: import → copy vào app + thumbnail + lưới thẻ, mở lại — PR #11.
 - ✅ Lịch sử chat theo từng sách (lưu SQLite, AI nhớ tiếp mạch) — PR #12.
