@@ -348,7 +348,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _activeWorkspaceId = workspace.Id;
         Notes.LoadFor(_activeWorkspaceId);
         ReloadWorkspaceDocuments();
-        UpdateNotesDocumentContext();
         // Giữ ShowWorkspaces = true để IsReadingDocument vẫn false -> không hiện toolbar đọc
         ShowWorkspaces = true;
         ShowWorkspaceDetail = true;
@@ -358,13 +357,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ReloadWorkspaceDocuments()
     {
         WorkspaceDocuments.Clear();
-        if (SelectedWorkspace is null) return;
-        var ids = _workspaceStore.GetDocumentIds(SelectedWorkspace.Id);
-        foreach (var id in ids)
+        if (SelectedWorkspace is not null)
         {
-            var item = Library.FirstOrDefault(i => i.DocumentId == id);
-            if (item is not null) WorkspaceDocuments.Add(item);
+            var ids = _workspaceStore.GetDocumentIds(SelectedWorkspace.Id);
+            foreach (var id in ids)
+            {
+                var item = Library.FirstOrDefault(i => i.DocumentId == id);
+                if (item is not null) WorkspaceDocuments.Add(item);
+            }
         }
+        // S3: danh sách tài liệu đổi -> cập nhật ngữ cảnh chip nhãn (gọi tại đây để mọi call-site đều được phủ)
+        UpdateNotesDocumentContext();
     }
 
     // S2: thêm nhiều tài liệu từ thư viện vào workspace (đa chọn)
@@ -378,7 +381,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 _workspaceStore.AddDocument(SelectedWorkspace.Id, it.DocumentId);
         }
         ReloadWorkspaceDocuments();
-        UpdateNotesDocumentContext();
     }
 
     // S2: xoá tài liệu khỏi workspace
@@ -388,7 +390,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (item is null || SelectedWorkspace is null) return;
         _workspaceStore.RemoveDocument(SelectedWorkspace.Id, item.DocumentId);
         ReloadWorkspaceDocuments();
-        UpdateNotesDocumentContext();
     }
 
     // S3: cập nhật ngữ cảnh chip nhãn tài liệu cho NotesViewModel

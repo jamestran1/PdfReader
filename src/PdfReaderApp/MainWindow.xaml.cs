@@ -214,7 +214,8 @@ public sealed class DocumentIdToTitleConverter : System.Windows.Data.IMultiValue
         if (string.IsNullOrEmpty(docId)) return string.Empty;
         if (values[1] is IReadOnlyDictionary<string, string> titles && titles.TryGetValue(docId, out var title))
             return PdfReaderApp.ViewModels.DocumentChip.ShortLabel(title);
-        return PdfReaderApp.ViewModels.DocumentChip.ShortLabel(docId);
+        // Không có tiêu đề cho documentId này -> nhãn rỗng (không lộ id nội bộ ra UI)
+        return string.Empty;
     }
     public object[] ConvertBack(object value, Type[] t, object p, CultureInfo c) => Array.Empty<object>();
 }
