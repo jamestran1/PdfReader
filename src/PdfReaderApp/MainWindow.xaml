@@ -70,6 +70,10 @@
                             Command="{Binding ShowLibraryViewCommand}">
                         <materialDesign:PackIcon Kind="BookOpenVariant" Width="24" Height="24"/>
                     </Button>
+                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Workspaces"
+                            Command="{Binding ShowWorkspacesViewCommand}">
+                        <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="24" Height="24"/>
+                    </Button>
                     <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Edit">
                         <materialDesign:PackIcon Kind="Pencil" Width="24" Height="24"/>
                     </Button>
@@ -100,9 +104,12 @@
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                         <Button Style="{StaticResource MaterialDesignRaisedButton}" 
                                 Command="{Binding OpenFileCommand}" 
-                                Content="OPEN PDF" 
+                                Content="OPEN PDF"
                                 materialDesign:ButtonAssist.CornerRadius="20"/>
-                        
+
+                        <!-- Nút điều khiển đọc: chỉ hiện khi đang đọc tài liệu (ẩn ở Thư viện/Workspaces) -->
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding IsReadingDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
                         
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ZoomOutCommand}" ToolTip="Zoom Out">
@@ -164,6 +171,7 @@
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ReindexDocumentCommand}" ToolTip="Lập chỉ mục lại">
                             <materialDesign:PackIcon Kind="DatabaseRefresh" />
                         </Button>
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- Indexing status (blank when idle) -->
@@ -173,7 +181,8 @@
                                Foreground="{DynamicResource PrimaryHueMidBrush}"
                                FontStyle="Italic" TextTrimming="CharacterEllipsis"/>
 
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right"
+                                Visibility="{Binding IsReadingDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <materialDesign:ColorZone Mode="Standard" CornerRadius="20" materialDesign:ElevationAssist.Elevation="Dp0"
                                                   Background="{DynamicResource MaterialDesignTextFieldBoxBackground}" Padding="8,2">
                             <Grid>
@@ -250,6 +259,84 @@
                                        AddNoteFromSelectionCommand="{Binding AddNoteFromSelectionCommand}"
                                        Highlights="{Binding Notes.Highlights}"
                                        Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+            <!-- Workspaces grid (shown when ShowWorkspaces) -->
+            <Border Grid.Row="1" Background="{DynamicResource MaterialDesignPaper}"
+                    Visibility="{Binding ShowWorkspaces, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Tieu de -->
+                    <TextBlock Grid.Row="0" Text="Workspaces" FontSize="20" FontWeight="Bold" Margin="0,0,0,12"/>
+
+                    <!-- Tạo workspace mới -->
+                    <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="NewWorkspaceNameBox"
+                                 materialDesign:HintAssist.Hint="Tên workspace mới..."
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 Margin="0,0,8,0">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter"
+                                            Command="{Binding CreateWorkspaceCommand}"
+                                            CommandParameter="{Binding Text, ElementName=NewWorkspaceNameBox}"/>
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <Button Grid.Column="1"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Content="Tạo workspace"
+                                Command="{Binding CreateWorkspaceCommand}"
+                                CommandParameter="{Binding Text, ElementName=NewWorkspaceNameBox}"
+                                materialDesign:ButtonAssist.CornerRadius="20"/>
+                    </Grid>
+                        <TextBlock Text="{Binding WorkspaceNameError}" Foreground="#D32F2F"
+                                   FontSize="12" Margin="2,4,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <!-- Danh sách workspace người dùng -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="Chưa có workspace nào. Tạo workspace để nhóm tài liệu cùng chủ đề."
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" Margin="0,32"
+                                       Visibility="{Binding Workspaces.Count, Converter={StaticResource CountToInverseVisibilityConverter}}"/>
+                            <ItemsControl ItemsSource="{Binding Workspaces}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <materialDesign:Card Width="200" Margin="8" materialDesign:ElevationAssist.Elevation="Dp2"
+                                                             Cursor="Hand">
+                                            <Border Background="Transparent" Padding="12">
+                                                <Border.InputBindings>
+                                                    <MouseBinding MouseAction="LeftClick"
+                                                                  Command="{Binding DataContext.OpenWorkspaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                  CommandParameter="{Binding}"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="32" Height="32"
+                                                                             HorizontalAlignment="Center" Margin="0,0,0,8"
+                                                                             Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold"
+                                                               TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </materialDesign:Card>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
 
             <!-- Library grid (shown when ShowLibrary) -->
             <Border Grid.Row="1" Background="{DynamicResource MaterialDesignPaper}"

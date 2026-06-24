@@ -18,6 +18,7 @@ public sealed partial class NotesViewModel : ObservableObject
     private readonly INoteStore _store;
     private readonly Func<int?> _currentPageIndex;
     private readonly Action<int> _jumpToPageIndex;
+    private readonly Func<string?>? _currentDocumentId;
 
     private readonly List<Note> _all = new(); // nguồn đầy đủ; Items là phần đã lọc/sắp
     private string? _ownerKey;
@@ -37,11 +38,13 @@ public sealed partial class NotesViewModel : ObservableObject
     private IReadOnlyList<HighlightRect>? _pendingRects;
     public ObservableCollection<Note> Highlights { get; } = new();
 
-    public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex)
+    public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex,
+        Func<string?>? currentDocumentId = null)
     {
         _store = store;
         _currentPageIndex = currentPageIndex;
         _jumpToPageIndex = jumpToPageIndex;
+        _currentDocumentId = currentDocumentId;
     }
 
     // Sắp: trang tăng dần (null cuối), rồi tạo mới hơn lên trước.
@@ -109,7 +112,8 @@ public sealed partial class NotesViewModel : ObservableObject
         string text = (content ?? string.Empty).Trim();
         if (text.Length == 0) return false;
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, _ownerKey, pageIndex, quote, text, now, now);
+        string? docId = _currentDocumentId?.Invoke();
+        var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, docId, pageIndex, quote, text, now, now);
         try { _store.Add(note); }
         catch { return false; }
         _all.Add(note);
@@ -138,7 +142,8 @@ public sealed partial class NotesViewModel : ObservableObject
             int? page = hasQuote ? _pendingPageIndex : _currentPageIndex();
             var rects = _pendingRects;
             var color = rects != null ? DefaultHighlightColor : null;
-            var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, _ownerKey,
+            string? docId = _currentDocumentId?.Invoke();
+            var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, docId,
                 page, PendingQuote, content, now, now, rects, color);
             try { _store.Add(note); }
             catch { return; }
