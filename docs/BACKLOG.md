@@ -12,13 +12,14 @@ Cập nhật: 2026-06-23.
 
 ## 🔄 Đang làm
 
-- Taking Note **2c** — highlight tô màu lưu + vẽ lại trên trang (brainstorm).
+- (trống) — chọn issue tiếp theo từ GitHub Issues.
 
 ## Epic Taking Note → Research Workspace (NotebookLM)
 Vision: `docs/superpowers/specs/2026-06-22-taking-note-epic.md`.
-- ✅ Layer 1 (note theo sách, #14) · ✅ 2a (one-click lưu AI, #16) · ✅ 2b (chọn text → trích dẫn, #15) · 🔄 2c (highlight) · ⬜ Layer 3-5 (issues #25-#29) + citations (#27) + note-làm-nguồn (#28).
+- ✅ **Layer 2 trọn vẹn**: Layer 1 (note theo sách, #14) · 2a (one-click lưu AI, #16) · 2b (chọn text → trích dẫn, #15) · 2c (highlight lưu+vẽ-lại, #31). · ⬜ Layer 3-5 (issues #25-#29) + citations (#27) + note-làm-nguồn (#28) + click-highlight→note (#30).
 
 ## ✅ Đã xong (gần đây)
+- ✅ Taking Note 2c: highlight tô màu lưu + vẽ lại trên trang — PR #31.
 - ✅ Taking Note 2a: one-click lưu câu trả lời AI thành note — PR #16.
 - ✅ Taking Note 2b: chọn text → note trích dẫn (resolver gộp dòng + neo trang) — PR #15.
 - ✅ Taking Note Layer 1: note theo sách (SQLite + filter/sort + tab Notes) — PR #14.
