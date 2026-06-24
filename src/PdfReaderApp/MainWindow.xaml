@@ -104,9 +104,12 @@
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                         <Button Style="{StaticResource MaterialDesignRaisedButton}" 
                                 Command="{Binding OpenFileCommand}" 
-                                Content="OPEN PDF" 
+                                Content="OPEN PDF"
                                 materialDesign:ButtonAssist.CornerRadius="20"/>
-                        
+
+                        <!-- Nút điều khiển đọc: chỉ hiện khi đang đọc tài liệu (ẩn ở Thư viện/Workspaces) -->
+                        <StackPanel Orientation="Horizontal"
+                                    Visibility="{Binding IsReadingDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Separator Style="{StaticResource MaterialDesignLightSeparator}" Margin="16,0" />
                         
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ZoomOutCommand}" ToolTip="Zoom Out">
@@ -168,6 +171,7 @@
                         <Button Style="{StaticResource MaterialDesignIconButton}" Command="{Binding ReindexDocumentCommand}" ToolTip="Lập chỉ mục lại">
                             <materialDesign:PackIcon Kind="DatabaseRefresh" />
                         </Button>
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- Indexing status (blank when idle) -->
@@ -177,7 +181,8 @@
                                Foreground="{DynamicResource PrimaryHueMidBrush}"
                                FontStyle="Italic" TextTrimming="CharacterEllipsis"/>
 
-                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right"
+                                Visibility="{Binding IsReadingDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <materialDesign:ColorZone Mode="Standard" CornerRadius="20" materialDesign:ElevationAssist.Elevation="Dp0"
                                                   Background="{DynamicResource MaterialDesignTextFieldBoxBackground}" Padding="8,2">
                             <Grid>

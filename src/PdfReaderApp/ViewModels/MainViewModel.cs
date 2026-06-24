@@ -133,7 +133,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ChatColumnMinWidth = MinChatWidthPx;
             ChatColumnWidth = new System.Windows.GridLength(_savedChatWidthPx);
         }
+        OnPropertyChanged(nameof(IsReadingDocument));
     }
+
+    // Đang đọc tài liệu (không ở Thư viện cũng không ở Workspaces) -> hiện các nút đọc trên toolbar.
+    public bool IsReadingDocument => !ShowLibrary && !ShowWorkspaces;
 
     [ObservableProperty]
     private bool _showWorkspaces;
