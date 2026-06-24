@@ -28,16 +28,52 @@ public class MainViewModelTests
         public void DeleteForDocument(string documentId) => Deleted.Add(documentId);
     }
 
+    private sealed class FakeWorkspaceStore : PdfReaderApp.Services.IWorkspaceStore
+    {
+        public readonly List<PdfReaderApp.Models.Workspace> All = new();
+        public void EnsureSchema() { }
+        public void Upsert(PdfReaderApp.Models.Workspace w) { All.RemoveAll(x => x.Id == w.Id); All.Add(w); }
+        public PdfReaderApp.Models.Workspace? Get(string id) => All.FirstOrDefault(w => w.Id == id);
+        public IReadOnlyList<PdfReaderApp.Models.Workspace> GetAll(bool includeDefault)
+            => All.Where(w => includeDefault || !w.IsDefault).ToList();
+        public void AddDocument(string workspaceId, string documentId) { }
+        public void RemoveDocument(string workspaceId, string documentId) { }
+        public IReadOnlyList<string> GetDocumentIds(string workspaceId) => new List<string>();
+        public IReadOnlyList<string> GetWorkspaceIdsForDocument(string documentId) => new List<string>();
+        public PdfReaderApp.Models.Workspace GetOrCreateDefaultForDocument(string documentId, string name, long nowUnixMs)
+        {
+            var existing = All.FirstOrDefault(w => w.IsDefault && w.DefaultDocumentId == documentId);
+            if (existing != null) return existing;
+            var ws = new PdfReaderApp.Models.Workspace(System.Guid.NewGuid().ToString("N"), name, true, documentId, nowUnixMs, nowUnixMs);
+            All.Add(ws);
+            return ws;
+        }
+        public void Rename(string id, string name, long nowUnixMs) { }
+        public void Delete(string id) { All.RemoveAll(w => w.Id == id); }
+    }
+
+    private static string TempDb() =>
+        System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db");
+
     private static MainViewModel VmWithChatStore(FakeChatHistoryStore store)
         => new MainViewModel(
             new PdfReaderApp.Services.ITextPdfDocumentService(),
             new PdfReaderApp.Services.WindowsSettingsService(),
             new PdfReaderApp.Services.OpenAiChatClientFactory(),
-            new PdfReaderApp.Services.SqliteDocumentIndex(
-                System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
+            new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
                 System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
             new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
             store);
+
+    private static MainViewModel VmWithWorkspaceStore(FakeWorkspaceStore wsStore)
+        => new MainViewModel(
+            new PdfReaderApp.Services.ITextPdfDocumentService(),
+            new PdfReaderApp.Services.WindowsSettingsService(),
+            new PdfReaderApp.Services.OpenAiChatClientFactory(),
+            new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
+                System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
+            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            workspaceStore: wsStore);
 
     [Fact]
     public void RemoveLibraryItem_DeletesChatHistoryForThatDocument()
@@ -264,6 +300,69 @@ public class MainViewModelTests
         Assert.Equal(0, vm.ChatColumnWidth.Value);
         vm.ShowLibrary = false;                          // rời thư viện: khôi phục 500
         Assert.Equal(500, vm.ChatColumnWidth.Value);
+    }
+
+    // --- Workspace wiring tests (Step 4) ---
+
+    [Fact]
+    public void CreateWorkspaceCommand_EmptyName_DoesNotAddWorkspace()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        vm.CreateWorkspaceCommand.Execute("   ");
+
+        Assert.Empty(vm.Workspaces);
+    }
+
+    [Fact]
+    public void CreateWorkspaceCommand_NullName_DoesNotAddWorkspace()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        vm.CreateWorkspaceCommand.Execute(null);
+
+        Assert.Empty(vm.Workspaces);
+    }
+
+    [Fact]
+    public void CreateWorkspaceCommand_ValidName_AddsToWorkspacesCollection()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        vm.CreateWorkspaceCommand.Execute("Dự án A");
+
+        Assert.Single(vm.Workspaces);
+        Assert.Equal("Dự án A", vm.Workspaces[0].Name);
+        Assert.False(vm.Workspaces[0].IsDefault);
+    }
+
+    [Fact]
+    public void CreateWorkspaceCommand_ValidName_PersistsToStore()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        vm.CreateWorkspaceCommand.Execute("Nghiên cứu");
+
+        // Store phải có workspace (IsDefault=false) vừa tạo
+        var userWs = wsStore.GetAll(includeDefault: false);
+        Assert.Single(userWs);
+        Assert.Equal("Nghiên cứu", userWs[0].Name);
+    }
+
+    [Fact]
+    public void ShowWorkspacesViewCommand_SetsShowWorkspacesTrue()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+        vm.ShowWorkspaces = false;
+
+        vm.ShowWorkspacesViewCommand.Execute(null);
+
+        Assert.True(vm.ShowWorkspaces);
     }
 
 }
