@@ -105,10 +105,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private double _chatColumnMinWidth = 0;
 
-    // Vào thư viện: lưu bề rộng đang có rồi thu cột về 0. Rời thư viện: khôi phục bề rộng đã lưu.
+    // Library và Workspaces loại trừ nhau; panel chat ẩn khi đang ở một trong hai (lưới phủ vùng chính).
     partial void OnShowLibraryChanged(bool value)
     {
-        if (value)
+        if (value) ShowWorkspaces = false;
+        UpdateChatColumnVisibility();
+    }
+
+    partial void OnShowWorkspacesChanged(bool value)
+    {
+        if (value) ShowLibrary = false;
+        UpdateChatColumnVisibility();
+    }
+
+    // Thu cột chat về 0 khi ở Library/Workspaces; khôi phục bề rộng đã lưu khi đang đọc tài liệu.
+    private void UpdateChatColumnVisibility()
+    {
+        if (ShowLibrary || ShowWorkspaces)
         {
             if (ChatColumnWidth.IsAbsolute && ChatColumnWidth.Value > 0)
                 _savedChatWidthPx = ChatColumnWidth.Value;
@@ -217,10 +230,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _workspaceStore = workspaceStore ?? new SqliteWorkspaceStore(System.IO.Path.Combine(AppDir(), "workspaces.db"));
         _workspaceStore.EnsureSchema();
 
-        // Di trú: chuyển ghi chú cũ (owner_key=documentId) sang default workspace
+        // Di trú: chuyển ghi chú cũ (owner_key=documentId) sang default workspace.
+        // Bọc try/catch để lỗi store không chặn app khởi động (di trú best-effort, idempotent nên chạy lại được).
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var docs = Library.Select(i => (i.DocumentId, i.Title)).ToList();
-        Core.WorkspaceMigration.Run(_workspaceStore, notes, docs, now);
+        try { Core.WorkspaceMigration.Run(_workspaceStore, notes, docs, now); }
+        catch { /* di trú lỗi: app vẫn mở; thử lại lần khởi động sau */ }
 
         ReloadWorkspaces();
         LoadChatHistory();
@@ -287,7 +302,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (workspace is null) return;
         _activeWorkspaceId = workspace.Id;
         Notes.LoadFor(_activeWorkspaceId);
-        ShowWorkspaces = false;
+        // S1: chưa có màn chi tiết workspace (sẽ làm ở S2/#34) -> ở lại lưới Workspaces.
     }
 
     [RelayCommand]
