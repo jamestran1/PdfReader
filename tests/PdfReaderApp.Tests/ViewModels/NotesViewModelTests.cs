@@ -24,10 +24,23 @@ public class NotesViewModelTests
         public int Delete(string id) => Rows.RemoveAll(n => n.Id == id);
         public IReadOnlyList<Note> GetForOwner(string ownerKey)
             => Rows.Where(n => n.OwnerKey == ownerKey).ToList();
+        public int ReassignOwner(string oldKey, string newKey)
+        {
+            int count = 0;
+            for (int i = 0; i < Rows.Count; i++)
+            {
+                if (Rows[i].OwnerKey == oldKey)
+                {
+                    Rows[i] = Rows[i] with { OwnerKey = newKey };
+                    count++;
+                }
+            }
+            return count;
+        }
     }
 
-    private static NotesViewModel Make(FakeNoteStore store, int? page, Action<int>? onJump = null)
-        => new NotesViewModel(store, () => page, idx => onJump?.Invoke(idx));
+    private static NotesViewModel Make(FakeNoteStore store, int? page, Action<int>? onJump = null, Func<string?>? currentDocumentId = null)
+        => new NotesViewModel(store, () => page, idx => onJump?.Invoke(idx), currentDocumentId);
 
     [Fact]
     public void Save_AddsNote_WithOwnerAndCurrentPage()
@@ -358,5 +371,55 @@ public class NotesViewModelTests
 
         Assert.True(ok);                       // vẫn lưu vào store
         Assert.Empty(vm.Items);                // nhưng bị lọc khỏi danh sách hiển thị
+    }
+
+    // --- Anchor fix (Step 3): DocumentId == currentDocumentId(), không phải ownerKey ---
+
+    [Fact]
+    public void Save_NewNote_DocumentIdEqualsCurrentDocumentId_NotOwnerKey()
+    {
+        var store = new FakeNoteStore();
+        // ownerKey = workspace id, currentDocumentId = documentId riêng
+        string ownerKey = "ws-123";
+        string docId = "docA";
+        var vm = Make(store, page: 1, currentDocumentId: () => docId);
+        vm.LoadFor(ownerKey);
+        vm.Draft = "ghi chú mới";
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Single(store.Rows);
+        Assert.Equal(ownerKey, store.Rows[0].OwnerKey);   // owner = workspace
+        Assert.Equal(docId, store.Rows[0].DocumentId);     // anchor = document thực sự
+    }
+
+    [Fact]
+    public void AddNote_DocumentIdEqualsCurrentDocumentId_NotOwnerKey()
+    {
+        var store = new FakeNoteStore();
+        string ownerKey = "ws-456";
+        string docId = "docB";
+        var vm = Make(store, page: 1, currentDocumentId: () => docId);
+        vm.LoadFor(ownerKey);
+
+        vm.AddNote("câu trả lời AI", null, null);
+
+        Assert.Single(store.Rows);
+        Assert.Equal(ownerKey, store.Rows[0].OwnerKey);
+        Assert.Equal(docId, store.Rows[0].DocumentId);
+    }
+
+    [Fact]
+    public void Save_NewNote_WhenCurrentDocumentIdIsNull_DocumentIdIsNull()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1, currentDocumentId: () => null);
+        vm.LoadFor("ws-789");
+        vm.Draft = "ghi chú không anchor";
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Single(store.Rows);
+        Assert.Null(store.Rows[0].DocumentId);
     }
 }
