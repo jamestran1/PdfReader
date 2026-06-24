@@ -150,6 +150,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // S2: expose activeWorkspaceId cho test
     public string? ActiveWorkspaceId => _activeWorkspaceId;
 
+    // S3: expose documentId hiện tại để bind vào PdfViewerControl.CurrentDocumentId (lọc highlight)
+    public string? CurrentDocumentId => _documentId;
+
     // Lưới Workspaces chỉ hiện khi ở vùng Workspaces VÀ chưa mở chi tiết
     public bool ShowWorkspacesGrid => ShowWorkspaces && !ShowWorkspaceDetail;
 
@@ -257,7 +260,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Notes = new NotesViewModel(notes,
             () => _documentId is null ? (int?)null : CurrentPage - 1,
             idx => CurrentPage = idx + 1,
-            () => _documentId);
+            () => _documentId,
+            OpenDocumentForNote);
 
         // Workspace store: real db in AppDir hoac inject (test)
         _workspaceStore = workspaceStore ?? new SqliteWorkspaceStore(System.IO.Path.Combine(AppDir(), "workspaces.db"));
@@ -353,13 +357,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ReloadWorkspaceDocuments()
     {
         WorkspaceDocuments.Clear();
-        if (SelectedWorkspace is null) return;
-        var ids = _workspaceStore.GetDocumentIds(SelectedWorkspace.Id);
-        foreach (var id in ids)
+        if (SelectedWorkspace is not null)
         {
-            var item = Library.FirstOrDefault(i => i.DocumentId == id);
-            if (item is not null) WorkspaceDocuments.Add(item);
+            var ids = _workspaceStore.GetDocumentIds(SelectedWorkspace.Id);
+            foreach (var id in ids)
+            {
+                var item = Library.FirstOrDefault(i => i.DocumentId == id);
+                if (item is not null) WorkspaceDocuments.Add(item);
+            }
         }
+        // S3: danh sách tài liệu đổi -> cập nhật ngữ cảnh chip nhãn (gọi tại đây để mọi call-site đều được phủ)
+        UpdateNotesDocumentContext();
     }
 
     // S2: thêm nhiều tài liệu từ thư viện vào workspace (đa chọn)
@@ -382,6 +390,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (item is null || SelectedWorkspace is null) return;
         _workspaceStore.RemoveDocument(SelectedWorkspace.Id, item.DocumentId);
         ReloadWorkspaceDocuments();
+    }
+
+    // S3: cập nhật ngữ cảnh chip nhãn tài liệu cho NotesViewModel
+    private void UpdateNotesDocumentContext()
+    {
+        var titles = new Dictionary<string, string>();
+        foreach (var d in WorkspaceDocuments) titles[d.DocumentId] = d.Title;
+        Notes.SetDocumentContext(titles, showChips: WorkspaceDocuments.Count > 1);
+    }
+
+    // S3: callback mở tài liệu khác trong cùng workspace khi bấm note cross-doc
+    private void OpenDocumentForNote(string documentId, int? pageIndex)
+    {
+        var item = Library.FirstOrDefault(i => i.DocumentId == documentId);
+        if (item is null) return;
+        // Mở thẳng tại trang neo của note (giữ active workspace scope hiện tại).
+        LoadActiveDocument(item.StoredPath, _activeWorkspaceId, initialPage: (pageIndex ?? 0) + 1);
     }
 
     // S2: quay lại lưới workspace từ màn chi tiết
@@ -436,8 +461,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Nạp tài liệu đang hoạt động từ đường dẫn (đã copy trong thư viện). Tái dùng cho cả OpenFile lẫn mở từ thư viện.
     // workspaceScopeId: truyền workspace cụ thể (S2 - mở trong workspace); null = dùng default workspace như cũ.
-    private void LoadActiveDocument(string path, string? workspaceScopeId = null)
+    private void LoadActiveDocument(string path, string? workspaceScopeId = null, int initialPage = 1)
     {
+        // Đặt trang đích TRƯỚC khi gán FilePath: việc gán FilePath kích hoạt control nạp tài liệu
+        // và bố cục ngay theo CurrentPage, nên mở thẳng tại trang neo (tránh nạp-rồi-nhảy bị reset ghi đè).
+        CurrentPage = initialPage;
         FilePath = path;
         try
         {
@@ -447,12 +475,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _pageTexts = _documentService.ExtractPageTexts();
 
             _documentId = DocumentId.FromFile(path);
+            OnPropertyChanged(nameof(CurrentDocumentId));
             LoadChatHistory();
             // S2: dùng seam ResolveWorkspaceScope để quyết định scope (workspace cụ thể hoặc default)
             long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string title = System.IO.Path.GetFileNameWithoutExtension(path);
             _activeWorkspaceId = ResolveWorkspaceScope(workspaceScopeId, _documentId, title, nowMs);
             Notes.LoadFor(_activeWorkspaceId);
+            UpdateNotesDocumentContext();
             OnPropertyChanged(nameof(ActiveWorkspaceId));
             SearchResults.Clear();
             StartBackgroundIndexing();
@@ -463,8 +493,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
             _activeWorkspaceId = null;
+            OnPropertyChanged(nameof(CurrentDocumentId));
             LoadChatHistory();
             Notes.LoadFor(null);
+            UpdateNotesDocumentContext();
             System.Windows.MessageBox.Show($"Không thể mở file PDF: {ex.Message}", "Lỗi mở file",
                 System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
             FilePath = null;

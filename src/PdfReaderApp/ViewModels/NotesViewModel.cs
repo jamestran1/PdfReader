@@ -19,6 +19,7 @@ public sealed partial class NotesViewModel : ObservableObject
     private readonly Func<int?> _currentPageIndex;
     private readonly Action<int> _jumpToPageIndex;
     private readonly Func<string?>? _currentDocumentId;
+    private readonly Action<string, int?>? _openDocument;
 
     private readonly List<Note> _all = new(); // nguồn đầy đủ; Items là phần đã lọc/sắp
     private string? _ownerKey;
@@ -33,18 +34,31 @@ public sealed partial class NotesViewModel : ObservableObject
     [ObservableProperty] private string _statusMessage = string.Empty;
     [ObservableProperty] private int _rightTabIndex;
     [ObservableProperty] private string? _pendingQuote;
+    [ObservableProperty] private bool _showDocumentChips;
+
+    // Từ điển tiêu đề tài liệu: documentId -> tiêu đề hiển thị (dùng cho chip nhãn)
+    public IReadOnlyDictionary<string, string> DocumentTitles { get; private set; } = new Dictionary<string, string>();
     private int _pendingPageIndex;
     private const string DefaultHighlightColor = "#FFEB3B";
     private IReadOnlyList<HighlightRect>? _pendingRects;
     public ObservableCollection<Note> Highlights { get; } = new();
 
     public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex,
-        Func<string?>? currentDocumentId = null)
+        Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null)
     {
         _store = store;
         _currentPageIndex = currentPageIndex;
         _jumpToPageIndex = jumpToPageIndex;
         _currentDocumentId = currentDocumentId;
+        _openDocument = openDocument;
+    }
+
+    /// <summary>Cập nhật ngữ cảnh chip nhãn tài liệu. Gọi khi danh sách tài liệu workspace đổi.</summary>
+    public void SetDocumentContext(IReadOnlyDictionary<string, string> titles, bool showChips)
+    {
+        DocumentTitles = titles;
+        OnPropertyChanged(nameof(DocumentTitles));
+        ShowDocumentChips = showChips;
     }
 
     // Sắp: trang tăng dần (null cuối), rồi tạo mới hơn lên trước.
@@ -208,7 +222,12 @@ public sealed partial class NotesViewModel : ObservableObject
     [RelayCommand]
     private void Open(Note? note)
     {
-        if (note?.PageIndex is int p) _jumpToPageIndex(p);
+        if (note is null) return;
+        string? cur = _currentDocumentId?.Invoke();
+        if (note.DocumentId != null && note.DocumentId != cur && _openDocument != null)
+            _openDocument(note.DocumentId, note.PageIndex);
+        else if (note.PageIndex is int p)
+            _jumpToPageIndex(p);
     }
 
     private int IndexInItems(string id)

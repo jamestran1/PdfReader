@@ -557,4 +557,56 @@ public class MainViewModelTests
         try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
     }
 
+    [Fact]
+    // Guard hợp đồng VM: bấm note cross-doc mở đúng tài liệu VÀ đặt CurrentPage = trang neo.
+    // LƯU Ý: test này KHÔNG phủ phần timing của PdfViewerControl (reset trang khi nạp) vì không có
+    // WPF control trong unit test; phần đó phải verify GUI. Nó chặn hồi quy việc đánh rơi/sai trang ở VM.
+    public void OpenNoteOfAnotherDocument_OpensThatDocument_AtAnchoredPage()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        var tmpDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(tmpDir);
+        string MakePdf(string name, int pages)
+        {
+            var p = System.IO.Path.Combine(tmpDir, name);
+            using var writer = new iText.Kernel.Pdf.PdfWriter(p);
+            using var pdfDoc = new iText.Kernel.Pdf.PdfDocument(writer);
+            using var doc = new iText.Layout.Document(pdfDoc);
+            for (int i = 0; i < pages; i++)
+            {
+                doc.Add(new iText.Layout.Element.Paragraph($"Trang {i + 1}"));
+                if (i < pages - 1) doc.Add(new iText.Layout.Element.AreaBreak());
+            }
+            return p;
+        }
+
+        var pathA = MakePdf("docA.pdf", 1);
+        var pathB = MakePdf("docB.pdf", 3);
+        var W = new PdfReaderApp.Models.Workspace("ws-F", "Dự án F", false, null, 1, 1);
+        wsStore.Upsert(W);
+
+        var itemA = new PdfReaderApp.Models.LibraryItem(
+            PdfReaderApp.Services.DocumentId.FromFile(pathA), "docA", pathA, null, 0, 1, 1);
+        var itemB = new PdfReaderApp.Models.LibraryItem(
+            PdfReaderApp.Services.DocumentId.FromFile(pathB), "docB", pathB, null, 0, 1, 1);
+        vm.Library.Add(itemA);
+        vm.Library.Add(itemB);
+        wsStore.AddDocument(W.Id, itemA.DocumentId);
+        wsStore.AddDocument(W.Id, itemB.DocumentId);
+
+        vm.OpenWorkspaceCommand.Execute(W);
+        vm.OpenWorkspaceDocumentCommand.Execute(itemA); // đang đọc docA
+
+        // note thuộc docB, neo ở trang index 2 (trang số 3)
+        var note = new PdfReaderApp.Models.Note("n1", W.Id, itemB.DocumentId, 2, null, "ghi chú docB", 1, 1);
+        vm.Notes.OpenCommand.Execute(note);
+
+        Assert.Equal(itemB.DocumentId, vm.CurrentDocumentId); // đã mở docB
+        Assert.Equal(3, vm.CurrentPage);                       // mở thẳng tại trang neo (index 2 -> trang 3)
+
+        try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
+    }
+
 }

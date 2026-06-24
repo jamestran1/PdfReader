@@ -39,8 +39,9 @@ public class NotesViewModelTests
         }
     }
 
-    private static NotesViewModel Make(FakeNoteStore store, int? page, Action<int>? onJump = null, Func<string?>? currentDocumentId = null)
-        => new NotesViewModel(store, () => page, idx => onJump?.Invoke(idx), currentDocumentId);
+    private static NotesViewModel Make(FakeNoteStore store, int? page, Action<int>? onJump = null,
+        Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null)
+        => new NotesViewModel(store, () => page, idx => onJump?.Invoke(idx), currentDocumentId, openDocument);
 
     [Fact]
     public void Save_AddsNote_WithOwnerAndCurrentPage()
@@ -421,5 +422,115 @@ public class NotesViewModelTests
 
         Assert.Single(store.Rows);
         Assert.Null(store.Rows[0].DocumentId);
+    }
+
+    // --- S3: cross-doc open ---
+
+    [Fact]
+    public void Open_NoteOfDifferentDocument_InvokesOpenDocumentCallback()
+    {
+        var store = new FakeNoteStore();
+        string? gotId = null;
+        int? gotPage = null;
+        int jumpCount = 0;
+
+        var vm = Make(store, page: 0,
+            onJump: _ => jumpCount++,
+            currentDocumentId: () => "docOpen",
+            openDocument: (id, page) => { gotId = id; gotPage = page; });
+
+        // Tạo note thuộc tài liệu khác
+        store.Add(new Note("n1", "ws1", "docOther", 3, null, "ghi chú", 1, 1));
+        vm.LoadFor("ws1");
+        var note = vm.Items.Single();
+
+        vm.OpenCommand.Execute(note);
+
+        Assert.Equal("docOther", gotId);
+        Assert.Equal(3, gotPage);
+        Assert.Equal(0, jumpCount); // jump KHÔNG được gọi
+    }
+
+    [Fact]
+    public void Open_NoteOfSameDocument_JumpsWithinDocument()
+    {
+        var store = new FakeNoteStore();
+        int? jumped = null;
+        string? openedDocId = null;
+
+        var vm = Make(store, page: 0,
+            onJump: idx => jumped = idx,
+            currentDocumentId: () => "docOpen",
+            openDocument: (id, _) => openedDocId = id);
+
+        store.Add(new Note("n1", "ws1", "docOpen", 5, null, "ghi chú", 1, 1));
+        vm.LoadFor("ws1");
+        var note = vm.Items.Single();
+
+        vm.OpenCommand.Execute(note);
+
+        Assert.Equal(5, jumped);
+        Assert.Null(openedDocId); // callback không gọi
+    }
+
+    [Fact]
+    public void Open_NoteWithNullDocumentId_JumpsWithinDocument()
+    {
+        var store = new FakeNoteStore();
+        int? jumped = null;
+
+        var vm = Make(store, page: 0,
+            onJump: idx => jumped = idx,
+            currentDocumentId: () => "docOpen");
+
+        store.Add(new Note("n1", "ws1", null, 2, null, "ghi chú", 1, 1));
+        vm.LoadFor("ws1");
+        var note = vm.Items.Single();
+
+        vm.OpenCommand.Execute(note);
+
+        Assert.Equal(2, jumped);
+    }
+
+    [Fact]
+    public void Open_DifferentDocument_NoCallbackProvided_FallsBackToJump()
+    {
+        var store = new FakeNoteStore();
+        int? jumped = null;
+
+        // Không truyền openDocument
+        var vm = Make(store, page: 0,
+            onJump: idx => jumped = idx,
+            currentDocumentId: () => "docOpen");
+
+        store.Add(new Note("n1", "ws1", "docOther", 1, null, "ghi chú", 1, 1));
+        vm.LoadFor("ws1");
+        var note = vm.Items.Single();
+
+        vm.OpenCommand.Execute(note); // không crash
+
+        Assert.Equal(1, jumped);
+    }
+
+    // --- S3: SetDocumentContext ---
+
+    [Fact]
+    public void SetDocumentContext_TogglesShowChipsAndTitles()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+
+        var map1 = new Dictionary<string, string> { ["doc1"] = "Tài liệu 1", ["doc2"] = "Tài liệu 2" };
+        vm.SetDocumentContext(map1, showChips: true);
+
+        Assert.True(vm.ShowDocumentChips);
+        Assert.Equal("Tài liệu 1", vm.DocumentTitles["doc1"]);
+        Assert.Equal("Tài liệu 2", vm.DocumentTitles["doc2"]);
+
+        var map2 = new Dictionary<string, string> { ["doc3"] = "Tài liệu 3" };
+        vm.SetDocumentContext(map2, showChips: false);
+
+        Assert.False(vm.ShowDocumentChips);
+        Assert.Equal("Tài liệu 3", vm.DocumentTitles["doc3"]);
     }
 }

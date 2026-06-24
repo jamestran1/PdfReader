@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -188,6 +189,35 @@ public sealed class NullToCollapsedConverter : IValueConverter
     public object Convert(object value, Type t, object p, CultureInfo c)
         => value is null ? Visibility.Collapsed : Visibility.Visible;
     public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+}
+
+// S3: chuyển DocumentId -> SolidColorBrush cho chip nhãn tài liệu
+public sealed class DocumentIdToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object p, CultureInfo c)
+    {
+        string hex = PdfReaderApp.ViewModels.DocumentChip.ColorHexFor(value as string);
+        if (System.Windows.Media.ColorConverter.ConvertFromString(hex) is System.Windows.Media.Color col)
+            return new System.Windows.Media.SolidColorBrush(col);
+        return System.Windows.Media.Brushes.Gray;
+    }
+    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+}
+
+// S3: IMultiValueConverter nhận [DocumentId, DocumentTitles] -> nhãn rút gọn cho chip
+public sealed class DocumentIdToTitleConverter : System.Windows.Data.IMultiValueConverter
+{
+    public object Convert(object[] values, Type t, object p, CultureInfo c)
+    {
+        if (values.Length < 2) return string.Empty;
+        string? docId = values[0] as string;
+        if (string.IsNullOrEmpty(docId)) return string.Empty;
+        if (values[1] is IReadOnlyDictionary<string, string> titles && titles.TryGetValue(docId, out var title))
+            return PdfReaderApp.ViewModels.DocumentChip.ShortLabel(title);
+        // Không có tiêu đề cho documentId này -> nhãn rỗng (không lộ id nội bộ ra UI)
+        return string.Empty;
+    }
+    public object[] ConvertBack(object value, Type[] t, object p, CultureInfo c) => Array.Empty<object>();
 }
 
 // Checks a PdfViewMode against the mode name passed as ConverterParameter, for radio-style toggles.
