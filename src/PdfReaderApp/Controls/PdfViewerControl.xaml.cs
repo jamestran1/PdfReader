@@ -110,6 +110,32 @@ public partial class PdfViewerControl : UserControl, IDisposable
         set => SetValue(AddNoteFromSelectionCommandProperty, value);
     }
 
+    // DependencyProperty: danh sach highlight da luu (bound tu NotesViewModel.Highlights)
+    public static readonly DependencyProperty HighlightsProperty =
+        DependencyProperty.Register(nameof(Highlights), typeof(System.Collections.IEnumerable),
+            typeof(PdfViewerControl), new PropertyMetadata(null, OnHighlightsChanged));
+
+    public System.Collections.IEnumerable? Highlights
+    {
+        get => (System.Collections.IEnumerable?)GetValue(HighlightsProperty);
+        set => SetValue(HighlightsProperty, value);
+    }
+
+    private static void OnHighlightsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var c = (PdfViewerControl)d;
+        if (e.OldValue is System.Collections.Specialized.INotifyCollectionChanged oldCol)
+            oldCol.CollectionChanged -= c.OnHighlightsCollectionChanged;
+        if (e.NewValue is System.Collections.Specialized.INotifyCollectionChanged newCol)
+            newCol.CollectionChanged += c.OnHighlightsCollectionChanged;
+        c.RepaintOverlay();
+    }
+
+    private void OnHighlightsCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        => RepaintOverlay();
+
+    private void RepaintOverlay() => skiaCanvas.InvalidateVisual();
+
     // Trạng thái chọn text
     private int _selPageIndex = -1;
     private int _anchorChar = -1;
@@ -356,7 +382,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (!string.IsNullOrEmpty(_selectionText) && _selPageIndex >= 0)
         {
-            var sel = new Models.NoteSelection(_selectionText, _selPageIndex);
+            var rects = _selectionRectsPdf
+                .Select(r => new Models.HighlightRect(r.Left, r.Top, r.Width, r.Height))
+                .ToList();
+            var sel = new Models.NoteSelection(_selectionText, _selPageIndex, rects);
             if (AddNoteFromSelectionCommand?.CanExecute(sel) == true)
                 AddNoteFromSelectionCommand.Execute(sel);
         }
@@ -633,8 +662,42 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
                 DrawHighlights(canvas, slot.PageIndex, rect, scale);
                 DrawSelectionOverlay(canvas, slot.PageIndex, rect, scale);
+                DrawSavedHighlights(canvas, slot.PageIndex, rect, scale);
             }
         }
+    }
+
+    // Ve lai highlight da luu - toa do top-origin (PDF), khong lat Y
+    private void DrawSavedHighlights(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
+    {
+        if (Highlights == null) return;
+        foreach (var obj in Highlights)
+        {
+            if (obj is not PdfReaderApp.Models.Note note) continue;
+            if (note.PageIndex != pageIndex || note.Rects == null) continue;
+            var color = ParseHighlightColor(note.Color);
+            using var paint = new SKPaint { Color = color, Style = SKPaintStyle.Fill };
+            foreach (var r in note.Rects)
+            {
+                canvas.DrawRect(SKRect.Create(
+                    (float)(pageRect.Left + r.X * scale),
+                    (float)(pageRect.Top + r.Y * scale),
+                    (float)(r.W * scale),
+                    (float)(r.H * scale)), paint);
+            }
+        }
+    }
+
+    private static SKColor ParseHighlightColor(string? hex)
+    {
+        // Mac dinh vang mo; parse #RRGGBB neu co.
+        byte rr = 255, gg = 235, bb = 59;
+        if (!string.IsNullOrEmpty(hex) && hex.StartsWith("#") && hex.Length == 7
+            && byte.TryParse(hex.Substring(1, 2), System.Globalization.NumberStyles.HexNumber, null, out var pr)
+            && byte.TryParse(hex.Substring(3, 2), System.Globalization.NumberStyles.HexNumber, null, out var pg)
+            && byte.TryParse(hex.Substring(5, 2), System.Globalization.NumberStyles.HexNumber, null, out var pb))
+        { rr = pr; gg = pg; bb = pb; }
+        return new SKColor(rr, gg, bb, 80);
     }
 
     private void DrawSelectionOverlay(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)

@@ -553,7 +553,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void AddNoteFromSelection(PdfReaderApp.Models.NoteSelection? sel)
     {
         if (sel is null) return;
-        Notes.BeginNoteFromSelection(sel.Quote, sel.PageIndex);
+        Notes.BeginNoteFromSelection(sel.Quote, sel.PageIndex, sel.Rects);
     }
 
     // One-click lưu câu trả lời AI thành note (không chuyển tab); báo bằng snackbar.

@@ -248,6 +248,7 @@
                                        ViewMode="{Binding ViewMode}"
                                        ShowCover="{Binding ShowCoverSeparately}"
                                        AddNoteFromSelectionCommand="{Binding AddNoteFromSelectionCommand}"
+                                       Highlights="{Binding Notes.Highlights}"
                                        Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
 
             <!-- Library grid (shown when ShowLibrary) -->
