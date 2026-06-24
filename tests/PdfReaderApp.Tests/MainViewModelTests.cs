@@ -686,6 +686,25 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void DeleteWorkspace_WhenActiveAndOpen_ResetsScopeAndExitsDetail()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var notes = new FakeNoteStore();
+        var vm = VmWith(wsStore, notes);
+
+        var W = new PdfReaderApp.Models.Workspace("ws-active", "Dự án đang mở", false, null, 1, 1);
+        wsStore.Upsert(W);
+        vm.OpenWorkspaceCommand.Execute(W); // W trở thành active + đang ở màn chi tiết
+
+        vm.DeleteWorkspaceCommand.Execute(W);
+
+        Assert.Null(vm.ActiveWorkspaceId);       // scope active đã reset
+        Assert.False(vm.ShowWorkspaceDetail);    // đã thoát màn chi tiết
+        Assert.Null(vm.SelectedWorkspace);       // không giữ tham chiếu workspace đã xóa
+        Assert.Null(wsStore.Get(W.Id));
+    }
+
+    [Fact]
     public void DeleteWorkspace_DefaultWorkspace_IsNotDeleted()
     {
         var wsStore = new FakeWorkspaceStore();

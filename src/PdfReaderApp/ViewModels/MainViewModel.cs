@@ -437,7 +437,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.LoadFor(null);
         }
         if (ShowWorkspaceDetail && SelectedWorkspace?.Id == ws.Id)
+        {
+            SelectedWorkspace = null; // tránh giữ tham chiếu tới workspace đã xóa
             ShowWorkspaceDetail = false;
+        }
         ReloadWorkspaces();
     }
 
@@ -456,6 +459,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _workspaceStore.Rename(SelectedWorkspace.Id, newName.Trim(), now);
         // Cập nhật header chi tiết workspace
         SelectedWorkspace = _workspaceStore.Get(SelectedWorkspace.Id);
+        RenameDraft = string.Empty;
         ReloadWorkspaces();
     }
 
@@ -491,7 +495,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (item is null) return;
         string docId = item.DocumentId;
-        // S4: dọn dẹp workspace cascade khi xóa tài liệu khỏi thư viện
+        // S4: dọn dẹp workspace cascade khi xóa tài liệu khỏi thư viện.
+        // Không có FK chéo DB (ADR 0002) -> phối hợp xóa trong code; nếu một bước SQLite lỗi giữa chừng
+        // có thể để lại trạng thái lệch một phần (rủi ro chấp nhận được, chạy lại xóa là idempotent).
         foreach (var wsId in _workspaceStore.GetWorkspaceIdsForDocument(docId).ToList())
         {
             var ws = _workspaceStore.Get(wsId);
