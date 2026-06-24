@@ -26,6 +26,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly DocumentIndexingService _indexingService;
     private readonly RagContextService _ragContext;
 
+    // Workspace
+    private readonly IWorkspaceStore _workspaceStore;
+    private string? _activeWorkspaceId;
+
     private List<TextBlock> _documentBlocks = new();
     public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
 
@@ -101,10 +105,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private double _chatColumnMinWidth = 0;
 
-    // Vào thư viện: lưu bề rộng đang có rồi thu cột về 0. Rời thư viện: khôi phục bề rộng đã lưu.
+    // Library và Workspaces loại trừ nhau; panel chat ẩn khi đang ở một trong hai (lưới phủ vùng chính).
     partial void OnShowLibraryChanged(bool value)
     {
-        if (value)
+        if (value) ShowWorkspaces = false;
+        UpdateChatColumnVisibility();
+    }
+
+    partial void OnShowWorkspacesChanged(bool value)
+    {
+        if (value) ShowLibrary = false;
+        UpdateChatColumnVisibility();
+    }
+
+    // Thu cột chat về 0 khi ở Library/Workspaces; khôi phục bề rộng đã lưu khi đang đọc tài liệu.
+    private void UpdateChatColumnVisibility()
+    {
+        if (ShowLibrary || ShowWorkspaces)
         {
             if (ChatColumnWidth.IsAbsolute && ChatColumnWidth.Value > 0)
                 _savedChatWidthPx = ChatColumnWidth.Value;
@@ -116,7 +133,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ChatColumnMinWidth = MinChatWidthPx;
             ChatColumnWidth = new System.Windows.GridLength(_savedChatWidthPx);
         }
+        OnPropertyChanged(nameof(IsReadingDocument));
     }
+
+    // Đang đọc tài liệu (không ở Thư viện cũng không ở Workspaces) -> hiện các nút đọc trên toolbar.
+    public bool IsReadingDocument => !ShowLibrary && !ShowWorkspaces;
+
+    [ObservableProperty]
+    private bool _showWorkspaces;
+
+    // Thông báo lỗi khi tạo workspace (vd tên rỗng); rỗng = không có lỗi.
+    [ObservableProperty]
+    private string _workspaceNameError = string.Empty;
+
+    public ObservableCollection<Workspace> Workspaces { get; } = new();
 
     public ObservableCollection<LibraryItem> Library { get; } = new();
 
@@ -173,7 +203,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IDocumentIndex documentIndex,
         IEmbeddingGeneratorFactory embeddingFactory,
         IChatHistoryStore? chatHistory = null,
-        INoteStore? noteStore = null)
+        INoteStore? noteStore = null,
+        IWorkspaceStore? workspaceStore = null)
     {
         _documentService = documentService;
         _settingsService = settingsService;
@@ -200,8 +231,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
         notes.EnsureSchema();
         Notes = new NotesViewModel(notes,
             () => _documentId is null ? (int?)null : CurrentPage - 1,
-            idx => CurrentPage = idx + 1);
+            idx => CurrentPage = idx + 1,
+            () => _documentId);
 
+        // Workspace store: real db in AppDir hoac inject (test)
+        _workspaceStore = workspaceStore ?? new SqliteWorkspaceStore(System.IO.Path.Combine(AppDir(), "workspaces.db"));
+        _workspaceStore.EnsureSchema();
+
+        // Di trú: chuyển ghi chú cũ (owner_key=documentId) sang default workspace.
+        // Bọc try/catch để lỗi store không chặn app khởi động (di trú best-effort, idempotent nên chạy lại được).
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var docs = Library.Select(i => (i.DocumentId, i.Title)).ToList();
+        try { Core.WorkspaceMigration.Run(_workspaceStore, notes, docs, now); }
+        catch { /* di trú lỗi: app vẫn mở; thử lại lần khởi động sau */ }
+
+        ReloadWorkspaces();
         LoadChatHistory();
     }
 
@@ -231,7 +275,47 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ShowLibraryView()
     {
         ReloadLibrary();
+        ShowWorkspaces = false;
         ShowLibrary = true;
+    }
+
+    public void ReloadWorkspaces()
+    {
+        Workspaces.Clear();
+        foreach (var ws in _workspaceStore.GetAll(includeDefault: false))
+            Workspaces.Add(ws);
+    }
+
+    [RelayCommand]
+    private void ShowWorkspacesView()
+    {
+        ReloadWorkspaces();
+        ShowLibrary = false;
+        ShowWorkspaces = true;
+    }
+
+    [RelayCommand]
+    private void CreateWorkspace(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            WorkspaceNameError = "Tên workspace không được để trống.";
+            return;
+        }
+        WorkspaceNameError = string.Empty;
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var ws = new Workspace(Guid.NewGuid().ToString("N"), name.Trim(), false, null, now, now);
+        _workspaceStore.Upsert(ws);
+        ReloadWorkspaces();
+    }
+
+    [RelayCommand]
+    private void OpenWorkspace(Workspace? workspace)
+    {
+        if (workspace is null) return;
+        _activeWorkspaceId = workspace.Id;
+        Notes.LoadFor(_activeWorkspaceId);
+        // S1: chưa có màn chi tiết workspace (sẽ làm ở S2/#34) -> ở lại lưới Workspaces.
     }
 
     [RelayCommand]
@@ -274,7 +358,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             _documentId = DocumentId.FromFile(path);
             LoadChatHistory();
-            Notes.LoadFor(_documentId);
+            // Lấy hoặc tạo default workspace cho tài liệu, rồi load notes theo workspaceId
+            long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            string title = System.IO.Path.GetFileNameWithoutExtension(path);
+            var activeWs = _workspaceStore.GetOrCreateDefaultForDocument(_documentId, title, nowMs);
+            _activeWorkspaceId = activeWs.Id;
+            Notes.LoadFor(_activeWorkspaceId);
             SearchResults.Clear();
             StartBackgroundIndexing();
         }
@@ -283,6 +372,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _documentBlocks = new List<TextBlock>();
             OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
+            _activeWorkspaceId = null;
             LoadChatHistory();
             Notes.LoadFor(null);
             System.Windows.MessageBox.Show($"Không thể mở file PDF: {ex.Message}", "Lỗi mở file",

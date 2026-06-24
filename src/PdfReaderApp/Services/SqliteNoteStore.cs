@@ -141,6 +141,19 @@ VALUES ($id, $owner, $doc, $page, $quote, $content, $created, $updated, $rects, 
         }
     }
 
+    public int ReassignOwner(string oldKey, string newKey)
+    {
+        lock (_lock)
+        {
+            using var conn = OpenConn();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "UPDATE note SET owner_key=$new WHERE owner_key=$old";
+            cmd.Parameters.AddWithValue("$new", newKey);
+            cmd.Parameters.AddWithValue("$old", oldKey);
+            return cmd.ExecuteNonQuery();
+        }
+    }
+
     public IReadOnlyList<Note> GetForOwner(string ownerKey)
     {
         lock (_lock)

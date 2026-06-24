@@ -178,6 +178,35 @@ public class SqliteNoteStoreTests : IDisposable
         Assert.Contains(store.GetForOwner("docA"), n => n.Rects != null && n.Rects.Count == 1);
     }
 
+    [Fact]
+    public void ReassignOwner_MovesNotesToNewKey()
+    {
+        _store.Add(N("a", "docOld", 1, "ghi chú 1", 1));
+        _store.Add(N("b", "docOld", 2, "ghi chú 2", 2));
+        _store.Add(N("c", "docOther", 1, "không đổi", 3));
+
+        int moved = _store.ReassignOwner("docOld", "wsNew");
+
+        Assert.Equal(2, moved);
+        Assert.Empty(_store.GetForOwner("docOld"));
+        Assert.Equal(2, _store.GetForOwner("wsNew").Count);
+        // note của owner khác không bị ảnh hưởng
+        Assert.Single(_store.GetForOwner("docOther"));
+    }
+
+    [Fact]
+    public void ReassignOwner_IsIdempotent_SecondCallMovesNothing()
+    {
+        _store.Add(N("a", "docOld", 1, "ghi chú", 1));
+        _store.ReassignOwner("docOld", "wsNew");
+
+        // Gọi lần hai: không còn dòng nào với docOld -> trả về 0, wsNew vẫn còn 1 dòng
+        int second = _store.ReassignOwner("docOld", "wsNew");
+
+        Assert.Equal(0, second);
+        Assert.Single(_store.GetForOwner("wsNew"));
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, true); } catch { }
