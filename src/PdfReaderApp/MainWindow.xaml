@@ -269,7 +269,8 @@
                     <TextBlock Grid.Row="0" Text="Workspaces" FontSize="20" FontWeight="Bold" Margin="0,0,0,12"/>
 
                     <!-- Tạo workspace mới -->
-                    <Grid Grid.Row="1" Margin="0,0,0,12">
+                    <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                    <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -291,6 +292,9 @@
                                 CommandParameter="{Binding Text, ElementName=NewWorkspaceNameBox}"
                                 materialDesign:ButtonAssist.CornerRadius="20"/>
                     </Grid>
+                        <TextBlock Text="{Binding WorkspaceNameError}" Foreground="#D32F2F"
+                                   FontSize="12" Margin="2,4,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
 
                     <!-- Danh sách workspace người dùng -->
                     <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">

@@ -138,6 +138,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _showWorkspaces;
 
+    // Thông báo lỗi khi tạo workspace (vd tên rỗng); rỗng = không có lỗi.
+    [ObservableProperty]
+    private string _workspaceNameError = string.Empty;
+
     public ObservableCollection<Workspace> Workspaces { get; } = new();
 
     public ObservableCollection<LibraryItem> Library { get; } = new();
@@ -289,7 +293,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void CreateWorkspace(string? name)
     {
-        if (string.IsNullOrWhiteSpace(name)) return;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            WorkspaceNameError = "Tên workspace không được để trống.";
+            return;
+        }
+        WorkspaceNameError = string.Empty;
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var ws = new Workspace(Guid.NewGuid().ToString("N"), name.Trim(), false, null, now, now);
         _workspaceStore.Upsert(ws);

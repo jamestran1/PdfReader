@@ -327,6 +327,30 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void CreateWorkspaceCommand_EmptyName_SetsError()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        vm.CreateWorkspaceCommand.Execute("   ");
+
+        Assert.False(string.IsNullOrEmpty(vm.WorkspaceNameError));
+    }
+
+    [Fact]
+    public void CreateWorkspaceCommand_ValidName_ClearsError()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+        vm.CreateWorkspaceCommand.Execute("");          // gây lỗi trước
+        Assert.False(string.IsNullOrEmpty(vm.WorkspaceNameError));
+
+        vm.CreateWorkspaceCommand.Execute("Dự án A");   // hợp lệ -> xóa lỗi
+
+        Assert.Equal(string.Empty, vm.WorkspaceNameError);
+    }
+
+    [Fact]
     public void CreateWorkspaceCommand_ValidName_AddsToWorkspacesCollection()
     {
         var wsStore = new FakeWorkspaceStore();
