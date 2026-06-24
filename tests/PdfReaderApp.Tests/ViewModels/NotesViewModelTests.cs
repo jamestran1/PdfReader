@@ -37,6 +37,8 @@ public class NotesViewModelTests
             }
             return count;
         }
+        public int DeleteForOwner(string ownerKey) => Rows.RemoveAll(n => n.OwnerKey == ownerKey);
+        public int DeleteForDocument(string documentId) => Rows.RemoveAll(n => n.DocumentId == documentId);
     }
 
     private static NotesViewModel Make(FakeNoteStore store, int? page, Action<int>? onJump = null,

@@ -154,6 +154,30 @@ VALUES ($id, $owner, $doc, $page, $quote, $content, $created, $updated, $rects, 
         }
     }
 
+    public int DeleteForOwner(string ownerKey)
+    {
+        lock (_lock)
+        {
+            using var conn = OpenConn();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM note WHERE owner_key=$o";
+            cmd.Parameters.AddWithValue("$o", ownerKey);
+            return cmd.ExecuteNonQuery();
+        }
+    }
+
+    public int DeleteForDocument(string documentId)
+    {
+        lock (_lock)
+        {
+            using var conn = OpenConn();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "DELETE FROM note WHERE document_id=$d";
+            cmd.Parameters.AddWithValue("$d", documentId);
+            return cmd.ExecuteNonQuery();
+        }
+    }
+
     public IReadOnlyList<Note> GetForOwner(string ownerKey)
     {
         lock (_lock)

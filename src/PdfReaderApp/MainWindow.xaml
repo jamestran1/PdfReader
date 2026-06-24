@@ -320,20 +320,32 @@
                                     <DataTemplate>
                                         <materialDesign:Card Width="200" Margin="8" materialDesign:ElevationAssist.Elevation="Dp2"
                                                              Cursor="Hand">
-                                            <Border Background="Transparent" Padding="12">
-                                                <Border.InputBindings>
-                                                    <MouseBinding MouseAction="LeftClick"
-                                                                  Command="{Binding DataContext.OpenWorkspaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                  CommandParameter="{Binding}"/>
-                                                </Border.InputBindings>
-                                                <StackPanel>
-                                                    <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="32" Height="32"
-                                                                             HorizontalAlignment="Center" Margin="0,0,0,8"
-                                                                             Foreground="{DynamicResource PrimaryHueMidBrush}"/>
-                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold"
-                                                               TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
-                                                </StackPanel>
-                                            </Border>
+                                            <Grid>
+                                                <Border Background="Transparent" Padding="12">
+                                                    <Border.InputBindings>
+                                                        <MouseBinding MouseAction="LeftClick"
+                                                                      Command="{Binding DataContext.OpenWorkspaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                      CommandParameter="{Binding}"/>
+                                                    </Border.InputBindings>
+                                                    <StackPanel>
+                                                        <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="32" Height="32"
+                                                                                 HorizontalAlignment="Center" Margin="0,0,0,8"
+                                                                                 Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+                                                        <TextBlock Text="{Binding Name}" FontWeight="Bold"
+                                                                   TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Border>
+                                                <!-- Nút xóa workspace -->
+                                                <Button Style="{StaticResource MaterialDesignIconButton}"
+                                                        Width="28" Height="28"
+                                                        HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                        Margin="0,4,4,0"
+                                                        ToolTip="Xóa workspace"
+                                                        Command="{Binding DataContext.DeleteWorkspaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <materialDesign:PackIcon Kind="Delete" Width="16" Height="16"/>
+                                                </Button>
+                                            </Grid>
                                         </materialDesign:Card>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -348,6 +360,7 @@
                     Visibility="{Binding ShowWorkspaceDetail, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -366,12 +379,35 @@
                                    VerticalAlignment="Center" Margin="8,0,0,0"/>
                     </StackPanel>
 
+                    <!-- Hàng đổi tên workspace -->
+                    <StackPanel Grid.Row="1" Margin="0,0,0,12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="RenameWorkspaceBox"
+                                     materialDesign:HintAssist.Hint="Tên mới..."
+                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     Text="{Binding RenameDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Margin="0,0,8,0"/>
+                            <Button Grid.Column="1"
+                                    Style="{StaticResource MaterialDesignRaisedButton}"
+                                    Content="Đổi tên"
+                                    Command="{Binding RenameWorkspaceCommand}"
+                                    CommandParameter="{Binding Text, ElementName=RenameWorkspaceBox}"
+                                    materialDesign:ButtonAssist.CornerRadius="20"/>
+                        </Grid>
+                        <TextBlock Text="{Binding WorkspaceNameError}" Foreground="#D32F2F"
+                                   FontSize="12" Margin="2,4,0,0" TextWrapping="Wrap"/>
+                    </StackPanel>
+
                     <!-- Tiêu đề danh sách tài liệu -->
-                    <TextBlock Grid.Row="1" Text="Tài liệu trong workspace" FontSize="14" FontWeight="SemiBold"
+                    <TextBlock Grid.Row="2" Text="Tài liệu trong workspace" FontSize="14" FontWeight="SemiBold"
                                Margin="0,0,0,8"/>
 
                     <!-- Danh sách tài liệu trong workspace -->
-                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <TextBlock Text="Chưa có tài liệu nào trong workspace. Thêm từ thư viện bên dưới."
                                        HorizontalAlignment="Center" Opacity="0.6" Margin="0,16"
@@ -411,11 +447,11 @@
                     </ScrollViewer>
 
                     <!-- Tiêu đề khu thêm tài liệu -->
-                    <TextBlock Grid.Row="3" Text="Thêm tài liệu từ thư viện" FontSize="13" FontWeight="SemiBold"
+                    <TextBlock Grid.Row="4" Text="Thêm tài liệu từ thư viện" FontSize="13" FontWeight="SemiBold"
                                Margin="0,12,0,4"/>
 
                     <!-- Khu thêm tài liệu: ListBox đa chọn + nút Thêm vào workspace -->
-                    <Grid Grid.Row="4">
+                    <Grid Grid.Row="5">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
