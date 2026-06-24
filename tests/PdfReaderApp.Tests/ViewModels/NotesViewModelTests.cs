@@ -186,6 +186,8 @@ public class NotesViewModelTests
         Assert.False(NotesViewModel.MatchesFilter(n, "xyz"));
     }
 
+    private static List<HighlightRect> SampleRects() => new() { new(1, 2, 30, 10) };
+
     [Fact]
     public void BeginNoteFromSelection_SetsPendingQuoteAndSwitchesTab()
     {
@@ -193,7 +195,7 @@ public class NotesViewModelTests
         var vm = Make(store, page: 9);
         vm.LoadFor("doc1");
 
-        vm.BeginNoteFromSelection("đoạn trích", 4);
+        vm.BeginNoteFromSelection("đoạn trích", 4, SampleRects());
 
         Assert.Equal("đoạn trích", vm.PendingQuote);
         Assert.Equal(1, vm.RightTabIndex);
@@ -205,7 +207,7 @@ public class NotesViewModelTests
         var store = new FakeNoteStore();
         var vm = Make(store, page: 9); // trang hiện tại 9, nhưng đoạn chọn ở trang 4
         vm.LoadFor("doc1");
-        vm.BeginNoteFromSelection("đoạn trích", 4);
+        vm.BeginNoteFromSelection("đoạn trích", 4, SampleRects());
         vm.Draft = "ý của tôi";
 
         vm.SaveCommand.Execute(null);
@@ -223,7 +225,7 @@ public class NotesViewModelTests
         var store = new FakeNoteStore();
         var vm = Make(store, page: 1);
         vm.LoadFor("doc1");
-        vm.BeginNoteFromSelection("chỉ trích dẫn", 0);
+        vm.BeginNoteFromSelection("chỉ trích dẫn", 0, new List<HighlightRect>());
         // Draft để rỗng
 
         vm.SaveCommand.Execute(null);
@@ -239,9 +241,68 @@ public class NotesViewModelTests
         var store = new FakeNoteStore();
         var vm = Make(store, page: 1);
         vm.LoadFor("doc1");
-        vm.BeginNoteFromSelection("trích", 0);
+        vm.BeginNoteFromSelection("trích", 0, SampleRects());
         vm.CancelEditCommand.Execute(null);
         Assert.Null(vm.PendingQuote);
+    }
+
+    [Fact]
+    public void Save_FromSelection_AttachesRectsAndYellowColor_AndAddsToHighlights()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 4);
+        vm.LoadFor("doc1");
+        vm.BeginNoteFromSelection("đoạn trích", 4, SampleRects());
+        vm.Draft = "bình luận";
+
+        vm.SaveCommand.Execute(null);
+
+        var saved = store.Rows.Single();
+        Assert.NotNull(saved.Rects);
+        Assert.Equal("#FFEB3B", saved.Color);
+        Assert.Equal(4, saved.PageIndex);
+        Assert.Contains(vm.Highlights, n => n.Id == saved.Id);
+    }
+
+    [Fact]
+    public void AddNote_NoRects_NotInHighlights()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+        vm.LoadFor("doc1");
+        vm.AddNote("câu trả lời AI", null, null); // 2a: không rects
+        Assert.Empty(vm.Highlights);
+    }
+
+    [Fact]
+    public void Delete_RemovesFromHighlights()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 2);
+        vm.LoadFor("doc1");
+        vm.BeginNoteFromSelection("q", 2, SampleRects());
+        vm.SaveCommand.Execute(null);
+        var note = vm.Highlights.Single();
+
+        vm.DeleteCommand.Execute(note);
+
+        Assert.Empty(vm.Highlights);
+    }
+
+    [Fact]
+    public void LoadFor_RebuildsHighlights_OnlyRectBearingNotes_IgnoringFilter()
+    {
+        var store = new FakeNoteStore();
+        store.Add(new Note("a", "doc1", "doc1", 1, "q", "có rects", 1, 1, SampleRects(), "#FFEB3B"));
+        store.Add(new Note("b", "doc1", "doc1", 1, null, "không rects", 2, 2));
+        var vm = Make(store, page: 1);
+
+        vm.FilterText = "zzz"; // không khớp gì
+        vm.LoadFor("doc1");
+
+        Assert.Single(vm.Highlights);             // chỉ note có rects
+        Assert.Equal("a", vm.Highlights[0].Id);
+        Assert.Empty(vm.Items);                   // filter vẫn ẩn khỏi danh sách
     }
 
     [Fact]

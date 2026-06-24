@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using PdfReaderApp.Models;
@@ -126,6 +127,55 @@ public class SqliteNoteStoreTests : IDisposable
         _store.EnsureSchema();
         _store.EnsureSchema();
         Assert.Empty(_store.GetForOwner("docA"));
+    }
+
+    [Fact]
+    public void Add_WithRectsAndColor_RoundTrips()
+    {
+        var rects = new List<HighlightRect> { new(1, 2, 30, 10), new(1, 14, 25, 10) };
+        _store.Add(new Note("h1", "docA", "docA", 3, "trích", "ghi chú", 10, 10, rects, "#FFEB3B"));
+        var got = _store.GetForOwner("docA").Single();
+        Assert.NotNull(got.Rects);
+        Assert.Equal(2, got.Rects!.Count);
+        Assert.Equal(30, got.Rects[0].W);
+        Assert.Equal("#FFEB3B", got.Color);
+    }
+
+    [Fact]
+    public void Add_NullRects_RoundTripsAsNull()
+    {
+        _store.Add(new Note("n1", "docA", "docA", 1, null, "tự do", 1, 1));
+        var got = _store.GetForOwner("docA").Single();
+        Assert.Null(got.Rects);
+        Assert.Null(got.Color);
+    }
+
+    [Fact]
+    public void EnsureSchema_MigratesV2DbByAddingRectsAndColor()
+    {
+        string db = Path.Combine(_dir, "v2.db");
+        using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={db};Pooling=False"))
+        {
+            conn.Open();
+            using var c = conn.CreateCommand();
+            // bảng kiểu v2 (có quote, CHƯA có rects/color), user_version=2, 1 dòng
+            c.CommandText = @"CREATE TABLE note (id TEXT PRIMARY KEY, owner_key TEXT NOT NULL, document_id TEXT,
+                page_index INTEGER, quote TEXT, content TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+                PRAGMA user_version = 2;
+                INSERT INTO note (id, owner_key, document_id, page_index, quote, content, created_at, updated_at)
+                VALUES ('old','docA','docA',1,'q','cũ',1,1);";
+            c.ExecuteNonQuery();
+        }
+
+        var store = new SqliteNoteStore(db);
+        store.EnsureSchema();
+
+        var got = store.GetForOwner("docA").Single();
+        Assert.Equal("cũ", got.Content);
+        Assert.Null(got.Rects);
+        store.Add(new Note("new", "docA", "docA", 1, "q2", "mới", 2, 2,
+            new List<HighlightRect> { new(0, 0, 5, 5) }, "#FFEB3B"));
+        Assert.Contains(store.GetForOwner("docA"), n => n.Rects != null && n.Rects.Count == 1);
     }
 
     public void Dispose()

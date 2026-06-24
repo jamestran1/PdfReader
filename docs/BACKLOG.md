@@ -1,47 +1,33 @@
 # Backlog — Ultimate PDF Reader & Editor
 
-Cập nhật: 2026-06-23. Quy ước trạng thái: ✅ done · 🔄 in progress · ⬜ backlog. Ưu tiên: P0 cao → P3 thấp.
+Cập nhật: 2026-06-23.
+
+> **Quản lý backlog & ý tưởng mới: GitHub Issues** (https://github.com/jamestran1/PdfReader/issues).
+> File này chỉ là chỉ mục mỏng + nhật ký Done. Mục mới → tạo `gh issue`, đừng thêm vào đây.
+
+## ⬜ Đang mở (GitHub Issues)
+
+- Sản phẩm: #17 Lưu/Export PDF · #18 Sửa text ghi vào PDF · #19 Undo/Redo · #20 Nút Read/Edit rail · #21 Annotation/markup thủ công · #22 Thumbnail/Outline panel · #23 Tỉa lịch sử LLM · #24 Search prev/next + đếm.
+- Epic Taking Note: #25 Layer 3 Workspace · #26 Layer 4 AI đa tài liệu · #27 Citations · #28 Note làm nguồn cho AI · #29 Layer 5 tổ chức/xuất/chia sẻ · #30 (2c follow-up) click highlight → mở note.
 
 ## 🔄 Đang làm
-- (trống)
 
-## Epic: Taking Note → Research Workspace (NotebookLM)
+- Taking Note **2c** — highlight tô màu lưu + vẽ lại trên trang (brainstorm).
+
+## Epic Taking Note → Research Workspace (NotebookLM)
 Vision: `docs/superpowers/specs/2026-06-22-taking-note-epic.md`.
-- ✅ **Layer 1** — note theo sách (store + NotesViewModel + tab Notes) — PR #14.
-- 🔶 **Layer 2** — đang dở:
-  - ✅ **2b** — chọn text → note trích dẫn (kéo-chọn theo dòng + neo trang) — PR #15.
-  - ⬜ **2a** — lưu câu trả lời AI thành note (dễ, độc lập).
-  - ⬜ **2c** — highlight tô màu LƯU + vẽ lại trên trang (dựa trên cơ chế chọn của 2b).
-- ⬜ **Layer 3** — Workspace (gom nhiều tài liệu; chuyển phạm vi note/chat document→workspace).
-- ⬜ **Layer 4** — AI đa tài liệu (RAG/chat xuyên source, trích dẫn source+trang).
-  - ⬜ **Citations / nguồn cho câu trả lời AI** (tính năng lớn, NotebookLM-style): mỗi đoạn trả lời gắn nguồn (trang + đoạn text AI dựa vào); click đoạn → nhảy tới trang + highlight đúng đoạn nguồn. Phụ thuộc: RAG giữ pageIndex+span của chunk, LLM phát citation marker (hoặc khớp post-hoc), và highlight-từ-text trên trang (2c). Ghi nhận 2026-06-23.
-  - ⬜ **Note làm nguồn cho AI ở task khác** (NotebookLM-style): các note đã lưu trở thành nguồn để AI tạo slide / tóm tắt / outline / soạn thảo... Chọn tập note → AI sinh sản phẩm. Phụ thuộc: chọn/nhóm note, prompt sinh sản phẩm, xuất. Ghi nhận 2026-06-23.
-- ⬜ **Layer 5** — tổ chức/tìm/xuất/chia sẻ workspace.
-
-## ⬜ Backlog (theo ưu tiên, từ audit 2026-06-22)
-| P | Tính năng | Trạng thái hiện tại | Ghi chú |
-|---|---|---|---|
-| P0 | Lưu / Export PDF | THIẾU | Không có Save/Export/Print, không Ctrl+S |
-| P0 | Sửa text ghi vào PDF | STUB | UI sửa chạy nhưng `EditTextCommand.Execute/Undo` chỉ Debug.WriteLine, không đổi PDF |
-| P1 | Undo/Redo | STUB | Có `_undoStack` nhưng không UI/Ctrl+Z, command rỗng, chưa có redo |
-| P1 | Nút Read/Edit ở rail trái | DEAD UI | Chưa bind command (chỉ Settings có) |
-| P2 | Annotation/markup (highlight thủ công, ghi chú, hình, bút) | THIẾU | Mới chỉ có highlight tìm kiếm (tạm) |
-| P2 | Thumbnail / Outline / Bookmark panel | THIẾU | Chưa có panel trang/mục lục |
-| P2 | Tỉa độ dài lịch sử LLM khi hội thoại quá dài | THIẾU | Ghi nhận khi làm PR #12: lịch sử chat nạp lại vào `SeedHistory` có thể phình, chạm giới hạn token. Cần tỉa (giữ N lượt gần nhất hoặc tóm tắt). |
-| P3 | Search: prev/next match + đếm "1/15" | DỞ | Chỉ popup + click, chưa nhảy match kế |
+- ✅ Layer 1 (note theo sách, #14) · ✅ 2a (one-click lưu AI, #16) · ✅ 2b (chọn text → trích dẫn, #15) · 🔄 2c (highlight) · ⬜ Layer 3-5 (issues #25-#29) + citations (#27) + note-làm-nguồn (#28).
 
 ## ✅ Đã xong (gần đây)
-- ✅ Taking Note Layer 2b: chọn text trên trang → note trích dẫn (resolver gộp dòng + neo trang) — PR #15.
-- ✅ Taking Note Layer 1: note theo sách (SQLite + filter/sort + tab Notes, neo trang) — PR #14.
-- ✅ Thư viện tài liệu: import → copy vào app + thumbnail + lưới thẻ, mở lại — PR #11.
-- ✅ Lịch sử chat theo từng sách (lưu SQLite, AI nhớ tiếp mạch) — PR #12.
-- ✅ Ẩn panel chat khi ở thư viện + kéo chỉnh bề rộng (GridSplitter) — PR #13.
+- ✅ Taking Note 2a: one-click lưu câu trả lời AI thành note — PR #16.
+- ✅ Taking Note 2b: chọn text → note trích dẫn (resolver gộp dòng + neo trang) — PR #15.
+- ✅ Taking Note Layer 1: note theo sách (SQLite + filter/sort + tab Notes) — PR #14.
+- ✅ Ẩn panel chat khi ở thư viện + resize (GridSplitter) — PR #13.
+- ✅ Lịch sử chat theo từng sách (SQLite, AI nhớ tiếp mạch) — PR #12.
+- ✅ Thư viện tài liệu (import + thumbnail + lưới thẻ) — PR #11.
+- ✅ 4 chế độ view + tách bìa + canh giữa + render nét + zoom-fit + phím tắt — PR #10.
+- ✅ Tìm kiếm: index, snippet có dấu + in đậm, click→nhảy + highlight — PR #9.
 - ✅ AI chat + RAG (OpenAI streaming + embeddings + index SQLite) — PR #8/SP2.
-- ✅ Tìm kiếm: index, snippet có dấu + in đậm, click→nhảy + highlight đúng từ khóa (iText) — PR #9.
-- ✅ 4 chế độ view (Single/Continuous/Facing/Continuous Facing) + tách bìa — PR #10.
-- ✅ Canh giữa trang (fix DPI), render nét khi zoom, zoom-fit khi mở — PR #10.
-- ✅ Phím tắt: zoom, lật trang, đầu/cuối, fit (Ctrl+0), mở (Ctrl+O), find (Ctrl+F), go-to-page (Ctrl+G) — PR #10.
 
 ## Quy ước
-- Mỗi feature: brainstorm → spec (`docs/superpowers/specs/`) → plan (`docs/superpowers/plans/`) → implement (subagent-driven) → PR.
-- Cập nhật file này khi bắt đầu/hoàn thành một mục.
+- Mỗi feature: brainstorm → spec (`docs/superpowers/specs/`) → plan (`docs/superpowers/plans/`) → implement (subagent-driven) → PR. Backlog/ý tưởng: GitHub Issues.

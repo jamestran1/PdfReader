@@ -33,6 +33,9 @@ public sealed partial class NotesViewModel : ObservableObject
     [ObservableProperty] private int _rightTabIndex;
     [ObservableProperty] private string? _pendingQuote;
     private int _pendingPageIndex;
+    private const string DefaultHighlightColor = "#FFEB3B";
+    private IReadOnlyList<HighlightRect>? _pendingRects;
+    public ObservableCollection<Note> Highlights { get; } = new();
 
     public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex)
     {
@@ -67,6 +70,9 @@ public sealed partial class NotesViewModel : ObservableObject
             catch { /* lỗi store không làm hỏng UI */ }
         }
         RebuildItems();
+        Highlights.Clear();
+        foreach (var n in _all)
+            if (n.Rects != null && n.Rects.Count > 0) Highlights.Add(n);
     }
 
     partial void OnFilterTextChanged(string value) => RebuildItems();
@@ -85,12 +91,13 @@ public sealed partial class NotesViewModel : ObservableObject
         Items.Insert(i, note);
     }
 
-    // Bắt đầu tạo note từ vùng chọn trang: chuyển sang tab Notes, giữ trích dẫn + trang chờ.
-    public void BeginNoteFromSelection(string quote, int pageIndex)
+    // Bắt đầu tạo note từ vùng chọn trang: chuyển sang tab Notes, giữ trích dẫn + trang + rects chờ.
+    public void BeginNoteFromSelection(string quote, int pageIndex, IReadOnlyList<HighlightRect> rects)
     {
         CancelEdit();
         PendingQuote = quote;
         _pendingPageIndex = pageIndex;
+        _pendingRects = rects;
         RightTabIndex = 1; // 0=Chat, 1=Notes
     }
 
@@ -129,12 +136,15 @@ public sealed partial class NotesViewModel : ObservableObject
         if (_editingId == null)
         {
             int? page = hasQuote ? _pendingPageIndex : _currentPageIndex();
+            var rects = _pendingRects;
+            var color = rects != null ? DefaultHighlightColor : null;
             var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, _ownerKey,
-                page, PendingQuote, content, now, now);
+                page, PendingQuote, content, now, now, rects, color);
             try { _store.Add(note); }
             catch { return; }
             _all.Add(note);
             if (MatchesFilter(note, FilterText)) InsertSorted(note);
+            if (note.Rects != null && note.Rects.Count > 0) Highlights.Add(note);
         }
         else
         {
@@ -172,6 +182,7 @@ public sealed partial class NotesViewModel : ObservableObject
         _editingId = null;
         IsEditing = false;
         PendingQuote = null;
+        _pendingRects = null;
     }
 
     [RelayCommand]
@@ -184,6 +195,9 @@ public sealed partial class NotesViewModel : ObservableObject
         _all.RemoveAll(n => n.Id == note.Id);
         int ii = IndexInItems(note.Id);
         if (ii >= 0) Items.RemoveAt(ii);
+        int hi = -1;
+        for (int i = 0; i < Highlights.Count; i++) if (Highlights[i].Id == note.Id) { hi = i; break; }
+        if (hi >= 0) Highlights.RemoveAt(hi);
     }
 
     [RelayCommand]
