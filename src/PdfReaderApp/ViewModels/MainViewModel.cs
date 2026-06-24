@@ -28,6 +28,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Workspace
     private readonly IWorkspaceStore _workspaceStore;
+    private readonly INoteStore _noteStore;
     private string? _activeWorkspaceId;
 
     private List<TextBlock> _documentBlocks = new();
@@ -170,9 +171,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ShowWorkspacesGrid));
     }
 
-    // Thông báo lỗi khi tạo workspace (vd tên rỗng); rỗng = không có lỗi.
+    // Thông báo lỗi khi tạo/đổi tên workspace; rỗng = không có lỗi.
     [ObservableProperty]
     private string _workspaceNameError = string.Empty;
+
+    // S4: nội dung ô đổi tên workspace trong màn chi tiết.
+    [ObservableProperty]
+    private string _renameDraft = string.Empty;
 
     public ObservableCollection<Workspace> Workspaces { get; } = new();
 
@@ -255,9 +260,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _chatHistory = chatHistory ?? new SqliteChatHistoryStore(System.IO.Path.Combine(AppDir(), "chats.db"));
         _chatHistory.EnsureSchema();
 
-        var notes = noteStore ?? new SqliteNoteStore(System.IO.Path.Combine(AppDir(), "notes.db"));
-        notes.EnsureSchema();
-        Notes = new NotesViewModel(notes,
+        _noteStore = noteStore ?? new SqliteNoteStore(System.IO.Path.Combine(AppDir(), "notes.db"));
+        _noteStore.EnsureSchema();
+        Notes = new NotesViewModel(_noteStore,
             () => _documentId is null ? (int?)null : CurrentPage - 1,
             idx => CurrentPage = idx + 1,
             () => _documentId,
@@ -271,7 +276,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Bọc try/catch để lỗi store không chặn app khởi động (di trú best-effort, idempotent nên chạy lại được).
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var docs = Library.Select(i => (i.DocumentId, i.Title)).ToList();
-        try { Core.WorkspaceMigration.Run(_workspaceStore, notes, docs, now); }
+        try { Core.WorkspaceMigration.Run(_workspaceStore, _noteStore, docs, now); }
         catch { /* di trú lỗi: app vẫn mở; thử lại lần khởi động sau */ }
 
         ReloadWorkspaces();
@@ -417,6 +422,43 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ReloadWorkspaces();
     }
 
+    // S4: xóa một workspace (không được xóa default workspace)
+    [RelayCommand]
+    private void DeleteWorkspace(Workspace? ws)
+    {
+        if (ws is null) return;
+        // Chặn xóa default workspace (default được ẩn khỏi danh sách; đây là phòng vệ)
+        if (ws.IsDefault) return;
+        _noteStore.DeleteForOwner(ws.Id);
+        _workspaceStore.Delete(ws.Id);
+        if (_activeWorkspaceId == ws.Id)
+        {
+            _activeWorkspaceId = null;
+            Notes.LoadFor(null);
+        }
+        if (ShowWorkspaceDetail && SelectedWorkspace?.Id == ws.Id)
+            ShowWorkspaceDetail = false;
+        ReloadWorkspaces();
+    }
+
+    // S4: đổi tên workspace đang mở chi tiết
+    [RelayCommand]
+    private void RenameWorkspace(string? newName)
+    {
+        if (SelectedWorkspace is null) return;
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            WorkspaceNameError = "Tên workspace không được để trống.";
+            return;
+        }
+        WorkspaceNameError = string.Empty;
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        _workspaceStore.Rename(SelectedWorkspace.Id, newName.Trim(), now);
+        // Cập nhật header chi tiết workspace
+        SelectedWorkspace = _workspaceStore.Get(SelectedWorkspace.Id);
+        ReloadWorkspaces();
+    }
+
     // S2: mở tài liệu trong ngữ cảnh workspace (active scope = workspace, không phải default)
     [RelayCommand]
     private void OpenWorkspaceDocument(LibraryItem? item)
@@ -448,9 +490,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void RemoveLibraryItem(LibraryItem? item)
     {
         if (item is null) return;
+        string docId = item.DocumentId;
+        // S4: dọn dẹp workspace cascade khi xóa tài liệu khỏi thư viện
+        foreach (var wsId in _workspaceStore.GetWorkspaceIdsForDocument(docId).ToList())
+        {
+            var ws = _workspaceStore.Get(wsId);
+            if (ws is { IsDefault: true })
+            {
+                // Xóa default workspace của tài liệu + notes của nó
+                _noteStore.DeleteForOwner(wsId);
+                _workspaceStore.Delete(wsId);
+            }
+            else
+            {
+                // Workspace dùng chung: chỉ gỡ tài liệu ra, GIỮ các note neo tài liệu đó (mục 3)
+                _workspaceStore.RemoveDocument(wsId, docId);
+            }
+        }
+        // Dọn note neo trực tiếp tới tài liệu ở mọi nơi
+        _noteStore.DeleteForDocument(docId);
+        try { _chatHistory.DeleteForDocument(docId); } catch { }
+        try { _documentIndex.DeleteDocument(docId); } catch { }
         _library.Remove(item);
-        try { _chatHistory.DeleteForDocument(item.DocumentId); } catch { }
         Library.Remove(item);
+        ReloadWorkspaces();
     }
 
     private void ReloadLibrary()

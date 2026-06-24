@@ -86,6 +86,23 @@ public class SqliteWorkspaceStoreTests : IDisposable
         Assert.Empty(_store.GetDocumentIds("w1"));
     }
 
+    [Fact]
+    public void Delete_RemovesWorkspaceAndMembership()
+    {
+        // Upsert ws "w1"; AddDocument("w1","docA")
+        _store.Upsert(new Workspace("w1", "Dự án test", false, null, 1, 1));
+        _store.AddDocument("w1", "docA");
+
+        _store.Delete("w1");
+
+        // workspace w1 phải không còn
+        Assert.Null(_store.Get("w1"));
+        // membership phải sạch
+        Assert.Empty(_store.GetDocumentIds("w1"));
+        // GetWorkspaceIdsForDocument("docA") không chứa "w1"
+        Assert.DoesNotContain("w1", _store.GetWorkspaceIdsForDocument("docA"));
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, true); } catch { }

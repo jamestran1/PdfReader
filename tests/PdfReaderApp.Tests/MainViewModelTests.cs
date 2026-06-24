@@ -50,17 +50,60 @@ public class MainViewModelTests
         }
         public IReadOnlyList<string> GetDocumentIds(string workspaceId)
             => Membership.TryGetValue(workspaceId, out var s) ? s.ToList() : new List<string>();
-        public IReadOnlyList<string> GetWorkspaceIdsForDocument(string documentId) => new List<string>();
+        public IReadOnlyList<string> GetWorkspaceIdsForDocument(string documentId)
+        {
+            var result = new List<string>();
+            foreach (var kv in Membership)
+                if (kv.Value.Contains(documentId)) result.Add(kv.Key);
+            return result;
+        }
         public PdfReaderApp.Models.Workspace GetOrCreateDefaultForDocument(string documentId, string name, long nowUnixMs)
         {
             var existing = All.FirstOrDefault(w => w.IsDefault && w.DefaultDocumentId == documentId);
             if (existing != null) return existing;
             var ws = new PdfReaderApp.Models.Workspace(System.Guid.NewGuid().ToString("N"), name, true, documentId, nowUnixMs, nowUnixMs);
             All.Add(ws);
+            AddDocument(ws.Id, documentId);
             return ws;
         }
-        public void Rename(string id, string name, long nowUnixMs) { }
-        public void Delete(string id) { All.RemoveAll(w => w.Id == id); }
+        public void Rename(string id, string name, long nowUnixMs)
+        {
+            int i = All.FindIndex(w => w.Id == id);
+            if (i >= 0) All[i] = All[i] with { Name = name, UpdatedAtUnixMs = nowUnixMs };
+        }
+        public void Delete(string id)
+        {
+            All.RemoveAll(w => w.Id == id);
+            Membership.Remove(id);
+        }
+    }
+
+    private sealed class FakeNoteStore : PdfReaderApp.Services.INoteStore
+    {
+        public readonly List<PdfReaderApp.Models.Note> Rows = new();
+        public void EnsureSchema() { }
+        public void Add(PdfReaderApp.Models.Note note) => Rows.Add(note);
+        public int Update(string id, string content, long now)
+        {
+            int i = Rows.FindIndex(n => n.Id == id);
+            if (i < 0) return 0;
+            Rows[i] = Rows[i] with { Content = content, UpdatedAtUnixMs = now };
+            return 1;
+        }
+        public int Delete(string id) => Rows.RemoveAll(n => n.Id == id);
+        public IReadOnlyList<PdfReaderApp.Models.Note> GetForOwner(string ownerKey)
+            => Rows.Where(n => n.OwnerKey == ownerKey).ToList();
+        public int ReassignOwner(string oldKey, string newKey)
+        {
+            int count = 0;
+            for (int i = 0; i < Rows.Count; i++)
+            {
+                if (Rows[i].OwnerKey == oldKey) { Rows[i] = Rows[i] with { OwnerKey = newKey }; count++; }
+            }
+            return count;
+        }
+        public int DeleteForOwner(string ownerKey) => Rows.RemoveAll(n => n.OwnerKey == ownerKey);
+        public int DeleteForDocument(string documentId) => Rows.RemoveAll(n => n.DocumentId == documentId);
     }
 
     private static string TempDb() =>
@@ -84,6 +127,17 @@ public class MainViewModelTests
             new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
                 System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
             new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            workspaceStore: wsStore);
+
+    private static MainViewModel VmWith(FakeWorkspaceStore wsStore, FakeNoteStore notes)
+        => new MainViewModel(
+            new PdfReaderApp.Services.ITextPdfDocumentService(),
+            new PdfReaderApp.Services.WindowsSettingsService(),
+            new PdfReaderApp.Services.OpenAiChatClientFactory(),
+            new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
+                System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
+            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            noteStore: notes,
             workspaceStore: wsStore);
 
     [Fact]
@@ -607,6 +661,159 @@ public class MainViewModelTests
         Assert.Equal(3, vm.CurrentPage);                       // mở thẳng tại trang neo (index 2 -> trang 3)
 
         try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
+    }
+
+    // --- S4 tests (#36) ---
+
+    [Fact]
+    public void DeleteWorkspace_DeletesItsNotes_AndRemovesWorkspace()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var notes = new FakeNoteStore();
+        var vm = VmWith(wsStore, notes);
+
+        var W = new PdfReaderApp.Models.Workspace("ws-del", "Dự án xóa", false, null, 1, 1);
+        wsStore.Upsert(W);
+        // Thêm note có owner = W vào fake note store
+        notes.Rows.Add(new PdfReaderApp.Models.Note("n1", W.Id, null, null, null, "ghi chú", 1, 1));
+
+        vm.DeleteWorkspaceCommand.Execute(W);
+
+        // Note của workspace đã bị xóa
+        Assert.Empty(notes.GetForOwner(W.Id));
+        // Workspace đã bị xóa khỏi store
+        Assert.Null(wsStore.Get(W.Id));
+    }
+
+    [Fact]
+    public void DeleteWorkspace_DefaultWorkspace_IsNotDeleted()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var notes = new FakeNoteStore();
+        var vm = VmWith(wsStore, notes);
+
+        var D = new PdfReaderApp.Models.Workspace("ws-def", "Tài liệu mặc định", true, "docD", 1, 1);
+        wsStore.Upsert(D);
+        notes.Rows.Add(new PdfReaderApp.Models.Note("n1", D.Id, null, null, null, "ghi chú default", 1, 1));
+
+        vm.DeleteWorkspaceCommand.Execute(D);
+
+        // Default workspace không bị xóa
+        Assert.NotNull(wsStore.Get(D.Id));
+        // Note của default workspace vẫn còn
+        Assert.Single(notes.GetForOwner(D.Id));
+    }
+
+    [Fact]
+    public void RenameWorkspace_EmptyName_SetsError_AndKeepsName()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var notes = new FakeNoteStore();
+        var vm = VmWith(wsStore, notes);
+
+        var W = new PdfReaderApp.Models.Workspace("ws-ren", "Tên gốc", false, null, 1, 1);
+        wsStore.Upsert(W);
+        vm.OpenWorkspaceCommand.Execute(W);
+
+        vm.RenameWorkspaceCommand.Execute("  ");
+
+        // Lỗi phải được set
+        Assert.False(string.IsNullOrEmpty(vm.WorkspaceNameError));
+        // Tên không đổi
+        Assert.Equal("Tên gốc", wsStore.Get(W.Id)!.Name);
+    }
+
+    [Fact]
+    public void RenameWorkspace_ValidName_UpdatesName()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var notes = new FakeNoteStore();
+        var vm = VmWith(wsStore, notes);
+
+        var W = new PdfReaderApp.Models.Workspace("ws-ren2", "Tên cũ", false, null, 1, 1);
+        wsStore.Upsert(W);
+        vm.OpenWorkspaceCommand.Execute(W);
+
+        vm.RenameWorkspaceCommand.Execute("Tên mới");
+
+        Assert.Equal("Tên mới", wsStore.Get(W.Id)!.Name);
+    }
+
+    [Fact]
+    public void RemoveDocumentFromWorkspace_KeepsAnchoredNotes()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var notes = new FakeNoteStore();
+        var vm = VmWith(wsStore, notes);
+
+        var W = new PdfReaderApp.Models.Workspace("ws-rem", "Dự án", false, null, 1, 1);
+        wsStore.Upsert(W);
+        wsStore.AddDocument(W.Id, "docA");
+
+        // Note neo vào docA trong workspace W
+        notes.Rows.Add(new PdfReaderApp.Models.Note("n1", W.Id, "docA", 1, null, "note neo", 1, 1));
+
+        var itemA = new PdfReaderApp.Models.LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 0, 1, 1);
+        vm.Library.Add(itemA);
+
+        vm.OpenWorkspaceCommand.Execute(W);
+        vm.RemoveDocumentFromWorkspaceCommand.Execute(itemA);
+
+        // Note vẫn còn (không bị xóa khi gỡ tài liệu khỏi workspace)
+        Assert.Single(notes.GetForOwner(W.Id));
+        Assert.Equal("note neo", notes.GetForOwner(W.Id)[0].Content);
+        // Membership docA-W đã gỡ
+        Assert.DoesNotContain("docA", wsStore.GetDocumentIds(W.Id));
+    }
+
+    [Fact]
+    public void RemoveLibraryItem_Cascades_RemovesMembership_DeletesDefaultWs_CleansNotesAndChat()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var notes = new FakeNoteStore();
+        var chat = new FakeChatHistoryStore();
+        // Dùng constructor đầy đủ để inject chat store
+        var vm = new MainViewModel(
+            new PdfReaderApp.Services.ITextPdfDocumentService(),
+            new PdfReaderApp.Services.WindowsSettingsService(),
+            new PdfReaderApp.Services.OpenAiChatClientFactory(),
+            new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
+                System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
+            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            chatHistory: chat,
+            noteStore: notes,
+            workspaceStore: wsStore);
+
+        // Default workspace cho docA
+        var Dft = new PdfReaderApp.Models.Workspace("ws-dft", "docA default", true, "docA", 1, 1);
+        wsStore.Upsert(Dft);
+        wsStore.AddDocument(Dft.Id, "docA");
+
+        // Workspace dùng chung W
+        var W = new PdfReaderApp.Models.Workspace("ws-shared", "Chia sẻ", false, null, 1, 1);
+        wsStore.Upsert(W);
+        wsStore.AddDocument(W.Id, "docA");
+
+        // Note owner=Dft neo docA
+        notes.Rows.Add(new PdfReaderApp.Models.Note("n1", Dft.Id, "docA", 0, null, "note default ws", 1, 1));
+        // Note owner=W neo docA
+        notes.Rows.Add(new PdfReaderApp.Models.Note("n2", W.Id, "docA", 0, null, "note shared ws", 1, 1));
+
+        var itemA = new PdfReaderApp.Models.LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 0, 1, 1);
+        vm.Library.Add(itemA);
+
+        vm.RemoveLibraryItemCommand.Execute(itemA);
+
+        // Default workspace Dft phải bị xóa
+        Assert.Null(wsStore.Get(Dft.Id));
+        // Mọi membership docA phải gỡ sạch
+        Assert.Empty(wsStore.GetWorkspaceIdsForDocument("docA"));
+        // Không còn note nào neo tới docA
+        Assert.Empty(notes.Rows.Where(n => n.DocumentId == "docA"));
+        // Chat history đã bị xóa
+        Assert.Contains("docA", chat.Deleted);
+        // LibraryItem đã bị xóa khỏi vm.Library
+        Assert.DoesNotContain(vm.Library, i => i.DocumentId == "docA");
     }
 
 }

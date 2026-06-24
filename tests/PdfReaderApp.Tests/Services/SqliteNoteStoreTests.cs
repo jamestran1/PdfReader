@@ -207,6 +207,42 @@ public class SqliteNoteStoreTests : IDisposable
         Assert.Single(_store.GetForOwner("wsNew"));
     }
 
+    [Fact]
+    public void DeleteForOwner_RemovesOnlyThatOwnersNotes()
+    {
+        // Thêm note owner=W1 và owner=W2
+        _store.Add(N("a", "W1", 1, "ghi chú W1", 1));
+        _store.Add(N("b", "W1", 2, "ghi chú W1 số 2", 2));
+        _store.Add(N("c", "W2", 1, "ghi chú W2", 3));
+
+        int deleted = _store.DeleteForOwner("W1");
+
+        // Chỉ xóa note của W1
+        Assert.Equal(2, deleted);
+        Assert.Empty(_store.GetForOwner("W1"));
+        // Note của W2 vẫn còn
+        Assert.Single(_store.GetForOwner("W2"));
+        Assert.Equal("ghi chú W2", _store.GetForOwner("W2")[0].Content);
+    }
+
+    [Fact]
+    public void DeleteForDocument_RemovesOnlyNotesAnchoredToThatDocument()
+    {
+        // note doc=docA (owner W) và doc=docB
+        _store.Add(new Note("a", "W", "docA", 1, null, "neo docA", 1, 1));
+        _store.Add(new Note("b", "W", "docA", 2, null, "neo docA số 2", 2, 2));
+        _store.Add(new Note("c", "W", "docB", 1, null, "neo docB", 3, 3));
+
+        int deleted = _store.DeleteForDocument("docA");
+
+        // Chỉ xóa note neo tới docA
+        Assert.Equal(2, deleted);
+        // Note neo tới docB vẫn còn
+        var remaining = _store.GetForOwner("W");
+        Assert.Single(remaining);
+        Assert.Equal("neo docB", remaining[0].Content);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, true); } catch { }
