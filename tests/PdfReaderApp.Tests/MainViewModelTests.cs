@@ -494,8 +494,9 @@ public class MainViewModelTests
         var vm = VmWithWorkspaceStore(wsStore);
 
         var id1 = vm.ResolveWorkspaceScope(null, "docA", "A", 1);
-        // Khác "ws-1" (không phải id cứng)
-        Assert.NotEqual("ws-1", id1);
+        // Không truyền workspace tường minh -> dùng default workspace của tài liệu
+        var def = wsStore.All.Single(w => w.IsDefault && w.DefaultDocumentId == "docA");
+        Assert.Equal(def.Id, id1);
 
         // Idempotent: gọi lần hai cùng docId trả về cùng id
         var id2 = vm.ResolveWorkspaceScope(null, "docA", "A", 2);

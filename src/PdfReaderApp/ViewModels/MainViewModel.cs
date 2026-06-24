@@ -400,6 +400,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         LoadActiveDocument(item.StoredPath, SelectedWorkspace.Id);
         if (_documentId != null)
         {
+            // best-effort: cập nhật thời điểm mở; tài liệu có thể chưa nằm trong library store nên bỏ qua lỗi
             try { _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()); } catch { }
             ShowWorkspaceDetail = false;
             ShowWorkspaces = false;
