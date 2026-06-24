@@ -217,7 +217,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _workspaceStore = workspaceStore ?? new SqliteWorkspaceStore(System.IO.Path.Combine(AppDir(), "workspaces.db"));
         _workspaceStore.EnsureSchema();
 
-        // Migration: chuyen ghi chu cu (owner_key=documentId) sang default workspace
+        // Di trú: chuyển ghi chú cũ (owner_key=documentId) sang default workspace
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var docs = Library.Select(i => (i.DocumentId, i.Title)).ToList();
         Core.WorkspaceMigration.Run(_workspaceStore, notes, docs, now);
@@ -252,6 +252,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ShowLibraryView()
     {
         ReloadLibrary();
+        ShowWorkspaces = false;
         ShowLibrary = true;
     }
 
@@ -266,6 +267,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ShowWorkspacesView()
     {
         ReloadWorkspaces();
+        ShowLibrary = false;
         ShowWorkspaces = true;
     }
 
@@ -328,7 +330,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             _documentId = DocumentId.FromFile(path);
             LoadChatHistory();
-            // Lay hoac tao default workspace cho tai lieu, roi load notes theo workspaceId
+            // Lấy hoặc tạo default workspace cho tài liệu, rồi load notes theo workspaceId
             long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string title = System.IO.Path.GetFileNameWithoutExtension(path);
             var activeWs = _workspaceStore.GetOrCreateDefaultForDocument(_documentId, title, nowMs);
