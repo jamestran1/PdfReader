@@ -198,8 +198,12 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             c.RefreshLayout(keepCache: false);
             // Single-unit modes show one unit at Y=0; reset scroll so it is in view after switching.
+            // Chế độ cuộn liên tục: giữ trang hiện tại (RefreshLayout dựng lại slot nên offset cũ map sai,
+            // thường về cover) -> cuộn lại tới CurrentPage.
             if (c.ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing)
                 c.PagesScrollViewer.ScrollToVerticalOffset(0);
+            else
+                c.ScheduleScrollToCurrentPage();
         }
     }
 
@@ -536,6 +540,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
             _undoStack.Clear();
             FitToViewport();   // zoom trang đầu vừa khung trước khi layout
             RefreshLayout();
+            // Mở thẳng tại trang đích (vd cross-doc jump). RefreshLayout chỉ dựng slot, không cuộn;
+            // ở chế độ cuộn liên tục phải ScrollToPage NHƯNG extent của ScrollViewer chưa cập nhật ngay
+            // sau khi nạp (cuộn lúc này bị kẹp về đầu). Đặt trang chờ để ScrollChanged áp dụng khi extent
+            // đã đủ. Single/Facing đã honor CurrentPage trong RefreshLayout nên không cần.
+            ScheduleScrollToCurrentPage();
             System.Diagnostics.Debug.WriteLine($"Successfully loaded PDF via Skia: {path}");
         }
         catch (Exception ex)
@@ -774,9 +783,59 @@ public partial class PdfViewerControl : UserControl, IDisposable
         }
     }
 
+    // Trang chờ cuộn tới sau khi nạp tài liệu (cross-doc jump) ở chế độ cuộn liên tục; 0 = không có.
+    private int _pendingScrollPage = 0;
+    private double _lastExtentForPending = -1;
+
+    // Lên lịch cuộn tới CurrentPage ở chế độ cuộn liên tục (sau nạp tài liệu hoặc đổi view mode).
+    // RefreshLayout chỉ dựng slot, không cuộn; và extent ScrollViewer chưa sẵn ngay nên dùng pending +
+    // LayoutUpdated. Single/Facing tự honor CurrentPage trong RefreshLayout nên không cần.
+    private void ScheduleScrollToCurrentPage()
+    {
+        if (CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing)
+        {
+            _pendingScrollPage = CurrentPage;
+            _lastExtentForPending = -1;
+            PagesScrollViewer.LayoutUpdated -= OnLayoutUpdatedForPendingScroll;
+            PagesScrollViewer.LayoutUpdated += OnLayoutUpdatedForPendingScroll;
+        }
+        else
+        {
+            _pendingScrollPage = 0;
+        }
+    }
+
+    // Sau khi nạp tài liệu/đổi view, extent của ScrollViewer lớn dần qua vài lần layout. Chờ tới khi đủ để
+    // cuộn tới trang đích (hoặc layout đã ổn định) rồi cuộn đúng một lần và huỷ đăng ký.
+    private void OnLayoutUpdatedForPendingScroll(object? sender, EventArgs e)
+    {
+        if (_pendingScrollPage <= 0) { PagesScrollViewer.LayoutUpdated -= OnLayoutUpdatedForPendingScroll; return; }
+        var slot = _slots.FirstOrDefault(s => s.PageIndex == _pendingScrollPage - 1);
+        if (slot == null) return; // slot chưa dựng xong, chờ lần layout sau
+
+        double sh = PagesScrollViewer.ScrollableHeight;
+        bool canReach = sh + 0.5 >= slot.Y;                       // extent đủ để đưa đích lên đầu
+        bool stable = System.Math.Abs(sh - _lastExtentForPending) < 0.5; // extent không còn lớn thêm
+        _lastExtentForPending = sh;
+        if (canReach || stable)
+        {
+            PagesScrollViewer.ScrollToVerticalOffset(System.Math.Min(slot.Y, sh));
+            _pendingScrollPage = 0;
+            _lastExtentForPending = -1;
+            PagesScrollViewer.LayoutUpdated -= OnLayoutUpdatedForPendingScroll;
+        }
+    }
+
     private void PagesScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (_currentDocument == null || _slots.Count == 0) return;
+
+        // Đang chờ cuộn tới trang đích (sau khi nạp): không đồng bộ scroll->trang để khỏi bị kéo về cover.
+        if (_pendingScrollPage > 0)
+        {
+            skiaCanvas.InvalidateVisual();
+            return;
+        }
 
         // Xóa vùng chọn khi cuộn (tránh overlay bị lệch vị trí)
         if (e.VerticalChange != 0 || e.HorizontalChange != 0)
