@@ -110,6 +110,20 @@ public partial class PdfViewerControl : UserControl, IDisposable
         set => SetValue(AddNoteFromSelectionCommandProperty, value);
     }
 
+    // S3: DependencyProperty lọc highlight theo tài liệu đang mở (bound từ MainViewModel.CurrentDocumentId)
+    public static readonly DependencyProperty CurrentDocumentIdProperty =
+        DependencyProperty.Register(nameof(CurrentDocumentId), typeof(string),
+            typeof(PdfViewerControl), new PropertyMetadata(null, OnCurrentDocumentIdChanged));
+
+    public string? CurrentDocumentId
+    {
+        get => (string?)GetValue(CurrentDocumentIdProperty);
+        set => SetValue(CurrentDocumentIdProperty, value);
+    }
+
+    private static void OnCurrentDocumentIdChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        => ((PdfViewerControl)d).RepaintOverlay();
+
     // DependencyProperty: danh sach highlight da luu (bound tu NotesViewModel.Highlights)
     public static readonly DependencyProperty HighlightsProperty =
         DependencyProperty.Register(nameof(Highlights), typeof(System.Collections.IEnumerable),
@@ -675,6 +689,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             if (obj is not PdfReaderApp.Models.Note note) continue;
             if (note.PageIndex != pageIndex || note.Rects == null) continue;
+            if (CurrentDocumentId != null && note.DocumentId != null && note.DocumentId != CurrentDocumentId) continue;
             var color = ParseHighlightColor(note.Color);
             using var paint = new SKPaint { Color = color, Style = SKPaintStyle.Fill };
             foreach (var r in note.Rects)
