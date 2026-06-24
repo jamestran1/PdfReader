@@ -70,6 +70,10 @@
                             Command="{Binding ShowLibraryViewCommand}">
                         <materialDesign:PackIcon Kind="BookOpenVariant" Width="24" Height="24"/>
                     </Button>
+                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Workspaces"
+                            Command="{Binding ShowWorkspacesViewCommand}">
+                        <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="24" Height="24"/>
+                    </Button>
                     <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Edit">
                         <materialDesign:PackIcon Kind="Pencil" Width="24" Height="24"/>
                     </Button>
@@ -250,6 +254,80 @@
                                        AddNoteFromSelectionCommand="{Binding AddNoteFromSelectionCommand}"
                                        Highlights="{Binding Notes.Highlights}"
                                        Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+
+            <!-- Workspaces grid (shown when ShowWorkspaces) -->
+            <Border Grid.Row="1" Background="{DynamicResource MaterialDesignPaper}"
+                    Visibility="{Binding ShowWorkspaces, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid Margin="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Tieu de -->
+                    <TextBlock Grid.Row="0" Text="Workspaces" FontSize="20" FontWeight="Bold" Margin="0,0,0,12"/>
+
+                    <!-- Tao workspace moi -->
+                    <Grid Grid.Row="1" Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="NewWorkspaceNameBox"
+                                 materialDesign:HintAssist.Hint="Ten workspace moi..."
+                                 Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                 Margin="0,0,8,0">
+                            <TextBox.InputBindings>
+                                <KeyBinding Key="Enter"
+                                            Command="{Binding CreateWorkspaceCommand}"
+                                            CommandParameter="{Binding Text, ElementName=NewWorkspaceNameBox}"/>
+                            </TextBox.InputBindings>
+                        </TextBox>
+                        <Button Grid.Column="1"
+                                Style="{StaticResource MaterialDesignRaisedButton}"
+                                Content="Tao workspace"
+                                Command="{Binding CreateWorkspaceCommand}"
+                                CommandParameter="{Binding Text, ElementName=NewWorkspaceNameBox}"
+                                materialDesign:ButtonAssist.CornerRadius="20"/>
+                    </Grid>
+
+                    <!-- Danh sach workspace nguoi dung -->
+                    <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <TextBlock Text="Chua co workspace nao. Tao workspace de nhom tai lieu cung chu de."
+                                       HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6" Margin="0,32"
+                                       Visibility="{Binding Workspaces.Count, Converter={StaticResource CountToInverseVisibilityConverter}}"/>
+                            <ItemsControl ItemsSource="{Binding Workspaces}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <materialDesign:Card Width="200" Margin="8" materialDesign:ElevationAssist.Elevation="Dp2"
+                                                             Cursor="Hand">
+                                            <Border Background="Transparent" Padding="12">
+                                                <Border.InputBindings>
+                                                    <MouseBinding MouseAction="LeftClick"
+                                                                  Command="{Binding DataContext.OpenWorkspaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                  CommandParameter="{Binding}"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="32" Height="32"
+                                                                             HorizontalAlignment="Center" Margin="0,0,0,8"
+                                                                             Foreground="{DynamicResource PrimaryHueMidBrush}"/>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold"
+                                                               TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </materialDesign:Card>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Border>
 
             <!-- Library grid (shown when ShowLibrary) -->
             <Border Grid.Row="1" Background="{DynamicResource MaterialDesignPaper}"
