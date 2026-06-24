@@ -112,12 +112,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         UpdateChatColumnVisibility();
     }
 
-    partial void OnShowWorkspacesChanged(bool value)
-    {
-        if (value) ShowLibrary = false;
-        UpdateChatColumnVisibility();
-    }
-
     // Thu cột chat về 0 khi ở Library/Workspaces; khôi phục bề rộng đã lưu khi đang đọc tài liệu.
     private void UpdateChatColumnVisibility()
     {
@@ -141,6 +135,37 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private bool _showWorkspaces;
+
+    // S2: workspace đang xem chi tiết
+    [ObservableProperty]
+    private Workspace? _selectedWorkspace;
+
+    // S2: hiện panel chi tiết workspace (ẩn lưới workspace)
+    [ObservableProperty]
+    private bool _showWorkspaceDetail;
+
+    // S2: tài liệu trong workspace đang mở chi tiết
+    public ObservableCollection<LibraryItem> WorkspaceDocuments { get; } = new();
+
+    // S2: expose activeWorkspaceId cho test
+    public string? ActiveWorkspaceId => _activeWorkspaceId;
+
+    // Lưới Workspaces chỉ hiện khi ở vùng Workspaces VÀ chưa mở chi tiết
+    public bool ShowWorkspacesGrid => ShowWorkspaces && !ShowWorkspaceDetail;
+
+    // Cập nhật ShowWorkspacesGrid khi ShowWorkspaces thay đổi
+    partial void OnShowWorkspacesChanged(bool value)
+    {
+        if (value) ShowLibrary = false;
+        UpdateChatColumnVisibility();
+        OnPropertyChanged(nameof(ShowWorkspacesGrid));
+    }
+
+    // Cập nhật ShowWorkspacesGrid khi ShowWorkspaceDetail thay đổi
+    partial void OnShowWorkspaceDetailChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ShowWorkspacesGrid));
+    }
 
     // Thông báo lỗi khi tạo workspace (vd tên rỗng); rỗng = không có lỗi.
     [ObservableProperty]
@@ -289,6 +314,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ShowWorkspacesView()
     {
+        // S2: luôn về lưới khi bấm Workspaces từ navigation rail
+        ShowWorkspaceDetail = false;
         ReloadWorkspaces();
         ShowLibrary = false;
         ShowWorkspaces = true;
@@ -313,9 +340,70 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void OpenWorkspace(Workspace? workspace)
     {
         if (workspace is null) return;
+        SelectedWorkspace = workspace;
         _activeWorkspaceId = workspace.Id;
         Notes.LoadFor(_activeWorkspaceId);
-        // S1: chưa có màn chi tiết workspace (sẽ làm ở S2/#34) -> ở lại lưới Workspaces.
+        ReloadWorkspaceDocuments();
+        // Giữ ShowWorkspaces = true để IsReadingDocument vẫn false -> không hiện toolbar đọc
+        ShowWorkspaces = true;
+        ShowWorkspaceDetail = true;
+    }
+
+    // S2: nạp lại danh sách tài liệu trong workspace đang xem chi tiết
+    private void ReloadWorkspaceDocuments()
+    {
+        WorkspaceDocuments.Clear();
+        if (SelectedWorkspace is null) return;
+        var ids = _workspaceStore.GetDocumentIds(SelectedWorkspace.Id);
+        foreach (var id in ids)
+        {
+            var item = Library.FirstOrDefault(i => i.DocumentId == id);
+            if (item is not null) WorkspaceDocuments.Add(item);
+        }
+    }
+
+    // S2: thêm nhiều tài liệu từ thư viện vào workspace (đa chọn)
+    [RelayCommand]
+    private void AddDocumentsToWorkspace(System.Collections.IList? items)
+    {
+        if (SelectedWorkspace is null || items is null) return;
+        foreach (var obj in items)
+        {
+            if (obj is LibraryItem it)
+                _workspaceStore.AddDocument(SelectedWorkspace.Id, it.DocumentId);
+        }
+        ReloadWorkspaceDocuments();
+    }
+
+    // S2: xoá tài liệu khỏi workspace
+    [RelayCommand]
+    private void RemoveDocumentFromWorkspace(LibraryItem? item)
+    {
+        if (item is null || SelectedWorkspace is null) return;
+        _workspaceStore.RemoveDocument(SelectedWorkspace.Id, item.DocumentId);
+        ReloadWorkspaceDocuments();
+    }
+
+    // S2: quay lại lưới workspace từ màn chi tiết
+    [RelayCommand]
+    private void BackToWorkspaceList()
+    {
+        ShowWorkspaceDetail = false;
+        ReloadWorkspaces();
+    }
+
+    // S2: mở tài liệu trong ngữ cảnh workspace (active scope = workspace, không phải default)
+    [RelayCommand]
+    private void OpenWorkspaceDocument(LibraryItem? item)
+    {
+        if (item is null || SelectedWorkspace is null) return;
+        LoadActiveDocument(item.StoredPath, SelectedWorkspace.Id);
+        if (_documentId != null)
+        {
+            try { _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()); } catch { }
+            ShowWorkspaceDetail = false;
+            ShowWorkspaces = false;
+        }
     }
 
     [RelayCommand]
@@ -346,7 +434,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     // Nạp tài liệu đang hoạt động từ đường dẫn (đã copy trong thư viện). Tái dùng cho cả OpenFile lẫn mở từ thư viện.
-    private void LoadActiveDocument(string path)
+    // workspaceScopeId: truyền workspace cụ thể (S2 - mở trong workspace); null = dùng default workspace như cũ.
+    private void LoadActiveDocument(string path, string? workspaceScopeId = null)
     {
         FilePath = path;
         try
@@ -358,12 +447,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             _documentId = DocumentId.FromFile(path);
             LoadChatHistory();
-            // Lấy hoặc tạo default workspace cho tài liệu, rồi load notes theo workspaceId
+            // S2: dùng seam ResolveWorkspaceScope để quyết định scope (workspace cụ thể hoặc default)
             long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string title = System.IO.Path.GetFileNameWithoutExtension(path);
-            var activeWs = _workspaceStore.GetOrCreateDefaultForDocument(_documentId, title, nowMs);
-            _activeWorkspaceId = activeWs.Id;
+            _activeWorkspaceId = ResolveWorkspaceScope(workspaceScopeId, _documentId, title, nowMs);
             Notes.LoadFor(_activeWorkspaceId);
+            OnPropertyChanged(nameof(ActiveWorkspaceId));
             SearchResults.Clear();
             StartBackgroundIndexing();
         }
@@ -380,6 +469,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             FilePath = null;
         }
     }
+
+    // S2: seam quyết định workspace scope khi mở tài liệu.
+    // Nếu explicitWorkspaceId != null: dùng ngay (mở trong workspace). Ngược lại: lấy/tạo default.
+    internal string ResolveWorkspaceScope(string? explicitWorkspaceId, string documentId, string title, long nowUnixMs)
+        => explicitWorkspaceId ?? _workspaceStore.GetOrCreateDefaultForDocument(documentId, title, nowUnixMs).Id;
 
     // Nạp lại khung chat theo sách đang mở: hiện bong bóng cũ và dựng lại bộ nhớ LLM.
     // Sách chưa có lịch sử (hoặc chưa mở sách nào) -> hiện 1 bong bóng chào, reset LLM.

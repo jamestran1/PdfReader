@@ -31,14 +31,25 @@ public class MainViewModelTests
     private sealed class FakeWorkspaceStore : PdfReaderApp.Services.IWorkspaceStore
     {
         public readonly List<PdfReaderApp.Models.Workspace> All = new();
+        // S2: theo dõi membership (wsId -> docIds)
+        public readonly Dictionary<string, HashSet<string>> Membership = new();
+
         public void EnsureSchema() { }
         public void Upsert(PdfReaderApp.Models.Workspace w) { All.RemoveAll(x => x.Id == w.Id); All.Add(w); }
         public PdfReaderApp.Models.Workspace? Get(string id) => All.FirstOrDefault(w => w.Id == id);
         public IReadOnlyList<PdfReaderApp.Models.Workspace> GetAll(bool includeDefault)
             => All.Where(w => includeDefault || !w.IsDefault).ToList();
-        public void AddDocument(string workspaceId, string documentId) { }
-        public void RemoveDocument(string workspaceId, string documentId) { }
-        public IReadOnlyList<string> GetDocumentIds(string workspaceId) => new List<string>();
+        public void AddDocument(string workspaceId, string documentId)
+        {
+            if (!Membership.TryGetValue(workspaceId, out var s)) { s = new(); Membership[workspaceId] = s; }
+            s.Add(documentId);
+        }
+        public void RemoveDocument(string workspaceId, string documentId)
+        {
+            if (Membership.TryGetValue(workspaceId, out var s)) s.Remove(documentId);
+        }
+        public IReadOnlyList<string> GetDocumentIds(string workspaceId)
+            => Membership.TryGetValue(workspaceId, out var s) ? s.ToList() : new List<string>();
         public IReadOnlyList<string> GetWorkspaceIdsForDocument(string documentId) => new List<string>();
         public PdfReaderApp.Models.Workspace GetOrCreateDefaultForDocument(string documentId, string name, long nowUnixMs)
         {
@@ -387,6 +398,162 @@ public class MainViewModelTests
         vm.ShowWorkspacesViewCommand.Execute(null);
 
         Assert.True(vm.ShowWorkspaces);
+    }
+
+    // --- S2 tests (#34) ---
+
+    [Fact]
+    public void OpenWorkspace_LoadsDocuments_AndShowsDetail()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        // Tạo workspace W (không phải default)
+        var W = new PdfReaderApp.Models.Workspace("ws-A", "Dự án A", false, null, 1, 1);
+        wsStore.Upsert(W);
+        wsStore.AddDocument(W.Id, "docA");
+
+        // Thêm LibraryItem docA vào Library
+        var itemA = new PdfReaderApp.Models.LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 0, 1, 1);
+        vm.Library.Add(itemA);
+
+        vm.OpenWorkspaceCommand.Execute(W);
+
+        Assert.True(vm.ShowWorkspaceDetail);
+        Assert.Equal(W, vm.SelectedWorkspace);
+        Assert.Contains(vm.WorkspaceDocuments, i => i.DocumentId == "docA");
+        Assert.Equal(W.Id, vm.ActiveWorkspaceId);
+        Assert.False(vm.ShowWorkspacesGrid);
+    }
+
+    [Fact]
+    public void AddDocumentsToWorkspace_AddsMembershipAndRefreshes()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        var W = new PdfReaderApp.Models.Workspace("ws-B", "Dự án B", false, null, 1, 1);
+        wsStore.Upsert(W);
+
+        var itemA = new PdfReaderApp.Models.LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 0, 1, 1);
+        var itemB = new PdfReaderApp.Models.LibraryItem("docB", "Sách B", "/lib/b.pdf", null, 0, 1, 1);
+        vm.Library.Add(itemA);
+        vm.Library.Add(itemB);
+
+        // Mở workspace W (rỗng)
+        vm.OpenWorkspaceCommand.Execute(W);
+
+        // Thêm docA và docB
+        vm.AddDocumentsToWorkspaceCommand.Execute(
+            new System.Collections.Generic.List<object> { itemA, itemB });
+
+        Assert.Contains("docA", wsStore.GetDocumentIds(W.Id));
+        Assert.Contains("docB", wsStore.GetDocumentIds(W.Id));
+        Assert.Equal(2, vm.WorkspaceDocuments.Count);
+    }
+
+    [Fact]
+    public void RemoveDocumentFromWorkspace_RemovesMembershipAndRefreshes()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        var W = new PdfReaderApp.Models.Workspace("ws-C", "Dự án C", false, null, 1, 1);
+        wsStore.Upsert(W);
+        wsStore.AddDocument(W.Id, "docA");
+        wsStore.AddDocument(W.Id, "docB");
+
+        var itemA = new PdfReaderApp.Models.LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 0, 1, 1);
+        var itemB = new PdfReaderApp.Models.LibraryItem("docB", "Sách B", "/lib/b.pdf", null, 0, 1, 1);
+        vm.Library.Add(itemA);
+        vm.Library.Add(itemB);
+
+        vm.OpenWorkspaceCommand.Execute(W);
+        vm.RemoveDocumentFromWorkspaceCommand.Execute(itemA);
+
+        Assert.DoesNotContain("docA", wsStore.GetDocumentIds(W.Id));
+        Assert.Single(vm.WorkspaceDocuments);
+        Assert.Equal("docB", vm.WorkspaceDocuments[0].DocumentId);
+    }
+
+    [Fact]
+    public void ResolveWorkspaceScope_ExplicitWorkspace_ReturnsThatId()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        var result = vm.ResolveWorkspaceScope("ws-1", "docA", "A", 1);
+
+        Assert.Equal("ws-1", result);
+    }
+
+    [Fact]
+    public void ResolveWorkspaceScope_NullExplicit_ReturnsDefaultWorkspaceId()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        var id1 = vm.ResolveWorkspaceScope(null, "docA", "A", 1);
+        // Khác "ws-1" (không phải id cứng)
+        Assert.NotEqual("ws-1", id1);
+
+        // Idempotent: gọi lần hai cùng docId trả về cùng id
+        var id2 = vm.ResolveWorkspaceScope(null, "docA", "A", 2);
+        Assert.Equal(id1, id2);
+    }
+
+    [Fact]
+    public void BackToWorkspaceList_ShowsGridAgain()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        var W = new PdfReaderApp.Models.Workspace("ws-D", "Dự án D", false, null, 1, 1);
+        wsStore.Upsert(W);
+        vm.OpenWorkspaceCommand.Execute(W);
+        Assert.True(vm.ShowWorkspaceDetail);
+
+        vm.BackToWorkspaceListCommand.Execute(null);
+
+        Assert.False(vm.ShowWorkspaceDetail);
+        Assert.True(vm.ShowWorkspacesGrid);
+    }
+
+    [Fact]
+    public void OpenWorkspaceDocument_SetsActiveWorkspaceToWorkspaceId()
+    {
+        // Test 7: integration dùng PDF thật (tạo bằng iText)
+        var wsStore = new FakeWorkspaceStore();
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        // Tạo PDF tạm bằng iText
+        var tmpDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(tmpDir);
+        var pdfPath = System.IO.Path.Combine(tmpDir, "ws_doc.pdf");
+        using (var writer = new iText.Kernel.Pdf.PdfWriter(pdfPath))
+        using (var pdfDoc = new iText.Kernel.Pdf.PdfDocument(writer))
+        using (var doc = new iText.Layout.Document(pdfDoc))
+        {
+            doc.Add(new iText.Layout.Element.Paragraph("Nội dung kiểm thử workspace S2"));
+        }
+
+        var W = new PdfReaderApp.Models.Workspace("ws-E", "Dự án E", false, null, 1, 1);
+        wsStore.Upsert(W);
+
+        var item = new PdfReaderApp.Models.LibraryItem(
+            PdfReaderApp.Services.DocumentId.FromFile(pdfPath),
+            "ws_doc", pdfPath, null, 0, 1, 1);
+        vm.Library.Add(item);
+
+        vm.OpenWorkspaceCommand.Execute(W);
+        vm.OpenWorkspaceDocumentCommand.Execute(item);
+
+        // active workspace phải là W.Id (không phải default)
+        Assert.Equal(W.Id, vm.ActiveWorkspaceId);
+        Assert.True(vm.IsReadingDocument);
+
+        // Dọn dẹp
+        try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
     }
 
 }
