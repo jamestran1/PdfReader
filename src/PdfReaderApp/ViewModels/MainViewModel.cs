@@ -405,8 +405,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var item = Library.FirstOrDefault(i => i.DocumentId == documentId);
         if (item is null) return;
-        LoadActiveDocument(item.StoredPath, _activeWorkspaceId); // giữ active workspace scope hiện tại
-        if (_documentId != null && pageIndex is int p) CurrentPage = p + 1;
+        // Mở thẳng tại trang neo của note (giữ active workspace scope hiện tại).
+        LoadActiveDocument(item.StoredPath, _activeWorkspaceId, initialPage: (pageIndex ?? 0) + 1);
     }
 
     // S2: quay lại lưới workspace từ màn chi tiết
@@ -461,8 +461,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Nạp tài liệu đang hoạt động từ đường dẫn (đã copy trong thư viện). Tái dùng cho cả OpenFile lẫn mở từ thư viện.
     // workspaceScopeId: truyền workspace cụ thể (S2 - mở trong workspace); null = dùng default workspace như cũ.
-    private void LoadActiveDocument(string path, string? workspaceScopeId = null)
+    private void LoadActiveDocument(string path, string? workspaceScopeId = null, int initialPage = 1)
     {
+        // Đặt trang đích TRƯỚC khi gán FilePath: việc gán FilePath kích hoạt control nạp tài liệu
+        // và bố cục ngay theo CurrentPage, nên mở thẳng tại trang neo (tránh nạp-rồi-nhảy bị reset ghi đè).
+        CurrentPage = initialPage;
         FilePath = path;
         try
         {

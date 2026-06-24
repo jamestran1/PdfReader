@@ -528,7 +528,9 @@ public partial class PdfViewerControl : UserControl, IDisposable
             _matchCache.Clear();
             _matchCacheQuery = null;
             TotalPages = _currentDocument.PageCount;
-            CurrentPage = 1;
+            // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
+            // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
+            CurrentPage = System.Math.Clamp(CurrentPage, 1, _currentDocument.PageCount);
 
             _objectManager.Clear();
             _undoStack.Clear();
