@@ -86,6 +86,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // nên toolbar và viewer luôn đồng bộ. Ngoài phiên (đọc lẻ): dùng backing field như cũ.
     private OpenTab? ActiveViewTab => IsWorkspaceSession ? Tabs.ActiveTab : null;
 
+    // Nguồn tài liệu cho viewer ĐỌC LẺ. Trong phiên Workspace: null để viewer đọc-lẻ ngủ yên
+    // (không nạp lại, không ghi-ngược zoom/trang qua binding TwoWay vào tab active — bug #44).
+    // FilePath vẫn giữ nguyên cho lập chỉ mục/nội bộ.
+    public string? StandaloneDocumentSource => IsWorkspaceSession ? null : FilePath;
+
+    partial void OnFilePathChanged(string? value) => OnPropertyChanged(nameof(StandaloneDocumentSource));
+
     private int _currentPage = 1;
     public int CurrentPage
     {
@@ -363,6 +370,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CurrentPage));
         OnPropertyChanged(nameof(ZoomLevel));
         OnPropertyChanged(nameof(TotalPages));
+        OnPropertyChanged(nameof(StandaloneDocumentSource));
     }
 
     /// <summary>

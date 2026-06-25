@@ -330,7 +330,7 @@
             <!-- PDF Viewer Surface — standalone (IsWorkspaceSession=false).
                  Hiện khi: không phải workspace session VÀ không đang ở thư viện. -->
             <controls:PdfViewerControl Grid.Row="2" x:Name="PdfViewer"
-                                       DocumentSource="{Binding FilePath}"
+                                       DocumentSource="{Binding StandaloneDocumentSource}"
                                        CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
                                        TotalPages="{Binding TotalPages, Mode=TwoWay}"
                                        ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
