@@ -21,6 +21,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly PdfStructureAnalyzer _analyzer;
     private readonly AiChatService _chatService;
 
+    // Tab S1: Open Set
+    public TabSetViewModel Tabs { get; }
+
+    [ObservableProperty]
+    private bool _isWorkspaceSession;
+
     // SP2 Task 8: index, indexing service, RAG context
     private readonly IDocumentIndex _documentIndex;
     private readonly DocumentIndexingService _indexingService;
@@ -242,6 +248,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         INoteStore? noteStore = null,
         IWorkspaceStore? workspaceStore = null)
     {
+        Tabs = new TabSetViewModel();
         _documentService = documentService;
         _settingsService = settingsService;
         _analyzer = new PdfStructureAnalyzer(_documentService);
@@ -284,6 +291,40 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         ReloadWorkspaces();
         LoadChatHistory();
+
+        // Tab S1: khi ActiveTab thay đổi -> lưu view-state của tab cũ, hydrate tab mới.
+        Tabs.ActiveTabChanged += OnActiveTabChanged;
+    }
+
+    // Tab đang rời khỏi (để lưu view-state trước khi chuyển).
+    private OpenTab? _outgoingTab;
+
+    private void OnActiveTabChanged(OpenTab? incoming)
+    {
+        // Lưu view-state của tab vừa rời
+        if (_outgoingTab is not null)
+        {
+            _outgoingTab.Page = CurrentPage;
+            _outgoingTab.Zoom = ZoomLevel;
+        }
+        _outgoingTab = incoming;
+
+        if (incoming is null) return;
+
+        // Khôi phục view-state của tab đến trước khi hydrate (để LoadActiveDocument đặt đúng trang)
+        HydrateTab(incoming);
+        CurrentPage = incoming.Page;
+        ZoomLevel = incoming.Zoom;
+    }
+
+    /// <summary>
+    /// Seam có thể ghi đè trong test: nạp tài liệu cho tab được kích hoạt.
+    /// Cài đặt mặc định gọi LoadActiveDocument (nạp PDFium thật).
+    /// Test subclass override thành no-op để không nạp PDF thật.
+    /// </summary>
+    protected virtual void HydrateTab(OpenTab tab)
+    {
+        LoadActiveDocument(tab.Path, _activeWorkspaceId, tab.Page);
     }
 
     [RelayCommand]
@@ -417,13 +458,32 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Notes.SetDocumentContext(titles, showChips: WorkspaceDocuments.Count > 1);
     }
 
-    // S3: callback mở tài liệu khác trong cùng workspace khi bấm note cross-doc
+    // S3 / Tab S1: callback mở tài liệu khác trong cùng workspace khi bấm note cross-doc.
+    // Cross-doc jump: activate-or-open tab, luôn điều hướng tới trang đích.
     private void OpenDocumentForNote(string documentId, int? pageIndex)
     {
         var item = Library.FirstOrDefault(i => i.DocumentId == documentId);
         if (item is null) return;
-        // Mở thẳng tại trang neo của note (giữ active workspace scope hiện tại).
-        LoadActiveDocument(item.StoredPath, _activeWorkspaceId, initialPage: (pageIndex ?? 0) + 1);
+        int targetPage = (pageIndex ?? 0) + 1;
+        if (IsWorkspaceSession)
+        {
+            // Đặt trang đích lên tab TRƯỚC khi activate để HydrateTab nhận đúng trang.
+            var tab = Tabs.OpenOrActivate(documentId, item.Title, item.StoredPath);
+            tab.Page = targetPage;
+            // Nếu tab đã active (activate-or-open kích hoạt cùng tab), cần HydrateTab lại
+            // vì OnActiveTabChanged không được gọi khi tab không thay đổi.
+            // Trong trường hợp đó kích hoạt thủ công:
+            if (Tabs.ActiveTab == tab)
+            {
+                HydrateTab(tab);
+                CurrentPage = targetPage;
+            }
+        }
+        else
+        {
+            // Standalone: giữ hành vi cũ.
+            LoadActiveDocument(item.StoredPath, _activeWorkspaceId, initialPage: targetPage);
+        }
     }
 
     // S2: quay lại lưới workspace từ màn chi tiết
@@ -475,25 +535,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ReloadWorkspaces();
     }
 
-    // S2: mở tài liệu trong ngữ cảnh workspace (active scope = workspace, không phải default)
+    // S2 / Tab S1: mở tài liệu trong ngữ cảnh workspace -> route qua Open Set.
     [RelayCommand]
     private void OpenWorkspaceDocument(LibraryItem? item)
     {
         if (item is null || SelectedWorkspace is null) return;
-        LoadActiveDocument(item.StoredPath, SelectedWorkspace.Id);
-        if (_documentId != null)
-        {
-            // best-effort: cập nhật thời điểm mở; tài liệu có thể chưa nằm trong library store nên bỏ qua lỗi
-            try { _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()); } catch { }
-            ShowWorkspaceDetail = false;
-            ShowWorkspaces = false;
-        }
+        // Tab S1: đảm bảo workspace scope được thiết lập trước khi HydrateTab chạy.
+        _activeWorkspaceId = SelectedWorkspace.Id;
+        IsWorkspaceSession = true;
+        var tab = Tabs.OpenOrActivate(item.DocumentId, item.Title, item.StoredPath);
+        // best-effort: cập nhật thời điểm mở
+        try { _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()); } catch { }
+        ShowWorkspaceDetail = false;
+        ShowWorkspaces = false;
     }
 
     [RelayCommand]
     private void OpenLibraryItem(LibraryItem? item)
     {
         if (item is null) return;
+        // Tab S1: standalone open -> không tích lũy tab; giữ hành vi thay thế cũ.
+        IsWorkspaceSession = false;
         LoadActiveDocument(item.StoredPath);
         if (_documentId != null)
         {
