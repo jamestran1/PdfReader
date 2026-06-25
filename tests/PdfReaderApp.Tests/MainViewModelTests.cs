@@ -835,4 +835,65 @@ public class MainViewModelTests
         Assert.DoesNotContain(vm.Library, i => i.DocumentId == "docA");
     }
 
+    [Fact]
+    // #38: quay lại trình đọc -> tắt cả Thư viện lẫn Workspaces (và màn chi tiết).
+    public void ShowReaderView_ExitsLibraryAndWorkspaces()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+        vm.ShowWorkspacesViewCommand.Execute(null); // đang ở Workspaces
+
+        vm.ShowReaderViewCommand.Execute(null);
+
+        Assert.False(vm.ShowLibrary);
+        Assert.False(vm.ShowWorkspaces);
+        Assert.False(vm.ShowWorkspaceDetail);
+        Assert.True(vm.IsReadingDocument);
+    }
+
+    [Fact]
+    // #40 (regression): mở tài liệu trong workspace mới chỉ hiện highlight của workspace đó,
+    // KHÔNG lẫn highlight của default workspace (notes scope theo owner_key).
+    public void OpenDocumentInNewWorkspace_DoesNotLeakDefaultWorkspaceHighlights()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var notes = new FakeNoteStore();
+        var vm = VmWith(wsStore, notes);
+
+        var tmpDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(tmpDir);
+        var pdfPath = System.IO.Path.Combine(tmpDir, "docA.pdf");
+        using (var writer = new iText.Kernel.Pdf.PdfWriter(pdfPath))
+        using (var pdfDoc = new iText.Kernel.Pdf.PdfDocument(writer))
+        using (var doc = new iText.Layout.Document(pdfDoc))
+            doc.Add(new iText.Layout.Element.Paragraph("Nội dung docA"));
+
+        string docId = PdfReaderApp.Services.DocumentId.FromFile(pdfPath);
+
+        // Default workspace của docA + một highlight note (owner = default).
+        var Dft = new PdfReaderApp.Models.Workspace("ws-dft", "docA default", true, docId, 1, 1);
+        wsStore.Upsert(Dft);
+        wsStore.AddDocument(Dft.Id, docId);
+        var rects = new System.Collections.Generic.List<PdfReaderApp.Models.HighlightRect>
+            { new PdfReaderApp.Models.HighlightRect(10, 10, 50, 12) };
+        notes.Rows.Add(new PdfReaderApp.Models.Note("hl-default", Dft.Id, docId, 0, "trích", "note default", 1, 1, rects, "#FFEB3B"));
+
+        // Workspace mới W chứa docA (chưa có note nào).
+        var W = new PdfReaderApp.Models.Workspace("ws-new", "Workspace mới", false, null, 1, 1);
+        wsStore.Upsert(W);
+        wsStore.AddDocument(W.Id, docId);
+
+        var itemA = new PdfReaderApp.Models.LibraryItem(docId, "docA", pdfPath, null, 0, 1, 1);
+        vm.Library.Add(itemA);
+
+        vm.OpenWorkspaceCommand.Execute(W);
+        vm.OpenWorkspaceDocumentCommand.Execute(itemA);
+
+        Assert.Equal(W.Id, vm.ActiveWorkspaceId);
+        // Highlight của default workspace KHÔNG được lẫn vào
+        Assert.DoesNotContain(vm.Notes.Highlights, n => n.OwnerKey == Dft.Id);
+        Assert.Empty(vm.Notes.Highlights); // W chưa có note
+
+        try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
+    }
+
 }
