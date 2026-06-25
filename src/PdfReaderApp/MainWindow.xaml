@@ -68,6 +68,12 @@
                 </StackPanel>
 
                 <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                    <!-- #38: quay lại tài liệu đang mở (chỉ bật khi có tài liệu) -->
+                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Tài liệu đang mở"
+                            Command="{Binding ShowReaderViewCommand}"
+                            Visibility="{Binding HasDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <materialDesign:PackIcon Kind="FileDocument" Width="24" Height="24"/>
+                    </Button>
                     <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Thư viện"
                             Command="{Binding ShowLibraryViewCommand}">
                         <materialDesign:PackIcon Kind="BookOpenVariant" Width="24" Height="24"/>

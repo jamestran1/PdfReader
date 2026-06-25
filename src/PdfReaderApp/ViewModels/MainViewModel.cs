@@ -154,6 +154,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // S3: expose documentId hiện tại để bind vào PdfViewerControl.CurrentDocumentId (lọc highlight)
     public string? CurrentDocumentId => _documentId;
 
+    // #38: có tài liệu đang mở hay không -> bật nút quay lại trình đọc trên nav rail.
+    public bool HasDocument => _documentId != null;
+
     // Lưới Workspaces chỉ hiện khi ở vùng Workspaces VÀ chưa mở chi tiết
     public bool ShowWorkspacesGrid => ShowWorkspaces && !ShowWorkspaceDetail;
 
@@ -328,6 +331,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ReloadWorkspaces();
         ShowLibrary = false;
         ShowWorkspaces = true;
+    }
+
+    // #38: quay lại trình đọc tài liệu đang mở (thoát Thư viện/Workspaces).
+    [RelayCommand]
+    private void ShowReaderView()
+    {
+        ShowWorkspaceDetail = false;
+        ShowLibrary = false;
+        ShowWorkspaces = false;
     }
 
     [RelayCommand]
@@ -545,6 +557,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             _documentId = DocumentId.FromFile(path);
             OnPropertyChanged(nameof(CurrentDocumentId));
+            OnPropertyChanged(nameof(HasDocument));
             LoadChatHistory();
             // S2: dùng seam ResolveWorkspaceScope để quyết định scope (workspace cụ thể hoặc default)
             long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -563,6 +576,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _documentId = null;
             _activeWorkspaceId = null;
             OnPropertyChanged(nameof(CurrentDocumentId));
+            OnPropertyChanged(nameof(HasDocument));
             LoadChatHistory();
             Notes.LoadFor(null);
             UpdateNotesDocumentContext();
