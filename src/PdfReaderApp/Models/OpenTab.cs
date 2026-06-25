@@ -13,6 +13,10 @@ public sealed partial class OpenTab : ObservableObject
     [ObservableProperty]
     private int _page = 1;
 
+    /// <summary>Tổng số trang của tài liệu trong tab. Mặc định 1.</summary>
+    [ObservableProperty]
+    private int _totalPages = 1;
+
     /// <summary>Mức zoom. Mặc định 1.0.</summary>
     [ObservableProperty]
     private double _zoom = 1.0;

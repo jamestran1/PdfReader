@@ -81,14 +81,43 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string? filePath;
 
-    [ObservableProperty]
+    // Tab S1 (fix #44): trang/zoom/tổng-trang là MỘT nguồn sự thật với tab active.
+    // Trong phiên Workspace có tab active: proxy thẳng vào OpenTab (viewer per-tab bind cùng OpenTab)
+    // nên toolbar và viewer luôn đồng bộ. Ngoài phiên (đọc lẻ): dùng backing field như cũ.
+    private OpenTab? ActiveViewTab => IsWorkspaceSession ? Tabs.ActiveTab : null;
+
     private int _currentPage = 1;
+    public int CurrentPage
+    {
+        get => ActiveViewTab is { } t ? t.Page : _currentPage;
+        set
+        {
+            if (ActiveViewTab is { } t) { t.Page = value; }            // OpenTab.PropertyChanged -> re-raise
+            else if (_currentPage != value) { _currentPage = value; OnPropertyChanged(); }
+        }
+    }
 
-    [ObservableProperty]
     private int _totalPages = 1;
+    public int TotalPages
+    {
+        get => ActiveViewTab is { } t ? t.TotalPages : _totalPages;
+        set
+        {
+            if (ActiveViewTab is { } t) { t.TotalPages = value; }
+            else if (_totalPages != value) { _totalPages = value; OnPropertyChanged(); }
+        }
+    }
 
-    [ObservableProperty]
     private double _zoomLevel = 1.0;
+    public double ZoomLevel
+    {
+        get => ActiveViewTab is { } t ? t.Zoom : _zoomLevel;
+        set
+        {
+            if (ActiveViewTab is { } t) { t.Zoom = value; }
+            else if (_zoomLevel != value) { _zoomLevel = value; OnPropertyChanged(); }
+        }
+    }
 
     [ObservableProperty]
     private PdfViewMode _viewMode = PdfViewMode.Continuous;
@@ -296,25 +325,44 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Tabs.ActiveTabChanged += OnActiveTabChanged;
     }
 
-    // Tab đang rời khỏi (để lưu view-state trước khi chuyển).
-    private OpenTab? _outgoingTab;
+    // OpenTab đang được theo dõi PropertyChanged để re-raise toolbar bindings.
+    private OpenTab? _subscribedTab;
 
     private void OnActiveTabChanged(OpenTab? incoming)
     {
-        // Lưu view-state của tab vừa rời
-        if (_outgoingTab is not null)
+        // View-state sống trên OpenTab (một nguồn sự thật). Theo dõi tab active để khi viewer
+        // ghi Page/Zoom/TotalPages thì toolbar (bind vm.CurrentPage/ZoomLevel/TotalPages) cập nhật.
+        if (_subscribedTab is not null)
+            _subscribedTab.PropertyChanged -= OnActiveTabViewStateChanged;
+        _subscribedTab = incoming;
+        if (incoming is not null)
+            incoming.PropertyChanged += OnActiveTabViewStateChanged;
+
+        if (incoming is not null)
+            HydrateTab(incoming);
+
+        // Tab active đổi -> toolbar phải đọc lại view-state của tab mới.
+        OnPropertyChanged(nameof(CurrentPage));
+        OnPropertyChanged(nameof(ZoomLevel));
+        OnPropertyChanged(nameof(TotalPages));
+    }
+
+    private void OnActiveTabViewStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
         {
-            _outgoingTab.Page = CurrentPage;
-            _outgoingTab.Zoom = ZoomLevel;
+            case nameof(OpenTab.Page): OnPropertyChanged(nameof(CurrentPage)); break;
+            case nameof(OpenTab.Zoom): OnPropertyChanged(nameof(ZoomLevel)); break;
+            case nameof(OpenTab.TotalPages): OnPropertyChanged(nameof(TotalPages)); break;
         }
-        _outgoingTab = incoming;
+    }
 
-        if (incoming is null) return;
-
-        // Khôi phục view-state của tab đến trước khi hydrate (để LoadActiveDocument đặt đúng trang)
-        HydrateTab(incoming);
-        CurrentPage = incoming.Page;
-        ZoomLevel = incoming.Zoom;
+    // Đổi giữa chế độ workspace (proxy theo tab) và đọc lẻ (backing field) -> toolbar đọc lại nguồn.
+    partial void OnIsWorkspaceSessionChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CurrentPage));
+        OnPropertyChanged(nameof(ZoomLevel));
+        OnPropertyChanged(nameof(TotalPages));
     }
 
     /// <summary>

@@ -181,4 +181,78 @@ public class MainViewModelTabTests
         Assert.False(vm.IsWorkspaceSession);
         Assert.Empty(vm.Tabs.Tabs);
     }
+
+    // =========================================================
+    // Bug fix: zoom/trang của tab active phải là MỘT nguồn sự thật với toolbar.
+    // Triệu chứng 1: Ctrl+scroll (viewer ghi OpenTab.Zoom) không cập nhật ZoomLevel trên toolbar.
+    // =========================================================
+    [Fact]
+    public void ActiveTabZoom_ReflectedInViewModelZoomLevel()
+    {
+        var (vm, wsStore) = MakeVm();
+        var W = new Workspace("ws-z", "Z", false, null, 1, 1);
+        wsStore.Upsert(W);
+        wsStore.AddDocument(W.Id, "docA");
+        var item = MakeItem("docA", "A", "/a.pdf");
+        vm.Library.Add(item);
+
+        vm.OpenWorkspaceCommand.Execute(W);
+        vm.OpenWorkspaceDocumentCommand.Execute(item);
+
+        // Mô phỏng Ctrl+scroll: per-tab viewer ghi OpenTab.Zoom qua binding TwoWay.
+        vm.Tabs.ActiveTab!.Zoom = 2.0;
+
+        // Toolbar bind vm.ZoomLevel -> phải phản ánh zoom của tab active.
+        Assert.Equal(2.0, vm.ZoomLevel);
+    }
+
+    // Triệu chứng 2: chuyển tab rồi quay lại làm mất zoom state.
+    [Fact]
+    public void SwitchTabAndBack_PreservesPerTabZoom()
+    {
+        var (vm, wsStore) = MakeVm();
+        var W = new Workspace("ws-z2", "Z2", false, null, 1, 1);
+        wsStore.Upsert(W);
+        wsStore.AddDocument(W.Id, "docA");
+        wsStore.AddDocument(W.Id, "docB");
+        var a = MakeItem("docA", "A", "/a.pdf");
+        var b = MakeItem("docB", "B", "/b.pdf");
+        vm.Library.Add(a);
+        vm.Library.Add(b);
+
+        vm.OpenWorkspaceCommand.Execute(W);
+        vm.OpenWorkspaceDocumentCommand.Execute(a); // tab A active
+        vm.Tabs.ActiveTab!.Zoom = 2.0;              // scroll-zoom tab A
+        vm.OpenWorkspaceDocumentCommand.Execute(b); // chuyển sang tab B
+        var tabA = vm.Tabs.Tabs.First(t => t.DocumentId == "docA");
+        vm.ActivateTabCommand.Execute(tabA);        // quay lại tab A
+
+        Assert.Equal(2.0, tabA.Zoom);
+        Assert.Equal(2.0, vm.ZoomLevel);
+    }
+
+    // Tương tự cho trang: tab active là một nguồn sự thật với toolbar.
+    [Fact]
+    public void SwitchTabAndBack_PreservesPerTabPage()
+    {
+        var (vm, wsStore) = MakeVm();
+        var W = new Workspace("ws-p", "P", false, null, 1, 1);
+        wsStore.Upsert(W);
+        wsStore.AddDocument(W.Id, "docA");
+        wsStore.AddDocument(W.Id, "docB");
+        var a = MakeItem("docA", "A", "/a.pdf");
+        var b = MakeItem("docB", "B", "/b.pdf");
+        vm.Library.Add(a);
+        vm.Library.Add(b);
+
+        vm.OpenWorkspaceCommand.Execute(W);
+        vm.OpenWorkspaceDocumentCommand.Execute(a);
+        vm.Tabs.ActiveTab!.Page = 12;               // viewer ghi OpenTab.Page khi cuộn trang
+        vm.OpenWorkspaceDocumentCommand.Execute(b);
+        var tabA = vm.Tabs.Tabs.First(t => t.DocumentId == "docA");
+        vm.ActivateTabCommand.Execute(tabA);
+
+        Assert.Equal(12, tabA.Page);
+        Assert.Equal(12, vm.CurrentPage);
+    }
 }
