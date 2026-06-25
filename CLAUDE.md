@@ -42,9 +42,16 @@ Hai lớp render/logic chạy song song:
 
 `CommunityToolkit.Mvvm`, `MaterialDesignThemes` + `MaterialDesignColors`, `PdfiumViewer.Net.WPF`, `SkiaSharp.Views.WPF`, `System.Drawing.Common`.
 
-## Tài liệu thiết kế
+## Tài liệu thiết kế & quy trình (workflow Matt Pocock)
 
-Specs ở `docs/superpowers/specs/`, plans ở `docs/superpowers/plans/`. Các file `2026-06-04-*` là design gốc (di chuyển từ thư mục `docs/plans/` cũ do Gemini tạo). Khi thêm tính năng mới, dùng skill `superpowers:brainstorming` → spec → `superpowers:writing-plans`.
+Từ 2026-06-25 repo dùng bộ skill **Matt Pocock** (`grilling`, `domain-modeling`, `to-prd`, `to-issues`). Nguyên tắc: **issue tracker (GitHub) là source of truth** cho PRD và task — KHÔNG lưu PRD/plan trùng lặp vào repo.
+
+- **Artifact bền, commit vào repo:**
+  - `CONTEXT.md` (gốc repo) — glossary / ngôn ngữ miền (do `domain-modeling` duy trì). Chỉ là từ điển, không phải spec.
+  - `docs/adr/` — Architecture Decision Records (vd `0001-workspace-architecture`, `0002-per-feature-sqlite-databases`, `0003-multi-document-tabs`).
+- **PRD & task:** sống trên GitHub issues (gắn nhãn triage `ready-for-agent`), không ở file local.
+- **Quy trình tính năng mới:** `grilling` (+ `domain-modeling`) → `to-prd` (publish PRD lên issue) → `to-issues` (chẻ thành vertical-slice issues).
+- **Legacy:** `docs/superpowers/specs|plans/` là của workflow `superpowers` cũ; các file `2026-06-04-*` là design gốc Gemini, giữ làm lịch sử, KHÔNG thêm file mới vào đây.
 
 ## Quy ước & lưu ý quan trọng
 
