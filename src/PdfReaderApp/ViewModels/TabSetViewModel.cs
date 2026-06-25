@@ -89,6 +89,16 @@ public sealed class TabSetViewModel : ObservableObject
         OnPropertyChanged(nameof(HasTabs));
     }
 
+    /// <summary>
+    /// Kích hoạt tab đã tồn tại trong Open Set (dùng cho ActivateTabCommand).
+    /// Không làm gì nếu tab không nằm trong Tabs.
+    /// </summary>
+    public void ActivateTab(OpenTab tab)
+    {
+        if (!Tabs.Contains(tab)) return;
+        Activate(tab);
+    }
+
     // Kích hoạt tab: cập nhật ActiveTab và đẩy lên đầu MRU.
     private void Activate(OpenTab tab)
     {

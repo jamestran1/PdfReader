@@ -535,6 +535,22 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ReloadWorkspaces();
     }
 
+    // Tab S1: kích hoạt tab được chọn trên Tab Strip.
+    [RelayCommand]
+    private void ActivateTab(Models.OpenTab? tab)
+    {
+        if (tab is null) return;
+        Tabs.ActivateTab(tab);
+    }
+
+    // Tab S1: đóng tab (chỉ gỡ khỏi Open Set, KHÔNG gỡ khỏi workspace membership).
+    [RelayCommand]
+    private void CloseTab(Models.OpenTab? tab)
+    {
+        if (tab is null) return;
+        Tabs.Close(tab);
+    }
+
     // S2 / Tab S1: mở tài liệu trong ngữ cảnh workspace -> route qua Open Set.
     [RelayCommand]
     private void OpenWorkspaceDocument(LibraryItem? item)
