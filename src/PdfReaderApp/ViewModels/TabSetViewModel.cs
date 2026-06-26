@@ -45,20 +45,24 @@ public sealed class TabSetViewModel : ObservableObject
     /// - Tab đã tồn tại: kích hoạt (đẩy lên đầu MRU), trả về tab đó.
     /// - Tab mới: chèn ngay sau ActiveTab hiện tại (hoặc cuối nếu không có), kích hoạt, trả về.
     /// </summary>
-    public OpenTab OpenOrActivate(string documentId, string title, string path)
+    public OpenTab OpenOrActivate(string documentId, string title, string path, int? initialPage = null)
     {
         // Kiểm tra tab đã tồn tại theo documentId.
         foreach (var existing in Tabs)
         {
             if (existing.DocumentId == documentId)
             {
+                // Đặt trang TRƯỚC khi kích hoạt để viewer (per-tab) nạp thẳng tại trang đích.
+                if (initialPage is int pe) existing.Page = pe;
                 Activate(existing);
                 return existing;
             }
         }
 
-        // Tạo tab mới và chèn ngay sau ActiveTab.
+        // Tạo tab mới và chèn ngay sau ActiveTab. Đặt trang TRƯỚC khi chèn/kích hoạt
+        // để viewer mở thẳng tại trang đích (cross-doc jump), tránh cuộn-sau-khi-nạp không ổn định.
         var tab = new OpenTab(documentId, title, path);
+        if (initialPage is int ip) tab.Page = ip;
         int insertAt = _activeTab is null ? Tabs.Count : Tabs.IndexOf(_activeTab) + 1;
         Tabs.Insert(insertAt, tab);
         Activate(tab);

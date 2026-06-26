@@ -379,9 +379,15 @@
                                 <controls:PdfViewerControl
                                     DocumentSource="{Binding Path}"
                                     CurrentPage="{Binding Page, Mode=TwoWay}"
-                                    TotalPages="{Binding TotalPages, Mode=TwoWay}"
+                                    TotalPages="{Binding TotalPages, Mode=OneWayToSource}"
                                     ZoomLevel="{Binding Zoom, Mode=TwoWay}"
-                                    CurrentDocumentId="{Binding DocumentId}">
+                                    CurrentDocumentId="{Binding DocumentId}"
+                                    HighlightQuery="{Binding DataContext.SelectedSearchQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    MatchSource="{Binding DataContext.PdfService, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    ViewMode="{Binding DataContext.ViewMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    ShowCover="{Binding DataContext.ShowCoverSeparately, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    AddNoteFromSelectionCommand="{Binding DataContext.AddNoteFromSelectionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    Highlights="{Binding DataContext.Notes.Highlights, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                                     <controls:PdfViewerControl.Visibility>
                                         <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
                                             <Binding/>

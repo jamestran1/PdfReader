@@ -152,4 +152,33 @@ public class TabSetViewModelTests
         Assert.Equal(7, tabA.Page);
         Assert.Equal(1.5, tabA.Zoom);
     }
+
+    // =========================================================
+    // Cross-doc jump: initialPage được đặt TRƯỚC khi kích hoạt (để viewer mở thẳng tại trang đích).
+    // =========================================================
+    [Fact]
+    public void OpenOrActivate_WithInitialPage_SetsPageOnNewTab()
+    {
+        var vm = Make();
+
+        var tab = vm.OpenOrActivate("docA", "A", "/a.pdf", initialPage: 15);
+
+        Assert.Equal(15, tab.Page);
+        Assert.Same(tab, vm.ActiveTab);
+    }
+
+    [Fact]
+    public void OpenOrActivate_WithInitialPage_UpdatesExistingTabPage()
+    {
+        var vm = Make();
+        var tabA = vm.OpenOrActivate("docA", "A", "/a.pdf");
+        vm.OpenOrActivate("docB", "B", "/b.pdf"); // tabB active
+
+        // Cross-doc jump quay lại docA tại trang 9
+        var again = vm.OpenOrActivate("docA", "A", "/a.pdf", initialPage: 9);
+
+        Assert.Same(tabA, again);
+        Assert.Equal(9, tabA.Page);
+        Assert.Same(tabA, vm.ActiveTab);
+    }
 }

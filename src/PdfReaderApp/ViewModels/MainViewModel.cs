@@ -523,17 +523,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         int targetPage = (pageIndex ?? 0) + 1;
         if (IsWorkspaceSession)
         {
-            // Đặt trang đích lên tab TRƯỚC khi activate để HydrateTab nhận đúng trang.
-            var tab = Tabs.OpenOrActivate(documentId, item.Title, item.StoredPath);
-            tab.Page = targetPage;
-            // Nếu tab đã active (activate-or-open kích hoạt cùng tab), cần HydrateTab lại
-            // vì OnActiveTabChanged không được gọi khi tab không thay đổi.
-            // Trong trường hợp đó kích hoạt thủ công:
-            if (Tabs.ActiveTab == tab)
-            {
-                HydrateTab(tab);
-                CurrentPage = targetPage;
-            }
+            // Activate-or-open + đặt trang đích TRƯỚC khi nạp (initialPage) -> viewer mở thẳng tại trang.
+            Tabs.OpenOrActivate(documentId, item.Title, item.StoredPath, targetPage);
         }
         else
         {
