@@ -125,6 +125,18 @@ public sealed class TabSetViewModel : ObservableObject
             Activate(tabToActivate);
     }
 
+    /// <summary>
+    /// S2: xoá toàn bộ Open Set (tabs + MRU + tab active) khi rời/đổi Workspace,
+    /// để khôi phục/seed bắt đầu từ trạng thái rỗng — không tích lũy, không trùng tab.
+    /// </summary>
+    public void Reset()
+    {
+        _mru.Clear();
+        Tabs.Clear();
+        ActiveTab = null;   // ActiveTabChanged(null): không hydrate
+        OnPropertyChanged(nameof(HasTabs));
+    }
+
     // Kích hoạt tab: cập nhật ActiveTab và đẩy lên đầu MRU.
     private void Activate(OpenTab tab)
     {
