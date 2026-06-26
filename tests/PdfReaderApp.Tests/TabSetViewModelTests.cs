@@ -181,4 +181,25 @@ public class TabSetViewModelTests
         Assert.Equal(9, tabA.Page);
         Assert.Same(tabA, vm.ActiveTab);
     }
+
+    // =========================================================
+    // S2: RestoreTabs khôi phục tất cả tab theo thứ tự, kích hoạt đúng tab được chỉ định,
+    //     chỉ phát đúng một ActiveTabChanged (-> đúng một HydrateTab), và giữ view-state.
+    // =========================================================
+    [Fact]
+    public void RestoreTabs_AddsAllInOrder_ActivatesDesignated_PreservesViewState()
+    {
+        var tabSet = new TabSetViewModel();
+        int activationCount = 0;
+        tabSet.ActiveTabChanged += _ => activationCount++;
+
+        var tabA = new OpenTab("docA", "A", "/a.pdf") { Page = 3, Zoom = 1.5 };
+        var tabB = new OpenTab("docB", "B", "/b.pdf") { Page = 7, Zoom = 2.0 };
+        tabSet.RestoreTabs(new[] { tabA, tabB }, activeDocumentId: "docB");
+
+        Assert.Equal(new[] { "docA", "docB" }, tabSet.Tabs.Select(t => t.DocumentId));
+        Assert.Same(tabB, tabSet.ActiveTab);
+        Assert.Equal(1, activationCount);
+        Assert.Equal(7, tabSet.ActiveTab!.Page);
+    }
 }

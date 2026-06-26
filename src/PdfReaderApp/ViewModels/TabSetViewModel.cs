@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfReaderApp.Models;
 
@@ -101,6 +102,27 @@ public sealed class TabSetViewModel : ObservableObject
     {
         if (!Tabs.Contains(tab)) return;
         Activate(tab);
+    }
+
+    /// <summary>
+    /// S2: dựng lại Open Set từ trạng thái đã lưu. Thêm mọi tab theo thứ tự nhưng KHÔNG hydrate;
+    /// chỉ kích hoạt tab active được chỉ định -> đúng một ActiveTabChanged -> đúng một HydrateTab.
+    /// Dùng khi vào lại Workspace. Gọi khi Open Set đang rỗng.
+    /// </summary>
+    public void RestoreTabs(IReadOnlyList<OpenTab> tabs, string? activeDocumentId)
+    {
+        foreach (var tab in tabs)
+        {
+            Tabs.Add(tab);
+            _mru.Add(tab);   // MRU tạm theo thứ tự khôi phục; Activate sẽ đẩy tab active lên đầu
+        }
+        OnPropertyChanged(nameof(HasTabs));
+
+        var tabToActivate = activeDocumentId is null
+            ? null
+            : Tabs.FirstOrDefault(t => t.DocumentId == activeDocumentId);
+        if (tabToActivate is not null)
+            Activate(tabToActivate);
     }
 
     // Kích hoạt tab: cập nhật ActiveTab và đẩy lên đầu MRU.
