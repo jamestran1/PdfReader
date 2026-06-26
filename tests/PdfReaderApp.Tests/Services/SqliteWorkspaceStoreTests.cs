@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using Microsoft.Data.Sqlite;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
@@ -132,6 +133,38 @@ public class SqliteWorkspaceStoreTests : IDisposable
         var restored = _store.GetOpenTabs("w1");
         Assert.Single(restored);
         Assert.Equal("docB", restored[0].DocumentId);
+    }
+
+    [Fact]
+    public void EnsureSchema_OnV1Database_AddsOpenTabTable_AndPreservesExistingData()
+    {
+        // Dựng workspaces.db "phiên bản 1": chỉ workspace + workspace_document, user_version=1.
+        string oldDatabasePath = Path.Combine(_dir, "old.db");
+        using (var conn = new SqliteConnection($"Data Source={oldDatabasePath};Pooling=False"))
+        {
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+CREATE TABLE workspace (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_default INTEGER NOT NULL,
+  default_document_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+CREATE TABLE workspace_document (workspace_id TEXT NOT NULL, document_id TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, document_id));
+INSERT INTO workspace VALUES ('w-old', 'Dự án cũ', 0, NULL, 1, 1);
+INSERT INTO workspace_document VALUES ('w-old', 'docOld');
+PRAGMA user_version = 1;";
+            cmd.ExecuteNonQuery();
+        }
+
+        var store = new SqliteWorkspaceStore(oldDatabasePath);
+        store.EnsureSchema();   // migration: tạo open_tab, bump user_version
+
+        Assert.Equal("Dự án cũ", store.Get("w-old")!.Name);
+        Assert.Contains("docOld", store.GetDocumentIds("w-old"));
+
+        store.SaveOpenTabs("w-old", new[] { new OpenTabState("docOld", 0, true, 3, 1.5, 0.25, 10) });
+        var restored = store.GetOpenTabs("w-old");
+        Assert.Single(restored);
+        Assert.Equal(3, restored[0].Page);
     }
 
     public void Dispose()
