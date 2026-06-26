@@ -498,12 +498,63 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (workspace is null) return;
         SelectedWorkspace = workspace;
-        _activeWorkspaceId = workspace.Id;
-        Notes.LoadFor(_activeWorkspaceId);
+        Notes.LoadFor(workspace.Id);
         ReloadWorkspaceDocuments();
-        // Giữ ShowWorkspaces = true để IsReadingDocument vẫn false -> không hiện toolbar đọc
         ShowWorkspaces = true;
-        ShowWorkspaceDetail = true;
+        ShowWorkspaceDetail = true;   // mặc định màn quản lý tài liệu; vào phiên đọc sẽ tắt qua EnterReadingSession
+        RestoreOrSeedOpenSet(workspace.Id);   // S2: vào Workspace = vào thẳng phiên đọc (nếu có tài liệu)
+    }
+
+    // S2: vào Workspace -> khôi phục lười Open Set đã lưu (chỉ hydrate tab active), hoặc seed một tab khi chưa có state.
+    private void RestoreOrSeedOpenSet(string workspaceId)
+    {
+        _activeWorkspaceId = workspaceId;
+        IsWorkspaceSession = true;
+
+        var savedTabs = _workspaceStore.GetOpenTabs(workspaceId);
+        if (savedTabs.Count > 0)
+        {
+            var restored = new List<OpenTab>(savedTabs.Count);
+            string? activeDocumentId = null;
+            foreach (var state in savedTabs)
+            {
+                var item = Library.FirstOrDefault(i => i.DocumentId == state.DocumentId);
+                if (item is null) continue;   // tài liệu đã bị gỡ khỏi thư viện -> bỏ qua
+                restored.Add(new OpenTab(state.DocumentId, item.Title, item.StoredPath)
+                {
+                    Page = state.Page, Zoom = state.Zoom, ScrollNorm = state.ScrollNorm
+                });
+                if (state.IsActive) activeDocumentId = state.DocumentId;
+            }
+            if (restored.Count > 0)
+            {
+                Tabs.RestoreTabs(restored, activeDocumentId ?? restored[0].DocumentId);
+                EnterReadingSession();
+                return;
+            }
+        }
+
+        var seedDocumentId = ResolveSeedDocument(workspaceId);
+        if (seedDocumentId is null) { IsWorkspaceSession = false; return; }   // workspace rỗng -> giữ màn quản lý
+        var seedItem = Library.FirstOrDefault(i => i.DocumentId == seedDocumentId);
+        if (seedItem is null) { IsWorkspaceSession = false; return; }
+        Tabs.OpenOrActivate(seedItem.DocumentId, seedItem.Title, seedItem.StoredPath);
+        EnterReadingSession();
+    }
+
+    // S2: tài liệu seed khi Workspace chưa có Open Set: ưu tiên DefaultDocumentId, rồi thành viên đầu.
+    internal string? ResolveSeedDocument(string workspaceId)
+    {
+        var workspace = _workspaceStore.Get(workspaceId);
+        if (workspace?.DefaultDocumentId is { Length: > 0 } defaultDocumentId) return defaultDocumentId;
+        var memberDocumentIds = _workspaceStore.GetDocumentIds(workspaceId);
+        return memberDocumentIds.Count > 0 ? memberDocumentIds[0] : null;
+    }
+
+    private void EnterReadingSession()
+    {
+        ShowWorkspaceDetail = false;
+        ShowWorkspaces = false;
     }
 
     // S2: nạp lại danh sách tài liệu trong workspace đang xem chi tiết
@@ -738,7 +789,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _documentBlocks = new List<TextBlock>();
             OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
-            _activeWorkspaceId = null;
+            // S2: nếu mở trong workspace (workspaceScopeId có giá trị), giữ nguyên _activeWorkspaceId
+            // để scope workspace không bị xoá khi file tạm thời không đọc được.
+            if (workspaceScopeId is null) _activeWorkspaceId = null;
             OnPropertyChanged(nameof(CurrentDocumentId));
             OnPropertyChanged(nameof(HasDocument));
             LoadChatHistory();

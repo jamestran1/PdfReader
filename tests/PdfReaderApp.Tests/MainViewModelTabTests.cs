@@ -264,6 +264,52 @@ public class MainViewModelTabTests
     }
 
     // =========================================================
+    // S2: RestoreOrSeedOpenSet — khôi phục lười khi có state đã lưu.
+    // =========================================================
+    [Fact]
+    public void OpenWorkspace_WithSavedOpenSet_RestoresOrderAndActive_HydratesOnlyActiveTab()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspace = new Workspace("ws-restore", "R", false, null, 1, 1);
+        wsStore.Upsert(workspace);
+        wsStore.AddDocument(workspace.Id, "docA");
+        wsStore.AddDocument(workspace.Id, "docB");
+        vm.Library.Add(MakeItem("docA", "A", "/a.pdf"));
+        vm.Library.Add(MakeItem("docB", "B", "/b.pdf"));
+        wsStore.SaveOpenTabs(workspace.Id, new[]
+        {
+            new OpenTabState("docA", 0, false, 4, 1.0, 0, 10),
+            new OpenTabState("docB", 1, true,  8, 2.5, 0, 20),
+        });
+
+        vm.OpenWorkspaceCommand.Execute(workspace);
+
+        Assert.True(vm.IsWorkspaceSession);
+        Assert.Equal(new[] { "docA", "docB" }, vm.Tabs.Tabs.Select(t => t.DocumentId));
+        Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal(8, vm.Tabs.ActiveTab!.Page);
+        Assert.Equal(2.5, vm.Tabs.ActiveTab!.Zoom);
+        Assert.Equal(1, vm.HydrateCallCount);
+    }
+
+    [Fact]
+    public void OpenWorkspace_NoSavedState_SeedsSingleTabFromFirstMember()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspace = new Workspace("ws-seed", "Seed", false, null, 1, 1);
+        wsStore.Upsert(workspace);
+        wsStore.AddDocument(workspace.Id, "docOnly");
+        vm.Library.Add(MakeItem("docOnly", "Only", "/only.pdf"));
+
+        vm.OpenWorkspaceCommand.Execute(workspace);
+
+        Assert.True(vm.IsWorkspaceSession);
+        Assert.Single(vm.Tabs.Tabs);
+        Assert.Equal("docOnly", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal(1, vm.HydrateCallCount);
+    }
+
+    // =========================================================
     // S2: SaveOpenSetNow lưu tất cả tab với thứ tự, tab active và view-state.
     // =========================================================
     [Fact]

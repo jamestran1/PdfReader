@@ -480,7 +480,9 @@ public class MainViewModelTests
 
         vm.OpenWorkspaceCommand.Execute(W);
 
-        Assert.True(vm.ShowWorkspaceDetail);
+        // S2: khi workspace có tài liệu, OpenWorkspace đi thẳng vào phiên đọc (EnterReadingSession).
+        // ShowWorkspaceDetail = false (tắt màn quản lý), ShowWorkspaces = false.
+        Assert.False(vm.ShowWorkspaceDetail);
         Assert.Equal(W, vm.SelectedWorkspace);
         Assert.Contains(vm.WorkspaceDocuments, i => i.DocumentId == "docA");
         Assert.Equal(W.Id, vm.ActiveWorkspaceId);
