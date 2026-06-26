@@ -262,4 +262,36 @@ public class MainViewModelTabTests
         Assert.Equal(12, tabA.Page);
         Assert.Equal(12, vm.CurrentPage);
     }
+
+    // =========================================================
+    // S2: SaveOpenSetNow lưu tất cả tab với thứ tự, tab active và view-state.
+    // =========================================================
+    [Fact]
+    public void SaveOpenSetNow_PersistsTabsWithOrderActiveAndViewState()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspace = new Workspace("ws-save", "Save", false, null, 1, 1);
+        wsStore.Upsert(workspace);
+        wsStore.AddDocument(workspace.Id, "docA");
+        wsStore.AddDocument(workspace.Id, "docB");
+        vm.Library.Add(MakeItem("docA", "A", "/a.pdf"));
+        vm.Library.Add(MakeItem("docB", "B", "/b.pdf"));
+
+        vm.OpenWorkspaceCommand.Execute(workspace);
+        vm.OpenWorkspaceDocumentCommand.Execute(MakeItem("docA", "A", "/a.pdf"));
+        vm.OpenWorkspaceDocumentCommand.Execute(MakeItem("docB", "B", "/b.pdf")); // docB active
+        vm.Tabs.ActiveTab!.Page = 9;
+        vm.Tabs.ActiveTab!.Zoom = 1.5;
+
+        vm.SaveOpenSetNow();
+
+        var saved = wsStore.GetOpenTabs(workspace.Id);
+        Assert.Equal(vm.Tabs.Tabs.Count, saved.Count);
+        var activeRow = saved.Single(t => t.IsActive);
+        Assert.Equal("docB", activeRow.DocumentId);
+        Assert.Equal(9, activeRow.Page);
+        Assert.Equal(1.5, activeRow.Zoom);
+        for (int order = 0; order < saved.Count; order++)
+            Assert.Equal(vm.Tabs.Tabs[order].DocumentId, saved[order].DocumentId);
+    }
 }

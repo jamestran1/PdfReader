@@ -330,6 +330,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Tab S1: khi ActiveTab thay đổi -> lưu view-state của tab cũ, hydrate tab mới.
         Tabs.ActiveTabChanged += OnActiveTabChanged;
+
+        // Tab S2: lập lịch lưu Open Set khi danh sách tab thay đổi hoặc tab active đổi.
+        Tabs.Tabs.CollectionChanged += (_, _) => ScheduleSaveOpenSet();
+        Tabs.ActiveTabChanged += _ => ScheduleSaveOpenSet();
     }
 
     // OpenTab đang được theo dõi PropertyChanged để re-raise toolbar bindings.
@@ -362,6 +366,41 @@ public partial class MainViewModel : ObservableObject, IDisposable
             case nameof(OpenTab.Zoom): OnPropertyChanged(nameof(ZoomLevel)); break;
             case nameof(OpenTab.TotalPages): OnPropertyChanged(nameof(TotalPages)); break;
         }
+        ScheduleSaveOpenSet();
+    }
+
+    // S2: thu thập Open Set hiện tại và lưu (thay thế) cho workspace đang hoạt động.
+    internal void SaveOpenSetNow()
+    {
+        if (_activeWorkspaceId is null || !IsWorkspaceSession) return;
+        long nowUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var activeTab = Tabs.ActiveTab;
+        var states = new List<OpenTabState>(Tabs.Tabs.Count);
+        for (int order = 0; order < Tabs.Tabs.Count; order++)
+        {
+            var tab = Tabs.Tabs[order];
+            states.Add(new OpenTabState(
+                tab.DocumentId, order, ReferenceEquals(tab, activeTab),
+                tab.Page, tab.Zoom, tab.ScrollNorm, nowUnixMs));
+        }
+        try { _workspaceStore.SaveOpenTabs(_activeWorkspaceId, states); }
+        catch { /* lưu best-effort: lỗi store không được làm gãy phiên đọc */ }
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _saveOpenSetDebounce;
+
+    // Gộp nhiều thay đổi liên tiếp (cuộn/zoom) thành một lần ghi. Môi trường không có Dispatcher
+    // (test/headless) -> lưu ngay để hành vi tất định.
+    private void ScheduleSaveOpenSet()
+    {
+        if (_activeWorkspaceId is null || !IsWorkspaceSession) return;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null) { SaveOpenSetNow(); return; }
+        _saveOpenSetDebounce ??= new System.Windows.Threading.DispatcherTimer(
+            TimeSpan.FromMilliseconds(400), System.Windows.Threading.DispatcherPriority.Background,
+            (_, _) => { _saveOpenSetDebounce!.Stop(); SaveOpenSetNow(); }, dispatcher);
+        _saveOpenSetDebounce.Stop();
+        _saveOpenSetDebounce.Start();
     }
 
     // Đổi giữa chế độ workspace (proxy theo tab) và đọc lẻ (backing field) -> toolbar đọc lại nguồn.
