@@ -76,6 +76,13 @@ public class MainViewModelTests
             All.RemoveAll(w => w.Id == id);
             Membership.Remove(id);
         }
+        public readonly System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<PdfReaderApp.Models.OpenTabState>> OpenSets = new();
+
+        public void SaveOpenTabs(string workspaceId, IReadOnlyList<PdfReaderApp.Models.OpenTabState> tabs)
+            => OpenSets[workspaceId] = tabs.OrderBy(t => t.TabOrder).ToList();
+
+        public IReadOnlyList<PdfReaderApp.Models.OpenTabState> GetOpenTabs(string workspaceId)
+            => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : new List<PdfReaderApp.Models.OpenTabState>();
     }
 
     private sealed class FakeNoteStore : PdfReaderApp.Services.INoteStore

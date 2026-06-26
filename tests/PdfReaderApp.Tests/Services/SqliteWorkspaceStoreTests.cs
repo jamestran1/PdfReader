@@ -103,6 +103,37 @@ public class SqliteWorkspaceStoreTests : IDisposable
         Assert.DoesNotContain("w1", _store.GetWorkspaceIdsForDocument("docA"));
     }
 
+    [Fact]
+    public void SaveOpenTabs_Then_GetOpenTabs_RoundTripsOrderActiveAndViewState()
+    {
+        _store.Upsert(new Workspace("w1", "WS", false, null, 1, 1));
+        _store.SaveOpenTabs("w1", new[]
+        {
+            new OpenTabState("docA", 0, false, 5, 1.25, 0.10, 100),
+            new OpenTabState("docB", 1, true,  2, 2.00, 0.50, 200),
+        });
+
+        var restored = _store.GetOpenTabs("w1");
+        Assert.Equal(2, restored.Count);
+        Assert.Equal("docA", restored[0].DocumentId);
+        Assert.Equal("docB", restored[1].DocumentId);
+        Assert.True(restored[1].IsActive);
+        Assert.False(restored[0].IsActive);
+        Assert.Equal(5, restored[0].Page);
+        Assert.Equal(2.00, restored[1].Zoom);
+        Assert.Equal(0.50, restored[1].ScrollNorm);
+    }
+
+    [Fact]
+    public void SaveOpenTabs_ReplacesPreviousOpenSet()
+    {
+        _store.SaveOpenTabs("w1", new[] { new OpenTabState("docA", 0, true, 1, 1.0, 0, 1) });
+        _store.SaveOpenTabs("w1", new[] { new OpenTabState("docB", 0, true, 1, 1.0, 0, 2) });
+        var restored = _store.GetOpenTabs("w1");
+        Assert.Single(restored);
+        Assert.Equal("docB", restored[0].DocumentId);
+    }
+
     public void Dispose()
     {
         try { Directory.Delete(_dir, true); } catch { }
