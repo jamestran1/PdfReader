@@ -30,6 +30,7 @@
         <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
         <local:DocumentIdToBrushConverter x:Key="DocumentIdToBrushConverter"/>
         <local:DocumentIdToTitleConverter x:Key="DocumentIdToTitleConverter"/>
+        <local:IsActiveTabConverter x:Key="IsActiveTabConverter"/>
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -102,6 +103,7 @@
         <!-- Main Content Area -->
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
@@ -254,9 +256,81 @@
                 </DockPanel>
             </materialDesign:ColorZone>
 
-            <!-- PDF Viewer Surface -->
-            <controls:PdfViewerControl Grid.Row="1" x:Name="PdfViewer"
-                                       DocumentSource="{Binding FilePath}"
+            <!-- Tab Strip (Row 1): chỉ hiện trong workspace session -->
+            <Border Grid.Row="1"
+                    Visibility="{Binding IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,0,0,1"
+                    Background="{DynamicResource MaterialDesignPaper}">
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <ItemsControl ItemsSource="{Binding Tabs.Tabs}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border MinWidth="120" MaxWidth="200" Padding="0"
+                                        ToolTip="{Binding Title}"
+                                        Cursor="Hand">
+                                    <!-- Highlight tab đang active bằng bottom border PrimaryMid -->
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="BorderThickness" Value="0,0,0,3"/>
+                                            <Setter Property="BorderBrush" Value="Transparent"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Value="Visible">
+                                                    <DataTrigger.Binding>
+                                                        <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
+                                                            <Binding/>
+                                                            <Binding Path="DataContext.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                                        </MultiBinding>
+                                                    </DataTrigger.Binding>
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource PrimaryHueMidBrush}"/>
+                                                    <Setter Property="Background" Value="{DynamicResource MaterialDesignTextFieldBoxBackground}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Border.InputBindings>
+                                        <MouseBinding MouseAction="LeftClick"
+                                                      Command="{Binding DataContext.ActivateTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                      CommandParameter="{Binding}"/>
+                                        <MouseBinding MouseAction="MiddleClick"
+                                                      Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                      CommandParameter="{Binding}"/>
+                                    </Border.InputBindings>
+                                    <Grid Margin="12,6,4,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding Title}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="13"/>
+                                        <Button Grid.Column="1"
+                                                Style="{StaticResource MaterialDesignIconButton}"
+                                                Width="22" Height="22" Padding="0"
+                                                ToolTip="Đóng tab"
+                                                Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"
+                                                VerticalAlignment="Center">
+                                            <materialDesign:PackIcon Kind="Close" Width="14" Height="14"/>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Border>
+
+            <!-- PDF Viewer Surface — standalone (IsWorkspaceSession=false).
+                 Hiện khi: không phải workspace session VÀ không đang ở thư viện. -->
+            <controls:PdfViewerControl Grid.Row="2" x:Name="PdfViewer"
+                                       DocumentSource="{Binding StandaloneDocumentSource}"
                                        CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
                                        TotalPages="{Binding TotalPages, Mode=TwoWay}"
                                        ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
@@ -266,13 +340,71 @@
                                        ShowCover="{Binding ShowCoverSeparately}"
                                        AddNoteFromSelectionCommand="{Binding AddNoteFromSelectionCommand}"
                                        Highlights="{Binding Notes.Highlights}"
-                                       CurrentDocumentId="{Binding CurrentDocumentId}"
-                                       Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}" />
+                                       CurrentDocumentId="{Binding CurrentDocumentId}">
+                <controls:PdfViewerControl.Style>
+                    <Style TargetType="controls:PdfViewerControl">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ShowLibrary}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsWorkspaceSession}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </controls:PdfViewerControl.Style>
+            </controls:PdfViewerControl>
+
+            <!-- Viewer-per-tab host (IsWorkspaceSession=true): một PdfViewerControl cho mỗi tab,
+                 chỉ tab active Visible, còn lại Collapsed (không render). -->
+            <Border Grid.Row="2"
+                    Visibility="{Binding IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid>
+                    <!-- Placeholder khi chưa có tab nào (HasTabs=false) -->
+                    <TextBlock Text="Mở một tài liệu trong workspace"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Opacity="0.5" FontSize="16"
+                               Visibility="{Binding Tabs.HasTabs, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+
+                    <!-- Một PdfViewerControl trên mỗi tab, xếp chồng, chỉ active visible -->
+                    <ItemsControl ItemsSource="{Binding Tabs.Tabs}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <Grid/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <controls:PdfViewerControl
+                                    DocumentSource="{Binding Path}"
+                                    CurrentPage="{Binding Page, Mode=TwoWay}"
+                                    TotalPages="{Binding TotalPages, Mode=OneWayToSource}"
+                                    ZoomLevel="{Binding Zoom, Mode=TwoWay}"
+                                    CurrentDocumentId="{Binding DocumentId}"
+                                    HighlightQuery="{Binding DataContext.SelectedSearchQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    MatchSource="{Binding DataContext.PdfService, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    ViewMode="{Binding DataContext.ViewMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    ShowCover="{Binding DataContext.ShowCoverSeparately, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    AddNoteFromSelectionCommand="{Binding DataContext.AddNoteFromSelectionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    Highlights="{Binding DataContext.Notes.Highlights, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                    <controls:PdfViewerControl.Visibility>
+                                        <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
+                                            <Binding/>
+                                            <Binding Path="DataContext.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                        </MultiBinding>
+                                    </controls:PdfViewerControl.Visibility>
+                                </controls:PdfViewerControl>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Grid>
+            </Border>
 
             <!-- Workspaces: lưới (ShowWorkspacesGrid) + chi tiết (ShowWorkspaceDetail) cùng vùng Grid -->
 
             <!-- Lưới workspace (chỉ hiện khi ShowWorkspacesGrid) -->
-            <Border Grid.Row="1" Background="{DynamicResource MaterialDesignPaper}"
+            <Border Grid.Row="2" Background="{DynamicResource MaterialDesignPaper}"
                     Visibility="{Binding ShowWorkspacesGrid, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
@@ -362,7 +494,7 @@
             </Border>
 
             <!-- Chi tiết workspace (hiện khi ShowWorkspaceDetail) -->
-            <Border Grid.Row="1" Background="{DynamicResource MaterialDesignPaper}"
+            <Border Grid.Row="2" Background="{DynamicResource MaterialDesignPaper}"
                     Visibility="{Binding ShowWorkspaceDetail, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid Margin="16">
                     <Grid.RowDefinitions>
@@ -480,7 +612,7 @@
             </Border>
 
             <!-- Library grid (shown when ShowLibrary) -->
-            <Border Grid.Row="1" Background="{DynamicResource MaterialDesignPaper}"
+            <Border Grid.Row="2" Background="{DynamicResource MaterialDesignPaper}"
                     Visibility="{Binding ShowLibrary, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
                     <TextBlock Text="Chưa có tài liệu — bấm OPEN PDF để thêm vào thư viện."
