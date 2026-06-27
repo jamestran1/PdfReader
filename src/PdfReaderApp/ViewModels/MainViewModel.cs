@@ -78,7 +78,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [ObservableProperty]
-    private string windowTitle = "Ultimate PDF Reader & Editor";
+    private string windowTitle = "Trí Thư";
 
     [ObservableProperty]
     private string? filePath;

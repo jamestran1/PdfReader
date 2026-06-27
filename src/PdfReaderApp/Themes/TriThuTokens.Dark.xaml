@@ -1,0 +1,24 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Biến thể dark của token "Trí Thư": CÙNG bộ x:Key như TriThuTokens.xaml, giá trị dark.
+         Nguồn: PDF Reader.dc.html [data-theme="dark"]. Typography (font/size) theme-invariant nên không lặp lại ở đây. -->
+
+    <!-- Màu (dark) -->
+    <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer" Color="#005046"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer.On" Color="#74F8DD"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer" Color="#324B44"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Tertiary" Color="#AACBE3"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceVariant" Color="#3F4945"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Outline" Color="#899390"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OutlineVariant" Color="#3F4945"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalLowest" Color="#090F0E"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalHighest" Color="#2F3633"/>
+    <SolidColorBrush x:Key="TriThu.Brush.InverseSurface" Color="#DEE4E0"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Highlight" Color="#4DF0CD5A"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Error" Color="#FFB4AB"/>
+
+    <!-- Elevation e1/e2/e3 (dark): bóng đậm hơn theo design. -->
+    <DropShadowEffect x:Key="TriThu.Elevation.E1" Color="#000000" Direction="270" ShadowDepth="1" BlurRadius="3" Opacity="0.45"/>
+    <DropShadowEffect x:Key="TriThu.Elevation.E2" Color="#000000" Direction="270" ShadowDepth="2" BlurRadius="6" Opacity="0.45"/>
+    <DropShadowEffect x:Key="TriThu.Elevation.E3" Color="#000000" Direction="270" ShadowDepth="4" BlurRadius="8" Opacity="0.45"/>
+</ResourceDictionary>

@@ -4,7 +4,7 @@ Hướng dẫn cho Claude Code khi làm việc trong repo này. (Migrated từ n
 
 ## Dự án
 
-**Ultimate PDF Reader & Editor** — ứng dụng đọc/chỉnh sửa/chú thích PDF cho Windows Desktop, tích hợp AI dạng NotebookLM (chat + RAG trên nội dung tài liệu). Giao diện theo Material Design 3.
+**Trí Thư** — ứng dụng đọc/chỉnh sửa/chú thích PDF cho Windows Desktop, tích hợp AI dạng NotebookLM (chat + RAG trên nội dung tài liệu). Giao diện theo Material Design 3.
 
 - **Framework:** WPF, .NET `net10.0-windows`, mô hình MVVM.
 - **Ngôn ngữ giao tiếp / UI:** tiếng Việt (chuỗi UI, message AI mặc định bằng tiếng Việt).

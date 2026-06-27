@@ -1,0 +1,35 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
+    <!-- Token M3 "Trí Thư" mà MaterialDesignThemes KHÔNG mô hình hóa: các slice reskin #60–#67 bind vào đây.
+         Giá trị light; biến thể dark ở TriThuTokens.Dark.xaml dùng CÙNG bộ x:Key. Nguồn: PDF Reader.dc.html (:root). -->
+
+    <!-- Màu (light) -->
+    <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer" Color="#74F8DD"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer.On" Color="#00201A"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer" Color="#CCE8DE"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Tertiary" Color="#426277"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceVariant" Color="#DBE5E0"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Outline" Color="#6F7975"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OutlineVariant" Color="#BFC9C4"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalLowest" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalHighest" Color="#DDE4E0"/>
+    <SolidColorBrush x:Key="TriThu.Brush.InverseSurface" Color="#2B322F"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Highlight" Color="#F9E07F"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Error" Color="#BA1A1A"/>
+
+    <!-- Typography (theme-invariant). Roboto là font design; fallback Segoe UI cho desktop Windows. -->
+    <FontFamily x:Key="TriThu.Font.Sans">Roboto, Segoe UI, sans-serif</FontFamily>
+    <FontFamily x:Key="TriThu.Font.Mono">Roboto Mono, Consolas, monospace</FontFamily>
+    <sys:Double x:Key="TriThu.Font.Size.Title">20</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.Subtitle">16</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.Body">14</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.BodySmall">13</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.Caption">12</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.Label">11</sys:Double>
+
+    <!-- Elevation e1/e2/e3 (light). Xấp xỉ box-shadow design bằng DropShadowEffect. -->
+    <DropShadowEffect x:Key="TriThu.Elevation.E1" Color="#000000" Direction="270" ShadowDepth="1" BlurRadius="3" Opacity="0.16"/>
+    <DropShadowEffect x:Key="TriThu.Elevation.E2" Color="#000000" Direction="270" ShadowDepth="2" BlurRadius="6" Opacity="0.18"/>
+    <DropShadowEffect x:Key="TriThu.Elevation.E3" Color="#000000" Direction="270" ShadowDepth="4" BlurRadius="8" Opacity="0.20"/>
+</ResourceDictionary>
