@@ -7,7 +7,7 @@ namespace PdfReaderApp.Services;
 /// Connection per-operation Pooling=False + lock; user_version riêng.</summary>
 public sealed class SqliteWorkspaceStore : IWorkspaceStore
 {
-    private const long SchemaVersion = 1;
+    private const long SchemaVersion = 2;
     private readonly string _connectionString;
     private readonly object _lock = new();
 
@@ -41,7 +41,18 @@ CREATE TABLE IF NOT EXISTS workspace_document (
   workspace_id TEXT NOT NULL,
   document_id TEXT NOT NULL,
   PRIMARY KEY (workspace_id, document_id));
-CREATE INDEX IF NOT EXISTS ix_ws_doc_document ON workspace_document(document_id);";
+CREATE INDEX IF NOT EXISTS ix_ws_doc_document ON workspace_document(document_id);
+CREATE TABLE IF NOT EXISTS open_tab (
+  workspace_id TEXT NOT NULL,
+  document_id TEXT NOT NULL,
+  tab_order INTEGER NOT NULL,
+  is_active INTEGER NOT NULL,
+  page INTEGER NOT NULL,
+  zoom REAL NOT NULL,
+  scroll_norm REAL NOT NULL,
+  last_active_unix_ms INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, document_id));
+CREATE INDEX IF NOT EXISTS ix_open_tab_ws ON open_tab(workspace_id);";
             cmd.ExecuteNonQuery();
 
             using var ver = conn.CreateCommand();
@@ -210,6 +221,60 @@ VALUES ($id, $name, 1, $d, $t, $t);";
             del.CommandText = "DELETE FROM workspace WHERE id=$id; DELETE FROM workspace_document WHERE workspace_id=$id;";
             del.Parameters.AddWithValue("$id", id);
             del.ExecuteNonQuery();
+        }
+    }
+
+    public System.Collections.Generic.IReadOnlyList<OpenTabState> GetOpenTabs(string workspaceId)
+    {
+        lock (_lock)
+        {
+            var result = new System.Collections.Generic.List<OpenTabState>();
+            using var conn = OpenConn();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+SELECT document_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms
+FROM open_tab WHERE workspace_id=$w ORDER BY tab_order ASC";
+            cmd.Parameters.AddWithValue("$w", workspaceId);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+                result.Add(new OpenTabState(
+                    reader.GetString(0), (int)reader.GetInt64(1), reader.GetInt64(2) != 0,
+                    (int)reader.GetInt64(3), reader.GetDouble(4), reader.GetDouble(5), reader.GetInt64(6)));
+            return result;
+        }
+    }
+
+    public void SaveOpenTabs(string workspaceId, System.Collections.Generic.IReadOnlyList<OpenTabState> tabs)
+    {
+        lock (_lock)
+        {
+            using var conn = OpenConn();
+            using var transaction = conn.BeginTransaction();
+            using (var delete = conn.CreateCommand())
+            {
+                delete.Transaction = transaction;
+                delete.CommandText = "DELETE FROM open_tab WHERE workspace_id=$w";
+                delete.Parameters.AddWithValue("$w", workspaceId);
+                delete.ExecuteNonQuery();
+            }
+            foreach (var tab in tabs)
+            {
+                using var insert = conn.CreateCommand();
+                insert.Transaction = transaction;
+                insert.CommandText = @"
+INSERT INTO open_tab (workspace_id, document_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms)
+VALUES ($w, $d, $order, $active, $page, $zoom, $scroll, $last)";
+                insert.Parameters.AddWithValue("$w", workspaceId);
+                insert.Parameters.AddWithValue("$d", tab.DocumentId);
+                insert.Parameters.AddWithValue("$order", tab.TabOrder);
+                insert.Parameters.AddWithValue("$active", tab.IsActive ? 1 : 0);
+                insert.Parameters.AddWithValue("$page", tab.Page);
+                insert.Parameters.AddWithValue("$zoom", tab.Zoom);
+                insert.Parameters.AddWithValue("$scroll", tab.ScrollNorm);
+                insert.Parameters.AddWithValue("$last", tab.LastActiveUnixMs);
+                insert.ExecuteNonQuery();
+            }
+            transaction.Commit();
         }
     }
 

@@ -76,6 +76,13 @@ public class MainViewModelTests
             All.RemoveAll(w => w.Id == id);
             Membership.Remove(id);
         }
+        public readonly System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<PdfReaderApp.Models.OpenTabState>> OpenSets = new();
+
+        public void SaveOpenTabs(string workspaceId, IReadOnlyList<PdfReaderApp.Models.OpenTabState> tabs)
+            => OpenSets[workspaceId] = tabs.OrderBy(t => t.TabOrder).ToList();
+
+        public IReadOnlyList<PdfReaderApp.Models.OpenTabState> GetOpenTabs(string workspaceId)
+            => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : new List<PdfReaderApp.Models.OpenTabState>();
     }
 
     private sealed class FakeNoteStore : PdfReaderApp.Services.INoteStore
@@ -473,7 +480,9 @@ public class MainViewModelTests
 
         vm.OpenWorkspaceCommand.Execute(W);
 
-        Assert.True(vm.ShowWorkspaceDetail);
+        // S2: khi workspace có tài liệu, OpenWorkspace đi thẳng vào phiên đọc (EnterReadingSession).
+        // ShowWorkspaceDetail = false (tắt màn quản lý), ShowWorkspaces = false.
+        Assert.False(vm.ShowWorkspaceDetail);
         Assert.Equal(W, vm.SelectedWorkspace);
         Assert.Contains(vm.WorkspaceDocuments, i => i.DocumentId == "docA");
         Assert.Equal(W.Id, vm.ActiveWorkspaceId);
