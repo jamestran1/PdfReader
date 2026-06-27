@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Media;
+using MaterialDesignThemes.Wpf;
 
 namespace PdfReaderApp;
 
@@ -17,6 +19,8 @@ public partial class App : Application
         // MessageBox.Show("App OnStartup called!");
         base.OnStartup(e);
 
+        ApplyTriThuSurfaceColors();
+
         this.DispatcherUnhandledException += (s, args) =>
         {
             LogAndShowException(args.Exception, "Dispatcher Unhandled Exception");
@@ -30,6 +34,20 @@ public partial class App : Application
                 LogAndShowException(ex, "Domain Unhandled Exception");
             }
         };
+    }
+
+    // Đẩy màu surface/on-surface của design vào control built-in MDT
+    // (CustomColorTheme chỉ seed primary/secondary; surface phải set qua PaletteHelper).
+    // Lưu ý MDT 5.1: Theme chỉ expose Background/Foreground/ForegroundLight làm màu toàn cục —
+    // KHÔNG có Outline/Divider. Outline/divider sống ở token app-owned TriThu.Brush.Outline(.Variant)
+    // trong Themes/TriThuTokens.xaml; các slice reskin #60–#67 bind vào đó.
+    private static void ApplyTriThuSurfaceColors()
+    {
+        var paletteHelper = new PaletteHelper();
+        Theme theme = paletteHelper.GetTheme();
+        theme.Background = (Color)ColorConverter.ConvertFromString("#F4FBF7")!; // surface
+        theme.Foreground = (Color)ColorConverter.ConvertFromString("#161D1B")!; // on-surface
+        paletteHelper.SetTheme(theme);
     }
 
     private static void LogAndShowException(Exception ex, string title)
