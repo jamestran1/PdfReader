@@ -17,6 +17,7 @@ public partial class MainWindow : Window
         try
         {
             InitializeComponent();
+            Closing += (_, _) => (DataContext as ViewModels.MainViewModel)?.SaveOpenSetNow();
         }
         catch (Exception ex)
         {

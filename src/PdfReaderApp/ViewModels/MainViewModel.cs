@@ -36,6 +36,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IWorkspaceStore _workspaceStore;
     private readonly INoteStore _noteStore;
     private string? _activeWorkspaceId;
+    // S2: khoá ghi Open Set trong lúc reset/khôi phục để wiring auto-save không ghi đè state đang dựng.
+    private bool _isRestoringOpenSet;
 
     private List<TextBlock> _documentBlocks = new();
     public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
@@ -330,6 +332,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Tab S1: khi ActiveTab thay đổi -> lưu view-state của tab cũ, hydrate tab mới.
         Tabs.ActiveTabChanged += OnActiveTabChanged;
+
+        // Tab S2: lập lịch lưu Open Set khi danh sách tab thay đổi hoặc tab active đổi.
+        Tabs.Tabs.CollectionChanged += (_, _) => ScheduleSaveOpenSet();
+        Tabs.ActiveTabChanged += _ => ScheduleSaveOpenSet();
     }
 
     // OpenTab đang được theo dõi PropertyChanged để re-raise toolbar bindings.
@@ -362,6 +368,42 @@ public partial class MainViewModel : ObservableObject, IDisposable
             case nameof(OpenTab.Zoom): OnPropertyChanged(nameof(ZoomLevel)); break;
             case nameof(OpenTab.TotalPages): OnPropertyChanged(nameof(TotalPages)); break;
         }
+        ScheduleSaveOpenSet();
+    }
+
+    // S2: thu thập Open Set hiện tại và lưu (thay thế) cho workspace đang hoạt động.
+    internal void SaveOpenSetNow()
+    {
+        if (_activeWorkspaceId is null || !IsWorkspaceSession) return;
+        long nowUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var activeTab = Tabs.ActiveTab;
+        var states = new List<OpenTabState>(Tabs.Tabs.Count);
+        for (int order = 0; order < Tabs.Tabs.Count; order++)
+        {
+            var tab = Tabs.Tabs[order];
+            states.Add(new OpenTabState(
+                tab.DocumentId, order, ReferenceEquals(tab, activeTab),
+                tab.Page, tab.Zoom, tab.ScrollNorm, nowUnixMs));
+        }
+        try { _workspaceStore.SaveOpenTabs(_activeWorkspaceId, states); }
+        catch { /* lưu best-effort: lỗi store không được làm gãy phiên đọc */ }
+    }
+
+    private System.Windows.Threading.DispatcherTimer? _saveOpenSetDebounce;
+
+    // Gộp nhiều thay đổi liên tiếp (cuộn/zoom) thành một lần ghi. Môi trường không có Dispatcher
+    // (test/headless) -> lưu ngay để hành vi tất định.
+    private void ScheduleSaveOpenSet()
+    {
+        if (_isRestoringOpenSet) return;
+        if (_activeWorkspaceId is null || !IsWorkspaceSession) return;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null) { SaveOpenSetNow(); return; }
+        _saveOpenSetDebounce ??= new System.Windows.Threading.DispatcherTimer(
+            TimeSpan.FromMilliseconds(400), System.Windows.Threading.DispatcherPriority.Background,
+            (_, _) => { _saveOpenSetDebounce!.Stop(); SaveOpenSetNow(); }, dispatcher);
+        _saveOpenSetDebounce.Stop();
+        _saveOpenSetDebounce.Start();
     }
 
     // Đổi giữa chế độ workspace (proxy theo tab) và đọc lẻ (backing field) -> toolbar đọc lại nguồn.
@@ -459,12 +501,78 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (workspace is null) return;
         SelectedWorkspace = workspace;
-        _activeWorkspaceId = workspace.Id;
-        Notes.LoadFor(_activeWorkspaceId);
+        Notes.LoadFor(workspace.Id);
         ReloadWorkspaceDocuments();
-        // Giữ ShowWorkspaces = true để IsReadingDocument vẫn false -> không hiện toolbar đọc
         ShowWorkspaces = true;
-        ShowWorkspaceDetail = true;
+        ShowWorkspaceDetail = true;   // mặc định màn quản lý tài liệu; vào phiên đọc sẽ tắt qua EnterReadingSession
+        RestoreOrSeedOpenSet(workspace.Id);   // S2: vào Workspace = vào thẳng phiên đọc (nếu có tài liệu)
+    }
+
+    // S2: vào Workspace -> khôi phục lười Open Set đã lưu (chỉ hydrate tab active), hoặc seed một tab khi chưa có state.
+    private void RestoreOrSeedOpenSet(string workspaceId)
+    {
+        // Lưu Open Set của workspace đang rời (nếu có) trước khi reset, để quay lại còn nguyên phiên đọc.
+        if (IsWorkspaceSession && _activeWorkspaceId is not null) SaveOpenSetNow();
+
+        // Đọc state đã lưu TRƯỚC khi reset (tránh wiring auto-save ghi đè khi xoá Open Set cũ).
+        var savedTabs = _workspaceStore.GetOpenTabs(workspaceId);
+
+        _isRestoringOpenSet = true;
+        try
+        {
+            Tabs.Reset();   // bắt đầu từ Open Set rỗng -> không tích lũy / không trùng tab (#bug 2,3)
+            _activeWorkspaceId = workspaceId;
+            IsWorkspaceSession = true;
+
+            if (savedTabs.Count > 0)
+            {
+                var restored = new List<OpenTab>(savedTabs.Count);
+                string? activeDocumentId = null;
+                foreach (var state in savedTabs)
+                {
+                    var item = Library.FirstOrDefault(i => i.DocumentId == state.DocumentId);
+                    if (item is null) continue;   // tài liệu đã bị gỡ khỏi thư viện -> bỏ qua
+                    restored.Add(new OpenTab(state.DocumentId, item.Title, item.StoredPath)
+                    {
+                        Page = state.Page, Zoom = state.Zoom, ScrollNorm = state.ScrollNorm
+                    });
+                    if (state.IsActive) activeDocumentId = state.DocumentId;
+                }
+                if (restored.Count > 0)
+                {
+                    Tabs.RestoreTabs(restored, activeDocumentId ?? restored[0].DocumentId);
+                    EnterReadingSession();
+                    return;
+                }
+            }
+
+            var seedDocumentId = ResolveSeedDocument(workspaceId);
+            if (seedDocumentId is null) { IsWorkspaceSession = false; return; }   // workspace rỗng -> giữ màn quản lý
+            var seedItem = Library.FirstOrDefault(i => i.DocumentId == seedDocumentId);
+            if (seedItem is null) { IsWorkspaceSession = false; return; }
+            Tabs.OpenOrActivate(seedItem.DocumentId, seedItem.Title, seedItem.StoredPath);
+            EnterReadingSession();
+        }
+        finally
+        {
+            _isRestoringOpenSet = false;
+            SaveOpenSetNow();   // ghi lại Open Set mới (đặc biệt khi seed tạo tab mới)
+        }
+    }
+
+    // S2: tài liệu seed khi Workspace chưa có Open Set: ưu tiên DefaultDocumentId, rồi thành viên đầu.
+    internal string? ResolveSeedDocument(string workspaceId)
+    {
+        var workspace = _workspaceStore.Get(workspaceId);
+        if (workspace?.DefaultDocumentId is { Length: > 0 } defaultDocumentId) return defaultDocumentId;
+        var memberDocumentIds = _workspaceStore.GetDocumentIds(workspaceId);
+        return memberDocumentIds.Count > 0 ? memberDocumentIds[0] : null;
+    }
+
+    private void EnterReadingSession()
+    {
+        ShowWorkspaceDetail = false;
+        ShowWorkspaces = false;
     }
 
     // S2: nạp lại danh sách tài liệu trong workspace đang xem chi tiết
@@ -699,7 +807,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _documentBlocks = new List<TextBlock>();
             OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
-            _activeWorkspaceId = null;
+            // S2: nếu mở trong workspace (workspaceScopeId có giá trị), giữ nguyên _activeWorkspaceId
+            // để scope workspace không bị xoá khi file tạm thời không đọc được.
+            if (workspaceScopeId is null) _activeWorkspaceId = null;
             OnPropertyChanged(nameof(CurrentDocumentId));
             OnPropertyChanged(nameof(HasDocument));
             LoadChatHistory();

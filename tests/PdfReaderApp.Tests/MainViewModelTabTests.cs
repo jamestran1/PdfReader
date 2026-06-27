@@ -88,6 +88,13 @@ public class MainViewModelTabTests
             if (i >= 0) All[i] = All[i] with { Name = name, UpdatedAtUnixMs = nowUnixMs };
         }
         public void Delete(string id) { All.RemoveAll(w => w.Id == id); Membership.Remove(id); }
+        public readonly Dictionary<string, List<OpenTabState>> OpenSets = new();
+
+        public void SaveOpenTabs(string workspaceId, IReadOnlyList<OpenTabState> tabs)
+            => OpenSets[workspaceId] = tabs.OrderBy(t => t.TabOrder).ToList();
+
+        public IReadOnlyList<OpenTabState> GetOpenTabs(string workspaceId)
+            => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : new List<OpenTabState>();
     }
 
     private static (TestableMainViewModel vm, FakeWorkspaceStore wsStore) MakeVm()
@@ -254,5 +261,128 @@ public class MainViewModelTabTests
 
         Assert.Equal(12, tabA.Page);
         Assert.Equal(12, vm.CurrentPage);
+    }
+
+    // =========================================================
+    // S2: RestoreOrSeedOpenSet — khôi phục lười khi có state đã lưu.
+    // =========================================================
+    [Fact]
+    public void OpenWorkspace_WithSavedOpenSet_RestoresOrderAndActive_HydratesOnlyActiveTab()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspace = new Workspace("ws-restore", "R", false, null, 1, 1);
+        wsStore.Upsert(workspace);
+        wsStore.AddDocument(workspace.Id, "docA");
+        wsStore.AddDocument(workspace.Id, "docB");
+        vm.Library.Add(MakeItem("docA", "A", "/a.pdf"));
+        vm.Library.Add(MakeItem("docB", "B", "/b.pdf"));
+        wsStore.SaveOpenTabs(workspace.Id, new[]
+        {
+            new OpenTabState("docA", 0, false, 4, 1.0, 0, 10),
+            new OpenTabState("docB", 1, true,  8, 2.5, 0, 20),
+        });
+
+        vm.OpenWorkspaceCommand.Execute(workspace);
+
+        Assert.True(vm.IsWorkspaceSession);
+        Assert.Equal(new[] { "docA", "docB" }, vm.Tabs.Tabs.Select(t => t.DocumentId));
+        Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal(8, vm.Tabs.ActiveTab!.Page);
+        Assert.Equal(2.5, vm.Tabs.ActiveTab!.Zoom);
+        Assert.Equal(1, vm.HydrateCallCount);
+    }
+
+    [Fact]
+    public void OpenWorkspace_NoSavedState_SeedsSingleTabFromFirstMember()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspace = new Workspace("ws-seed", "Seed", false, null, 1, 1);
+        wsStore.Upsert(workspace);
+        wsStore.AddDocument(workspace.Id, "docOnly");
+        vm.Library.Add(MakeItem("docOnly", "Only", "/only.pdf"));
+
+        vm.OpenWorkspaceCommand.Execute(workspace);
+
+        Assert.True(vm.IsWorkspaceSession);
+        Assert.Single(vm.Tabs.Tabs);
+        Assert.Equal("docOnly", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal(1, vm.HydrateCallCount);
+    }
+
+    // =========================================================
+    // S2: SaveOpenSetNow lưu tất cả tab với thứ tự, tab active và view-state.
+    // =========================================================
+    [Fact]
+    public void SaveOpenSetNow_PersistsTabsWithOrderActiveAndViewState()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspace = new Workspace("ws-save", "Save", false, null, 1, 1);
+        wsStore.Upsert(workspace);
+        wsStore.AddDocument(workspace.Id, "docA");
+        wsStore.AddDocument(workspace.Id, "docB");
+        vm.Library.Add(MakeItem("docA", "A", "/a.pdf"));
+        vm.Library.Add(MakeItem("docB", "B", "/b.pdf"));
+
+        vm.OpenWorkspaceCommand.Execute(workspace);
+        vm.OpenWorkspaceDocumentCommand.Execute(MakeItem("docA", "A", "/a.pdf"));
+        vm.OpenWorkspaceDocumentCommand.Execute(MakeItem("docB", "B", "/b.pdf")); // docB active
+        vm.Tabs.ActiveTab!.Page = 9;
+        vm.Tabs.ActiveTab!.Zoom = 1.5;
+
+        vm.SaveOpenSetNow();
+
+        var saved = wsStore.GetOpenTabs(workspace.Id);
+        Assert.Equal(vm.Tabs.Tabs.Count, saved.Count);
+        var activeRow = saved.Single(t => t.IsActive);
+        Assert.Equal("docB", activeRow.DocumentId);
+        Assert.Equal(9, activeRow.Page);
+        Assert.Equal(1.5, activeRow.Zoom);
+        for (int order = 0; order < saved.Count; order++)
+            Assert.Equal(vm.Tabs.Tabs[order].DocumentId, saved[order].DocumentId);
+    }
+
+    // =========================================================
+    // REGRESSION (S2): vào lại cùng Workspace KHÔNG được nhân đôi Open Set,
+    // và cùng một tài liệu KHÔNG được mở thành nhiều tab.
+    // =========================================================
+    [Fact]
+    public void OpenWorkspace_EnteredTwice_DoesNotDuplicateTabs()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspace = new Workspace("ws-reenter", "Re", false, null, 1, 1);
+        wsStore.Upsert(workspace);
+        wsStore.AddDocument(workspace.Id, "docA");
+        vm.Library.Add(MakeItem("docA", "A", "/a.pdf"));
+        wsStore.SaveOpenTabs(workspace.Id, new[] { new OpenTabState("docA", 0, true, 1, 1.0, 0, 1) });
+
+        vm.OpenWorkspaceCommand.Execute(workspace);
+        int afterFirstEntry = vm.Tabs.Tabs.Count;
+        vm.OpenWorkspaceCommand.Execute(workspace);
+
+        Assert.Equal(afterFirstEntry, vm.Tabs.Tabs.Count);
+        Assert.Single(vm.Tabs.Tabs.Where(t => t.DocumentId == "docA"));
+    }
+
+    // REGRESSION (S2): chuyển sang Workspace khác phải THAY THẾ Open Set, không tích lũy tab cũ.
+    [Fact]
+    public void SwitchingWorkspace_ReplacesOpenSet_DoesNotAccumulate()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspaceA = new Workspace("ws-A", "A", false, null, 1, 1);
+        var workspaceB = new Workspace("ws-B", "B", false, null, 1, 1);
+        wsStore.Upsert(workspaceA);
+        wsStore.Upsert(workspaceB);
+        wsStore.AddDocument(workspaceA.Id, "docA");
+        wsStore.AddDocument(workspaceB.Id, "docB");
+        vm.Library.Add(MakeItem("docA", "A", "/a.pdf"));
+        vm.Library.Add(MakeItem("docB", "B", "/b.pdf"));
+        wsStore.SaveOpenTabs(workspaceA.Id, new[] { new OpenTabState("docA", 0, true, 1, 1.0, 0, 1) });
+        wsStore.SaveOpenTabs(workspaceB.Id, new[] { new OpenTabState("docB", 0, true, 1, 1.0, 0, 1) });
+
+        vm.OpenWorkspaceCommand.Execute(workspaceA);
+        vm.OpenWorkspaceCommand.Execute(workspaceB);
+
+        Assert.Single(vm.Tabs.Tabs);
+        Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
     }
 }
