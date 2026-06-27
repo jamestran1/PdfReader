@@ -20,6 +20,6 @@ status: accepted
 
 - **Cross-doc jump đổi nghĩa:** từ "thay thế doc đang mở" (trong #25) thành "activate-or-open Tab"; jump luôn điều hướng tới trang đích, ghi đè vị trí đã nhớ cho lần đó.
 - **Đóng Tab ≠ gỡ khỏi Workspace.** Đóng chỉ rời Open Set; gỡ/xóa doc là luồng S4 riêng. Doc bị gỡ/xóa khi đang mở → tự đóng tab, fallback sang tab MRU hoặc Thumbnail Gallery. Đóng tab cuối → hiện Thumbnail Gallery (vẫn ở trong Workspace).
-- **Chat per-tab nhưng chưa persist.** Chat thành per-Document trong bộ nhớ (đổi theo tab, hợp ADR 0001); schema tab chừa chỗ cho chat-thread nhưng lịch sử chat bền + scroll restore để dành #26 (AIService hiện là placeholder).
+- **Chat per-tab nhưng chưa persist.** _(Thay thế bởi ADR 0004: chat đổi thành per-Workspace, RAG xuyên member docs.)_ Chat thành per-Document trong bộ nhớ (đổi theo tab, hợp ADR 0001); schema tab chừa chỗ cho chat-thread nhưng lịch sử chat bền + scroll restore để dành #26 (AIService hiện là placeholder).
 - **Notes giữ nguyên model (ADR 0001).** "Per-tab note" chỉ là UI state của panel (scroll, note đang chọn, mặc định lọc theo doc của tab); không đổi quyền sở hữu note.
 - **Hạn chế đã biết:** chưa có lưu chỉnh sửa PDF (không có dirty-tracking) → đóng hoặc evict một Tab sẽ **âm thầm bỏ chỉnh sửa trong phiên**. Chấp nhận tạm cho đến khi có tính năng save tài liệu.
