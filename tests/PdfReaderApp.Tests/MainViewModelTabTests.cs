@@ -340,4 +340,49 @@ public class MainViewModelTabTests
         for (int order = 0; order < saved.Count; order++)
             Assert.Equal(vm.Tabs.Tabs[order].DocumentId, saved[order].DocumentId);
     }
+
+    // =========================================================
+    // REGRESSION (S2): vào lại cùng Workspace KHÔNG được nhân đôi Open Set,
+    // và cùng một tài liệu KHÔNG được mở thành nhiều tab.
+    // =========================================================
+    [Fact]
+    public void OpenWorkspace_EnteredTwice_DoesNotDuplicateTabs()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspace = new Workspace("ws-reenter", "Re", false, null, 1, 1);
+        wsStore.Upsert(workspace);
+        wsStore.AddDocument(workspace.Id, "docA");
+        vm.Library.Add(MakeItem("docA", "A", "/a.pdf"));
+        wsStore.SaveOpenTabs(workspace.Id, new[] { new OpenTabState("docA", 0, true, 1, 1.0, 0, 1) });
+
+        vm.OpenWorkspaceCommand.Execute(workspace);
+        int afterFirstEntry = vm.Tabs.Tabs.Count;
+        vm.OpenWorkspaceCommand.Execute(workspace);
+
+        Assert.Equal(afterFirstEntry, vm.Tabs.Tabs.Count);
+        Assert.Single(vm.Tabs.Tabs.Where(t => t.DocumentId == "docA"));
+    }
+
+    // REGRESSION (S2): chuyển sang Workspace khác phải THAY THẾ Open Set, không tích lũy tab cũ.
+    [Fact]
+    public void SwitchingWorkspace_ReplacesOpenSet_DoesNotAccumulate()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspaceA = new Workspace("ws-A", "A", false, null, 1, 1);
+        var workspaceB = new Workspace("ws-B", "B", false, null, 1, 1);
+        wsStore.Upsert(workspaceA);
+        wsStore.Upsert(workspaceB);
+        wsStore.AddDocument(workspaceA.Id, "docA");
+        wsStore.AddDocument(workspaceB.Id, "docB");
+        vm.Library.Add(MakeItem("docA", "A", "/a.pdf"));
+        vm.Library.Add(MakeItem("docB", "B", "/b.pdf"));
+        wsStore.SaveOpenTabs(workspaceA.Id, new[] { new OpenTabState("docA", 0, true, 1, 1.0, 0, 1) });
+        wsStore.SaveOpenTabs(workspaceB.Id, new[] { new OpenTabState("docB", 0, true, 1, 1.0, 0, 1) });
+
+        vm.OpenWorkspaceCommand.Execute(workspaceA);
+        vm.OpenWorkspaceCommand.Execute(workspaceB);
+
+        Assert.Single(vm.Tabs.Tabs);
+        Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
+    }
 }
