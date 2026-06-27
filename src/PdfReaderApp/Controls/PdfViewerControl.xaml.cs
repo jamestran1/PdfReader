@@ -876,6 +876,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (_currentDocument == null || _slots.Count == 0) return;
 
+        // Viewer ẩn (tab không active / đã rời Workspace) -> ScrollViewer reset offset/viewport=0 và phát
+        // ScrollChanged; KHÔNG đồng bộ scroll->trang lúc đó, nếu không sẽ ghi đè OpenTab.Page về cover.
+        // (Logic tách ở Core.ViewerScrollGate để test hồi quy — xem ViewerScrollGateTests.)
+        if (!Core.ViewerScrollGate.ShouldSyncPageFromScroll(IsVisible, PagesScrollViewer.ViewportHeight)) return;
+
         // Đang chờ cuộn tới trang đích (sau khi nạp): KHÔNG đồng bộ scroll->trang để khỏi bị kéo về cover.
         // Guard được gỡ bởi timer ổn-định-hoá (OnScrollSettleTick) khi offset đã dính tại đích.
         if (_pendingScrollPage > 0)
