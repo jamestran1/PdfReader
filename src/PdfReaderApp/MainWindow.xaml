@@ -88,12 +88,6 @@
                                   IsChecked="{Binding ActiveNavDestination, Converter={StaticResource NavDestinationToBoolConverter}, ConverterParameter=Workspaces, Mode=OneWay}">
                         <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="24" Height="24"/>
                     </ToggleButton>
-                    <Button Style="{StaticResource TriThu.NavRailAction}" Tag="Chú thích" ToolTip="Chú thích">
-                        <materialDesign:PackIcon Kind="Pencil" Width="24" Height="24"/>
-                    </Button>
-                    <Button Style="{StaticResource TriThu.NavRailAction}" Tag="AI" ToolTip="AI Assistant">
-                        <materialDesign:PackIcon Kind="Robot" Width="24" Height="24"/>
-                    </Button>
                 </StackPanel>
 
                 <StackPanel Grid.Row="2" Margin="0,0,0,20">
