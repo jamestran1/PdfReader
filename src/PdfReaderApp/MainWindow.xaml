@@ -71,9 +71,17 @@
                         Background="{DynamicResource TriThu.Brush.PrimaryContainer}"
                         Effect="{DynamicResource TriThu.Elevation.E1}"
                         HorizontalAlignment="Center" Margin="0,14,0,14">
-                    <materialDesign:PackIcon Kind="FilePdfBox" Width="30" Height="30"
-                                             HorizontalAlignment="Center" VerticalAlignment="Center"
-                                             Foreground="{DynamicResource TriThu.Brush.PrimaryContainer.On}"/>
+                    <!-- Logo "Trí Thư": hai nửa sách mở (một nửa mờ) + sparkle AI. SVG từ PDF Reader.dc.html. -->
+                    <Viewbox Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Canvas Width="32" Height="32">
+                            <Path Fill="{DynamicResource TriThu.Brush.PrimaryContainer.On}"
+                                  Data="M4 9C4 7.6 5.1 6.5 6.5 6.5H13C14.1 6.5 15 7.4 15 8.5V25C15 23.9 14.1 23 13 23H6.5C5.1 23 4 21.9 4 20.5V9Z"/>
+                            <Path Fill="{DynamicResource TriThu.Brush.PrimaryContainer.On}" Opacity="0.45"
+                                  Data="M28 9C28 7.6 26.9 6.5 25.5 6.5H19C17.9 6.5 17 7.4 17 8.5V25C17 23.9 17.9 23 19 23H25.5C26.9 23 28 21.9 28 20.5V9Z"/>
+                            <Path Fill="{DynamicResource TriThu.Brush.PrimaryContainer.On}"
+                                  Data="M24 2.5L24.85 4.9L27.25 5.75L24.85 6.6L24 9L23.15 6.6L20.75 5.75L23.15 4.9L24 2.5Z"/>
+                        </Canvas>
+                    </Viewbox>
                 </Border>
 
                 <StackPanel Grid.Row="1" VerticalAlignment="Top">
