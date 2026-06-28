@@ -867,6 +867,42 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void ActiveNavDestination_DefaultsToLibrary_OnStartup()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+        Assert.Equal(NavDestination.Library, vm.ActiveNavDestination);
+    }
+
+    [Fact]
+    public void ActiveNavDestination_IsWorkspaces_AfterShowWorkspacesView()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+        vm.ShowWorkspacesViewCommand.Execute(null);
+        Assert.Equal(NavDestination.Workspaces, vm.ActiveNavDestination);
+    }
+
+    [Fact]
+    public void ActiveNavDestination_IsReader_AfterShowReaderView()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+        vm.ShowReaderViewCommand.Execute(null);
+        Assert.Equal(NavDestination.Reader, vm.ActiveNavDestination);
+    }
+
+    [Fact]
+    public void ActiveNavDestination_RaisesPropertyChanged_WhenViewChanges()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+        var raised = false;
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MainViewModel.ActiveNavDestination)) raised = true;
+        };
+        vm.ShowWorkspacesViewCommand.Execute(null);
+        Assert.True(raised);
+    }
+
+    [Fact]
     // #40 (regression): mở tài liệu trong workspace mới chỉ hiện highlight của workspace đó,
     // KHÔNG lẫn highlight của default workspace (notes scope theo owner_key).
     public void OpenDocumentInNewWorkspace_DoesNotLeakDefaultWorkspaceHighlights()

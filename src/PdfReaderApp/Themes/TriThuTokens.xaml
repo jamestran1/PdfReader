@@ -17,6 +17,8 @@
     <SolidColorBrush x:Key="TriThu.Brush.InverseSurface" Color="#2B322F"/>
     <SolidColorBrush x:Key="TriThu.Brush.Highlight" Color="#F9E07F"/>
     <SolidColorBrush x:Key="TriThu.Brush.Error" Color="#BA1A1A"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer.On" Color="#06201A"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OnSurfaceVariant" Color="#3F4945"/>
 
     <!-- Typography (theme-invariant). Roboto là font design; fallback Segoe UI cho desktop Windows. -->
     <FontFamily x:Key="TriThu.Font.Sans">Roboto, Segoe UI, sans-serif</FontFamily>
