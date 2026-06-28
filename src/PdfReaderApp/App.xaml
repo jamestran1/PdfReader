@@ -10,6 +10,7 @@
                 <materialDesign:CustomColorTheme BaseTheme="Light" PrimaryColor="#006B5B" SecondaryColor="#4A635C" />
                 <ResourceDictionary Source="pack://application:,,,/MaterialDesignThemes.Wpf;component/Themes/MaterialDesign3.Defaults.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/TriThuTokens.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/NavRail.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>

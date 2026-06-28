@@ -1,0 +1,66 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Mục điều hướng nav rail (M3). Nguồn: support.js navItem() trong PDF Reader.dc.html.
+         Rail nền surface (sáng), chữ/icon on-surface-variant; active = pill secondary-container.
+         Tag = chuỗi nhãn (Content đã dành cho icon). -->
+    <Style x:Key="TriThu.NavRailItem" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="Margin" Value="0,2"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <StackPanel Background="Transparent">
+                        <Border x:Name="Indicator" Width="56" Height="32" CornerRadius="16"
+                                Background="Transparent" HorizontalAlignment="Center">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{Binding Foreground,
+                                                  RelativeSource={RelativeSource TemplatedParent}}"/>
+                        </Border>
+                        <TextBlock x:Name="Label" Text="{TemplateBinding Tag}" HorizontalAlignment="Center" Margin="0,5,0,0"
+                                   FontFamily="{DynamicResource TriThu.Font.Sans}" FontSize="12" FontWeight="Medium"
+                                   Foreground="{TemplateBinding Foreground}"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Indicator" Property="Background"
+                                    Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
+                            <Setter TargetName="Indicator" Property="TextElement.Foreground"
+                                    Value="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
+                            <Setter TargetName="Label" Property="Foreground"
+                                    Value="{DynamicResource MaterialDesignBody}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Mục hành động (Cài đặt): như mục điều hướng nhưng không có active state. -->
+    <Style x:Key="TriThu.NavRailAction" TargetType="Button">
+        <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="Margin" Value="0,2"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <StackPanel Background="Transparent">
+                        <Border Width="56" Height="32" CornerRadius="16"
+                                Background="Transparent" HorizontalAlignment="Center">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              TextElement.Foreground="{Binding Foreground,
+                                                  RelativeSource={RelativeSource TemplatedParent}}"/>
+                        </Border>
+                        <TextBlock Text="{TemplateBinding Tag}" HorizontalAlignment="Center" Margin="0,5,0,0"
+                                   FontFamily="{DynamicResource TriThu.Font.Sans}" FontSize="12" FontWeight="Medium"
+                                   Foreground="{TemplateBinding Foreground}"/>
+                    </StackPanel>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

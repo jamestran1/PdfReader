@@ -16,6 +16,8 @@
     <SolidColorBrush x:Key="TriThu.Brush.InverseSurface" Color="#DEE4E0"/>
     <SolidColorBrush x:Key="TriThu.Brush.Highlight" Color="#4DF0CD5A"/>
     <SolidColorBrush x:Key="TriThu.Brush.Error" Color="#FFB4AB"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer.On" Color="#CCE8DE"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OnSurfaceVariant" Color="#BFC9C4"/>
 
     <!-- Elevation e1/e2/e3 (dark): bóng đậm hơn theo design. -->
     <DropShadowEffect x:Key="TriThu.Elevation.E1" Color="#000000" Direction="270" ShadowDepth="1" BlurRadius="3" Opacity="0.45"/>

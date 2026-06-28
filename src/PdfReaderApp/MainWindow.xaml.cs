@@ -233,6 +233,17 @@ public sealed class ViewModeToBoolConverter : IValueConverter
            && Enum.TryParse<PdfReaderApp.Core.PdfViewMode>(p, out var m) ? m : Binding.DoNothing;
 }
 
+public sealed class NavDestinationToBoolConverter : IValueConverter
+{
+    public object Convert(object value, Type t, object parameter, CultureInfo c)
+        => value is PdfReaderApp.Core.NavDestination d && parameter is string p
+           && string.Equals(d.ToString(), p, StringComparison.Ordinal);
+
+    // OneWay: nav rail highlight chỉ đọc đích; Command mới là thứ đổi đích.
+    public object ConvertBack(object value, Type t, object parameter, CultureInfo c)
+        => Binding.DoNothing;
+}
+
 // Tab S1: MultiValueConverter nhận [thisTab, ActiveTab] -> Visible nếu bằng nhau (ReferenceEqual), Collapsed nếu không.
 // Dùng trong ItemTemplate viewer-per-tab để chỉ tab active render, còn lại Collapsed.
 public sealed class IsActiveTabConverter : System.Windows.Data.IMultiValueConverter

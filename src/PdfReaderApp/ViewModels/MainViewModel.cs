@@ -173,10 +173,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ChatColumnWidth = new System.Windows.GridLength(_savedChatWidthPx);
         }
         OnPropertyChanged(nameof(IsReadingDocument));
+        OnPropertyChanged(nameof(ActiveNavDestination));
     }
 
     // Đang đọc tài liệu (không ở Thư viện cũng không ở Workspaces) -> hiện các nút đọc trên toolbar.
     public bool IsReadingDocument => !ShowLibrary && !ShowWorkspaces;
+
+    // Đích điều hướng đang active trên nav rail; suy ra từ trạng thái màn (Library/Workspaces loại trừ nhau).
+    public Core.NavDestination ActiveNavDestination =>
+        ShowLibrary ? Core.NavDestination.Library
+        : ShowWorkspaces ? Core.NavDestination.Workspaces
+        : Core.NavDestination.Reader;
 
     [ObservableProperty]
     private bool _showWorkspaces;

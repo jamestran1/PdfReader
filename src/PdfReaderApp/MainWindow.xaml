@@ -31,6 +31,7 @@
         <local:DocumentIdToBrushConverter x:Key="DocumentIdToBrushConverter"/>
         <local:DocumentIdToTitleConverter x:Key="DocumentIdToTitleConverter"/>
         <local:IsActiveTabConverter x:Key="IsActiveTabConverter"/>
+        <local:NavDestinationToBoolConverter x:Key="NavDestinationToBoolConverter" />
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -55,50 +56,62 @@
                               MinWidth="{Binding ChatColumnMinWidth}" MaxWidth="700"/>
         </Grid.ColumnDefinitions>
 
-        <!-- Navigation Rail -->
-        <materialDesign:ColorZone Grid.Column="0" Mode="PrimaryMid" VerticalAlignment="Stretch">
+        <!-- Navigation Rail (M3): nền surface, rộng 84, theo design -->
+        <Border Grid.Column="0" Width="84" VerticalAlignment="Stretch"
+                Background="{DynamicResource MaterialDesignPaper}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                
-                <StackPanel Grid.Row="0" Margin="0,20">
-                     <materialDesign:PackIcon Kind="FilePdfBox" Width="40" Height="40" HorizontalAlignment="Center"/>
-                </StackPanel>
 
-                <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                <!-- Logo: hộp bo tròn primary-container -->
+                <Border Grid.Row="0" Width="56" Height="56" CornerRadius="18"
+                        Background="{DynamicResource TriThu.Brush.PrimaryContainer}"
+                        Effect="{DynamicResource TriThu.Elevation.E1}"
+                        HorizontalAlignment="Center" Margin="0,14,0,14">
+                    <!-- Logo "Trí Thư": hai nửa sách mở (một nửa mờ) + sparkle AI. SVG từ PDF Reader.dc.html. -->
+                    <Viewbox Width="32" Height="32" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Canvas Width="32" Height="32">
+                            <Path Fill="{DynamicResource TriThu.Brush.PrimaryContainer.On}"
+                                  Data="M4 9C4 7.6 5.1 6.5 6.5 6.5H13C14.1 6.5 15 7.4 15 8.5V25C15 23.9 14.1 23 13 23H6.5C5.1 23 4 21.9 4 20.5V9Z"/>
+                            <Path Fill="{DynamicResource TriThu.Brush.PrimaryContainer.On}" Opacity="0.45"
+                                  Data="M28 9C28 7.6 26.9 6.5 25.5 6.5H19C17.9 6.5 17 7.4 17 8.5V25C17 23.9 17.9 23 19 23H25.5C26.9 23 28 21.9 28 20.5V9Z"/>
+                            <Path Fill="{DynamicResource TriThu.Brush.PrimaryContainer.On}"
+                                  Data="M24 2.5L24.85 4.9L27.25 5.75L24.85 6.6L24 9L23.15 6.6L20.75 5.75L23.15 4.9L24 2.5Z"/>
+                        </Canvas>
+                    </Viewbox>
+                </Border>
+
+                <StackPanel Grid.Row="1" VerticalAlignment="Top">
                     <!-- #38: quay lại tài liệu đang mở (chỉ bật khi có tài liệu) -->
-                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Tài liệu đang mở"
-                            Command="{Binding ShowReaderViewCommand}"
-                            Visibility="{Binding HasDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <materialDesign:PackIcon Kind="FileDocument" Width="24" Height="24"/>
-                    </Button>
-                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Thư viện"
-                            Command="{Binding ShowLibraryViewCommand}">
-                        <materialDesign:PackIcon Kind="BookOpenVariant" Width="24" Height="24"/>
-                    </Button>
-                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Workspaces"
-                            Command="{Binding ShowWorkspacesViewCommand}">
-                        <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="24" Height="24"/>
-                    </Button>
-                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Edit">
-                        <materialDesign:PackIcon Kind="Pencil" Width="24" Height="24"/>
-                    </Button>
-                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="AI Assistant">
-                        <materialDesign:PackIcon Kind="Robot" Width="24" Height="24"/>
-                    </Button>
+                    <ToggleButton Style="{StaticResource TriThu.NavRailItem}" Tag="Tài liệu" ToolTip="Tài liệu đang mở"
+                                  Command="{Binding ShowReaderViewCommand}"
+                                  Visibility="{Binding HasDocument, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                  IsChecked="{Binding ActiveNavDestination, Converter={StaticResource NavDestinationToBoolConverter}, ConverterParameter=Reader, Mode=OneWay}">
+                        <materialDesign:PackIcon Kind="FileDocument" Width="22" Height="22"/>
+                    </ToggleButton>
+                    <ToggleButton Style="{StaticResource TriThu.NavRailItem}" Tag="Thư viện" ToolTip="Thư viện"
+                                  Command="{Binding ShowLibraryViewCommand}"
+                                  IsChecked="{Binding ActiveNavDestination, Converter={StaticResource NavDestinationToBoolConverter}, ConverterParameter=Library, Mode=OneWay}">
+                        <materialDesign:PackIcon Kind="BookOpenVariant" Width="22" Height="22"/>
+                    </ToggleButton>
+                    <ToggleButton Style="{StaticResource TriThu.NavRailItem}" Tag="Workspace" ToolTip="Workspaces"
+                                  Command="{Binding ShowWorkspacesViewCommand}"
+                                  IsChecked="{Binding ActiveNavDestination, Converter={StaticResource NavDestinationToBoolConverter}, ConverterParameter=Workspaces, Mode=OneWay}">
+                        <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="22" Height="22"/>
+                    </ToggleButton>
                 </StackPanel>
 
-                <StackPanel Grid.Row="2" Margin="0,0,0,20">
-                    <Button Style="{StaticResource MaterialDesignFlatButton}" Foreground="White" Height="60" ToolTip="Settings"
+                <StackPanel Grid.Row="2" Margin="0,0,0,14">
+                    <Button Style="{StaticResource TriThu.NavRailAction}" Tag="Cài đặt" ToolTip="Settings"
                             Command="{Binding OpenSettingsCommand}">
-                        <materialDesign:PackIcon Kind="Settings" Width="24" Height="24"/>
+                        <materialDesign:PackIcon Kind="Settings" Width="22" Height="22"/>
                     </Button>
                 </StackPanel>
             </Grid>
-        </materialDesign:ColorZone>
+        </Border>
 
         <!-- Main Content Area -->
         <Grid Grid.Column="1">
