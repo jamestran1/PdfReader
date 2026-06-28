@@ -67,15 +67,18 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
                     <Grid Height="16" VerticalAlignment="Center" Background="Transparent">
+                        <!-- Rail nền liên tục (grey) chạy hết chiều rộng -> không bị đứt dưới thumb -->
+                        <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                                Background="{DynamicResource TriThu.Brush.SurfaceTonalHighest}"/>
                         <Track x:Name="PART_Track">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
                                     <RepeatButton.Template>
                                         <ControlTemplate TargetType="RepeatButton">
-                                            <Border Background="Transparent">
+                                            <Grid Background="Transparent">
                                                 <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
                                                         Background="{DynamicResource TriThu.Brush.Primary}"/>
-                                            </Border>
+                                            </Grid>
                                         </ControlTemplate>
                                     </RepeatButton.Template>
                                 </RepeatButton>
@@ -84,10 +87,7 @@
                                 <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
                                     <RepeatButton.Template>
                                         <ControlTemplate TargetType="RepeatButton">
-                                            <Border Background="Transparent">
-                                                <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
-                                                        Background="{DynamicResource TriThu.Brush.SurfaceTonalHighest}"/>
-                                            </Border>
+                                            <Grid Background="Transparent"/>
                                         </ControlTemplate>
                                     </RepeatButton.Template>
                                 </RepeatButton>
@@ -96,9 +96,12 @@
                                 <Thumb>
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
-                                            <!-- Thumb tròn 14px như design (border-radius:50% + bóng e1) -->
-                                            <Ellipse Width="14" Height="14" Fill="{DynamicResource TriThu.Brush.Primary}"
-                                                     Effect="{DynamicResource TriThu.Elevation.E1}"/>
+                                            <!-- Grid cao hết track -> Ellipse luôn căn giữa dọc, nằm đúng trên rail -->
+                                            <Grid Height="16" Background="Transparent">
+                                                <Ellipse Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                         Fill="{DynamicResource TriThu.Brush.Primary}"
+                                                         Effect="{DynamicResource TriThu.Elevation.E1}"/>
+                                            </Grid>
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>
