@@ -48,22 +48,6 @@ public partial class MainWindow : Window
             PdfViewer.FitToViewport();
             e.Handled = true;
         }
-        else if (ctrl && e.Key == Key.G)
-        {
-            PageBox.Focus();
-            PageBox.SelectAll();
-            e.Handled = true;
-        }
-    }
-
-    // Enter trong ô số trang: parse + kẹp về [1, TotalPages] rồi nhảy tới trang, sau đó nhả focus.
-    private void PageBox_KeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        if (DataContext is ViewModels.MainViewModel vm && int.TryParse(PageBox.Text, out var page))
-            vm.CurrentPage = Math.Clamp(page, 1, Math.Max(1, vm.TotalPages));
-        PdfViewer.Focus();
-        e.Handled = true;
     }
 
     private static string GetExceptionDetails(Exception? ex)
