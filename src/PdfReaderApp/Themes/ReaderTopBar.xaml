@@ -67,9 +67,6 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Slider">
                     <Grid Height="16" VerticalAlignment="Center" Background="Transparent">
-                        <!-- Rail nền liên tục (grey) chạy hết chiều rộng -> không bị đứt dưới thumb -->
-                        <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
-                                Background="{DynamicResource TriThu.Brush.SurfaceTonalHighest}"/>
                         <Track x:Name="PART_Track">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
@@ -87,7 +84,10 @@
                                 <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
                                     <RepeatButton.Template>
                                         <ControlTemplate TargetType="RepeatButton">
-                                            <Grid Background="Transparent"/>
+                                            <Grid Background="Transparent">
+                                                <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                                                        Background="{DynamicResource TriThu.Brush.SurfaceTonalHighest}"/>
+                                            </Grid>
                                         </ControlTemplate>
                                     </RepeatButton.Template>
                                 </RepeatButton>
