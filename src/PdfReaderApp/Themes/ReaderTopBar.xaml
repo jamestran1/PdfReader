@@ -31,7 +31,7 @@
     <!-- Nút filled pill (Mở PDF): nền primary, bóng e1 -> e2 khi hover -->
     <Style x:Key="TriThu.TopBar.FilledButton" TargetType="Button">
         <Setter Property="Height" Value="40"/>
-        <Setter Property="Foreground" Value="{DynamicResource MaterialDesign.Brush.Primary.Foreground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.OnPrimary}"/>
         <Setter Property="FontWeight" Value="Medium"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -39,7 +39,7 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="Bg" CornerRadius="100" Padding="18,0,22,0"
-                            Background="{DynamicResource MaterialDesign.Brush.Primary}"
+                            Background="{DynamicResource TriThu.Brush.Primary}"
                             Effect="{DynamicResource TriThu.Elevation.E1}">
                         <ContentPresenter VerticalAlignment="Center"
                                           TextElement.Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
@@ -74,7 +74,7 @@
                                         <ControlTemplate TargetType="RepeatButton">
                                             <Border Background="Transparent">
                                                 <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
-                                                        Background="{DynamicResource MaterialDesign.Brush.Primary}"/>
+                                                        Background="{DynamicResource TriThu.Brush.Primary}"/>
                                             </Border>
                                         </ControlTemplate>
                                     </RepeatButton.Template>
@@ -97,7 +97,7 @@
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
                                             <Border Background="Transparent" Padding="3">
-                                                <Ellipse Width="12" Height="12" Fill="{DynamicResource MaterialDesign.Brush.Primary}"/>
+                                                <Ellipse Width="12" Height="12" Fill="{DynamicResource TriThu.Brush.Primary}"/>
                                             </Border>
                                         </ControlTemplate>
                                     </Thumb.Template>

@@ -4,6 +4,8 @@
          Nguồn: PDF Reader.dc.html [data-theme="dark"]. Typography (font/size) theme-invariant nên không lặp lại ở đây. -->
 
     <!-- Màu (dark) -->
+    <SolidColorBrush x:Key="TriThu.Brush.Primary" Color="#54DBC0"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OnPrimary" Color="#003730"/>
     <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer" Color="#005046"/>
     <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer.On" Color="#74F8DD"/>
     <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer" Color="#324B44"/>

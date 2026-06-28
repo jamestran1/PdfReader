@@ -127,7 +127,17 @@
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                         <Button Style="{StaticResource TriThu.TopBar.FilledButton}" Command="{Binding OpenFileCommand}">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <materialDesign:PackIcon Kind="FileUploadOutline" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <!-- Icon upload-vào-khay, vẽ đúng SVG design (stroke) -->
+                                <Viewbox Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,8,0">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Stroke="{DynamicResource TriThu.Brush.OnPrimary}" StrokeThickness="2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Data="M12 15V5M8.5 8.5L12 5l3.5 3.5"/>
+                                        <Path Stroke="{DynamicResource TriThu.Brush.OnPrimary}" StrokeThickness="2"
+                                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                              Data="M5 16v1.5A2.5 2.5 0 0 0 7.5 20h9a2.5 2.5 0 0 0 2.5-2.5V16"/>
+                                    </Canvas>
+                                </Viewbox>
                                 <TextBlock Text="Mở PDF" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
@@ -213,7 +223,7 @@
                                     <Style.Triggers>
                                         <Trigger Property="IsKeyboardFocusWithin" Value="True">
                                             <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SurfaceTonalLowest}"/>
-                                            <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary}"/>
+                                            <Setter Property="BorderBrush" Value="{DynamicResource TriThu.Brush.Primary}"/>
                                             <Setter Property="Effect" Value="{DynamicResource TriThu.Elevation.E2}"/>
                                         </Trigger>
                                     </Style.Triggers>
@@ -279,7 +289,7 @@
                                                         <StackPanel>
                                                             <TextBlock Text="{Binding PageIndex, Converter={StaticResource PageDisplayConverter}, StringFormat='Trang {0}'}"
                                                                        FontFamily="{DynamicResource TriThu.Font.Mono}" FontSize="11" FontWeight="Medium"
-                                                                       Foreground="{DynamicResource MaterialDesign.Brush.Primary}"/>
+                                                                       Foreground="{DynamicResource TriThu.Brush.Primary}"/>
                                                             <TextBlock TextWrapping="Wrap" FontSize="14" Margin="0,4,0,0"
                                                                        Foreground="{DynamicResource MaterialDesignBody}"
                                                                        local:SearchSnippetHighlighter.Text="{Binding Snippet}"
@@ -327,7 +337,7 @@
                                                             <Binding Path="DataContext.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
                                                         </MultiBinding>
                                                     </DataTrigger.Binding>
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource MaterialDesign.Brush.Primary}"/>
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource TriThu.Brush.Primary}"/>
                                                     <Setter Property="Background" Value="{DynamicResource MaterialDesignTextFieldBoxBackground}"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -509,7 +519,7 @@
                                                     <StackPanel>
                                                         <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="32" Height="32"
                                                                                  HorizontalAlignment="Center" Margin="0,0,0,8"
-                                                                                 Foreground="{DynamicResource MaterialDesign.Brush.Primary}"/>
+                                                                                 Foreground="{DynamicResource TriThu.Brush.Primary}"/>
                                                         <TextBlock Text="{Binding Name}" FontWeight="Bold"
                                                                    TextTrimming="CharacterEllipsis" TextAlignment="Center"/>
                                                     </StackPanel>
@@ -858,7 +868,7 @@
                                     Style="{StaticResource MaterialDesignFlatButton}"
                                     Visibility="{Binding Notes.IsEditing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             <TextBlock Text="{Binding Notes.StatusMessage}" VerticalAlignment="Center"
-                                       Margin="8,0,0,0" Foreground="{DynamicResource MaterialDesign.Brush.Primary}"/>
+                                       Margin="8,0,0,0" Foreground="{DynamicResource TriThu.Brush.Primary}"/>
                         </StackPanel>
 
                         <!-- Danh sách note -->

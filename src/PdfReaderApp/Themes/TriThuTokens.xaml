@@ -5,6 +5,8 @@
          Giá trị light; biến thể dark ở TriThuTokens.Dark.xaml dùng CÙNG bộ x:Key. Nguồn: PDF Reader.dc.html (:root). -->
 
     <!-- Màu (light) -->
+    <SolidColorBrush x:Key="TriThu.Brush.Primary" Color="#006B5B"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OnPrimary" Color="#FFFFFF"/>
     <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer" Color="#74F8DD"/>
     <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer.On" Color="#00201A"/>
     <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer" Color="#CCE8DE"/>
