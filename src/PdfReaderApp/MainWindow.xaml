@@ -149,8 +149,10 @@
                             <Button Style="{StaticResource TriThu.TopBar.IconButton}" Command="{Binding ZoomOutCommand}" ToolTip="Thu nhỏ">
                                 <materialDesign:PackIcon Kind="Minus" Width="20" Height="20"/>
                             </Button>
-                            <Slider Style="{StaticResource TriThu.TopBar.ZoomSlider}" Minimum="0.4" Maximum="4.0"
-                                    Value="{Binding ZoomLevel, Mode=TwoWay}" Margin="6,0" ToolTip="Zoom"/>
+                            <Slider Width="120" VerticalAlignment="Center" Minimum="0.4" Maximum="4.0"
+                                    Value="{Binding ZoomLevel, Mode=TwoWay}"
+                                    IsMoveToPointEnabled="True" SmallChange="0.1" LargeChange="0.5"
+                                    Margin="6,0" ToolTip="Zoom"/>
                             <Button Style="{StaticResource TriThu.TopBar.IconButton}" Command="{Binding ZoomInCommand}" ToolTip="Phóng to">
                                 <materialDesign:PackIcon Kind="Plus" Width="20" Height="20"/>
                             </Button>

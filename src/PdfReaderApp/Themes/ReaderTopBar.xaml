@@ -54,64 +54,6 @@
         </Setter>
     </Style>
 
-    <!-- Zoom slider: nửa trái fill primary (decrease), nửa phải track surface-chighest (increase),
-         thumb primary. Mỗi RepeatButton bọc trong Border trong suốt cao hết track -> toàn bộ dải
-         16px bắt được chuột; IsMoveToPointEnabled cho click-để-nhảy như slider chuẩn. -->
-    <Style x:Key="TriThu.TopBar.ZoomSlider" TargetType="Slider">
-        <Setter Property="Width" Value="120"/>
-        <Setter Property="VerticalAlignment" Value="Center"/>
-        <Setter Property="IsMoveToPointEnabled" Value="True"/>
-        <Setter Property="SmallChange" Value="0.1"/>
-        <Setter Property="LargeChange" Value="0.5"/>
-        <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="Slider">
-                    <!-- Grid cao đúng bằng thumb (14) -> thumb lấp đầy chiều cao track, ellipse buộc nằm giữa line -->
-                    <Grid Height="14" VerticalAlignment="Center" Background="Transparent">
-                        <Track x:Name="PART_Track">
-                            <Track.DecreaseRepeatButton>
-                                <RepeatButton Command="Slider.DecreaseLarge" Focusable="False">
-                                    <RepeatButton.Template>
-                                        <ControlTemplate TargetType="RepeatButton">
-                                            <Grid Background="Transparent">
-                                                <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
-                                                        Background="{DynamicResource TriThu.Brush.Primary}"/>
-                                            </Grid>
-                                        </ControlTemplate>
-                                    </RepeatButton.Template>
-                                </RepeatButton>
-                            </Track.DecreaseRepeatButton>
-                            <Track.IncreaseRepeatButton>
-                                <RepeatButton Command="Slider.IncreaseLarge" Focusable="False">
-                                    <RepeatButton.Template>
-                                        <ControlTemplate TargetType="RepeatButton">
-                                            <Grid Background="Transparent">
-                                                <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
-                                                        Background="{DynamicResource TriThu.Brush.SurfaceTonalHighest}"/>
-                                            </Grid>
-                                        </ControlTemplate>
-                                    </RepeatButton.Template>
-                                </RepeatButton>
-                            </Track.IncreaseRepeatButton>
-                            <Track.Thumb>
-                                <Thumb>
-                                    <Thumb.Template>
-                                        <ControlTemplate TargetType="Thumb">
-                                            <!-- Thumb lấp đầy chiều cao track (14) -> tròn, nằm đúng giữa line -->
-                                            <Ellipse Width="14" Height="14"
-                                                     Fill="{DynamicResource TriThu.Brush.Primary}"
-                                                     Effect="{DynamicResource TriThu.Elevation.E1}"/>
-                                        </ControlTemplate>
-                                    </Thumb.Template>
-                                </Thumb>
-                            </Track.Thumb>
-                        </Track>
-                    </Grid>
-                </ControlTemplate>
-            </Setter.Value>
-        </Setter>
-    </Style>
-
     <!-- Một segment của segmented control: active = secondary-container -->
     <Style x:Key="TriThu.TopBar.Segment" TargetType="ToggleButton">
         <Setter Property="Width" Value="44"/>
