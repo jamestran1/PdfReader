@@ -38,7 +38,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bg" CornerRadius="100" Padding="18,0,22,0"
+                    <Border x:Name="Bg" CornerRadius="20" Padding="18,0,22,0"
                             Background="{DynamicResource TriThu.Brush.Primary}"
                             Effect="{DynamicResource TriThu.Elevation.E1}">
                         <ContentPresenter VerticalAlignment="Center"
@@ -58,7 +58,7 @@
          thumb primary. Mỗi RepeatButton bọc trong Border trong suốt cao hết track -> toàn bộ dải
          16px bắt được chuột; IsMoveToPointEnabled cho click-để-nhảy như slider chuẩn. -->
     <Style x:Key="TriThu.TopBar.ZoomSlider" TargetType="Slider">
-        <Setter Property="Width" Value="96"/>
+        <Setter Property="Width" Value="120"/>
         <Setter Property="VerticalAlignment" Value="Center"/>
         <Setter Property="IsMoveToPointEnabled" Value="True"/>
         <Setter Property="SmallChange" Value="0.1"/>
@@ -97,7 +97,7 @@
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
                                             <Border Background="Transparent" Padding="3">
-                                                <Ellipse Width="12" Height="12" Fill="{DynamicResource TriThu.Brush.Primary}"/>
+                                                <Ellipse Width="14" Height="14" Fill="{DynamicResource TriThu.Brush.Primary}"/>
                                             </Border>
                                         </ControlTemplate>
                                     </Thumb.Template>
@@ -145,7 +145,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border x:Name="Bg" CornerRadius="100" Background="Transparent"
+                    <Border x:Name="Bg" CornerRadius="19" Background="Transparent"
                             BorderBrush="{DynamicResource TriThu.Brush.Outline}" BorderThickness="1">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
                                           TextElement.Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
