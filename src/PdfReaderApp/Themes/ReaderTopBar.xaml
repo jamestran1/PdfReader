@@ -96,9 +96,9 @@
                                 <Thumb>
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
-                                            <Border Background="Transparent" Padding="3">
-                                                <Ellipse Width="14" Height="14" Fill="{DynamicResource TriThu.Brush.Primary}"/>
-                                            </Border>
+                                            <!-- Thumb tròn 14px như design (border-radius:50% + bóng e1) -->
+                                            <Ellipse Width="14" Height="14" Fill="{DynamicResource TriThu.Brush.Primary}"
+                                                     Effect="{DynamicResource TriThu.Elevation.E1}"/>
                                         </ControlTemplate>
                                     </Thumb.Template>
                                 </Thumb>
