@@ -19,6 +19,20 @@
     <SolidColorBrush x:Key="TriThu.Brush.Error" Color="#BA1A1A"/>
     <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer.On" Color="#06201A"/>
     <SolidColorBrush x:Key="TriThu.Brush.OnSurfaceVariant" Color="#3F4945"/>
+    <!-- #71: bổ sung vai trò M3 MDT không mô hình hóa (cùng key ở bản dark). -->
+    <SolidColorBrush x:Key="TriThu.Brush.TertiaryContainer" Color="#C6E7FF"/>
+    <SolidColorBrush x:Key="TriThu.Brush.TertiaryContainer.On" Color="#001E2F"/>
+    <SolidColorBrush x:Key="TriThu.Brush.ErrorContainer" Color="#FFDAD6"/>
+    <SolidColorBrush x:Key="TriThu.Brush.ErrorContainer.On" Color="#410002"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalLow" Color="#EEF5F1"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonal" Color="#E8EFEB"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalHigh" Color="#E2E9E5"/>
+    <SolidColorBrush x:Key="TriThu.Brush.InverseSurface.On" Color="#ECF2EE"/>
+    <SolidColorBrush x:Key="TriThu.Brush.InversePrimary" Color="#54DBC0"/>
+    <SolidColorBrush x:Key="TriThu.Brush.State" Color="#14161D1B"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Pdf" Color="#FFFFFF"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PdfText" Color="#22282A"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PdfFaint" Color="#6F7975"/>
 
     <!-- Typography (theme-invariant). Roboto là font design; fallback Segoe UI cho desktop Windows. -->
     <FontFamily x:Key="TriThu.Font.Sans">Roboto, Segoe UI, sans-serif</FontFamily>

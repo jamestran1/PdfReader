@@ -18,6 +18,20 @@
     <SolidColorBrush x:Key="TriThu.Brush.Error" Color="#FFB4AB"/>
     <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer.On" Color="#CCE8DE"/>
     <SolidColorBrush x:Key="TriThu.Brush.OnSurfaceVariant" Color="#BFC9C4"/>
+    <!-- #71: cùng bộ key như light, giá trị [data-theme="dark"]. -->
+    <SolidColorBrush x:Key="TriThu.Brush.TertiaryContainer" Color="#294A5F"/>
+    <SolidColorBrush x:Key="TriThu.Brush.TertiaryContainer.On" Color="#C6E7FF"/>
+    <SolidColorBrush x:Key="TriThu.Brush.ErrorContainer" Color="#93000A"/>
+    <SolidColorBrush x:Key="TriThu.Brush.ErrorContainer.On" Color="#FFDAD6"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalLow" Color="#161D1B"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonal" Color="#1A211F"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalHigh" Color="#252B29"/>
+    <SolidColorBrush x:Key="TriThu.Brush.InverseSurface.On" Color="#2B322F"/>
+    <SolidColorBrush x:Key="TriThu.Brush.InversePrimary" Color="#006B5B"/>
+    <SolidColorBrush x:Key="TriThu.Brush.State" Color="#14DEE4E0"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Pdf" Color="#1A211F"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PdfText" Color="#CCD5D1"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PdfFaint" Color="#899390"/>
 
     <!-- Elevation e1/e2/e3 (dark): bóng đậm hơn theo design. -->
     <DropShadowEffect x:Key="TriThu.Elevation.E1" Color="#000000" Direction="270" ShadowDepth="1" BlurRadius="3" Opacity="0.45"/>
