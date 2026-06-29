@@ -312,71 +312,73 @@
             <!-- Tab Strip (Row 1): chỉ hiện trong workspace session -->
             <Border Grid.Row="1"
                     Visibility="{Binding IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"
-                    BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,0,0,1"
-                    Background="{DynamicResource MaterialDesignPaper}">
+                    BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="0,0,0,1"
+                    Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                    <ItemsControl ItemsSource="{Binding Tabs.Tabs}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel Orientation="Horizontal"/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border MinWidth="120" MaxWidth="200" Padding="0"
-                                        ToolTip="{Binding Title}"
-                                        Cursor="Hand">
-                                    <!-- Highlight tab đang active bằng bottom border PrimaryMid -->
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="BorderThickness" Value="0,0,0,3"/>
-                                            <Setter Property="BorderBrush" Value="Transparent"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Value="Visible">
-                                                    <DataTrigger.Binding>
-                                                        <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
-                                                            <Binding/>
-                                                            <Binding Path="DataContext.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
-                                                        </MultiBinding>
-                                                    </DataTrigger.Binding>
-                                                    <Setter Property="BorderBrush" Value="{DynamicResource TriThu.Brush.Primary}"/>
-                                                    <Setter Property="Background" Value="{DynamicResource MaterialDesignTextFieldBoxBackground}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <Border.InputBindings>
-                                        <MouseBinding MouseAction="LeftClick"
-                                                      Command="{Binding DataContext.ActivateTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                      CommandParameter="{Binding}"/>
-                                        <MouseBinding MouseAction="MiddleClick"
-                                                      Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                      CommandParameter="{Binding}"/>
-                                    </Border.InputBindings>
-                                    <Grid Margin="12,6,4,6">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBlock Grid.Column="0"
-                                                   Text="{Binding Title}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   VerticalAlignment="Center"
-                                                   FontSize="13"/>
-                                        <Button Grid.Column="1"
-                                                Style="{StaticResource MaterialDesignIconButton}"
-                                                Width="22" Height="22" Padding="0"
-                                                ToolTip="Đóng tab"
-                                                Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                CommandParameter="{Binding}"
-                                                VerticalAlignment="Center">
-                                            <materialDesign:PackIcon Kind="Close" Width="14" Height="14"/>
-                                        </Button>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal">
+                        <ItemsControl ItemsSource="{Binding Tabs.Tabs}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border ToolTip="{Binding Title}">
+                                        <!-- Active chip = secondary-container (như segmented control top bar) -->
+                                        <Border.Style>
+                                            <Style TargetType="Border" BasedOn="{StaticResource TriThu.DocTab.Chip}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Value="Visible">
+                                                        <DataTrigger.Binding>
+                                                            <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
+                                                                <Binding/>
+                                                                <Binding Path="DataContext.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                                            </MultiBinding>
+                                                        </DataTrigger.Binding>
+                                                        <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
+                                                        <Setter Property="TextElement.Foreground" Value="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Border.InputBindings>
+                                            <MouseBinding MouseAction="LeftClick"
+                                                          Command="{Binding DataContext.ActivateTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                          CommandParameter="{Binding}"/>
+                                            <MouseBinding MouseAction="MiddleClick"
+                                                          Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                          CommandParameter="{Binding}"/>
+                                        </Border.InputBindings>
+                                        <Grid Margin="14,0,8,0" VerticalAlignment="Center">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding Title}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="13"/>
+                                            <Button Grid.Column="1" Margin="6,0,0,0"
+                                                    Style="{StaticResource TriThu.DocTab.Close}"
+                                                    ToolTip="Đóng tab"
+                                                    Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}">
+                                                <materialDesign:PackIcon Kind="Close" Width="14" Height="14"/>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <!-- Nút "+" cuối strip: mở Workspace Documents surface (#47) để thêm tài liệu -->
+                        <Button Style="{StaticResource TriThu.DocTab.Add}"
+                                ToolTip="Thêm tài liệu"
+                                Command="{Binding ShowWorkspaceDocumentsCommand}">
+                            <materialDesign:PackIcon Kind="Plus" Width="20" Height="20"/>
+                        </Button>
+                    </StackPanel>
                 </ScrollViewer>
             </Border>
 
@@ -414,10 +416,11 @@
             <Border Grid.Row="2"
                     Visibility="{Binding IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
-                    <!-- Placeholder khi chưa có tab nào (HasTabs=false) -->
-                    <TextBlock Text="Mở một tài liệu trong workspace"
+                    <!-- Hint khi Open Set rỗng (#62 AC2): nhắc bấm "+" để thêm tài liệu -->
+                    <TextBlock Text="Chưa có tài liệu. Bấm + để thêm"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Opacity="0.5" FontSize="16"
+                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
+                               FontSize="16"
                                Visibility="{Binding Tabs.HasTabs, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
 
                     <!-- Một PdfViewerControl trên mỗi tab, xếp chồng, chỉ active visible -->

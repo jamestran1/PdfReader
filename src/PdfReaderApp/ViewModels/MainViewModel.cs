@@ -713,6 +713,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Tabs.Close(tab);
     }
 
+    // Tab S3 (#62): nút "+" trên Tab Strip mở Workspace Documents surface để thêm tài liệu.
+    // Tạm điều hướng về màn quản lý tài liệu của workspace; surface hai-vùng đầy đủ
+    // sẽ thay thế ở #47 (repoint lệnh này), nên #62 không bị chặn bởi #47.
+    [RelayCommand]
+    private void ShowWorkspaceDocuments()
+    {
+        if (SelectedWorkspace is null) return;
+        IsWorkspaceSession = false;   // ẩn viewer host; Open Set vẫn giữ trong TabSetViewModel
+        ShowWorkspaces = true;
+        ShowWorkspaceDetail = true;
+    }
+
     // S2 / Tab S1: mở tài liệu trong ngữ cảnh workspace -> route qua Open Set.
     [RelayCommand]
     private void OpenWorkspaceDocument(LibraryItem? item)

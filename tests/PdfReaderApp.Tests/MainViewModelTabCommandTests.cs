@@ -191,4 +191,47 @@ public class MainViewModelTabCommandTests
 
         Assert.Equal(tabA, vm.Tabs.ActiveTab);
     }
+
+    // =========================================================
+    // ShowWorkspaceDocumentsCommand: "+" mở màn quản lý tài liệu workspace
+    // (surface tạm cho #47), không rời workspace, không mất Open Set.
+    // =========================================================
+    [Fact]
+    public void ShowWorkspaceDocumentsCommand_OpensWorkspaceDocumentSurface()
+    {
+        var (vm, wsStore) = MakeVm();
+        OpenTwoTabs(vm, wsStore);
+
+        vm.ShowWorkspaceDocumentsCommand.Execute(null);
+
+        Assert.True(vm.ShowWorkspaceDetail);
+        Assert.True(vm.ShowWorkspaces);
+        Assert.False(vm.IsWorkspaceSession);   // ẩn viewer host để không chồng lên surface
+    }
+
+    [Fact]
+    public void ShowWorkspaceDocumentsCommand_PreservesOpenSet()
+    {
+        var (vm, wsStore) = MakeVm();
+        OpenTwoTabs(vm, wsStore);
+
+        vm.ShowWorkspaceDocumentsCommand.Execute(null);
+
+        Assert.Equal(2, vm.Tabs.Tabs.Count);
+    }
+
+    [Fact]
+    public void ShowWorkspaceDocumentsCommand_ThenOpeningDocument_ReturnsToSessionWithoutDuplicateTab()
+    {
+        var (vm, wsStore) = MakeVm();
+        OpenTwoTabs(vm, wsStore);
+
+        vm.ShowWorkspaceDocumentsCommand.Execute(null);
+        vm.OpenWorkspaceDocumentCommand.Execute(MakeItem("docA", "Tài liệu A", "/path/a.pdf"));
+
+        Assert.True(vm.IsWorkspaceSession);
+        Assert.False(vm.ShowWorkspaceDetail);
+        Assert.Equal(2, vm.Tabs.Tabs.Count);                 // không tạo tab trùng
+        Assert.Equal("docA", vm.Tabs.ActiveTab!.DocumentId);
+    }
 }
