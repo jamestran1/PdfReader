@@ -12,6 +12,7 @@
                 <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/TriThuTokens.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/NavRail.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/ReaderTopBar.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/DocTabStrip.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
