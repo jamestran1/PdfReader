@@ -1,0 +1,43 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
+    <!-- Card thư viện (M3). Nguồn: PDF Reader.dc.html (Library screen). -->
+
+    <!-- Card tài liệu: nền surface tonal, bo góc; elevation tăng khi hover. -->
+    <Style x:Key="TriThu.LibraryCard" TargetType="{x:Type materialDesign:Card}">
+        <Setter Property="Width" Value="180"/>
+        <Setter Property="Margin" Value="8"/>
+        <Setter Property="UniformCornerRadius" Value="12"/>
+        <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SurfaceTonalLow}"/>
+        <Setter Property="materialDesign:ElevationAssist.Elevation" Value="Dp1"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="materialDesign:ElevationAssist.Elevation" Value="Dp3"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Nút xoá đè góc phải: tròn, on-surface-variant, hover overlay state. -->
+    <Style x:Key="TriThu.LibraryCard.Delete" TargetType="Button">
+        <Setter Property="Width" Value="30"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="100" Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource TriThu.Brush.State}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>
