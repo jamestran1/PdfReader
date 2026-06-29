@@ -7,6 +7,7 @@
         xmlns:local="clr-namespace:PdfReaderApp"
         xmlns:viewmodels="clr-namespace:PdfReaderApp.ViewModels"
         xmlns:controls="clr-namespace:PdfReaderApp.Controls"
+        xmlns:converters="clr-namespace:PdfReaderApp.Converters"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}" Height="800" Width="1200"
         TextElement.Foreground="{DynamicResource MaterialDesignBody}"
@@ -32,6 +33,8 @@
         <local:DocumentIdToTitleConverter x:Key="DocumentIdToTitleConverter"/>
         <local:IsActiveTabConverter x:Key="IsActiveTabConverter"/>
         <local:NavDestinationToBoolConverter x:Key="NavDestinationToBoolConverter" />
+        <converters:LibraryCoverBrushConverter x:Key="LibraryCoverBrushConverter"/>
+        <converters:HasThumbnailToVisibilityConverter x:Key="HasThumbnailToVisibilityConverter"/>
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -667,56 +670,116 @@
                 </Grid>
             </Border>
 
-            <!-- Library grid (shown when ShowLibrary) -->
+            <!-- Library screen (shown when ShowLibrary) -->
             <Border Grid.Row="2" Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}"
                     Visibility="{Binding ShowLibrary, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Grid>
-                    <TextBlock Text="Chưa có tài liệu. Bấm OPEN PDF để thêm vào thư viện."
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
-                               Visibility="{Binding Library.Count, Converter={StaticResource CountToInverseVisibilityConverter}}"/>
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
-                        <ItemsControl ItemsSource="{Binding Library}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <materialDesign:Card Style="{StaticResource TriThu.LibraryCard}">
-                                        <Grid>
-                                            <!-- Border (không phải MaterialDesignFlatButton: style đó ép ~32px + Ripple clip ảnh).
-                                                 Border co theo nội dung; MouseBinding mở tài liệu khi bấm. -->
-                                            <Border Background="Transparent" Cursor="Hand">
-                                                <Border.InputBindings>
-                                                    <MouseBinding MouseAction="LeftClick"
-                                                                  Command="{Binding DataContext.OpenLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                  CommandParameter="{Binding}"/>
-                                                </Border.InputBindings>
-                                                <StackPanel>
-                                                    <Image Source="{Binding ThumbPath, Converter={StaticResource PathToImageConverter}}" Height="220" Stretch="Uniform" Margin="0,8"/>
-                                                    <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" Margin="8,0" FontWeight="Bold"/>
-                                                    <TextBlock Text="{Binding PageCount, StringFormat='{}{0} trang'}" Margin="8,0" FontSize="11"
-                                                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
-                                                    <TextBlock Text="{Binding LastOpenedAtUnix, Converter={StaticResource UnixToDateConverter}, StringFormat='Mở: {0}'}"
-                                                               Margin="8,0,8,8" FontSize="10"
-                                                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
-                                                </StackPanel>
+                <DockPanel>
+                    <!-- Header: tiêu đề + đếm/sắp xếp + ô tìm + Mở PDF -->
+                    <Grid DockPanel.Dock="Top" Margin="30,22,30,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <TextBlock Text="Thư viện" FontSize="24"/>
+                            <TextBlock Margin="0,3,0,0" FontSize="14"
+                                       Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
+                                       Text="{Binding Library.Count, StringFormat='{}{0} tài liệu · sắp xếp theo lần mở gần nhất'}"/>
+                        </StackPanel>
+                        <Border Grid.Column="2" Style="{StaticResource TriThu.Library.SearchPill}" Margin="0,0,10,0">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Magnify" Width="18" Height="18"
+                                                         Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+                                <TextBlock Text="Tìm sách" Margin="10,0,0,0" FontSize="14"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+                            </StackPanel>
+                        </Border>
+                        <Button Grid.Column="3" Style="{StaticResource TriThu.TopBar.FilledButton}"
+                                Command="{Binding OpenFileCommand}">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <materialDesign:PackIcon Kind="Upload" Width="18" Height="18" VerticalAlignment="Center"/>
+                                <TextBlock Text="Mở PDF" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+
+                    <Grid>
+                        <TextBlock Text="Chưa có tài liệu. Bấm Mở PDF để thêm vào thư viện."
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
+                                   Visibility="{Binding Library.Count, Converter={StaticResource CountToInverseVisibilityConverter}}"/>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="30,6,30,36">
+                            <ItemsControl ItemsSource="{Binding Library}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Width="190" Margin="0,0,22,22" Cursor="Hand">
+                                            <StackPanel.InputBindings>
+                                                <MouseBinding MouseAction="LeftClick"
+                                                              Command="{Binding DataContext.OpenLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                              CommandParameter="{Binding}"/>
+                                            </StackPanel.InputBindings>
+                                            <!-- Tile bìa 3:4 -->
+                                            <Border Style="{StaticResource TriThu.LibraryCard}" Height="253"
+                                                    Background="{Binding Converter={StaticResource LibraryCoverBrushConverter}}">
+                                                <Grid>
+                                                    <!-- Lớp tối đáy cho dễ đọc chữ đè -->
+                                                    <Border CornerRadius="16">
+                                                        <Border.Background>
+                                                            <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                                                                <GradientStop Color="#1AFFFFFF" Offset="0"/>
+                                                                <GradientStop Color="#33000000" Offset="1"/>
+                                                            </LinearGradientBrush>
+                                                        </Border.Background>
+                                                    </Border>
+                                                    <!-- Tiêu đề đè CHỈ khi không có bìa thật -->
+                                                    <TextBlock Text="{Binding Title}" Foreground="White"
+                                                               FontSize="17" FontWeight="Bold" TextWrapping="Wrap"
+                                                               Margin="16" VerticalAlignment="Bottom"
+                                                               Visibility="{Binding Converter={StaticResource HasThumbnailToVisibilityConverter}}"/>
+                                                    <!-- Pill số trang -->
+                                                    <Border Style="{StaticResource TriThu.LibraryCard.PagePill}">
+                                                        <TextBlock Text="{Binding PageCount, StringFormat='{}{0}p'}"
+                                                                   Foreground="White" FontFamily="Consolas" FontSize="10"/>
+                                                    </Border>
+                                                    <!-- Nút xoá (hiện khi hover) -->
+                                                    <Button Style="{StaticResource TriThu.LibraryCard.Delete}"
+                                                            HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
+                                                            ToolTip="Xoá khỏi thư viện"
+                                                            Command="{Binding DataContext.RemoveLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}">
+                                                        <Button.Visibility>
+                                                            <Binding Path="IsMouseOver" RelativeSource="{RelativeSource AncestorType=StackPanel}"
+                                                                     Converter="{StaticResource BooleanToVisibilityConverter}"/>
+                                                        </Button.Visibility>
+                                                        <materialDesign:PackIcon Kind="Delete" Width="16" Height="16"/>
+                                                    </Button>
+                                                </Grid>
                                             </Border>
-                                            <!-- Nút xoá đè góc phải; bấm vào đây xoá, bấm chỗ khác mở tài liệu -->
-                                            <Button Style="{StaticResource TriThu.LibraryCard.Delete}"
-                                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0"
-                                                    ToolTip="Xoá khỏi thư viện"
-                                                    Command="{Binding DataContext.RemoveLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                    CommandParameter="{Binding}">
-                                                <materialDesign:PackIcon Kind="Delete" Width="16" Height="16" />
-                                            </Button>
-                                        </Grid>
-                                    </materialDesign:Card>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
-                </Grid>
+                                            <!-- Tiêu đề + meta dưới tile -->
+                                            <TextBlock Text="{Binding Title}" Margin="4,12,4,0"
+                                                       FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Margin="4,3,4,0" FontSize="12"
+                                                       Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="{}{0} trang · {1}">
+                                                        <Binding Path="PageCount"/>
+                                                        <Binding Path="LastOpenedAtUnix" Converter="{StaticResource UnixToDateConverter}"/>
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </Grid>
+                </DockPanel>
             </Border>
 
                 <!-- Floating page pill: điều hướng trang, nổi đáy-giữa vùng viewer (design) -->
