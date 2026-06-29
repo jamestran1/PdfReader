@@ -234,4 +234,20 @@ public class MainViewModelTabCommandTests
         Assert.Equal(2, vm.Tabs.Tabs.Count);                 // không tạo tab trùng
         Assert.Equal("docA", vm.Tabs.ActiveTab!.DocumentId);
     }
+
+    // =========================================================
+    // #64: Tab Strip tài liệu ẩn ở Thư viện dù phiên workspace còn active.
+    // =========================================================
+    [Fact]
+    public void IsDocumentTabStripVisible_FalseOnLibrary_EvenDuringWorkspaceSession()
+    {
+        var (vm, wsStore) = MakeVm();
+        OpenTwoTabs(vm, wsStore);                 // phiên workspace + đang đọc
+        Assert.True(vm.IsDocumentTabStripVisible);
+
+        vm.ShowLibrary = true;                    // điều hướng sang Thư viện
+
+        Assert.True(vm.IsWorkspaceSession);       // phiên vẫn còn
+        Assert.False(vm.IsDocumentTabStripVisible);
+    }
 }
