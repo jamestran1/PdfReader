@@ -124,8 +124,9 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <!-- Top Toolbar -->
-            <Border Background="{DynamicResource MaterialDesignPaper}" Height="64" Padding="16,0">
+            <!-- Top Toolbar: chỉ hiện khi đang đọc tài liệu (ẩn ở Thư viện/Workspaces) -->
+            <Border Background="{DynamicResource MaterialDesignPaper}" Height="64" Padding="16,0"
+                    Visibility="{Binding IsReadingDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <DockPanel>
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
                         <Button Style="{StaticResource TriThu.TopBar.FilledButton}" Command="{Binding OpenFileCommand}">
@@ -314,7 +315,7 @@
 
             <!-- Tab Strip (Row 1): chỉ hiện trong workspace session -->
             <Border Grid.Row="1"
-                    Visibility="{Binding IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Visibility="{Binding IsDocumentTabStripVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                     BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="0,0,0,1"
                     Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">

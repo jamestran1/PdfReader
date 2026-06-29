@@ -202,10 +202,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ActiveNavDestination));
         OnPropertyChanged(nameof(IsRightPanelExpanded));
         OnPropertyChanged(nameof(IsRightPanelStripVisible));
+        OnPropertyChanged(nameof(IsDocumentTabStripVisible));
     }
 
     // Đang đọc tài liệu (không ở Thư viện cũng không ở Workspaces) -> hiện các nút đọc trên toolbar.
     public bool IsReadingDocument => !ShowLibrary && !ShowWorkspaces;
+
+    // #64: Tab Strip tài liệu chỉ hiện khi đang đọc trong phiên workspace (ẩn ở Thư viện/Workspaces).
+    public bool IsDocumentTabStripVisible => IsWorkspaceSession && IsReadingDocument;
 
     // Đích điều hướng đang active trên nav rail; suy ra từ trạng thái màn (Library/Workspaces loại trừ nhau).
     public Core.NavDestination ActiveNavDestination =>
@@ -448,6 +452,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ZoomLevel));
         OnPropertyChanged(nameof(TotalPages));
         OnPropertyChanged(nameof(StandaloneDocumentSource));
+        OnPropertyChanged(nameof(IsDocumentTabStripVisible));
     }
 
     /// <summary>
