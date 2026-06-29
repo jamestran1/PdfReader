@@ -12,6 +12,8 @@
     <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer" Color="#CCE8DE"/>
     <SolidColorBrush x:Key="TriThu.Brush.Tertiary" Color="#426277"/>
     <SolidColorBrush x:Key="TriThu.Brush.SurfaceVariant" Color="#DBE5E0"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Surface" Color="#F4FBF7"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OnSurface" Color="#161D1B"/>
     <SolidColorBrush x:Key="TriThu.Brush.Outline" Color="#6F7975"/>
     <SolidColorBrush x:Key="TriThu.Brush.OutlineVariant" Color="#BFC9C4"/>
     <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalLowest" Color="#FFFFFF"/>
