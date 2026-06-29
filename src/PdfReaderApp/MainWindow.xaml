@@ -741,15 +741,16 @@
                 </Border>
         </Grid>
 
-        <!-- Thanh kéo chỉnh bề rộng panel chat (ẩn cùng panel khi ở thư viện) -->
+        <!-- Thanh kéo chỉnh bề rộng panel chat (ẩn khi panel thu gọn hoặc ở thư viện/workspaces) -->
         <GridSplitter Grid.Column="2" Width="6" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
                       ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
-                      Background="{DynamicResource MaterialDesignDivider}"
-                      Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                      Background="{DynamicResource TriThu.Brush.OutlineVariant}"
+                      Visibility="{Binding IsRightPanelExpanded, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
         <!-- Right Sidebar (AI + Notes) -->
         <materialDesign:Card Grid.Column="3" Margin="4" materialDesign:ElevationAssist.Elevation="Dp1" UniformCornerRadius="12"
-                             Visibility="{Binding ShowLibrary, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                             Visibility="{Binding IsRightPanelExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Grid>
             <TabControl Style="{StaticResource MaterialDesignTabControl}"
                         materialDesign:ColorZoneAssist.Mode="PrimaryMid"
                         SelectedIndex="{Binding Notes.RightTabIndex, Mode=TwoWay}">
@@ -962,6 +963,25 @@
                     </Grid>
                 </TabItem>
             </TabControl>
+                <Button Style="{StaticResource TriThu.RightPanel.IconButton}"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,6,0"
+                        Panel.ZIndex="1"
+                        ToolTip="Thu gọn panel"
+                        Command="{Binding ToggleRightPanelCommand}">
+                    <materialDesign:PackIcon Kind="ChevronRight" Width="18" Height="18"/>
+                </Button>
+            </Grid>
         </materialDesign:Card>
+        <!-- #63: dải mỏng khi panel phải thu gọn; nút mở lại panel -->
+        <Border Grid.Column="3" Margin="4" CornerRadius="12"
+                Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}"
+                Visibility="{Binding IsRightPanelStripVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Button Style="{StaticResource TriThu.RightPanel.IconButton}"
+                    HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,8,0,0"
+                    ToolTip="Mở panel"
+                    Command="{Binding ToggleRightPanelCommand}">
+                <materialDesign:PackIcon Kind="ChevronLeft" Width="20" Height="20"/>
+            </Button>
+        </Border>
     </Grid>
 </Window>

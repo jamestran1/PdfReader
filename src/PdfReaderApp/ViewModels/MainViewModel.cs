@@ -150,6 +150,25 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private double _chatColumnMinWidth = 0;
 
+    // #63: bề rộng dải mỏng khi panel phải thu gọn.
+    private const double CollapsedStripWidthPx = 48;
+
+    // #63: thu/mở panel phải (chat/notes). Trạng thái GLOBAL -- một cờ cho cả app, không theo tab.
+    // Không lưu qua phiên (in-memory); persistence ngoài phạm vi #63.
+    [ObservableProperty]
+    private bool _isRightPanelCollapsed;
+
+    partial void OnIsRightPanelCollapsedChanged(bool value) => UpdateChatColumnVisibility();
+
+    // Panel mở rộng đầy đủ (Card + splitter) khi đang đọc và chưa thu gọn.
+    public bool IsRightPanelExpanded => IsReadingDocument && !IsRightPanelCollapsed;
+
+    // Dải mỏng hiện khi đang đọc và đã thu gọn.
+    public bool IsRightPanelStripVisible => IsReadingDocument && IsRightPanelCollapsed;
+
+    [RelayCommand]
+    private void ToggleRightPanel() => IsRightPanelCollapsed = !IsRightPanelCollapsed;
+
     // Library và Workspaces loại trừ nhau; panel chat ẩn khi đang ở một trong hai (lưới phủ vùng chính).
     partial void OnShowLibraryChanged(bool value)
     {
@@ -157,14 +176,21 @@ public partial class MainViewModel : ObservableObject, IDisposable
         UpdateChatColumnVisibility();
     }
 
-    // Thu cột chat về 0 khi ở Library/Workspaces; khôi phục bề rộng đã lưu khi đang đọc tài liệu.
+    // Thu cột chat về 0 khi ở Library/Workspaces; về dải mỏng khi thu gọn; khôi phục bề rộng đã lưu khi mở.
     private void UpdateChatColumnVisibility()
     {
+        // Nhớ bề rộng khi panel đang mở rộng thật (>= min) để khôi phục khi mở lại.
+        if (ChatColumnWidth.IsAbsolute && ChatColumnWidth.Value >= MinChatWidthPx)
+            _savedChatWidthPx = ChatColumnWidth.Value;
+
         if (ShowLibrary || ShowWorkspaces)
         {
-            if (ChatColumnWidth.IsAbsolute && ChatColumnWidth.Value > 0)
-                _savedChatWidthPx = ChatColumnWidth.Value;
             ChatColumnWidth = new System.Windows.GridLength(0);
+            ChatColumnMinWidth = 0;
+        }
+        else if (IsRightPanelCollapsed)
+        {
+            ChatColumnWidth = new System.Windows.GridLength(CollapsedStripWidthPx);
             ChatColumnMinWidth = 0;
         }
         else
@@ -174,6 +200,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         OnPropertyChanged(nameof(IsReadingDocument));
         OnPropertyChanged(nameof(ActiveNavDestination));
+        OnPropertyChanged(nameof(IsRightPanelExpanded));
+        OnPropertyChanged(nameof(IsRightPanelStripVisible));
     }
 
     // Đang đọc tài liệu (không ở Thư viện cũng không ở Workspaces) -> hiện các nút đọc trên toolbar.

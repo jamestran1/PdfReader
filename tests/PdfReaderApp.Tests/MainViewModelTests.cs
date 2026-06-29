@@ -801,6 +801,51 @@ public class MainViewModelTests
         Assert.DoesNotContain("docA", wsStore.GetDocumentIds(W.Id));
     }
 
+    // ===== #63 Right-panel collapse (global, toggle -> thin strip) =====
+
+    [Fact]
+    public void ToggleRightPanel_WhenReadingAndExpanded_CollapsesToThinStrip()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+        vm.ShowLibrary = false;   // vào chế độ đọc -> panel mở rộng
+
+        vm.ToggleRightPanelCommand.Execute(null);
+
+        Assert.True(vm.IsRightPanelCollapsed);
+        Assert.True(vm.IsRightPanelStripVisible);
+        Assert.False(vm.IsRightPanelExpanded);
+        Assert.Equal(48d, vm.ChatColumnWidth.Value);
+    }
+
+    [Fact]
+    public void ToggleRightPanel_TwiceAfterResize_RestoresPreviousWidth()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+        vm.ShowLibrary = false;
+        vm.ChatColumnWidth = new GridLength(420);   // giả lập người dùng kéo splitter
+
+        vm.ToggleRightPanelCommand.Execute(null);   // thu gọn
+        vm.ToggleRightPanelCommand.Execute(null);   // mở lại
+
+        Assert.True(vm.IsRightPanelExpanded);
+        Assert.Equal(420d, vm.ChatColumnWidth.Value);
+    }
+
+    [Fact]
+    public void RightPanelCollapsed_IsGlobal_SurvivesNavigationAwayAndBack()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+        vm.ShowLibrary = false;
+        vm.ToggleRightPanelCommand.Execute(null);     // thu gọn khi đang đọc
+
+        vm.ShowLibrary = true;                          // sang Thư viện
+        Assert.False(vm.IsRightPanelStripVisible);      // ẩn hẳn ở Thư viện, không phải dải
+
+        vm.ShowLibrary = false;                         // quay lại đọc
+        Assert.True(vm.IsRightPanelCollapsed);          // vẫn thu gọn (global, không reset)
+        Assert.True(vm.IsRightPanelStripVisible);
+    }
+
     [Fact]
     public void RemoveLibraryItem_Cascades_RemovesMembership_DeletesDefaultWs_CleansNotesAndChat()
     {
