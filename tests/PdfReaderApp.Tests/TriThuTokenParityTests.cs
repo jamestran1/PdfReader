@@ -25,6 +25,8 @@ public class TriThuTokenParityTests
         "TriThu.Brush.Pdf",
         "TriThu.Brush.PdfText",
         "TriThu.Brush.PdfFaint",
+        "TriThu.Brush.Surface",
+        "TriThu.Brush.OnSurface",
     };
 
     private static string RepoRoot()

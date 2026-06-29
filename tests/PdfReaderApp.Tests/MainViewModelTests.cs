@@ -148,6 +148,44 @@ public class MainViewModelTests
             workspaceStore: wsStore);
 
     [Fact]
+    public void ReloadWorkspaces_EmptyWorkspace_CardIsEmptyWithZeroCountLabel()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        wsStore.Upsert(new PdfReaderApp.Models.Workspace("ws1", "Dự án", false, null, 1, 1));
+        var vm = VmWithWorkspaceStore(wsStore);
+
+        vm.ReloadWorkspaces();
+
+        var card = Assert.Single(vm.Workspaces);
+        Assert.Equal("Dự án", card.Name);
+        Assert.True(card.IsEmpty);
+        Assert.Equal("0 tài liệu", card.Label);
+        Assert.Null(card.ActiveTitle);
+    }
+
+    [Fact]
+    public void ReloadWorkspaces_WithSavedActiveTab_CardShowsActiveDocumentTitle()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        wsStore.Upsert(new PdfReaderApp.Models.Workspace("ws1", "Dự án", false, null, 1, 1));
+        wsStore.AddDocument("ws1", "docA");
+        wsStore.SaveOpenTabs("ws1", new[]
+        {
+            new PdfReaderApp.Models.OpenTabState("docA", 0, true, 1, 1.0, 0, 1)
+        });
+        var vm = VmWithWorkspaceStore(wsStore);
+        vm.Library.Add(new PdfReaderApp.Models.LibraryItem("docA", "Tài liệu A", "/a.pdf", null, 10, 1, 1));
+
+        vm.ReloadWorkspaces();
+
+        var card = Assert.Single(vm.Workspaces);
+        Assert.False(card.IsEmpty);
+        Assert.Equal("1 tài liệu", card.Label);
+        Assert.Equal("Tài liệu A", card.ActiveTitle);
+        Assert.True(card.HasActiveTitle);
+    }
+
+    [Fact]
     public void RemoveLibraryItem_DeletesChatHistoryForThatDocument()
     {
         var store = new FakeChatHistoryStore();
@@ -439,7 +477,7 @@ public class MainViewModelTests
 
         Assert.Single(vm.Workspaces);
         Assert.Equal("Dự án A", vm.Workspaces[0].Name);
-        Assert.False(vm.Workspaces[0].IsDefault);
+        Assert.False(vm.Workspaces[0].Workspace.IsDefault);
     }
 
     [Fact]

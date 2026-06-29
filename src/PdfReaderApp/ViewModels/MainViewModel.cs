@@ -265,7 +265,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _renameDraft = string.Empty;
 
-    public ObservableCollection<Workspace> Workspaces { get; } = new();
+    public ObservableCollection<WorkspaceCard> Workspaces { get; } = new();
 
     public ObservableCollection<LibraryItem> Library { get; } = new();
 
@@ -498,8 +498,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public void ReloadWorkspaces()
     {
         Workspaces.Clear();
-        foreach (var ws in _workspaceStore.GetAll(includeDefault: false))
-            Workspaces.Add(ws);
+        foreach (var workspace in _workspaceStore.GetAll(includeDefault: false))
+            Workspaces.Add(BuildWorkspaceCard(workspace));
+    }
+
+    // Dựng card: số tài liệu (label), tiêu đề tài liệu đang đọc (tab active đã lưu), cờ rỗng.
+    private WorkspaceCard BuildWorkspaceCard(Workspace workspace)
+    {
+        int documentCount = _workspaceStore.GetDocumentIds(workspace.Id).Count;
+        var activeTab = _workspaceStore.GetOpenTabs(workspace.Id).FirstOrDefault(tab => tab.IsActive);
+        string? activeTitle = activeTab is null
+            ? null
+            : Library.FirstOrDefault(item => item.DocumentId == activeTab.DocumentId)?.Title;
+        return new WorkspaceCard(workspace, $"{documentCount} tài liệu", activeTitle, documentCount == 0);
     }
 
     [RelayCommand]
