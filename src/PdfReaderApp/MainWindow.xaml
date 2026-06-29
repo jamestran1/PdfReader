@@ -702,7 +702,7 @@
             </Border>
 
             <!-- Library screen (shown when ShowLibrary) -->
-            <Border Grid.Row="2" Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}"
+            <Border Grid.Row="2" Background="{DynamicResource TriThu.Brush.Surface}"
                     Visibility="{Binding ShowLibrary, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <DockPanel>
                     <!-- Header: tiêu đề + đếm/sắp xếp + ô tìm + Mở PDF -->
@@ -714,7 +714,7 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <TextBlock Text="Thư viện" FontSize="24"/>
+                            <TextBlock Text="Thư viện" FontSize="24" Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
                             <TextBlock Margin="0,3,0,0" FontSize="14"
                                        Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
                                        Text="{Binding Library.Count, StringFormat='{}{0} tài liệu · sắp xếp theo lần mở gần nhất'}"/>
@@ -794,7 +794,8 @@
                                             </Border>
                                             <!-- Tiêu đề + meta dưới tile -->
                                             <TextBlock Text="{Binding Title}" Margin="4,12,4,0"
-                                                       FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis"/>
+                                                       FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
                                             <TextBlock Margin="4,3,4,0" FontSize="12"
                                                        Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}">
                                                 <TextBlock.Text>
