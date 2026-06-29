@@ -1,0 +1,72 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Workspaces screen (M3). Nguồn: PDF Reader.dc.html (WORKSPACES). -->
+
+    <!-- Card workspace: nền surface, viền outline-variant, bo 16; hover nâng bóng + ẩn viền. -->
+    <Style x:Key="TriThu.WorkspaceCard" TargetType="Border">
+        <Setter Property="Width" Value="240"/>
+        <Setter Property="Margin" Value="0,0,16,16"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="20"/>
+        <Setter Property="Background" Value="{DynamicResource TriThu.Brush.Surface}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource TriThu.Brush.OutlineVariant}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Effect" Value="{DynamicResource TriThu.Elevation.E2}"/>
+                <Setter Property="BorderBrush" Value="Transparent"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Nút xoá góc phải-trên: tròn, on-surface-variant; hover nền error-container. -->
+    <Style x:Key="TriThu.WorkspaceCard.Delete" TargetType="Button">
+        <Setter Property="Width" Value="34"/>
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="100" Background="Transparent">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
+                                          TextElement.Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Background" Value="{DynamicResource TriThu.Brush.ErrorContainer}"/>
+                            <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.ErrorContainer.On}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Nút tạo workspace: pill cao 52, nền primary, bóng e1 -> e2 hover (khớp design h52/radius 999). -->
+    <Style x:Key="TriThu.WorkspaceCard.CreateButton" TargetType="Button">
+        <Setter Property="Height" Value="52"/>
+        <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.OnPrimary}"/>
+        <Setter Property="FontWeight" Value="Medium"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Bg" CornerRadius="12" Padding="26,0"
+                            Background="{DynamicResource TriThu.Brush.Primary}"
+                            Effect="{DynamicResource TriThu.Elevation.E1}">
+                        <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"
+                                          TextElement.Foreground="{Binding Foreground, RelativeSource={RelativeSource TemplatedParent}}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bg" Property="Effect" Value="{DynamicResource TriThu.Elevation.E2}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

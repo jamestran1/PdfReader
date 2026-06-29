@@ -38,7 +38,7 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
-                    <Border x:Name="Bg" CornerRadius="20" Padding="18,0,22,0"
+                    <Border x:Name="Bg" CornerRadius="12" Padding="18,0,22,0"
                             Background="{DynamicResource TriThu.Brush.Primary}"
                             Effect="{DynamicResource TriThu.Elevation.E1}">
                         <ContentPresenter VerticalAlignment="Center"
