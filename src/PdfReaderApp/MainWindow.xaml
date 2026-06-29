@@ -668,11 +668,12 @@
             </Border>
 
             <!-- Library grid (shown when ShowLibrary) -->
-            <Border Grid.Row="2" Background="{DynamicResource MaterialDesignPaper}"
+            <Border Grid.Row="2" Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}"
                     Visibility="{Binding ShowLibrary, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
-                    <TextBlock Text="Chưa có tài liệu — bấm OPEN PDF để thêm vào thư viện."
-                               HorizontalAlignment="Center" VerticalAlignment="Center" Opacity="0.6"
+                    <TextBlock Text="Chưa có tài liệu. Bấm OPEN PDF để thêm vào thư viện."
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
                                Visibility="{Binding Library.Count, Converter={StaticResource CountToInverseVisibilityConverter}}"/>
                     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="16">
                         <ItemsControl ItemsSource="{Binding Library}">
@@ -681,7 +682,7 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <materialDesign:Card Width="180" Margin="8" materialDesign:ElevationAssist.Elevation="Dp2">
+                                    <materialDesign:Card Style="{StaticResource TriThu.LibraryCard}">
                                         <Grid>
                                             <!-- Border (không phải MaterialDesignFlatButton: style đó ép ~32px + Ripple clip ảnh).
                                                  Border co theo nội dung; MouseBinding mở tài liệu khi bấm. -->
@@ -694,14 +695,17 @@
                                                 <StackPanel>
                                                     <Image Source="{Binding ThumbPath, Converter={StaticResource PathToImageConverter}}" Height="220" Stretch="Uniform" Margin="0,8"/>
                                                     <TextBlock Text="{Binding Title}" TextTrimming="CharacterEllipsis" Margin="8,0" FontWeight="Bold"/>
-                                                    <TextBlock Text="{Binding PageCount, StringFormat='{}{0} trang'}" Margin="8,0" Opacity="0.7" FontSize="11"/>
+                                                    <TextBlock Text="{Binding PageCount, StringFormat='{}{0} trang'}" Margin="8,0" FontSize="11"
+                                                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
                                                     <TextBlock Text="{Binding LastOpenedAtUnix, Converter={StaticResource UnixToDateConverter}, StringFormat='Mở: {0}'}"
-                                                               Margin="8,0,8,8" Opacity="0.6" FontSize="10"/>
+                                                               Margin="8,0,8,8" FontSize="10"
+                                                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
                                                 </StackPanel>
                                             </Border>
                                             <!-- Nút xoá đè góc phải; bấm vào đây xoá, bấm chỗ khác mở tài liệu -->
-                                            <Button Style="{StaticResource MaterialDesignIconButton}" Width="30" Height="30"
-                                                    HorizontalAlignment="Right" VerticalAlignment="Top" ToolTip="Xoá khỏi thư viện"
+                                            <Button Style="{StaticResource TriThu.LibraryCard.Delete}"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,4,4,0"
+                                                    ToolTip="Xoá khỏi thư viện"
                                                     Command="{Binding DataContext.RemoveLibraryItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}">
                                                 <materialDesign:PackIcon Kind="Delete" Width="16" Height="16" />
