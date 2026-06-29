@@ -688,7 +688,7 @@
                                        Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
                                        Text="{Binding Library.Count, StringFormat='{}{0} tài liệu · sắp xếp theo lần mở gần nhất'}"/>
                         </StackPanel>
-                        <Border Grid.Column="2" Style="{StaticResource TriThu.Library.SearchPill}" Margin="0,0,10,0">
+                        <Border Grid.Column="2" Style="{StaticResource TriThu.Library.SearchBox}" Margin="0,0,10,0">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <materialDesign:PackIcon Kind="Magnify" Width="18" Height="18"
                                                          Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>

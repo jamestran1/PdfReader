@@ -35,7 +35,7 @@ public class LibraryCardStyleTests
         Assert.Contains("TriThu.LibraryCard", keys);
         Assert.Contains("TriThu.LibraryCard.Delete", keys);
         Assert.Contains("TriThu.LibraryCard.PagePill", keys);
-        Assert.Contains("TriThu.Library.SearchPill", keys);
+        Assert.Contains("TriThu.Library.SearchBox", keys);
     }
 
     [Fact]

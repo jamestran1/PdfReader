@@ -51,11 +51,11 @@
         </Setter>
     </Style>
 
-    <!-- Ô tìm kiếm dạng pill (chỉ hình thức ở slice này; backend search là issue riêng). -->
-    <Style x:Key="TriThu.Library.SearchPill" TargetType="Border">
+    <!-- Ô tìm kiếm bo góc nhẹ (không phải oval); chỉ hình thức ở slice này, backend search là issue riêng. -->
+    <Style x:Key="TriThu.Library.SearchBox" TargetType="Border">
         <Setter Property="Width" Value="280"/>
         <Setter Property="Height" Value="44"/>
-        <Setter Property="CornerRadius" Value="999"/>
+        <Setter Property="CornerRadius" Value="12"/>
         <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SurfaceTonalHigh}"/>
         <Setter Property="Padding" Value="16,0"/>
     </Style>
