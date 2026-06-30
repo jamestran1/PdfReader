@@ -285,10 +285,34 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ChatMessage> ChatMessages { get; } = new();
 
     public NotesViewModel Notes { get; }
-    // Lazy: SnackbarMessageQueue dùng Dispatcher nên khởi tạo khi truy cập lần đầu (tránh lỗi trong unit test).
-    private MaterialDesignThemes.Wpf.SnackbarMessageQueue? _notesSnackbar;
-    public MaterialDesignThemes.Wpf.SnackbarMessageQueue NotesSnackbar
-        => _notesSnackbar ??= new MaterialDesignThemes.Wpf.SnackbarMessageQueue();
+    // #67: thông báo snackbar non-blocking, đáy-giữa, tự ẩn. Một surface duy nhất cho cả app.
+    [ObservableProperty]
+    private Notification? _currentNotification;
+
+    private System.Windows.Threading.DispatcherTimer? _notificationTimer;
+
+    public void NotifySuccess(string message) => ShowNotification(new Notification(message, false));
+    public void NotifyError(string message) => ShowNotification(new Notification(message, true));
+
+    private void ShowNotification(Notification notification)
+    {
+        CurrentNotification = notification;
+        // Unit test (không có Application): bỏ qua timer tự ẩn; chỉ cần CurrentNotification được set.
+        if (System.Windows.Application.Current is null) return;
+        _notificationTimer ??= CreateNotificationTimer();
+        _notificationTimer.Stop();
+        _notificationTimer.Start();
+    }
+
+    private System.Windows.Threading.DispatcherTimer CreateNotificationTimer()
+    {
+        var timer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = System.TimeSpan.FromMilliseconds(2200)
+        };
+        timer.Tick += (_, _) => { _notificationTimer!.Stop(); CurrentNotification = null; };
+        return timer;
+    }
 
     private static string AppDir()
     {
@@ -482,8 +506,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Không thể import file PDF: {ex.Message}", "Lỗi",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            NotifyError($"Không thể import file PDF: {ex.Message}");
         }
     }
 
@@ -878,8 +901,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             LoadChatHistory();
             Notes.LoadFor(null);
             UpdateNotesDocumentContext();
-            System.Windows.MessageBox.Show($"Không thể mở file PDF: {ex.Message}", "Lỗi mở file",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            NotifyError($"Không thể mở file PDF: {ex.Message}");
             FilePath = null;
         }
     }
@@ -1091,8 +1113,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Tìm kiếm lỗi: {ex.Message}", "Search",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            NotifyError($"Tìm kiếm lỗi: {ex.Message}");
         }
     }
 
@@ -1160,7 +1181,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (msg is null || msg.Role != "AI" || string.IsNullOrWhiteSpace(msg.Content)) return;
         bool saved = Notes.AddNote(msg.Content, null, null);
-        NotesSnackbar.Enqueue(saved ? "Đã lưu vào ghi chú" : "Hãy mở một tài liệu để lưu ghi chú");
+        if (saved) NotifySuccess("Đã lưu vào ghi chú");
+        else NotifyError("Hãy mở một tài liệu để lưu ghi chú");
     }
 
     [RelayCommand]
