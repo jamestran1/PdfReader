@@ -266,6 +266,43 @@
                         <Button Style="{StaticResource TriThu.TopBar.IconButton}" Command="{Binding ReindexDocumentCommand}" ToolTip="Lập chỉ mục lại" Margin="6,0,0,0">
                             <materialDesign:PackIcon Kind="DatabaseRefresh" Width="20" Height="20"/>
                         </Button>
+                        <!-- #68: tạo Workspace từ tài liệu đang đọc lẻ (chỉ hiện khi đọc lẻ) -->
+                        <Button x:Name="PromoteButton" Style="{StaticResource TriThu.TopBar.IconButton}" Margin="6,0,0,0"
+                                ToolTip="Tạo Workspace từ tài liệu này"
+                                Visibility="{Binding CanPromoteToWorkspace, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Click="OpenPromotePopup">
+                            <materialDesign:PackIcon Kind="FolderPlusOutline" Width="20" Height="20"/>
+                        </Button>
+                        <Popup x:Name="PromotePopup" PlacementTarget="{Binding ElementName=PromoteButton}"
+                               Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                            <Border Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}" CornerRadius="12"
+                                    Padding="16" Width="300" Margin="0,6,0,0"
+                                    Effect="{DynamicResource TriThu.Elevation.E2}">
+                                <StackPanel>
+                                    <TextBlock Text="Tạo Workspace từ tài liệu này" FontWeight="Medium"
+                                               Foreground="{DynamicResource TriThu.Brush.OnSurface}" Margin="0,0,0,10"/>
+                                    <TextBox x:Name="PromoteNameBox" Height="48"
+                                             materialDesign:HintAssist.Hint="Tên Workspace"
+                                             Style="{StaticResource MaterialDesignOutlinedTextBox}">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Enter"
+                                                        Command="{Binding PromoteToWorkspaceCommand}"
+                                                        CommandParameter="{Binding Text, ElementName=PromoteNameBox}"/>
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                    <TextBlock Text="{Binding WorkspaceNameError}"
+                                               Foreground="{DynamicResource TriThu.Brush.Error}"
+                                               FontSize="12" Margin="2,6,0,0" TextWrapping="Wrap"/>
+                                    <Button HorizontalAlignment="Right" Margin="0,12,0,0"
+                                            Style="{StaticResource TriThu.WorkspaceCard.CreateButton}"
+                                            Command="{Binding PromoteToWorkspaceCommand}"
+                                            CommandParameter="{Binding Text, ElementName=PromoteNameBox}"
+                                            Click="ClosePromotePopup">
+                                        <TextBlock Text="Tạo Workspace" VerticalAlignment="Center"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
                         </StackPanel>
                     </StackPanel>
 
