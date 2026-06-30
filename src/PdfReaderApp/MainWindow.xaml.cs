@@ -53,6 +53,17 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OpenPromotePopup(object sender, System.Windows.RoutedEventArgs e)
+    {
+        PromoteNameBox.Clear();
+        PromotePopup.IsOpen = true;
+        PromoteNameBox.Focus();
+    }
+
+    // Đóng popup sau khi bấm "Tạo"; lệnh promote chạy qua Command nên chỉ cần đóng UI ở đây.
+    private void ClosePromotePopup(object sender, System.Windows.RoutedEventArgs e)
+        => PromotePopup.IsOpen = false;
+
     private void OnMinimizeWindow(object sender, System.Windows.RoutedEventArgs e)
         => System.Windows.SystemCommands.MinimizeWindow(this);
 
