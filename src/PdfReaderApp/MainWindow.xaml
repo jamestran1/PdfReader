@@ -41,6 +41,7 @@
         <converters:HasThumbnailToVisibilityConverter x:Key="HasThumbnailToVisibilityConverter"/>
         <converters:WindowStateToContentMarginConverter x:Key="WindowStateToContentMarginConverter"/>
         <converters:WindowStateToMaximizeIconConverter x:Key="WindowStateToMaximizeIconConverter"/>
+        <converters:NotificationIconConverter x:Key="NotificationIconConverter"/>
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -979,9 +980,6 @@
                             </Button>
                         </Grid>
 
-                        <materialDesign:Snackbar Grid.Row="0" Grid.RowSpan="2"
-                                                 MessageQueue="{Binding NotesSnackbar}"
-                                                 VerticalAlignment="Bottom" HorizontalAlignment="Stretch"/>
                     </Grid>
                 </TabItem>
                 <TabItem Header="Notes">
@@ -1136,6 +1134,32 @@
                     Command="{Binding ToggleRightPanelCommand}">
                 <materialDesign:PackIcon Kind="ChevronLeft" Width="20" Height="20"/>
             </Button>
+        </Border>
+        <!-- #67: snackbar non-blocking, đáy-giữa, tự ẩn; đổi icon theo mức độ. -->
+        <Border Grid.RowSpan="2" Panel.ZIndex="100"
+                VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,24"
+                MinWidth="240" Padding="14,12,18,12" CornerRadius="8"
+                Background="{DynamicResource TriThu.Brush.InverseSurface}"
+                Effect="{DynamicResource TriThu.Elevation.E3}"
+                DataContext="{Binding CurrentNotification}"
+                Visibility="{Binding Converter={StaticResource NullToCollapsedConverter}}">
+            <StackPanel Orientation="Horizontal">
+                <materialDesign:PackIcon Width="16" Height="16" VerticalAlignment="Center"
+                                         Kind="{Binding IsError, Converter={StaticResource NotificationIconConverter}}">
+                    <materialDesign:PackIcon.Style>
+                        <Style TargetType="materialDesign:PackIcon">
+                            <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.InversePrimary}"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsError}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.InverseSurface.On}"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </materialDesign:PackIcon.Style>
+                </materialDesign:PackIcon>
+                <TextBlock Text="{Binding Message}" Margin="10,0,0,0" VerticalAlignment="Center" FontSize="14"
+                           Foreground="{DynamicResource TriThu.Brush.InverseSurface.On}"/>
+            </StackPanel>
         </Border>
         </Grid>
     </Grid>
