@@ -307,4 +307,19 @@ public class MainViewModelTabCommandTests
         Assert.Equal(workspaceCountBefore, wsStore.All.Count);
         Assert.Equal(2, vm.Tabs.Tabs.Count);      // Open Set không đổi
     }
+
+    // #68 bug: sau promote rồi mở surface tài liệu, tài liệu vừa promote phải là member (không rỗng).
+    [Fact]
+    public void PromoteThenShowWorkspaceDocuments_ListsThePromotedDocumentAsMember()
+    {
+        var (vm, wsStore) = MakeVm();
+        vm.Library.Add(MakeItem("docA", "Tài liệu A", "/lib/a.pdf"));
+        vm.FakeStandaloneDocument =
+            new PdfReaderApp.ViewModels.StandaloneDocument("docA", "Tài liệu A", "/lib/a.pdf", 3, 1.0);
+
+        vm.PromoteToWorkspaceCommand.Execute("Dự án A");
+        vm.ShowWorkspaceDocumentsCommand.Execute(null);
+
+        Assert.Contains(vm.WorkspaceDocuments, d => d.DocumentId == "docA");
+    }
 }

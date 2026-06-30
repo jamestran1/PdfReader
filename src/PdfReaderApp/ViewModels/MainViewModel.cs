@@ -536,6 +536,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var tab = Tabs.OpenOrActivate(document.DocumentId, document.Title, document.Path, initialPage: document.Page);
         tab.Zoom = document.Zoom;
 
+        // Nạp danh sách tài liệu thành viên của workspace mới (giống OpenWorkspace), để surface "+" hiển thị đúng.
+        ReloadWorkspaceDocuments();
         ReloadWorkspaces();
     }
 
