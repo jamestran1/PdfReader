@@ -8,6 +8,7 @@
         xmlns:viewmodels="clr-namespace:PdfReaderApp.ViewModels"
         xmlns:controls="clr-namespace:PdfReaderApp.Controls"
         xmlns:converters="clr-namespace:PdfReaderApp.Converters"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="{Binding WindowTitle}" Height="800" Width="1200"
         TextElement.Foreground="{DynamicResource MaterialDesignBody}"
@@ -16,6 +17,9 @@
         TextElement.FontSize="14"
         PreviewKeyDown="Window_PreviewKeyDown"
         FontFamily="{materialDesign:MaterialDesignFont}">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="44" ResizeBorderThickness="7" CornerRadius="0" GlassFrameThickness="0"/>
+    </shell:WindowChrome.WindowChrome>
     <Window.Resources>
         <local:RoleToBrushConverter x:Key="RoleToBrushConverter" />
         <local:RoleToAlignConverter x:Key="RoleToAlignConverter" />
@@ -35,6 +39,8 @@
         <local:NavDestinationToBoolConverter x:Key="NavDestinationToBoolConverter" />
         <converters:LibraryCoverBrushConverter x:Key="LibraryCoverBrushConverter"/>
         <converters:HasThumbnailToVisibilityConverter x:Key="HasThumbnailToVisibilityConverter"/>
+        <converters:WindowStateToContentMarginConverter x:Key="WindowStateToContentMarginConverter"/>
+        <converters:WindowStateToMaximizeIconConverter x:Key="WindowStateToMaximizeIconConverter"/>
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -50,8 +56,57 @@
         <KeyBinding Modifiers="Control" Key="End" Command="{Binding LastPageCommand}" />
         <KeyBinding Modifiers="Control" Key="O" Command="{Binding OpenFileCommand}" />
     </Window.InputBindings>
-    <Grid>
-        <Grid.ColumnDefinitions>
+    <Grid Margin="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource WindowStateToContentMarginConverter}}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title bar tùy biến (WindowChrome) -->
+        <Border Grid.Row="0" Height="44" Background="{DynamicResource TriThu.Brush.SurfaceTonal}">
+            <DockPanel LastChildFill="False" Margin="16,0,6,0">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                    <Border Width="26" Height="26" CornerRadius="8"
+                            Background="{DynamicResource TriThu.Brush.PrimaryContainer}">
+                        <Viewbox Width="17" Height="17" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Canvas Width="32" Height="32">
+                                <Path Fill="{DynamicResource TriThu.Brush.PrimaryContainer.On}"
+                                      Data="M4 9C4 7.6 5.1 6.5 6.5 6.5H13C14.1 6.5 15 7.4 15 8.5V25C15 23.9 14.1 23 13 23H6.5C5.1 23 4 21.9 4 20.5V9Z"/>
+                                <Path Fill="{DynamicResource TriThu.Brush.PrimaryContainer.On}" Opacity="0.45"
+                                      Data="M28 9C28 7.6 26.9 6.5 25.5 6.5H19C17.9 6.5 17 7.4 17 8.5V25C17 23.9 17.9 23 19 23H25.5C26.9 23 28 21.9 28 20.5V9Z"/>
+                                <Path Fill="{DynamicResource TriThu.Brush.PrimaryContainer.On}"
+                                      Data="M24 2.5L24.85 4.9L27.25 5.75L24.85 6.6L24 9L23.15 6.6L20.75 5.75L23.15 4.9L24 2.5Z"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Border>
+                    <TextBlock Text="Trí Thư" Margin="9,0,0,0" FontSize="14" FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
+                </StackPanel>
+
+                <!-- Nút caption: dock phải theo thứ tự close, max, min -> trái sang phải là min/max/close -->
+                <Button DockPanel.Dock="Right" Style="{StaticResource TriThu.TitleBar.CloseButton}"
+                        ToolTip="Đóng" Click="OnCloseWindow">
+                    <materialDesign:PackIcon Kind="WindowClose" Width="14" Height="14"/>
+                </Button>
+                <Button DockPanel.Dock="Right" Style="{StaticResource TriThu.TitleBar.CaptionButton}"
+                        ToolTip="Phóng to / khôi phục" Click="OnMaximizeRestoreWindow">
+                    <materialDesign:PackIcon Width="14" Height="14">
+                        <materialDesign:PackIcon.Kind>
+                            <Binding Path="WindowState" RelativeSource="{RelativeSource AncestorType=Window}"
+                                     Converter="{StaticResource WindowStateToMaximizeIconConverter}"/>
+                        </materialDesign:PackIcon.Kind>
+                    </materialDesign:PackIcon>
+                </Button>
+                <Button DockPanel.Dock="Right" Style="{StaticResource TriThu.TitleBar.CaptionButton}"
+                        ToolTip="Thu nhỏ" Click="OnMinimizeWindow">
+                    <materialDesign:PackIcon Kind="WindowMinimize" Width="14" Height="14"/>
+                </Button>
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
@@ -1082,5 +1137,6 @@
                 <materialDesign:PackIcon Kind="ChevronLeft" Width="20" Height="20"/>
             </Button>
         </Border>
+        </Grid>
     </Grid>
 </Window>
