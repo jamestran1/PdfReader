@@ -16,6 +16,7 @@
                 <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/RightPanel.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/LibraryCard.xaml" />
                 <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/WorkspaceCard.xaml" />
+                <ResourceDictionary Source="pack://application:,,,/PdfReaderApp;component/Themes/TitleBar.xaml" />
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
