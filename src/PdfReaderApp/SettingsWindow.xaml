@@ -2,23 +2,47 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
-        Title="Cài đặt AI" Height="220" Width="460"
-        WindowStartupLocation="CenterOwner"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="Cài đặt AI" Height="240" Width="460"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         TextElement.Foreground="{DynamicResource MaterialDesignBody}"
         Background="{DynamicResource MaterialDesignPaper}"
         FontFamily="{materialDesign:MaterialDesignFont}">
-    <StackPanel Margin="24">
-        <TextBlock Text="OpenAI API Key" FontWeight="Bold" Margin="0,0,0,8"/>
-        <PasswordBox x:Name="ApiKeyBox"
-                     materialDesign:HintAssist.Hint="Dán API key (để trống nếu giữ key hiện tại)"
-                     Style="{StaticResource MaterialDesignFloatingHintPasswordBox}"/>
-        <TextBlock Text="Key được mã hóa và lưu cục bộ (DPAPI)."
-                   Opacity="0.6" FontSize="11" Margin="0,8,0,0"/>
-        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-            <Button x:Name="CancelButton" Content="HỦY" Width="90"
-                    Style="{StaticResource MaterialDesignFlatButton}" Click="CancelButton_Click"/>
-            <Button x:Name="SaveButton" Content="LƯU" Width="90" Margin="8,0,0,0"
-                    Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveButton_Click"/>
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="40" ResizeBorderThickness="0" CornerRadius="0" GlassFrameThickness="0"/>
+    </shell:WindowChrome.WindowChrome>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title bar tùy biến (WindowChrome): tiêu đề + nút đóng -->
+        <Border Grid.Row="0" Height="40" Background="{DynamicResource TriThu.Brush.SurfaceTonal}">
+            <DockPanel LastChildFill="False" Margin="16,0,6,0">
+                <TextBlock DockPanel.Dock="Left" Text="Cài đặt AI" VerticalAlignment="Center"
+                           FontSize="14" FontWeight="Bold"
+                           Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
+                <Button DockPanel.Dock="Right" Style="{StaticResource TriThu.TitleBar.CloseButton}"
+                        ToolTip="Đóng" Click="CancelButton_Click">
+                    <materialDesign:PackIcon Kind="WindowClose" Width="14" Height="14"/>
+                </Button>
+            </DockPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Margin="24,16,24,20">
+            <TextBlock Text="OpenAI API Key" FontWeight="Bold" Margin="0,0,0,8"/>
+            <PasswordBox x:Name="ApiKeyBox"
+                         materialDesign:HintAssist.Hint="Dán API key (để trống nếu giữ key hiện tại)"
+                         Style="{StaticResource MaterialDesignFloatingHintPasswordBox}"/>
+            <TextBlock Text="Key được mã hóa và lưu cục bộ (DPAPI)."
+                       Opacity="0.6" FontSize="11" Margin="0,8,0,0"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
+                <Button x:Name="CancelButton" Content="HỦY" Width="90"
+                        Style="{StaticResource MaterialDesignFlatButton}" Click="CancelButton_Click"/>
+                <Button x:Name="SaveButton" Content="LƯU" Width="90" Margin="8,0,0,0"
+                        Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveButton_Click"/>
+            </StackPanel>
         </StackPanel>
-    </StackPanel>
+    </Grid>
 </Window>
