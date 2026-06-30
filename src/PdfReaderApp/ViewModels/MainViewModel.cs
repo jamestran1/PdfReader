@@ -203,6 +203,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsRightPanelExpanded));
         OnPropertyChanged(nameof(IsRightPanelStripVisible));
         OnPropertyChanged(nameof(IsDocumentTabStripVisible));
+        OnPropertyChanged(nameof(CanPromoteToWorkspace));
     }
 
     // Đang đọc tài liệu (không ở Thư viện cũng không ở Workspaces) -> hiện các nút đọc trên toolbar.
@@ -477,6 +478,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(TotalPages));
         OnPropertyChanged(nameof(StandaloneDocumentSource));
         OnPropertyChanged(nameof(IsDocumentTabStripVisible));
+        OnPropertyChanged(nameof(CanPromoteToWorkspace));
     }
 
     /// <summary>
@@ -487,6 +489,54 @@ public partial class MainViewModel : ObservableObject, IDisposable
     protected virtual void HydrateTab(OpenTab tab)
     {
         LoadActiveDocument(tab.Path, _activeWorkspaceId, tab.Page);
+    }
+
+    /// <summary>
+    /// Tài liệu đang đọc lẻ để promote (null nếu không có). Mặc định đọc state thật;
+    /// test override để khỏi nạp PDF thật (giống seam HydrateTab).
+    /// </summary>
+    protected virtual StandaloneDocument? CurrentStandaloneDocument()
+    {
+        if (_documentId is null) return null;
+        var item = Library.FirstOrDefault(libraryItem => libraryItem.DocumentId == _documentId);
+        return new StandaloneDocument(
+            _documentId,
+            item?.Title ?? System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty),
+            item?.StoredPath ?? FilePath ?? string.Empty,
+            _currentPage,
+            _zoomLevel);
+    }
+
+    // #68: chỉ hiện affordance promote khi đang đọc lẻ một tài liệu (Default Workspace).
+    public bool CanPromoteToWorkspace => IsReadingDocument && !IsWorkspaceSession && HasDocument;
+
+    // #68: promote Default Workspace -> named Workspace từ tài liệu đang đọc lẻ.
+    // Tái dùng tạo workspace + AddDocument + OpenOrActivate; mang theo trang/zoom.
+    [RelayCommand]
+    private void PromoteToWorkspace(string? name)
+    {
+        if (IsWorkspaceSession) return;
+        if (CurrentStandaloneDocument() is not { } document) return;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            WorkspaceNameError = "Tên workspace không được để trống.";
+            return;
+        }
+        WorkspaceNameError = string.Empty;
+
+        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var workspace = new Workspace(Guid.NewGuid().ToString("N"), name.Trim(), false, null, now, now);
+        _workspaceStore.Upsert(workspace);
+        _workspaceStore.AddDocument(workspace.Id, document.DocumentId);
+
+        SelectedWorkspace = workspace;
+        _activeWorkspaceId = workspace.Id;
+        IsWorkspaceSession = true;
+
+        var tab = Tabs.OpenOrActivate(document.DocumentId, document.Title, document.Path, initialPage: document.Page);
+        tab.Zoom = document.Zoom;
+
+        ReloadWorkspaces();
     }
 
     [RelayCommand]
@@ -877,6 +927,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _documentId = DocumentId.FromFile(path);
             OnPropertyChanged(nameof(CurrentDocumentId));
             OnPropertyChanged(nameof(HasDocument));
+            OnPropertyChanged(nameof(CanPromoteToWorkspace));
             LoadChatHistory();
             // S2: dùng seam ResolveWorkspaceScope để quyết định scope (workspace cụ thể hoặc default)
             long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -898,6 +949,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             if (workspaceScopeId is null) _activeWorkspaceId = null;
             OnPropertyChanged(nameof(CurrentDocumentId));
             OnPropertyChanged(nameof(HasDocument));
+            OnPropertyChanged(nameof(CanPromoteToWorkspace));
             LoadChatHistory();
             Notes.LoadFor(null);
             UpdateNotesDocumentContext();
