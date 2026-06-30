@@ -1137,7 +1137,8 @@
                 <materialDesign:PackIcon Kind="ChevronLeft" Width="20" Height="20"/>
             </Button>
         </Border>
-        <!-- #67: snackbar non-blocking, đáy-giữa, tự ẩn; đổi icon theo mức độ. -->
+        </Grid>
+        <!-- #67: snackbar non-blocking, đáy-giữa, tự ẩn; đổi icon theo mức độ (đặt ở grid ngoài để không nong cột nav). -->
         <Border Grid.RowSpan="2" Panel.ZIndex="100"
                 VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,24"
                 MinWidth="240" Padding="14,12,18,12" CornerRadius="8"
@@ -1163,6 +1164,5 @@
                            Foreground="{DynamicResource TriThu.Brush.InverseSurface.On}"/>
             </StackPanel>
         </Border>
-        </Grid>
     </Grid>
 </Window>
