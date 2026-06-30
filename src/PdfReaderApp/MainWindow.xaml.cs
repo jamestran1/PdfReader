@@ -50,6 +50,20 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnMinimizeWindow(object sender, System.Windows.RoutedEventArgs e)
+        => System.Windows.SystemCommands.MinimizeWindow(this);
+
+    private void OnMaximizeRestoreWindow(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (WindowState == System.Windows.WindowState.Maximized)
+            System.Windows.SystemCommands.RestoreWindow(this);
+        else
+            System.Windows.SystemCommands.MaximizeWindow(this);
+    }
+
+    private void OnCloseWindow(object sender, System.Windows.RoutedEventArgs e)
+        => System.Windows.SystemCommands.CloseWindow(this);
+
     private static string GetExceptionDetails(Exception? ex)
     {
         if (ex == null) return "No exception details available.";
