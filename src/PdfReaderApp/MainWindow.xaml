@@ -455,7 +455,8 @@
                                        ShowCover="{Binding ShowCoverSeparately}"
                                        AddNoteFromSelectionCommand="{Binding AddNoteFromSelectionCommand}"
                                        Highlights="{Binding Notes.Highlights}"
-                                       CurrentDocumentId="{Binding CurrentDocumentId}">
+                                       CurrentDocumentId="{Binding CurrentDocumentId}"
+                                       LoadFailed="PdfViewer_LoadFailed">
                 <controls:PdfViewerControl.Style>
                     <Style TargetType="controls:PdfViewerControl">
                         <Setter Property="Visibility" Value="Visible"/>
@@ -503,7 +504,8 @@
                                     ViewMode="{Binding DataContext.ViewMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     ShowCover="{Binding DataContext.ShowCoverSeparately, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     AddNoteFromSelectionCommand="{Binding DataContext.AddNoteFromSelectionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    Highlights="{Binding DataContext.Notes.Highlights, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                    Highlights="{Binding DataContext.Notes.Highlights, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    LoadFailed="PdfViewer_LoadFailed">
                                     <controls:PdfViewerControl.Visibility>
                                         <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
                                             <Binding/>

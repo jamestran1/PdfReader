@@ -506,8 +506,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Không thể import file PDF: {ex.Message}", "Lỗi",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            NotifyError($"Không thể import file PDF: {ex.Message}");
         }
     }
 
@@ -902,8 +901,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             LoadChatHistory();
             Notes.LoadFor(null);
             UpdateNotesDocumentContext();
-            System.Windows.MessageBox.Show($"Không thể mở file PDF: {ex.Message}", "Lỗi mở file",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            NotifyError($"Không thể mở file PDF: {ex.Message}");
             FilePath = null;
         }
     }
@@ -1115,8 +1113,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"Tìm kiếm lỗi: {ex.Message}", "Search",
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+            NotifyError($"Tìm kiếm lỗi: {ex.Message}");
         }
     }
 
