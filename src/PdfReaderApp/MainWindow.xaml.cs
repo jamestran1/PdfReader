@@ -34,6 +34,9 @@ public partial class MainWindow : Window
     }
 
     // Phím tắt không gắn command: Ctrl+F focus ô tìm kiếm, Ctrl+0 fit trang vừa khung.
+    private void PdfViewer_LoadFailed(string message)
+        => (DataContext as ViewModels.MainViewModel)?.NotifyError(message);
+
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;

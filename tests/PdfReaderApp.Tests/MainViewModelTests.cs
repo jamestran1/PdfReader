@@ -1031,4 +1031,28 @@ public class MainViewModelTests
         try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
     }
 
+    [Fact]
+    public void NotifySuccess_SetsCurrentNotificationAsNonError()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+
+        vm.NotifySuccess("Đã lưu vào ghi chú");
+
+        Assert.NotNull(vm.CurrentNotification);
+        Assert.Equal("Đã lưu vào ghi chú", vm.CurrentNotification!.Message);
+        Assert.False(vm.CurrentNotification.IsError);
+    }
+
+    [Fact]
+    public void NotifyError_SetsCurrentNotificationAsError()
+    {
+        var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
+
+        vm.NotifyError("Không thể mở file PDF");
+
+        Assert.NotNull(vm.CurrentNotification);
+        Assert.Equal("Không thể mở file PDF", vm.CurrentNotification!.Message);
+        Assert.True(vm.CurrentNotification.IsError);
+    }
+
 }

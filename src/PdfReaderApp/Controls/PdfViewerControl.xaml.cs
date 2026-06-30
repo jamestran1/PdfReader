@@ -19,6 +19,8 @@ namespace PdfReaderApp.Controls;
 
 public partial class PdfViewerControl : UserControl, IDisposable
 {
+    public event System.Action<string>? LoadFailed;
+
     private PdfDocument? _currentDocument;
     private RenderEngine _renderEngine = new();
     private PdfObjectManager _objectManager = new();
@@ -559,7 +561,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Lỗi khi mở file PDF: {ex.Message}", "Lỗi", MessageBoxButton.OK, MessageBoxImage.Error);
+            LoadFailed?.Invoke($"Lỗi khi mở file PDF: {ex.Message}");
         }
     }
 
