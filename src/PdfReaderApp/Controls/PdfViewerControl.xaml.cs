@@ -223,7 +223,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
         TextEditor.EditingFinished += TextEditor_EditingFinished;
         TextEditor.EditingCancelled += TextEditor_EditingCancelled;
+        PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged += OnThemeChanged;
     }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+        => Dispatcher.Invoke(() => skiaCanvas?.InvalidateVisual());
 
     private void PdfViewerControl_SizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -654,12 +658,22 @@ public partial class PdfViewerControl : UserControl, IDisposable
             PagesScrollViewer.ScrollToVerticalOffset(slot.Y);
     }
 
+    private SKColor ResolveGutterColor()
+    {
+        if (TryFindResource("TriThu.Brush.SurfaceTonalLow") is System.Windows.Media.SolidColorBrush brush)
+        {
+            System.Windows.Media.Color c = brush.Color;
+            return new SKColor(c.R, c.G, c.B, c.A);
+        }
+        return SKColors.DimGray;
+    }
+
     private void OnPaintCanvas(object sender, SKPaintSurfaceEventArgs e)
     {
         if (_currentDocument == null || e.Surface == null) return;
 
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColors.DimGray);
+        canvas.Clear(ResolveGutterColor());
 
         // The Skia surface is in DEVICE PIXELS (ActualWidth * DPI scale), but all layout/scroll
         // coordinates below are in DIPs. On a >100% display this mismatch pushed the page into the
@@ -948,7 +962,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
                 
                 TextEditor.EditingFinished -= TextEditor_EditingFinished;
                 TextEditor.EditingCancelled -= TextEditor_EditingCancelled;
-                
+                PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged -= OnThemeChanged;
+
                 DisposeCurrentDocument();
                 _renderEngine.Dispose();
             }
