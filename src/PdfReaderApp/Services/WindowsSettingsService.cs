@@ -54,12 +54,22 @@ public sealed class WindowsSettingsService : ISettingsService
             string raw = File.ReadAllText(_themeFilePath).Trim();
             return Enum.TryParse(raw, ignoreCase: true, out AppTheme parsed) ? parsed : AppTheme.Light;
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return AppTheme.Light;
+            return AppTheme.Light; // unreadable (locked/denied) -- degrade to the default theme
         }
     }
 
     public void SaveThemePreference(AppTheme theme)
-        => File.WriteAllText(_themeFilePath, theme.ToString());
+    {
+        try
+        {
+            File.WriteAllText(_themeFilePath, theme.ToString());
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A failed theme-preference save must never crash the app; the theme is
+            // a non-critical cosmetic setting, so swallow locked/denied write errors.
+        }
+    }
 }

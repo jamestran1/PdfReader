@@ -48,6 +48,21 @@ public class WindowsSettingsServiceThemeTests : IDisposable
         Assert.Equal(AppTheme.Dark, service.GetThemePreference());
     }
 
+    [Fact]
+    public void SaveThemePreference_DoesNotThrow_WhenTargetPathIsUnwritable()
+    {
+        // A directory named "theme.pref" makes File.WriteAllText to that path throw
+        // UnauthorizedAccessException, simulating a locked/unwritable target.
+        Directory.CreateDirectory(Path.Combine(_dir, "theme.pref"));
+        var service = new WindowsSettingsService(_dir);
+
+        // A failed theme-preference save must never crash the app.
+        service.SaveThemePreference(AppTheme.Dark);
+
+        // Read stays resilient too: an unreadable pref falls back to Light.
+        Assert.Equal(AppTheme.Light, service.GetThemePreference());
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
