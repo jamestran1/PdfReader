@@ -1,12 +1,14 @@
 using System.IO;
 using System.Security.Cryptography;
 using System.Text;
+using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
 
 public sealed class WindowsSettingsService : ISettingsService
 {
     private readonly string _filePath;
+    private readonly string _themeFilePath;
 
     public WindowsSettingsService(string? storageDirectory = null)
     {
@@ -16,6 +18,7 @@ public sealed class WindowsSettingsService : ISettingsService
                 "PdfReaderApp");
         Directory.CreateDirectory(dir);
         _filePath = Path.Combine(dir, "settings.dat");
+        _themeFilePath = Path.Combine(dir, "theme.pref");
     }
 
     public string? GetApiKey()
@@ -42,4 +45,21 @@ public sealed class WindowsSettingsService : ISettingsService
     }
 
     public bool HasApiKey() => !string.IsNullOrEmpty(GetApiKey());
+
+    public AppTheme GetThemePreference()
+    {
+        try
+        {
+            if (!File.Exists(_themeFilePath)) return AppTheme.Light;
+            string raw = File.ReadAllText(_themeFilePath).Trim();
+            return Enum.TryParse(raw, ignoreCase: true, out AppTheme parsed) ? parsed : AppTheme.Light;
+        }
+        catch (IOException)
+        {
+            return AppTheme.Light;
+        }
+    }
+
+    public void SaveThemePreference(AppTheme theme)
+        => File.WriteAllText(_themeFilePath, theme.ToString());
 }
