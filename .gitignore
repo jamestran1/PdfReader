@@ -486,3 +486,6 @@ conductor/
 .serena/
 
 /PdfReaderApp.slnx
+
+# SDD scratch (subagent-driven-development ledger/briefs)
+.superpowers/
