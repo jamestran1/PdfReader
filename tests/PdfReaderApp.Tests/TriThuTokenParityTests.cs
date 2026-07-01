@@ -50,6 +50,31 @@ public class TriThuTokenParityTests
             .ToHashSet(StringComparer.Ordinal);
     }
 
+    private static HashSet<string> AllTriThuKeysOf(string themeFileName)
+    {
+        var path = Path.Combine(RepoRoot(), "src", "PdfReaderApp", "Themes", themeFileName);
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        return XDocument.Load(path).Descendants()
+            .Select(element => (string?)element.Attribute(x + "Key"))
+            .Where(key => key is not null && key.StartsWith("TriThu.", StringComparison.Ordinal))
+            .Select(key => key!)
+            .ToHashSet(StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void LightAndDarkTokens_ExposeTheSameTriThuKeys()
+    {
+        var lightKeys = AllTriThuKeysOf("TriThuTokens.xaml").OrderBy(k => k, StringComparer.Ordinal).ToList();
+        var darkKeys  = AllTriThuKeysOf("TriThuTokens.Dark.xaml").OrderBy(k => k, StringComparer.Ordinal).ToList();
+
+        var onlyInLight = lightKeys.Except(darkKeys, StringComparer.Ordinal).ToList();
+        var onlyInDark  = darkKeys.Except(lightKeys, StringComparer.Ordinal).ToList();
+
+        Assert.True(
+            onlyInLight.Count == 0 && onlyInDark.Count == 0,
+            $"Key chi trong light: [{string.Join(", ", onlyInLight)}] | Key chi trong dark: [{string.Join(", ", onlyInDark)}]");
+    }
+
     [Fact]
     public void LightAndDarkTokens_ExposeTheSameBrushKeys()
     {
