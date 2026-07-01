@@ -56,6 +56,10 @@ public static class PdfImageLocator
             float e = ctm.Get(Matrix.I31);
             float f = ctm.Get(Matrix.I32);
 
+            // Chỉ giữ nguyên ảnh axis-aligned. Với ảnh xoay/nghiêng (b,c != 0), bounding box
+            // trục-toạ-độ bao rộng hơn ảnh nên vẽ lại patch sẽ tạo viền chữ quanh ảnh → bỏ qua.
+            if (!PdfImageRegion.IsAxisAligned(b, c)) return;
+
             (float px, float py)[] corners =
             {
                 TransformPoint(0, 0, a, b, c, d, e, f),

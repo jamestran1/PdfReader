@@ -60,4 +60,24 @@ public class PdfImageRegionTests
         Assert.Equal(0.0, width);
         Assert.Equal(0.0, height);
     }
+
+    // CTM gần trục toạ độ (b=c=0) => axis-aligned, giữ nguyên ảnh
+    [Fact]
+    public void IsAxisAligned_NoRotation_ReturnsTrue()
+        => Assert.True(PdfImageRegion.IsAxisAligned(0, 0));
+
+    // Hệ số chéo-phụ rất nhỏ (trong dung sai) => vẫn coi là axis-aligned
+    [Fact]
+    public void IsAxisAligned_WithinTolerance_ReturnsTrue()
+        => Assert.True(PdfImageRegion.IsAxisAligned(0.005, -0.003));
+
+    // b khác 0 đáng kể (ảnh xoay) => không axis-aligned
+    [Fact]
+    public void IsAxisAligned_RotatedB_ReturnsFalse()
+        => Assert.False(PdfImageRegion.IsAxisAligned(1, 0));
+
+    // c khác 0 đáng kể (ảnh nghiêng) => không axis-aligned
+    [Fact]
+    public void IsAxisAligned_SkewedC_ReturnsFalse()
+        => Assert.False(PdfImageRegion.IsAxisAligned(0, 0.5));
 }

@@ -16,4 +16,9 @@ public static class PdfImageRegion
         double height = imageHeightPt / pageHeightPt;
         return (left, topFromTop, width, height);
     }
+
+    // CTM gần trục toạ độ (không xoay/nghiêng) khi hai hệ số chéo-phụ ~ 0.
+    // Chỉ giữ nguyên ảnh axis-aligned; ảnh xoay bị đảo màu như nội dung để tránh viền bao chữ nhật quanh ảnh.
+    public static bool IsAxisAligned(double ctmB, double ctmC, double tolerance = 0.01)
+        => System.Math.Abs(ctmB) <= tolerance && System.Math.Abs(ctmC) <= tolerance;
 }
