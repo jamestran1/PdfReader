@@ -882,6 +882,11 @@
                                                         <TextBlock Text="{Binding PageCount, StringFormat='{}{0}p'}"
                                                                    Foreground="White" FontFamily="Consolas" FontSize="10"/>
                                                     </Border>
+                                                    <!-- Chip nhà xuất bản góc trái-trên -->
+                                                    <Border Style="{StaticResource TriThu.LibraryCard.PublisherChip}"
+                                                            Visibility="{Binding Publisher, Converter={StaticResource NullToCollapsedConverter}}">
+                                                        <TextBlock Text="{Binding Publisher}" Foreground="White" FontSize="10"/>
+                                                    </Border>
                                                     <!-- Nút xoá (hiện khi hover) -->
                                                     <Button Style="{StaticResource TriThu.LibraryCard.Delete}"
                                                             HorizontalAlignment="Left" VerticalAlignment="Top" Margin="12"
@@ -909,6 +914,10 @@
                                                     </MultiBinding>
                                                 </TextBlock.Text>
                                             </TextBlock>
+                                            <TextBlock Text="{Binding Author}" Margin="4,2,4,0" FontSize="12"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
+                                                       Visibility="{Binding Author, Converter={StaticResource NullToCollapsedConverter}}"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
