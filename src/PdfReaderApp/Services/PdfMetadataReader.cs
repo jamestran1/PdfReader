@@ -10,13 +10,21 @@ public static class PdfMetadataReader
 
     public static Metadata Read(string path)
     {
-        using var reader = new PdfReader(path);
-        using var document = new PdfDocument(reader);
-        PdfDocumentInfo info = document.GetDocumentInfo();
-        return new Metadata(
-            Title: Normalize(info.GetTitle()),
-            Author: Normalize(info.GetAuthor()),
-            Publisher: ReadDublinCorePublisher(document));
+        try
+        {
+            using var reader = new PdfReader(path);
+            using var document = new PdfDocument(reader);
+            PdfDocumentInfo info = document.GetDocumentInfo();
+            return new Metadata(
+                Title: Normalize(info.GetTitle()),
+                Author: Normalize(info.GetAuthor()),
+                Publisher: ReadDublinCorePublisher(document));
+        }
+        catch (Exception)
+        {
+            // Metadata là phụ: file lỗi/iText từ chối KHÔNG được làm hỏng import (giống thumbnail best-effort).
+            return new Metadata(null, null, null);
+        }
     }
 
     // Publisher không có trong Info dictionary chuẩn; nguồn thật duy nhất là XMP dc:publisher (mảng).

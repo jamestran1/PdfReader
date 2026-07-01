@@ -73,6 +73,19 @@ public class PdfMetadataReaderTests : IDisposable
         Assert.Equal("NXB Kim Đồng", metadata.Publisher);
     }
 
+    [Fact]
+    public void Read_WhenFileIsNotAValidPdf_ReturnsAllNull()
+    {
+        string path = Path.Combine(_dir, "broken.pdf");
+        File.WriteAllText(path, "this is not a pdf");
+
+        var metadata = PdfMetadataReader.Read(path);
+
+        Assert.Null(metadata.Title);
+        Assert.Null(metadata.Author);
+        Assert.Null(metadata.Publisher);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
