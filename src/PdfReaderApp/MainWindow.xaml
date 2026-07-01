@@ -42,6 +42,7 @@
         <converters:WindowStateToContentMarginConverter x:Key="WindowStateToContentMarginConverter"/>
         <converters:WindowStateToMaximizeIconConverter x:Key="WindowStateToMaximizeIconConverter"/>
         <converters:NotificationIconConverter x:Key="NotificationIconConverter"/>
+        <converters:BoolToThemeIconConverter x:Key="BoolToThemeIconConverter"/>
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -105,7 +106,8 @@
                 </Button>
                 <Button DockPanel.Dock="Right" Style="{StaticResource TriThu.TitleBar.CaptionButton}"
                         ToolTip="Đổi giao diện sáng/tối" Command="{Binding ToggleThemeCommand}">
-                    <materialDesign:PackIcon Kind="ThemeLightDark" Width="14" Height="14"/>
+                    <materialDesign:PackIcon Width="14" Height="14"
+                                             Kind="{Binding IsDarkMode, Converter={StaticResource BoolToThemeIconConverter}}"/>
                 </Button>
             </DockPanel>
         </Border>

@@ -8,7 +8,20 @@ namespace PdfReaderApp.Services;
 
 public sealed class MaterialDesignThemeService : IThemeService
 {
-    public AppTheme CurrentTheme { get; private set; } = AppTheme.Light;
+    /// <summary>
+    /// Global current theme. The SkiaSharp PDF canvas is not a DynamicResource consumer,
+    /// so it reads this static property and subscribes to ThemeChanged to repaint on theme switch.
+    /// </summary>
+    public static AppTheme Current { get; private set; } = AppTheme.Light;
+
+    /// <summary>
+    /// Raised after every successful Apply(). Non-XAML consumers (e.g. the SkiaSharp PDF canvas)
+    /// subscribe here to trigger a repaint when the theme changes.
+    /// </summary>
+    public static event EventHandler? ThemeChanged;
+
+    /// <summary>Instance accessor delegating to the static source of truth.</summary>
+    public AppTheme CurrentTheme => Current;
 
     public static string TokenDictionaryFileName(AppTheme theme)
         => theme == AppTheme.Dark ? "TriThuTokens.Dark.xaml" : "TriThuTokens.xaml";
@@ -17,7 +30,8 @@ public sealed class MaterialDesignThemeService : IThemeService
     {
         SwapTokenDictionary(theme);
         ApplyPalette(theme);
-        CurrentTheme = theme;
+        Current = theme;
+        ThemeChanged?.Invoke(null, EventArgs.Empty);
     }
 
     private static void SwapTokenDictionary(AppTheme theme)

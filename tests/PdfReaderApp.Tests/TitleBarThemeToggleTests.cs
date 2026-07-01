@@ -26,9 +26,10 @@ public class TitleBarThemeToggleTests
     }
 
     [Fact]
-    public void TitleBar_ThemeToggleButton_UsesThemeLightDarkIcon()
+    public void TitleBar_ThemeToggleButton_BindsMoonSunIconToIsDarkMode()
     {
         var xaml = MainWindowXaml();
-        Assert.Contains("Kind=\"ThemeLightDark\"", xaml);
+        Assert.Contains("Binding IsDarkMode", xaml);
+        Assert.Contains("Converter={StaticResource BoolToThemeIconConverter}", xaml);
     }
 }
