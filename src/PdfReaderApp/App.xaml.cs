@@ -1,6 +1,6 @@
 using System.Windows;
-using System.Windows.Media;
 using MaterialDesignThemes.Wpf;
+using PdfReaderApp.Services;
 
 namespace PdfReaderApp;
 
@@ -19,7 +19,7 @@ public partial class App : Application
         // MessageBox.Show("App OnStartup called!");
         base.OnStartup(e);
 
-        ApplyTriThuSurfaceColors();
+        ApplySavedTheme();
 
         this.DispatcherUnhandledException += (s, args) =>
         {
@@ -36,18 +36,13 @@ public partial class App : Application
         };
     }
 
-    // Đẩy màu surface/on-surface của design vào control built-in MDT
-    // (CustomColorTheme chỉ seed primary/secondary; surface phải set qua PaletteHelper).
-    // Lưu ý MDT 5.1: Theme chỉ expose Background/Foreground/ForegroundLight làm màu toàn cục —
-    // KHÔNG có Outline/Divider. Outline/divider sống ở token app-owned TriThu.Brush.Outline(.Variant)
-    // trong Themes/TriThuTokens.xaml; các slice reskin #60–#67 bind vào đó.
-    private static void ApplyTriThuSurfaceColors()
+    // Áp giao diện đã lưu khi khởi động. CustomColorTheme trong App.xaml chỉ seed primary/secondary +
+    // dictionary token sáng; theme thật (sáng/tối) do người dùng chọn được nối dây ở đây qua IThemeService.
+    private static void ApplySavedTheme()
     {
-        var paletteHelper = new PaletteHelper();
-        Theme theme = paletteHelper.GetTheme();
-        theme.Background = (Color)ColorConverter.ConvertFromString("#F4FBF7")!; // surface
-        theme.Foreground = (Color)ColorConverter.ConvertFromString("#161D1B")!; // on-surface
-        paletteHelper.SetTheme(theme);
+        var settingsService = new WindowsSettingsService();
+        var themeService = new MaterialDesignThemeService();
+        themeService.Apply(settingsService.GetThemePreference());
     }
 
     private static void LogAndShowException(Exception ex, string title)

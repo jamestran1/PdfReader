@@ -42,6 +42,7 @@
         <converters:WindowStateToContentMarginConverter x:Key="WindowStateToContentMarginConverter"/>
         <converters:WindowStateToMaximizeIconConverter x:Key="WindowStateToMaximizeIconConverter"/>
         <converters:NotificationIconConverter x:Key="NotificationIconConverter"/>
+        <converters:BoolToThemeIconConverter x:Key="BoolToThemeIconConverter"/>
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -102,6 +103,11 @@
                 <Button DockPanel.Dock="Right" Style="{StaticResource TriThu.TitleBar.CaptionButton}"
                         ToolTip="Thu nhỏ" Click="OnMinimizeWindow">
                     <materialDesign:PackIcon Kind="WindowMinimize" Width="14" Height="14"/>
+                </Button>
+                <Button DockPanel.Dock="Right" Style="{StaticResource TriThu.TitleBar.CaptionButton}"
+                        ToolTip="Đổi giao diện sáng/tối" Command="{Binding ToggleThemeCommand}">
+                    <materialDesign:PackIcon Width="14" Height="14"
+                                             Kind="{Binding IsDarkMode, Converter={StaticResource BoolToThemeIconConverter}}"/>
                 </Button>
             </DockPanel>
         </Border>
@@ -225,37 +231,40 @@
                         <!-- Segmented 4 view-mode: IsChecked OneWay (hiển thị) + Command đặt mode -->
                         <Border Height="38" CornerRadius="19" VerticalAlignment="Center" Margin="2,0,0,0"
                                 BorderBrush="{DynamicResource TriThu.Brush.Outline}" BorderThickness="1">
-                            <Grid>
-                                <Border x:Name="SegMask" CornerRadius="18" Background="White"/>
-                                <StackPanel Orientation="Horizontal">
-                                    <StackPanel.OpacityMask>
-                                        <VisualBrush Visual="{Binding ElementName=SegMask}"/>
-                                    </StackPanel.OpacityMask>
-                                    <ToggleButton Style="{StaticResource TriThu.TopBar.Segment}" ToolTip="Một trang"
-                                                  IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=SinglePage, Mode=OneWay}"
-                                                  Command="{Binding SetViewModeCommand}" CommandParameter="SinglePage">
-                                        <materialDesign:PackIcon Kind="FileOutline" Width="20" Height="20"/>
-                                    </ToggleButton>
-                                    <Border Width="1" Background="{DynamicResource TriThu.Brush.Outline}"/>
-                                    <ToggleButton Style="{StaticResource TriThu.TopBar.Segment}" ToolTip="Cuộn liên tục"
-                                                  IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Continuous, Mode=OneWay}"
-                                                  Command="{Binding SetViewModeCommand}" CommandParameter="Continuous">
-                                        <materialDesign:PackIcon Kind="ViewSequential" Width="20" Height="20"/>
-                                    </ToggleButton>
-                                    <Border Width="1" Background="{DynamicResource TriThu.Brush.Outline}"/>
-                                    <ToggleButton Style="{StaticResource TriThu.TopBar.Segment}" ToolTip="Hai trang"
-                                                  IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Facing, Mode=OneWay}"
-                                                  Command="{Binding SetViewModeCommand}" CommandParameter="Facing">
-                                        <materialDesign:PackIcon Kind="BookOpenPageVariant" Width="20" Height="20"/>
-                                    </ToggleButton>
-                                    <Border Width="1" Background="{DynamicResource TriThu.Brush.Outline}"/>
-                                    <ToggleButton Style="{StaticResource TriThu.TopBar.Segment}" ToolTip="Hai trang cuộn"
-                                                  IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=ContinuousFacing, Mode=OneWay}"
-                                                  Command="{Binding SetViewModeCommand}" CommandParameter="ContinuousFacing">
-                                        <materialDesign:PackIcon Kind="ViewGridOutline" Width="20" Height="20"/>
-                                    </ToggleButton>
-                                </StackPanel>
-                            </Grid>
+                            <StackPanel x:Name="SegStack" Orientation="Horizontal">
+                                <StackPanel.OpacityMask>
+                                    <VisualBrush>
+                                        <VisualBrush.Visual>
+                                            <Border CornerRadius="18" Background="Black"
+                                                    Width="{Binding ActualWidth, ElementName=SegStack}"
+                                                    Height="{Binding ActualHeight, ElementName=SegStack}"/>
+                                        </VisualBrush.Visual>
+                                    </VisualBrush>
+                                </StackPanel.OpacityMask>
+                                <ToggleButton Style="{StaticResource TriThu.TopBar.Segment}" ToolTip="Một trang"
+                                              IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=SinglePage, Mode=OneWay}"
+                                              Command="{Binding SetViewModeCommand}" CommandParameter="SinglePage">
+                                    <materialDesign:PackIcon Kind="FileOutline" Width="20" Height="20"/>
+                                </ToggleButton>
+                                <Border Width="1" Background="{DynamicResource TriThu.Brush.Outline}"/>
+                                <ToggleButton Style="{StaticResource TriThu.TopBar.Segment}" ToolTip="Cuộn liên tục"
+                                              IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Continuous, Mode=OneWay}"
+                                              Command="{Binding SetViewModeCommand}" CommandParameter="Continuous">
+                                    <materialDesign:PackIcon Kind="ViewSequential" Width="20" Height="20"/>
+                                </ToggleButton>
+                                <Border Width="1" Background="{DynamicResource TriThu.Brush.Outline}"/>
+                                <ToggleButton Style="{StaticResource TriThu.TopBar.Segment}" ToolTip="Hai trang"
+                                              IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=Facing, Mode=OneWay}"
+                                              Command="{Binding SetViewModeCommand}" CommandParameter="Facing">
+                                    <materialDesign:PackIcon Kind="BookOpenPageVariant" Width="20" Height="20"/>
+                                </ToggleButton>
+                                <Border Width="1" Background="{DynamicResource TriThu.Brush.Outline}"/>
+                                <ToggleButton Style="{StaticResource TriThu.TopBar.Segment}" ToolTip="Hai trang cuộn"
+                                              IsChecked="{Binding ViewMode, Converter={StaticResource ViewModeToBoolConverter}, ConverterParameter=ContinuousFacing, Mode=OneWay}"
+                                              Command="{Binding SetViewModeCommand}" CommandParameter="ContinuousFacing">
+                                    <materialDesign:PackIcon Kind="ViewGridOutline" Width="20" Height="20"/>
+                                </ToggleButton>
+                            </StackPanel>
                         </Border>
                         <ToggleButton Style="{StaticResource TriThu.TopBar.OutlineToggle}" Margin="8,0,0,0"
                                       ToolTip="Trang bìa đứng riêng / ghép đôi"

@@ -18,6 +18,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private readonly IPdfDocumentService _documentService;
     private readonly ISettingsService _settingsService;
+    private readonly IThemeService _themeService;
     private readonly PdfStructureAnalyzer _analyzer;
     private readonly AiChatService _chatService;
 
@@ -26,6 +27,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     [ObservableProperty]
     private bool _isWorkspaceSession;
+
+    [ObservableProperty]
+    private bool _isDarkMode;
+
+    [RelayCommand]
+    private void ToggleTheme()
+    {
+        AppTheme current = _settingsService.GetThemePreference();
+        AppTheme next = current == AppTheme.Dark ? AppTheme.Light : AppTheme.Dark;
+        _themeService.Apply(next);
+        _settingsService.SaveThemePreference(next);
+        IsDarkMode = next == AppTheme.Dark;
+    }
 
     // SP2 Task 8: index, indexing service, RAG context
     private readonly IDocumentIndex _documentIndex;
@@ -348,11 +362,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IEmbeddingGeneratorFactory embeddingFactory,
         IChatHistoryStore? chatHistory = null,
         INoteStore? noteStore = null,
-        IWorkspaceStore? workspaceStore = null)
+        IWorkspaceStore? workspaceStore = null,
+        IThemeService? themeService = null)
     {
         Tabs = new TabSetViewModel();
         _documentService = documentService;
         _settingsService = settingsService;
+        _themeService = themeService ?? new MaterialDesignThemeService();
+        IsDarkMode = settingsService.GetThemePreference() == AppTheme.Dark;
         _analyzer = new PdfStructureAnalyzer(_documentService);
         _chatService = new AiChatService(settingsService, chatClientFactory);
 

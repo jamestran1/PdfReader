@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.AI;
+using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -18,6 +19,8 @@ public class AiChatServiceTests
         public string? GetApiKey() => _key;
         public void SaveApiKey(string apiKey) => _key = apiKey;
         public bool HasApiKey() => !string.IsNullOrEmpty(_key);
+        public AppTheme GetThemePreference() => AppTheme.Light;
+        public void SaveThemePreference(AppTheme theme) { }
     }
 
     private sealed class FakeChatClient : IChatClient
