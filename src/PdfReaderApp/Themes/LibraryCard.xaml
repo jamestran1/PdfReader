@@ -28,6 +28,16 @@
         <Setter Property="Margin" Value="12"/>
     </Style>
 
+    <!-- Chip nhà xuất bản đè góc trái-trên tile: cùng chrome overlay như PagePill (#64). -->
+    <Style x:Key="TriThu.LibraryCard.PublisherChip" TargetType="Border">
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Background" Value="#59000000"/>
+        <Setter Property="Padding" Value="7,3"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="VerticalAlignment" Value="Top"/>
+        <Setter Property="Margin" Value="12"/>
+    </Style>
+
     <!-- Nút xoá đè góc trái-trên (hiện khi hover card): tròn, nền tối nhẹ, icon trắng. -->
     <Style x:Key="TriThu.LibraryCard.Delete" TargetType="Button">
         <Setter Property="Width" Value="30"/>
