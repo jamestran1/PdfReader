@@ -26,7 +26,17 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private PdfObjectManager _objectManager = new();
     private Stack<IUndoCommand> _undoStack = new();
     private Dictionary<int, SKBitmap> _pageCache = new();
+    private Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>> _imageRectsByPage = new();
     private bool _disposed;
+
+    // Dark mode: đảo độ sáng (nền tối, chữ sáng) nhưng GIỮ hue — dễ đọc hơn đảo RGB thẳng.
+    private static readonly SKColorFilter DarkPageColorFilter =
+        SKColorFilter.CreateHighContrast(new SKHighContrastConfig
+        {
+            Grayscale = false,
+            InvertStyle = SKHighContrastConfigInvertStyle.InvertLightness,
+            Contrast = 0f
+        });
 
     private readonly List<Core.PageSlot> _slots = new();
     private PdfObjectManager.GhostText? _activeEditTarget;
@@ -223,7 +233,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
         TextEditor.EditingFinished += TextEditor_EditingFinished;
         TextEditor.EditingCancelled += TextEditor_EditingCancelled;
+        PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged += OnThemeChanged;
     }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+        => Dispatcher.Invoke(() => skiaCanvas?.InvalidateVisual());
 
     private void PdfViewerControl_SizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -540,6 +554,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
             _matchCache.Clear();
             _matchCacheQuery = null;
             TotalPages = _currentDocument.PageCount;
+            try { _imageRectsByPage = Services.PdfImageLocator.GetNormalizedImageRectsByPage(path); }
+            catch { _imageRectsByPage = new(); }
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
             CurrentPage = System.Math.Clamp(CurrentPage, 1, _currentDocument.PageCount);
@@ -654,12 +670,22 @@ public partial class PdfViewerControl : UserControl, IDisposable
             PagesScrollViewer.ScrollToVerticalOffset(slot.Y);
     }
 
+    private SKColor ResolveGutterColor()
+    {
+        if (TryFindResource("TriThu.Brush.SurfaceTonalLow") is System.Windows.Media.SolidColorBrush brush)
+        {
+            System.Windows.Media.Color c = brush.Color;
+            return new SKColor(c.R, c.G, c.B, c.A);
+        }
+        return SKColors.DimGray;
+    }
+
     private void OnPaintCanvas(object sender, SKPaintSurfaceEventArgs e)
     {
         if (_currentDocument == null || e.Surface == null) return;
 
         var canvas = e.Surface.Canvas;
-        canvas.Clear(SKColors.DimGray);
+        canvas.Clear(ResolveGutterColor());
 
         // The Skia surface is in DEVICE PIXELS (ActualWidth * DPI scale), but all layout/scroll
         // coordinates below are in DIPs. On a >100% display this mismatch pushed the page into the
@@ -692,7 +718,30 @@ public partial class PdfViewerControl : UserControl, IDisposable
                     _pageCache[slot.PageIndex] = _renderEngine.RenderPage(_currentDocument.Pages[slot.PageIndex], scale * dpiX);
 
                 var bitmap = _pageCache[slot.PageIndex];
-                canvas.DrawBitmap(bitmap, SKRect.Create((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height));
+                var dest = SKRect.Create((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height);
+                if (Services.MaterialDesignThemeService.Current == Models.AppTheme.Dark)
+                {
+                    using var invertPaint = new SKPaint { ColorFilter = DarkPageColorFilter };
+                    canvas.DrawBitmap(bitmap, dest, invertPaint);
+                    // Vẽ lại vùng ảnh bằng pixel gốc (không đảo màu) đè lên trên.
+                    if (_imageRectsByPage.TryGetValue(slot.PageIndex, out var imageRects))
+                    {
+                        foreach (var img in imageRects)
+                        {
+                            var src = SKRect.Create(
+                                (float)(img.Left * bitmap.Width), (float)(img.Top * bitmap.Height),
+                                (float)(img.Width * bitmap.Width), (float)(img.Height * bitmap.Height));
+                            var imgDst = SKRect.Create(
+                                (float)(rect.Left + img.Left * rect.Width), (float)(rect.Top + img.Top * rect.Height),
+                                (float)(img.Width * rect.Width), (float)(img.Height * rect.Height));
+                            canvas.DrawBitmap(bitmap, src, imgDst);
+                        }
+                    }
+                }
+                else
+                {
+                    canvas.DrawBitmap(bitmap, dest);
+                }
 
                 using var paint = new SKPaint { Color = SKColors.Black, IsStroke = true, StrokeWidth = 1 };
                 canvas.DrawRect((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height, paint);
@@ -915,6 +964,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
+            _imageRectsByPage = new();
             _objectManager.Clear();
             _undoStack.Clear();
             _currentDocument.Dispose();
@@ -948,7 +998,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
                 
                 TextEditor.EditingFinished -= TextEditor_EditingFinished;
                 TextEditor.EditingCancelled -= TextEditor_EditingCancelled;
-                
+                PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged -= OnThemeChanged;
+
                 DisposeCurrentDocument();
                 _renderEngine.Dispose();
             }

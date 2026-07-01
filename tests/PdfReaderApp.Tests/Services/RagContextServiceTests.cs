@@ -17,6 +17,8 @@ public class RagContextServiceTests
         public string? GetApiKey() => _k;
         public void SaveApiKey(string a) { }
         public bool HasApiKey() => !string.IsNullOrEmpty(_k);
+        public AppTheme GetThemePreference() => AppTheme.Light;
+        public void SaveThemePreference(AppTheme theme) { }
     }
     private sealed class FakeGen : IEmbeddingGenerator<string, Embedding<float>>
     {

@@ -1,7 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=System.Runtime">
     <!-- Biến thể dark của token "Trí Thư": CÙNG bộ x:Key như TriThuTokens.xaml, giá trị dark.
-         Nguồn: PDF Reader.dc.html [data-theme="dark"]. Typography (font/size) theme-invariant nên không lặp lại ở đây. -->
+         Nguồn: PDF Reader.dc.html [data-theme="dark"]. Typography (font/size) theme-invariant, giá trị giống light. -->
 
     <!-- Màu (dark) -->
     <SolidColorBrush x:Key="TriThu.Brush.Primary" Color="#54DBC0"/>
@@ -36,6 +37,16 @@
     <SolidColorBrush x:Key="TriThu.Brush.Pdf" Color="#1A211F"/>
     <SolidColorBrush x:Key="TriThu.Brush.PdfText" Color="#CCD5D1"/>
     <SolidColorBrush x:Key="TriThu.Brush.PdfFaint" Color="#899390"/>
+
+    <!-- Typography (theme-invariant). Roboto là font design; fallback Segoe UI cho desktop Windows. -->
+    <FontFamily x:Key="TriThu.Font.Sans">Roboto, Segoe UI, sans-serif</FontFamily>
+    <FontFamily x:Key="TriThu.Font.Mono">Roboto Mono, Consolas, monospace</FontFamily>
+    <sys:Double x:Key="TriThu.Font.Size.Title">20</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.Subtitle">16</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.Body">14</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.BodySmall">13</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.Caption">12</sys:Double>
+    <sys:Double x:Key="TriThu.Font.Size.Label">11</sys:Double>
 
     <!-- Elevation e1/e2/e3 (dark): bóng đậm hơn theo design. -->
     <DropShadowEffect x:Key="TriThu.Elevation.E1" Color="#000000" Direction="270" ShadowDepth="1" BlurRadius="3" Opacity="0.45"/>
