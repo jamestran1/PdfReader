@@ -103,6 +103,10 @@
                         ToolTip="Thu nhỏ" Click="OnMinimizeWindow">
                     <materialDesign:PackIcon Kind="WindowMinimize" Width="14" Height="14"/>
                 </Button>
+                <Button DockPanel.Dock="Right" Style="{StaticResource TriThu.TitleBar.CaptionButton}"
+                        ToolTip="Đổi giao diện sáng/tối" Command="{Binding ToggleThemeCommand}">
+                    <materialDesign:PackIcon Kind="ThemeLightDark" Width="14" Height="14"/>
+                </Button>
             </DockPanel>
         </Border>
 
