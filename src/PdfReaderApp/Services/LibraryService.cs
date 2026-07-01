@@ -61,8 +61,11 @@ public sealed class LibraryService
             catch { thumbPath = null; } // thumbnail là phụ; thiếu vẫn import được
         }
 
-        var item = new LibraryItem(id, Path.GetFileName(sourcePath), storedPath, thumbPath,
-            pageCount, nowUnix, nowUnix);
+        var metadata = PdfMetadataReader.Read(storedPath);
+        string title = metadata.Title ?? Path.GetFileName(sourcePath);
+
+        var item = new LibraryItem(id, title, storedPath, thumbPath,
+            pageCount, nowUnix, nowUnix, metadata.Author, metadata.Publisher);
         _store.Upsert(item);
         return item;
     }

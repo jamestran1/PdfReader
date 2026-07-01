@@ -23,6 +23,9 @@ public class LibraryCardStyleTests
     private static string DictPath()
         => Path.Combine(RepoRoot(), "src", "PdfReaderApp", "Themes", "LibraryCard.xaml");
 
+    private static string MainWindowPath()
+        => Path.Combine(RepoRoot(), "src", "PdfReaderApp", "MainWindow.xaml");
+
     [Fact]
     public void LibraryCard_DefinesCardHeaderAndOverlayStyles()
     {
@@ -36,6 +39,28 @@ public class LibraryCardStyleTests
         Assert.Contains("TriThu.LibraryCard.Delete", keys);
         Assert.Contains("TriThu.LibraryCard.PagePill", keys);
         Assert.Contains("TriThu.Library.SearchBox", keys);
+    }
+
+    [Fact]
+    public void LibraryCard_DefinesPublisherChipStyle()
+    {
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        var keys = XDocument.Load(DictPath()).Descendants()
+            .Select(element => (string?)element.Attribute(x + "Key"))
+            .Where(key => key is not null)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.Contains("TriThu.LibraryCard.PublisherChip", keys);
+    }
+
+    [Fact]
+    public void LibraryCard_BindsAuthorAndPublisher()
+    {
+        var xaml = File.ReadAllText(MainWindowPath());
+
+        Assert.Contains("{StaticResource TriThu.LibraryCard.PublisherChip}", xaml);
+        Assert.Contains("Text=\"{Binding Publisher}\"", xaml);
+        Assert.Contains("Text=\"{Binding Author}\"", xaml);
     }
 
     [Fact]

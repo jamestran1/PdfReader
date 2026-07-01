@@ -28,11 +28,13 @@ public class LibraryServiceTests : IDisposable
         _svc = new LibraryService(store, _libDir, _thumbDir, new PdfReaderApp.Core.RenderEngine());
     }
 
-    private string MakePdf(string name)
+    private string MakePdf(string name, string? title = null, string? author = null)
     {
         string path = Path.Combine(_dir, name);
         using var writer = new PdfWriter(path);
         using var pdf = new PdfDocument(writer);
+        if (title is not null) pdf.GetDocumentInfo().SetTitle(title);
+        if (author is not null) pdf.GetDocumentInfo().SetAuthor(author);
         using var doc = new Document(pdf);
         var font = PdfFontFactory.CreateFont(@"C:\Windows\Fonts\arial.ttf",
             PdfEncodings.IDENTITY_H, PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
@@ -74,6 +76,23 @@ public class LibraryServiceTests : IDisposable
 
         Assert.Empty(_svc.GetAll());
         Assert.False(File.Exists(item.StoredPath), "stored copy should be deleted");
+    }
+
+    [Fact]
+    public void Import_WhenPdfHasTitleAndAuthor_UsesPdfTitleAndStoresAuthor()
+    {
+        var item = _svc.Import(MakePdf("filename.pdf", title: "Nhan đề thật", author: "Lê Cường"), nowUnix: 1000);
+
+        Assert.Equal("Nhan đề thật", item.Title);
+        Assert.Equal("Lê Cường", item.Author);
+    }
+
+    [Fact]
+    public void Import_WhenPdfHasNoTitle_FallsBackToFileName()
+    {
+        var item = _svc.Import(MakePdf("khong-tieu-de.pdf"), nowUnix: 1000);
+
+        Assert.Equal("khong-tieu-de.pdf", item.Title);
     }
 
     public void Dispose()

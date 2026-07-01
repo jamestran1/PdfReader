@@ -36,9 +36,34 @@ CREATE TABLE IF NOT EXISTS library (
   thumb_path TEXT,
   page_count INTEGER NOT NULL,
   imported_at INTEGER NOT NULL,
-  last_opened_at INTEGER NOT NULL);";
+  last_opened_at INTEGER NOT NULL,
+  author TEXT,
+  publisher TEXT);";
             cmd.ExecuteNonQuery();
+
+            // DB tạo trước #78 thiếu hai cột này; thêm tại chỗ để giữ dữ liệu cũ.
+            AddColumnIfMissing(conn, "library", "author", "TEXT");
+            AddColumnIfMissing(conn, "library", "publisher", "TEXT");
         }
+    }
+
+    private static bool ColumnExists(SqliteConnection conn, string table, string column)
+    {
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"PRAGMA table_info({table})";
+        using var reader = cmd.ExecuteReader();
+        while (reader.Read())
+            if (string.Equals(reader.GetString(1), column, System.StringComparison.Ordinal))
+                return true;
+        return false;
+    }
+
+    private static void AddColumnIfMissing(SqliteConnection conn, string table, string column, string columnType)
+    {
+        if (ColumnExists(conn, table, column)) return;
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {columnType}";
+        cmd.ExecuteNonQuery();
     }
 
     public void Upsert(LibraryItem item)
@@ -48,10 +73,10 @@ CREATE TABLE IF NOT EXISTS library (
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-INSERT INTO library (document_id, title, stored_path, thumb_path, page_count, imported_at, last_opened_at)
-VALUES ($id, $title, $path, $thumb, $pc, $imp, $open)
+INSERT INTO library (document_id, title, stored_path, thumb_path, page_count, imported_at, last_opened_at, author, publisher)
+VALUES ($id, $title, $path, $thumb, $pc, $imp, $open, $author, $publisher)
 ON CONFLICT(document_id) DO UPDATE SET
-  title=$title, stored_path=$path, thumb_path=$thumb, page_count=$pc, last_opened_at=$open;";
+  title=$title, stored_path=$path, thumb_path=$thumb, page_count=$pc, last_opened_at=$open, author=$author, publisher=$publisher;";
             cmd.Parameters.AddWithValue("$id", item.DocumentId);
             cmd.Parameters.AddWithValue("$title", item.Title);
             cmd.Parameters.AddWithValue("$path", item.StoredPath);
@@ -59,6 +84,8 @@ ON CONFLICT(document_id) DO UPDATE SET
             cmd.Parameters.AddWithValue("$pc", item.PageCount);
             cmd.Parameters.AddWithValue("$imp", item.ImportedAtUnix);
             cmd.Parameters.AddWithValue("$open", item.LastOpenedAtUnix);
+            cmd.Parameters.AddWithValue("$author", (object?)item.Author ?? System.DBNull.Value);
+            cmd.Parameters.AddWithValue("$publisher", (object?)item.Publisher ?? System.DBNull.Value);
             cmd.ExecuteNonQuery();
         }
     }
@@ -70,7 +97,7 @@ ON CONFLICT(document_id) DO UPDATE SET
             var list = new List<LibraryItem>();
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT document_id, title, stored_path, thumb_path, page_count, imported_at, last_opened_at FROM library ORDER BY last_opened_at DESC";
+            cmd.CommandText = "SELECT document_id, title, stored_path, thumb_path, page_count, imported_at, last_opened_at, author, publisher FROM library ORDER BY last_opened_at DESC";
             using var r = cmd.ExecuteReader();
             while (r.Read()) list.Add(Read(r));
             return list;
@@ -83,7 +110,7 @@ ON CONFLICT(document_id) DO UPDATE SET
         {
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT document_id, title, stored_path, thumb_path, page_count, imported_at, last_opened_at FROM library WHERE document_id=$id";
+            cmd.CommandText = "SELECT document_id, title, stored_path, thumb_path, page_count, imported_at, last_opened_at, author, publisher FROM library WHERE document_id=$id";
             cmd.Parameters.AddWithValue("$id", documentId);
             using var r = cmd.ExecuteReader();
             return r.Read() ? Read(r) : null;
@@ -118,5 +145,7 @@ ON CONFLICT(document_id) DO UPDATE SET
     private static LibraryItem Read(SqliteDataReader r) => new(
         r.GetString(0), r.GetString(1), r.GetString(2),
         r.IsDBNull(3) ? null : r.GetString(3),
-        r.GetInt32(4), r.GetInt64(5), r.GetInt64(6));
+        r.GetInt32(4), r.GetInt64(5), r.GetInt64(6),
+        r.IsDBNull(7) ? null : r.GetString(7),
+        r.IsDBNull(8) ? null : r.GetString(8));
 }

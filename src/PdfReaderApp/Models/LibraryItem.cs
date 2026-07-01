@@ -8,4 +8,6 @@ public sealed record LibraryItem(
     string? ThumbPath,
     int PageCount,
     long ImportedAtUnix,
-    long LastOpenedAtUnix);
+    long LastOpenedAtUnix,
+    string? Author = null,
+    string? Publisher = null);
