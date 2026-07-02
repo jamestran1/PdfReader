@@ -394,7 +394,7 @@ public class MainViewModelTests
     public void ChatColumn_DefaultsHidden_WhenLibraryShown()
     {
         var vm = new MainViewModel(); // ShowLibrary mặc định true
-        Assert.Equal(0, vm.ChatColumnWidth.Value);
+        Assert.Equal(0, vm.ChatColumnWidth);
         Assert.Equal(0, vm.ChatColumnMinWidth);
     }
 
@@ -403,7 +403,7 @@ public class MainViewModelTests
     {
         var vm = new MainViewModel();
         vm.ShowLibrary = false;
-        Assert.Equal(350, vm.ChatColumnWidth.Value);
+        Assert.Equal(350, vm.ChatColumnWidth);
         Assert.Equal(280, vm.ChatColumnMinWidth);
     }
 
@@ -412,11 +412,11 @@ public class MainViewModelTests
     {
         var vm = new MainViewModel();
         vm.ShowLibrary = false;                          // hiện panel: 350
-        vm.ChatColumnWidth = new GridLength(500);        // mô phỏng kéo GridSplitter
+        vm.ChatColumnWidth = 500;                        // mô phỏng kéo GridSplitter
         vm.ShowLibrary = true;                           // vào thư viện: lưu 500, thu về 0
-        Assert.Equal(0, vm.ChatColumnWidth.Value);
+        Assert.Equal(0d, vm.ChatColumnWidth);
         vm.ShowLibrary = false;                          // rời thư viện: khôi phục 500
-        Assert.Equal(500, vm.ChatColumnWidth.Value);
+        Assert.Equal(500d, vm.ChatColumnWidth);
     }
 
     // --- Workspace wiring tests (Step 4) ---
@@ -852,7 +852,7 @@ public class MainViewModelTests
         Assert.True(vm.IsRightPanelCollapsed);
         Assert.True(vm.IsRightPanelStripVisible);
         Assert.False(vm.IsRightPanelExpanded);
-        Assert.Equal(48d, vm.ChatColumnWidth.Value);
+        Assert.Equal(48d, vm.ChatColumnWidth);
     }
 
     [Fact]
@@ -860,13 +860,13 @@ public class MainViewModelTests
     {
         var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
         vm.ShowLibrary = false;
-        vm.ChatColumnWidth = new GridLength(420);   // giả lập người dùng kéo splitter
+        vm.ChatColumnWidth = 420;   // giả lập người dùng kéo splitter
 
         vm.ToggleRightPanelCommand.Execute(null);   // thu gọn
         vm.ToggleRightPanelCommand.Execute(null);   // mở lại
 
         Assert.True(vm.IsRightPanelExpanded);
-        Assert.Equal(420d, vm.ChatColumnWidth.Value);
+        Assert.Equal(420d, vm.ChatColumnWidth);
     }
 
     [Fact]

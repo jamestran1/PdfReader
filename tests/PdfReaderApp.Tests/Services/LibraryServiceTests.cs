@@ -25,7 +25,7 @@ public class LibraryServiceTests : IDisposable
         Directory.CreateDirectory(_dir);
         var store = new SqliteLibraryStore(Path.Combine(_dir, "library.db"));
         store.EnsureSchema();
-        _svc = new LibraryService(store, _libDir, _thumbDir, new PdfReaderApp.Core.RenderEngine());
+        _svc = new LibraryService(store, _libDir, _thumbDir, new PdfReaderApp.Services.DocnetPdfRenderService());
     }
 
     private string MakePdf(string name, string? title = null, string? author = null)

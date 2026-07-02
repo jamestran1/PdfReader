@@ -5,9 +5,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Win32;
 using PdfReaderApp.Core;
 using PdfReaderApp.Models;
+using PdfReaderApp.Platform;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.ViewModels;
@@ -21,6 +21,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IThemeService _themeService;
     private readonly PdfStructureAnalyzer _analyzer;
     private readonly AiChatService _chatService;
+    private readonly IUiDispatcher? _uiDispatcher;
+    private readonly IFilePickerService _filePicker;
+    private readonly ISettingsDialogService _settingsDialog;
 
     // Tab S1: Open Set
     public TabSetViewModel Tabs { get; }
@@ -159,7 +162,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // app mở ở thư viện -> panel ẩn. MinWidth cũng động: 0 khi ẩn, 280 khi hiện (nếu để cố định
     // 280 thì không thu cột về 0 được khi ẩn).
     [ObservableProperty]
-    private System.Windows.GridLength _chatColumnWidth = new System.Windows.GridLength(0);
+    private double _chatColumnWidth = 0;
 
     [ObservableProperty]
     private double _chatColumnMinWidth = 0;
@@ -194,23 +197,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void UpdateChatColumnVisibility()
     {
         // Nhớ bề rộng khi panel đang mở rộng thật (>= min) để khôi phục khi mở lại.
-        if (ChatColumnWidth.IsAbsolute && ChatColumnWidth.Value >= MinChatWidthPx)
-            _savedChatWidthPx = ChatColumnWidth.Value;
+        if (ChatColumnWidth >= MinChatWidthPx)
+            _savedChatWidthPx = ChatColumnWidth;
 
         if (ShowLibrary || ShowWorkspaces)
         {
-            ChatColumnWidth = new System.Windows.GridLength(0);
+            ChatColumnWidth = 0;
             ChatColumnMinWidth = 0;
         }
         else if (IsRightPanelCollapsed)
         {
-            ChatColumnWidth = new System.Windows.GridLength(CollapsedStripWidthPx);
+            ChatColumnWidth = CollapsedStripWidthPx;
             ChatColumnMinWidth = 0;
         }
         else
         {
             ChatColumnMinWidth = MinChatWidthPx;
-            ChatColumnWidth = new System.Windows.GridLength(_savedChatWidthPx);
+            ChatColumnWidth = _savedChatWidthPx;
         }
         OnPropertyChanged(nameof(IsReadingDocument));
         OnPropertyChanged(nameof(ActiveNavDestination));
@@ -304,7 +307,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private Notification? _currentNotification;
 
-    private System.Windows.Threading.DispatcherTimer? _notificationTimer;
+    private IDisposable? _notificationTimer;
 
     public void NotifySuccess(string message) => ShowNotification(new Notification(message, false));
     public void NotifyError(string message) => ShowNotification(new Notification(message, true));
@@ -312,21 +315,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ShowNotification(Notification notification)
     {
         CurrentNotification = notification;
-        // Unit test (không có Application): bỏ qua timer tự ẩn; chỉ cần CurrentNotification được set.
-        if (System.Windows.Application.Current is null) return;
-        _notificationTimer ??= CreateNotificationTimer();
-        _notificationTimer.Stop();
-        _notificationTimer.Start();
-    }
-
-    private System.Windows.Threading.DispatcherTimer CreateNotificationTimer()
-    {
-        var timer = new System.Windows.Threading.DispatcherTimer
-        {
-            Interval = System.TimeSpan.FromMilliseconds(2200)
-        };
-        timer.Tick += (_, _) => { _notificationTimer!.Stop(); CurrentNotification = null; };
-        return timer;
+        if (_uiDispatcher is null) return;
+        _notificationTimer?.Dispose();
+        _notificationTimer = _uiDispatcher.CreateTimer(
+            TimeSpan.FromMilliseconds(2200),
+            () => { _notificationTimer?.Dispose(); _notificationTimer = null; CurrentNotification = null; });
     }
 
     private static string AppDir()
@@ -351,7 +344,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                new OpenAiChatClientFactory(),
                new SqliteDocumentIndex(IndexDbPath(),
                    System.IO.Path.Combine(AppContext.BaseDirectory, "vec0.dll")),
-               new OpenAiEmbeddingGeneratorFactory())
+               new OpenAiEmbeddingGeneratorFactory(),
+               uiDispatcher: new Wpf.Platform.WpfDispatcher(System.Windows.Application.Current.Dispatcher),
+               filePicker: new Wpf.Platform.WpfFilePickerService(),
+               settingsDialog: new Wpf.Platform.WpfSettingsDialogService())
     { }
 
     public MainViewModel(
@@ -363,11 +359,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IChatHistoryStore? chatHistory = null,
         INoteStore? noteStore = null,
         IWorkspaceStore? workspaceStore = null,
-        IThemeService? themeService = null)
+        IThemeService? themeService = null,
+        IUiDispatcher? uiDispatcher = null,
+        IFilePickerService? filePicker = null,
+        ISettingsDialogService? settingsDialog = null)
     {
         Tabs = new TabSetViewModel();
         _documentService = documentService;
         _settingsService = settingsService;
+        _uiDispatcher = uiDispatcher;
+        _filePicker = filePicker ?? new Wpf.Platform.WpfFilePickerService();
+        _settingsDialog = settingsDialog ?? new Wpf.Platform.WpfSettingsDialogService();
         _themeService = themeService ?? new MaterialDesignThemeService();
         IsDarkMode = settingsService.GetThemePreference() == AppTheme.Dark;
         _analyzer = new PdfStructureAnalyzer(_documentService);
@@ -383,7 +385,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _library = new LibraryService(libraryStore,
             System.IO.Path.Combine(AppDir(), "library"),
             System.IO.Path.Combine(AppDir(), "library", "thumbs"),
-            new PdfReaderApp.Core.RenderEngine());
+            new DocnetPdfRenderService());
         ReloadLibrary();
 
         _chatHistory = chatHistory ?? new SqliteChatHistoryStore(System.IO.Path.Combine(AppDir(), "chats.db"));
@@ -470,21 +472,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
         catch { /* lưu best-effort: lỗi store không được làm gãy phiên đọc */ }
     }
 
-    private System.Windows.Threading.DispatcherTimer? _saveOpenSetDebounce;
+    private IDisposable? _saveOpenSetDebounce;
 
-    // Gộp nhiều thay đổi liên tiếp (cuộn/zoom) thành một lần ghi. Môi trường không có Dispatcher
-    // (test/headless) -> lưu ngay để hành vi tất định.
     private void ScheduleSaveOpenSet()
     {
         if (_isRestoringOpenSet) return;
         if (_activeWorkspaceId is null || !IsWorkspaceSession) return;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null) { SaveOpenSetNow(); return; }
-        _saveOpenSetDebounce ??= new System.Windows.Threading.DispatcherTimer(
-            TimeSpan.FromMilliseconds(400), System.Windows.Threading.DispatcherPriority.Background,
-            (_, _) => { _saveOpenSetDebounce!.Stop(); SaveOpenSetNow(); }, dispatcher);
-        _saveOpenSetDebounce.Stop();
-        _saveOpenSetDebounce.Start();
+        if (_uiDispatcher is null) { SaveOpenSetNow(); return; }
+        _saveOpenSetDebounce?.Dispose();
+        _saveOpenSetDebounce = _uiDispatcher.CreateTimer(
+            TimeSpan.FromMilliseconds(400),
+            () => { _saveOpenSetDebounce?.Dispose(); _saveOpenSetDebounce = null; SaveOpenSetNow(); });
     }
 
     // Đổi giữa chế độ workspace (proxy theo tab) và đọc lẻ (backing field) -> toolbar đọc lại nguồn.
@@ -559,17 +557,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private void OpenFile()
+    private async Task OpenFile()
     {
-        var dialog = new OpenFileDialog
-        {
-            Filter = "PDF Files (*.pdf)|*.pdf|All Files (*.*)|*.*"
-        };
-        if (dialog.ShowDialog() != true) return;
+        var path = await _filePicker.PickPdfAsync();
+        if (path is null) return;
 
         try
         {
-            var item = _library.Import(dialog.FileName, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            var item = _library.Import(path, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             ReloadLibrary();
             OpenLibraryItem(item);
         }
@@ -1084,8 +1079,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     AiChatError.Network => "Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).",
                     _ => $"Lập chỉ mục lỗi: {ex.Message}"
                 };
-                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
-                    IndexingStatusText = message);
+                if (_uiDispatcher is not null)
+                    _uiDispatcher.Post(() => IndexingStatusText = message);
+                else
+                    IndexingStatusText = message;
             }
         }, ct);
     }
@@ -1202,14 +1199,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenSettings()
     {
-        var window = new SettingsWindow
+        var apiKey = _settingsDialog.ShowAndGetApiKey();
+        if (apiKey is not null)
         {
-            Owner = System.Windows.Application.Current?.MainWindow
-        };
-
-        if (window.ShowDialog() == true && !string.IsNullOrWhiteSpace(window.ApiKey))
-        {
-            _settingsService.SaveApiKey(window.ApiKey.Trim());
+            _settingsService.SaveApiKey(apiKey);
         }
     }
 

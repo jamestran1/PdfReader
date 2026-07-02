@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
 using PdfReaderApp.Core;
+using SkiaSharp;
 
 namespace PdfReaderApp.Tests.Core;
 
@@ -10,10 +10,10 @@ public class TextSelectionResolverTests
     // Hàng 1: "AB" ở y=0; hàng 2: "CD" ở y=20. Mỗi ký tự rộng 10, cao 10.
     private static List<SelChar> Sample() => new()
     {
-        new SelChar(0, "A", new Rect(0, 0, 10, 10)),
-        new SelChar(1, "B", new Rect(10, 0, 10, 10)),
-        new SelChar(2, "C", new Rect(0, 20, 10, 10)),
-        new SelChar(3, "D", new Rect(10, 20, 10, 10)),
+        new SelChar(0, "A", SKRect.Create(0, 0, 10, 10)),
+        new SelChar(1, "B", SKRect.Create(10, 0, 10, 10)),
+        new SelChar(2, "C", SKRect.Create(0, 20, 10, 10)),
+        new SelChar(3, "D", SKRect.Create(10, 20, 10, 10)),
     };
 
     [Fact]
@@ -57,8 +57,8 @@ public class TextSelectionResolverTests
         // Cùng dòng trực quan (chồng lấn dọc) nên phải gộp thành MỘT rect liền, không rời ra.
         var line = new List<SelChar>
         {
-            new SelChar(0, "A", new Rect(0, 0, 10, 10)),   // span Y [0,10]
-            new SelChar(1, ".", new Rect(10, 7, 5, 4)),    // span Y [7,11], thấp + lệch tâm-Y
+            new SelChar(0, "A", SKRect.Create(0, 0, 10, 10)),   // span Y [0,10]
+            new SelChar(1, ".", SKRect.Create(10, 7, 5, 4)),    // span Y [7,11], thấp + lệch tâm-Y
         };
 
         var r = TextSelectionResolver.Resolve(line, 0, 1);
@@ -74,11 +74,11 @@ public class TextSelectionResolverTests
         // Không được tách dòng tại đó: cả dòng phải là MỘT rect liền phủ luôn khoảng trắng.
         var line = new List<SelChar>
         {
-            new SelChar(0, "e", new Rect(0, 0, 8, 10)),
-            new SelChar(1, "f", new Rect(8, 0, 8, 10)),
-            new SelChar(2, " ", new Rect(16, 5, 4, 0)),   // space: height 0 (suy biến)
-            new SelChar(3, "u", new Rect(20, 0, 8, 10)),
-            new SelChar(4, "s", new Rect(28, 0, 8, 10)),
+            new SelChar(0, "e", SKRect.Create(0, 0, 8, 10)),
+            new SelChar(1, "f", SKRect.Create(8, 0, 8, 10)),
+            new SelChar(2, " ", SKRect.Create(16, 5, 4, 0)),   // space: height 0 (suy biến)
+            new SelChar(3, "u", SKRect.Create(20, 0, 8, 10)),
+            new SelChar(4, "s", SKRect.Create(28, 0, 8, 10)),
         };
 
         var r = TextSelectionResolver.Resolve(line, 0, 4);
@@ -96,11 +96,11 @@ public class TextSelectionResolverTests
         // Vẫn phải bỏ qua theo nội dung whitespace -> cả dòng là một rect liền.
         var line = new List<SelChar>
         {
-            new SelChar(0, "a", new Rect(0, 0, 8, 10)),
-            new SelChar(1, "b", new Rect(8, 0, 8, 10)),
-            new SelChar(2, " ", new Rect(16, 20, 6, 3)),  // space: height dương nhưng lệch hẳn xuống
-            new SelChar(3, "c", new Rect(22, 0, 8, 10)),
-            new SelChar(4, "d", new Rect(30, 0, 8, 10)),
+            new SelChar(0, "a", SKRect.Create(0, 0, 8, 10)),
+            new SelChar(1, "b", SKRect.Create(8, 0, 8, 10)),
+            new SelChar(2, " ", SKRect.Create(16, 20, 6, 3)),  // space: height dương nhưng lệch hẳn xuống
+            new SelChar(3, "c", SKRect.Create(22, 0, 8, 10)),
+            new SelChar(4, "d", SKRect.Create(30, 0, 8, 10)),
         };
 
         var r = TextSelectionResolver.Resolve(line, 0, 4);
@@ -120,19 +120,19 @@ public class TextSelectionResolverTests
     [Fact]
     public void NearestCharIndex_PointInsideChar_ReturnsThatChar()
     {
-        Assert.Equal(3, TextSelectionResolver.NearestCharIndex(Sample(), new Point(12, 22)));
+        Assert.Equal(3, TextSelectionResolver.NearestCharIndex(Sample(), new SKPoint(12, 22)));
     }
 
     [Fact]
     public void NearestCharIndex_PointOutside_ReturnsClosest()
     {
         // Xa bên phải hàng 1 -> gần B (index 1).
-        Assert.Equal(1, TextSelectionResolver.NearestCharIndex(Sample(), new Point(100, 2)));
+        Assert.Equal(1, TextSelectionResolver.NearestCharIndex(Sample(), new SKPoint(100, 2)));
     }
 
     [Fact]
     public void NearestCharIndex_Empty_ReturnsMinusOne()
     {
-        Assert.Equal(-1, TextSelectionResolver.NearestCharIndex(new List<SelChar>(), new Point(0, 0)));
+        Assert.Equal(-1, TextSelectionResolver.NearestCharIndex(new List<SelChar>(), new SKPoint(0, 0)));
     }
 }

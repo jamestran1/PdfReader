@@ -1,13 +1,21 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(git mv *)",
+      "Bash(ls docs/plans/)",
+      "Bash(dotnet build *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet run *)",
+      "Read(//Users/thanh.nguyen/.nuget/packages/skiasharp/3.119.4/lib/net8.0/**)",
+      "WebSearch",
+      "Bash(dotnet ildasm *)",
+      "WebFetch(domain:github.com)",
+      "Bash(dotnet restore *)"
+    ]
+  },
   "enabledMcpjsonServers": [
     "ado",
     "ado-bliksund",
     "github"
-  ],
-  "permissions": {
-    "allow": [
-      "Bash(git mv *)",
-      "Bash(ls docs/plans/)"
-    ]
-  }
+  ]
 }

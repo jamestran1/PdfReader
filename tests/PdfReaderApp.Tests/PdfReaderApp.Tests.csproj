@@ -27,6 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\TriThu.Core\TriThu.Core.csproj" />
     <ProjectReference Include="..\..\src\PdfReaderApp\PdfReaderApp.csproj" />
   </ItemGroup>
 

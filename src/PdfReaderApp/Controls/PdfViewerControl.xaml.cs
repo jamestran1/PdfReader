@@ -9,7 +9,6 @@ using System.Windows.Input;
 using SkiaSharp;
 using SkiaSharp.Views.WPF;
 using SkiaSharp.Views.Desktop;
-using PdfiumViewer.Core;
 using PdfReaderApp.Core;
 using PdfReaderApp.Core.Commands;
 using PdfReaderApp.Models;
@@ -21,8 +20,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 {
     public event System.Action<string>? LoadFailed;
 
-    private PdfDocument? _currentDocument;
-    private RenderEngine _renderEngine = new();
+    private Services.IPdfRenderService? _pdfRender;
     private PdfObjectManager _objectManager = new();
     private Stack<IUndoCommand> _undoStack = new();
     private Dictionary<int, SKBitmap> _pageCache = new();
@@ -167,7 +165,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private int _anchorChar = -1;
     private bool _selecting;
     private string _selectionText = string.Empty;
-    private readonly List<Rect> _selectionRectsPdf = new(); // rect theo PDF points của _selPageIndex
+    private readonly List<SkiaSharp.SKRect> _selectionRectsPdf = new(); // rect theo PDF points của _selPageIndex
 
     private IReadOnlyList<Models.MatchRect> GetMatchRects(int pageIndex, string query)
     {
@@ -206,7 +204,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private static void OnViewOptionChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is PdfViewerControl c && c._currentDocument != null)
+        if (d is PdfViewerControl c && c._pdfRender != null)
         {
             c.RefreshLayout(keepCache: false);
             // Single-unit modes show one unit at Y=0; reset scroll so it is in view after switching.
@@ -241,7 +239,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void PdfViewerControl_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (_currentDocument != null)
+        if (_pdfRender != null)
         {
             RefreshLayout(keepCache: true);
         }
@@ -253,7 +251,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             e.Handled = true;
 
-            if (_currentDocument == null) return;
+            if (_pdfRender == null) return;
 
             // 1. Capture initial state
             Point mousePos = e.GetPosition(PagesScrollViewer);
@@ -293,7 +291,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             PagesScrollViewer.ScrollToHorizontalOffset(newHOffset);
             PagesScrollViewer.ScrollToVerticalOffset(newVOffset);
         }
-        else if (ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing && _currentDocument != null)
+        else if (ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing && _pdfRender != null)
         {
             // The current unit fills the view. If it is taller than the viewport, let the wheel scroll
             // within it first; only advance to the next/prev unit when already at the boundary.
@@ -334,15 +332,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
         }
 
         // Bắt đầu chọn text khi single left-down
-        if (e.ChangedButton == MouseButton.Left && e.ClickCount == 1 && _currentDocument != null)
+        if (e.ChangedButton == MouseButton.Left && e.ClickCount == 1 && _pdfRender != null)
         {
             ClearSelection();
             var sp = e.GetPosition(InteractionCanvas);
             if (TryPageHit(sp, out var slot, out var pdf))
             {
-                _objectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
+                _objectManager.MapPage(_pdfRender, slot.PageIndex);
                 var chars = BuildSelChars(slot.PageIndex);
-                int anchor = Core.TextSelectionResolver.NearestCharIndex(chars, pdf);
+                int anchor = Core.TextSelectionResolver.NearestCharIndex(chars, new SkiaSharp.SKPoint((float)pdf.X, (float)pdf.Y));
                 if (anchor >= 0)
                 {
                     _selPageIndex = slot.PageIndex;
@@ -386,7 +384,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         var sp = e.GetPosition(InteractionCanvas);
         if (!TryPageHit(sp, out var slot, out var pdf) || slot.PageIndex != _selPageIndex) return;
         var chars = BuildSelChars(_selPageIndex);
-        int focus = Core.TextSelectionResolver.NearestCharIndex(chars, pdf);
+        int focus = Core.TextSelectionResolver.NearestCharIndex(chars, new SkiaSharp.SKPoint((float)pdf.X, (float)pdf.Y));
         if (focus < 0) return;
         var res = Core.TextSelectionResolver.Resolve(chars, _anchorChar, focus);
         _selectionText = res.Text;
@@ -446,7 +444,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void HandleDoubleClick(MouseButtonEventArgs e)
     {
-        if (_currentDocument == null) return;
+        if (_pdfRender == null) return;
 
         var screenPoint = e.GetPosition(InteractionCanvas);
         float scale = (float)ZoomLevel;
@@ -459,7 +457,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
                 double pdfX = (screenPoint.X - rect.Left) / scale;
                 double pdfY = (screenPoint.Y - rect.Top) / scale;
 
-                var hit = _objectManager.HitTest(slot.PageIndex, new Point(pdfX, pdfY));
+                var hit = _objectManager.HitTest(slot.PageIndex, new SkiaSharp.SKPoint((float)pdfX, (float)pdfY));
                 if (hit != null)
                 {
                     ShowEditor(hit, rect, scale);
@@ -521,7 +519,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private static void OnCurrentPageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is PdfViewerControl control && control._currentDocument != null)
+        if (d is PdfViewerControl control && control._pdfRender != null)
         {
             // Chế độ single-unit chỉ layout một đơn vị nên đổi trang phải re-layout.
             if (control.ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing)
@@ -533,7 +531,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private static void OnZoomLevelChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is PdfViewerControl control && control._currentDocument != null)
+        if (d is PdfViewerControl control && control._pdfRender != null)
         {
             control.RefreshLayoutPreservingAnchor();
         }
@@ -548,17 +546,16 @@ public partial class PdfViewerControl : UserControl, IDisposable
             if (!File.Exists(path)) return;
 
             byte[] fileBytes = File.ReadAllBytes(path);
-            var ms = new MemoryStream(fileBytes);
-            
-            _currentDocument = PdfDocument.Load(ms);
+            _pdfRender = new Services.DocnetPdfRenderService();
+            _pdfRender.LoadDocument(fileBytes);
             _matchCache.Clear();
             _matchCacheQuery = null;
-            TotalPages = _currentDocument.PageCount;
+            TotalPages = _pdfRender.PageCount;
             try { _imageRectsByPage = Services.PdfImageLocator.GetNormalizedImageRectsByPage(path); }
             catch { _imageRectsByPage = new(); }
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
-            CurrentPage = System.Math.Clamp(CurrentPage, 1, _currentDocument.PageCount);
+            CurrentPage = System.Math.Clamp(CurrentPage, 1, _pdfRender.PageCount);
 
             // Bật GUARD pending NGAY (trước FitToViewport/RefreshLayout): các bước layout đó phát ScrollChanged
             // đồng bộ scroll->trang (kéo CurrentPage về trang đang hiển thị) -> guard chặn ghi đè trang đích.
@@ -614,7 +611,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void RefreshLayout(bool keepCache = false)
     {
-        if (_currentDocument == null) return;
+        if (_pdfRender == null) return;
 
         _slots.Clear();
         if (!keepCache)
@@ -623,10 +620,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
             _pageCache.Clear();
         }
 
-        var sizes = new List<(double WidthPt, double HeightPt)>(_currentDocument.PageCount);
-        for (int i = 0; i < _currentDocument.PageCount; i++)
+        var sizes = new List<(double WidthPt, double HeightPt)>(_pdfRender.PageCount);
+        for (int i = 0; i < _pdfRender.PageCount; i++)
         {
-            var s = _currentDocument.Pages[i].Size;
+            var s = _pdfRender.GetPageSize(i);
             sizes.Add((s.Width, s.Height));
         }
 
@@ -636,7 +633,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             ? skiaCanvas.ActualWidth
             : Math.Max(0, this.ActualWidth - 20);
 
-        int currentPageIndex = Math.Clamp(CurrentPage - 1, 0, _currentDocument.PageCount - 1);
+        int currentPageIndex = Math.Clamp(CurrentPage - 1, 0, _pdfRender.PageCount - 1);
         var layout = Core.PageLayoutCalculator.Compute(
             ViewMode, ShowCover, sizes,
             scale: ZoomLevel, viewportWidth: viewportWidth,
@@ -652,13 +649,13 @@ public partial class PdfViewerControl : UserControl, IDisposable
     // Đặt zoom ban đầu sao cho trang đầu vừa khung nhìn (fit whole page), chừa lề nhỏ.
     public void FitToViewport()
     {
-        if (_currentDocument == null || _currentDocument.PageCount == 0) return;
+        if (_pdfRender == null || _pdfRender.PageCount == 0) return;
         double vpW = skiaCanvas.ActualWidth > 0 ? skiaCanvas.ActualWidth : this.ActualWidth - 20;
         double vpH = skiaCanvas.ActualHeight > 0 ? skiaCanvas.ActualHeight : this.ActualHeight - 20;
         if (vpW <= 0 || vpH <= 0) return;
-        var size = _currentDocument.Pages[0].Size;
-        if (size.Width <= 0 || size.Height <= 0) return;
-        double fit = Math.Min((vpW - 24) / size.Width, (vpH - 24) / size.Height);
+        var (pageW, pageH) = _pdfRender.GetPageSize(0);
+        if (pageW <= 0 || pageH <= 0) return;
+        double fit = Math.Min((vpW - 24) / pageW, (vpH - 24) / pageH);
         ZoomLevel = Math.Clamp(fit, 0.4, 4.0);
     }
 
@@ -682,7 +679,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void OnPaintCanvas(object sender, SKPaintSurfaceEventArgs e)
     {
-        if (_currentDocument == null || e.Surface == null) return;
+        if (_pdfRender == null || e.Surface == null) return;
 
         var canvas = e.Surface.Canvas;
         canvas.Clear(ResolveGutterColor());
@@ -710,12 +707,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
             var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
             if (rect.Bottom >= viewTop && rect.Top <= viewBottom)
             {
-                _objectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
+                _objectManager.MapPage(_pdfRender, slot.PageIndex);
 
-                // Render at device-pixel resolution (zoom * DPI) so the page stays crisp when the
-                // canvas is scaled by DPI; draw into the DIP dest rect so it maps 1:1 in pixels.
                 if (!_pageCache.ContainsKey(slot.PageIndex))
-                    _pageCache[slot.PageIndex] = _renderEngine.RenderPage(_currentDocument.Pages[slot.PageIndex], scale * dpiX);
+                    _pageCache[slot.PageIndex] = _pdfRender.RenderPage(slot.PageIndex, scale * dpiX);
 
                 var bitmap = _pageCache[slot.PageIndex];
                 var dest = SKRect.Create((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height);
@@ -789,7 +784,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void DrawSelectionOverlay(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
     {
-        if (_selPageIndex != pageIndex || _selectionRectsPdf.Count == 0 || _currentDocument == null) return;
+        if (_selPageIndex != pageIndex || _selectionRectsPdf.Count == 0 || _pdfRender == null) return;
 
         // GhostText.Bounds là top-origin (Y hướng xuống) - cùng hệ với double-click/ShowEditor
         // (đặt tại pageRect.Top + Bounds.Top*scale). KHÔNG lật Y như DrawHighlights (vốn dùng
@@ -807,7 +802,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void DrawHighlights(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
     {
-        if (_currentDocument == null) return;
+        if (_pdfRender == null) return;
 
         string query = HighlightQuery;
         if (string.IsNullOrWhiteSpace(query) || MatchSource == null) return;
@@ -820,8 +815,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
         // i.e. 1 PDF point = `scale` pixels. The highlight mapper must use the SAME pixels-per-point,
         // which means dpi=72 (ppp = scale * 72/72 = scale). Using 96 over-scales by 1.333x and the
         // rects drift away from the text (worse further from the origin).
-        var pageSize = _currentDocument.Pages[pageIndex].Size;
-        float pageHeightPt = (float)pageSize.Height;
+        var (_, pgH) = _pdfRender!.GetPageSize(pageIndex);
+        float pageHeightPt = (float)pgH;
         var mapper = new PdfCoordinateMapper(pageHeightPt, scale, 72);
 
         using var highlightPaint = new SKPaint
@@ -890,7 +885,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void OnScrollSettleTick(object? sender, EventArgs e)
     {
-        if (_pendingScrollPage <= 0 || _currentDocument == null) { StopScrollSettleTimer(); return; }
+        if (_pendingScrollPage <= 0 || _pdfRender == null) { StopScrollSettleTimer(); return; }
         _scrollSettleElapsed++;
 
         var slot = _slots.FirstOrDefault(s => s.PageIndex == _pendingScrollPage - 1);
@@ -925,7 +920,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void PagesScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        if (_currentDocument == null || _slots.Count == 0) return;
+        if (_pdfRender == null || _slots.Count == 0) return;
 
         // Viewer ẩn (tab không active / đã rời Workspace) -> ScrollViewer reset offset/viewport=0 và phát
         // ScrollChanged; KHÔNG đồng bộ scroll->trang lúc đó, nếu không sẽ ghi đè OpenTab.Page về cover.
@@ -960,15 +955,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void DisposeCurrentDocument()
     {
-        if (_currentDocument != null)
+        if (_pdfRender != null)
         {
             _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
             _imageRectsByPage = new();
             _objectManager.Clear();
             _undoStack.Clear();
-            _currentDocument.Dispose();
-            _currentDocument = null;
+            _pdfRender.Dispose();
+            _pdfRender = null;
         }
     }
 
@@ -1001,7 +996,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
                 PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged -= OnThemeChanged;
 
                 DisposeCurrentDocument();
-                _renderEngine.Dispose();
             }
             _disposed = true;
         }

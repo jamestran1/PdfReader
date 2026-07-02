@@ -1,17 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using PdfiumViewer.Core;
-using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using SkiaSharp;
 
 namespace PdfReaderApp.Services;
 
-/// <summary>
-/// Quản lý thư viện: import (copy file vào thư mục app + render thumbnail bìa + ghi store),
-/// liệt kê, xoá, cập nhật lần mở cuối. Dedup theo DocumentId (hash nội dung).
-/// </summary>
 public sealed class LibraryService
 {
     private const float ThumbTargetWidthPx = 220f;
@@ -19,14 +13,14 @@ public sealed class LibraryService
     private readonly ILibraryStore _store;
     private readonly string _libraryDir;
     private readonly string _thumbDir;
-    private readonly RenderEngine _renderEngine;
+    private readonly IPdfRenderService _pdfRender;
 
-    public LibraryService(ILibraryStore store, string libraryDir, string thumbDir, RenderEngine renderEngine)
+    public LibraryService(ILibraryStore store, string libraryDir, string thumbDir, IPdfRenderService pdfRender)
     {
         _store = store;
         _libraryDir = libraryDir;
         _thumbDir = thumbDir;
-        _renderEngine = renderEngine;
+        _pdfRender = pdfRender;
     }
 
     public IReadOnlyList<LibraryItem> GetAll() => _store.GetAll();
@@ -53,13 +47,23 @@ public sealed class LibraryService
 
         int pageCount;
         string? thumbPath = Path.Combine(_thumbDir, id + ".png");
-        using (var ms = new MemoryStream(File.ReadAllBytes(storedPath)))
-        using (var doc = PdfDocument.Load(ms))
+
+        byte[] pdfBytes = File.ReadAllBytes(storedPath);
+        using var tempRender = new DocnetPdfRenderService();
+        tempRender.LoadDocument(pdfBytes);
+        pageCount = tempRender.PageCount;
+
+        try
         {
-            pageCount = doc.PageCount;
-            try { RenderThumbnail(doc.Pages[0], thumbPath); }
-            catch { thumbPath = null; } // thumbnail là phụ; thiếu vẫn import được
+            var (pageW, pageH) = tempRender.GetPageSize(0);
+            float scale = ThumbTargetWidthPx / (float)pageW;
+            using var bmp = tempRender.RenderPage(0, scale);
+            using var img = SKImage.FromBitmap(bmp);
+            using var data = img.Encode(SKEncodedImageFormat.Png, 85);
+            using var fs = File.Create(thumbPath);
+            data.SaveTo(fs);
         }
+        catch { thumbPath = null; }
 
         var metadata = PdfMetadataReader.Read(storedPath);
         string title = metadata.Title ?? Path.GetFileName(sourcePath);
@@ -75,16 +79,6 @@ public sealed class LibraryService
         _store.Remove(item.DocumentId);
         TryDelete(item.StoredPath);
         if (item.ThumbPath != null) TryDelete(item.ThumbPath);
-    }
-
-    private void RenderThumbnail(PdfPage page, string thumbPath)
-    {
-        float scale = ThumbTargetWidthPx / (float)page.Width;
-        using var bmp = _renderEngine.RenderPage(page, scale);
-        using var img = SKImage.FromBitmap(bmp);
-        using var data = img.Encode(SKEncodedImageFormat.Png, 85);
-        using var fs = File.Create(thumbPath);
-        data.SaveTo(fs);
     }
 
     private static void TryDelete(string path)

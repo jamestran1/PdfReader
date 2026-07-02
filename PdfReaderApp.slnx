@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/TriThu.Core/TriThu.Core.csproj" />
     <Project Path="src/PdfReaderApp/PdfReaderApp.csproj" />
   </Folder>
   <Folder Name="/tests/">

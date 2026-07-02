@@ -43,6 +43,7 @@
         <converters:WindowStateToMaximizeIconConverter x:Key="WindowStateToMaximizeIconConverter"/>
         <converters:NotificationIconConverter x:Key="NotificationIconConverter"/>
         <converters:BoolToThemeIconConverter x:Key="BoolToThemeIconConverter"/>
+        <converters:DoubleToGridLengthConverter x:Key="DoubleToGridLengthConverter"/>
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -117,7 +118,7 @@
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
-            <ColumnDefinition Width="{Binding ChatColumnWidth, Mode=TwoWay}"
+            <ColumnDefinition Width="{Binding ChatColumnWidth, Mode=TwoWay, Converter={StaticResource DoubleToGridLengthConverter}}"
                               MinWidth="{Binding ChatColumnMinWidth}" MaxWidth="700"/>
         </Grid.ColumnDefinitions>
 

@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Windows;
+using SkiaSharp;
 
 namespace PdfReaderApp.Core;
 
-public readonly record struct SelChar(int CharIndex, string Text, Rect Bounds);
+public readonly record struct SelChar(int CharIndex, string Text, SKRect Bounds);
 
-public sealed record SelectionResult(string Text, IReadOnlyList<Rect> LineRects);
+public sealed record SelectionResult(string Text, IReadOnlyList<SKRect> LineRects);
 
 /// <summary>Tính vùng chọn text theo dòng chữ: từ dải [anchor,focus] (theo CharIndex) trên
 /// một trang -> chuỗi text theo thứ tự đọc + các rect gộp theo dòng. Thuần, không phụ thuộc view.</summary>
@@ -17,7 +17,7 @@ public static class TextSelectionResolver
     public static SelectionResult Resolve(IReadOnlyList<SelChar> chars, int anchorIndex, int focusIndex)
     {
         if (chars == null || chars.Count == 0)
-            return new SelectionResult(string.Empty, Array.Empty<Rect>());
+            return new SelectionResult(string.Empty, Array.Empty<SKRect>());
 
         int lo = Math.Min(anchorIndex, focusIndex);
         int hi = Math.Max(anchorIndex, focusIndex);
@@ -26,7 +26,7 @@ public static class TextSelectionResolver
                             .OrderBy(c => c.CharIndex)
                             .ToList();
         if (selected.Count == 0)
-            return new SelectionResult(string.Empty, Array.Empty<Rect>());
+            return new SelectionResult(string.Empty, Array.Empty<SKRect>());
 
         var sb = new StringBuilder();
         foreach (var c in selected) sb.Append(c.Text);
@@ -39,19 +39,19 @@ public static class TextSelectionResolver
         var realChars = selected
             .Where(c => !string.IsNullOrWhiteSpace(c.Text) && c.Bounds.Height > 0 && c.Bounds.Width > 0)
             .ToList();
-        var lines = new List<Rect>();
+        var lines = new List<SKRect>();
         if (realChars.Count == 0)
             return new SelectionResult(sb.ToString(), lines);
 
-        Rect current = realChars[0].Bounds;
+        SKRect current = realChars[0].Bounds;
         for (int i = 1; i < realChars.Count; i++)
         {
             var b = realChars[i].Bounds;
-            double overlap = Math.Min(current.Bottom, b.Bottom) - Math.Max(current.Top, b.Top);
-            double minHeight = Math.Min(current.Height, b.Height);
-            if (overlap >= minHeight * 0.5)
+            float overlap = Math.Min(current.Bottom, b.Bottom) - Math.Max(current.Top, b.Top);
+            float minHeight = Math.Min(current.Height, b.Height);
+            if (overlap >= minHeight * 0.5f)
             {
-                current = Rect.Union(current, b);
+                current = SKRect.Union(current, b);
             }
             else
             {
@@ -64,18 +64,18 @@ public static class TextSelectionResolver
         return new SelectionResult(sb.ToString(), lines);
     }
 
-    public static int NearestCharIndex(IReadOnlyList<SelChar> chars, Point p)
+    public static int NearestCharIndex(IReadOnlyList<SelChar> chars, SKPoint p)
     {
         if (chars == null || chars.Count == 0) return -1;
         int best = -1;
-        double bestDist = double.MaxValue;
+        float bestDist = float.MaxValue;
         foreach (var c in chars)
         {
-            double dx = p.X < c.Bounds.Left ? c.Bounds.Left - p.X
+            float dx = p.X < c.Bounds.Left ? c.Bounds.Left - p.X
                       : p.X > c.Bounds.Right ? p.X - c.Bounds.Right : 0;
-            double dy = p.Y < c.Bounds.Top ? c.Bounds.Top - p.Y
+            float dy = p.Y < c.Bounds.Top ? c.Bounds.Top - p.Y
                       : p.Y > c.Bounds.Bottom ? p.Y - c.Bounds.Bottom : 0;
-            double d = dx * dx + dy * dy;
+            float d = dx * dx + dy * dy;
             if (d < bestDist) { bestDist = d; best = c.CharIndex; }
         }
         return best;
