@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <!-- Token M3 "Tri Thu" — Dark theme.
+         Same x:Key set as TriThuTokens.xaml; swap this dictionary at runtime
+         to switch themes. -->
+
+    <!-- ── Colors (dark) ── -->
+    <Color x:Key="TriThu.Color.Primary">#54DBC0</Color>
+    <Color x:Key="TriThu.Color.OnPrimary">#00382E</Color>
+    <Color x:Key="TriThu.Color.PrimaryContainer">#005144</Color>
+    <Color x:Key="TriThu.Color.PrimaryContainer.On">#74F8DD</Color>
+    <Color x:Key="TriThu.Color.SecondaryContainer">#334B42</Color>
+    <Color x:Key="TriThu.Color.SecondaryContainer.On">#B9D0C5</Color>
+    <Color x:Key="TriThu.Color.Tertiary">#AACBE1</Color>
+    <Color x:Key="TriThu.Color.TertiaryContainer">#294D63</Color>
+    <Color x:Key="TriThu.Color.TertiaryContainer.On">#C6E7FF</Color>
+    <Color x:Key="TriThu.Color.Surface">#0E1513</Color>
+    <Color x:Key="TriThu.Color.OnSurface">#DEE4E0</Color>
+    <Color x:Key="TriThu.Color.SurfaceVariant">#3F4945</Color>
+    <Color x:Key="TriThu.Color.OnSurfaceVariant">#BFC9C4</Color>
+    <Color x:Key="TriThu.Color.SurfaceTonalLowest">#090F0D</Color>
+    <Color x:Key="TriThu.Color.SurfaceTonalLow">#161D1B</Color>
+    <Color x:Key="TriThu.Color.SurfaceTonal">#1B2220</Color>
+    <Color x:Key="TriThu.Color.SurfaceTonalHigh">#252B29</Color>
+    <Color x:Key="TriThu.Color.SurfaceTonalHighest">#313735</Color>
+    <Color x:Key="TriThu.Color.InverseSurface">#DEE4E0</Color>
+    <Color x:Key="TriThu.Color.InverseSurface.On">#2B322F</Color>
+    <Color x:Key="TriThu.Color.InversePrimary">#006B5B</Color>
+    <Color x:Key="TriThu.Color.Outline">#89938F</Color>
+    <Color x:Key="TriThu.Color.OutlineVariant">#3F4945</Color>
+    <Color x:Key="TriThu.Color.Error">#FFB4AB</Color>
+    <Color x:Key="TriThu.Color.ErrorContainer">#93000A</Color>
+    <Color x:Key="TriThu.Color.ErrorContainer.On">#FFDAD6</Color>
+    <Color x:Key="TriThu.Color.Highlight">#8C7519</Color>
+    <Color x:Key="TriThu.Color.State">#14DEE4E0</Color>
+    <Color x:Key="TriThu.Color.Pdf">#22282A</Color>
+    <Color x:Key="TriThu.Color.PdfText">#DEE4E0</Color>
+    <Color x:Key="TriThu.Color.PdfFaint">#89938F</Color>
+
+    <!-- ── Brushes (dark) ── -->
+    <SolidColorBrush x:Key="TriThu.Brush.Primary" Color="{StaticResource TriThu.Color.Primary}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OnPrimary" Color="{StaticResource TriThu.Color.OnPrimary}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer" Color="{StaticResource TriThu.Color.PrimaryContainer}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PrimaryContainer.On" Color="{StaticResource TriThu.Color.PrimaryContainer.On}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer" Color="{StaticResource TriThu.Color.SecondaryContainer}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer.On" Color="{StaticResource TriThu.Color.SecondaryContainer.On}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Tertiary" Color="{StaticResource TriThu.Color.Tertiary}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.TertiaryContainer" Color="{StaticResource TriThu.Color.TertiaryContainer}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.TertiaryContainer.On" Color="{StaticResource TriThu.Color.TertiaryContainer.On}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Surface" Color="{StaticResource TriThu.Color.Surface}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OnSurface" Color="{StaticResource TriThu.Color.OnSurface}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceVariant" Color="{StaticResource TriThu.Color.SurfaceVariant}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OnSurfaceVariant" Color="{StaticResource TriThu.Color.OnSurfaceVariant}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalLowest" Color="{StaticResource TriThu.Color.SurfaceTonalLowest}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalLow" Color="{StaticResource TriThu.Color.SurfaceTonalLow}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonal" Color="{StaticResource TriThu.Color.SurfaceTonal}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalHigh" Color="{StaticResource TriThu.Color.SurfaceTonalHigh}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalHighest" Color="{StaticResource TriThu.Color.SurfaceTonalHighest}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.InverseSurface" Color="{StaticResource TriThu.Color.InverseSurface}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.InverseSurface.On" Color="{StaticResource TriThu.Color.InverseSurface.On}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.InversePrimary" Color="{StaticResource TriThu.Color.InversePrimary}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Outline" Color="{StaticResource TriThu.Color.Outline}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.OutlineVariant" Color="{StaticResource TriThu.Color.OutlineVariant}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Error" Color="{StaticResource TriThu.Color.Error}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.ErrorContainer" Color="{StaticResource TriThu.Color.ErrorContainer}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.ErrorContainer.On" Color="{StaticResource TriThu.Color.ErrorContainer.On}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Highlight" Color="{StaticResource TriThu.Color.Highlight}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.State" Color="{StaticResource TriThu.Color.State}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.Pdf" Color="{StaticResource TriThu.Color.Pdf}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PdfText" Color="{StaticResource TriThu.Color.PdfText}"/>
+    <SolidColorBrush x:Key="TriThu.Brush.PdfFaint" Color="{StaticResource TriThu.Color.PdfFaint}"/>
+
+    <!-- ── Typography (theme-invariant — same as light) ── -->
+    <x:String x:Key="TriThu.Font.Sans">Roboto</x:String>
+    <x:String x:Key="TriThu.Font.Mono">RobotoMono</x:String>
+    <x:Double x:Key="TriThu.Font.Size.Title">20</x:Double>
+    <x:Double x:Key="TriThu.Font.Size.Subtitle">16</x:Double>
+    <x:Double x:Key="TriThu.Font.Size.Body">14</x:Double>
+    <x:Double x:Key="TriThu.Font.Size.BodySmall">13</x:Double>
+    <x:Double x:Key="TriThu.Font.Size.Caption">12</x:Double>
+    <x:Double x:Key="TriThu.Font.Size.Label">11</x:Double>
+
+    <!-- ── Elevation (dark — higher opacity) ── -->
+    <Shadow x:Key="TriThu.Elevation.E1" Brush="#73000000" Offset="0,1" Radius="3"/>
+    <Shadow x:Key="TriThu.Elevation.E2" Brush="#73000000" Offset="0,2" Radius="6"/>
+    <Shadow x:Key="TriThu.Elevation.E3" Brush="#73000000" Offset="0,4" Radius="8"/>
+</ResourceDictionary>

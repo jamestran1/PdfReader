@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/TriThu.Core/TriThu.Core.csproj" />
     <Project Path="src/PdfReaderApp/PdfReaderApp.csproj" />
+    <Project Path="src/TriThu.Maui/TriThu.Maui.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PdfReaderApp.Tests/PdfReaderApp.Tests.csproj" />

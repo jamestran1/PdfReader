@@ -116,7 +116,10 @@ public class MainViewModelTests
     private static string TempDb() =>
         System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db");
 
-    private static MainViewModel VmWithChatStore(FakeChatHistoryStore store)
+    private static MainViewModel CreateVm(
+        FakeChatHistoryStore? chatStore = null,
+        FakeWorkspaceStore? wsStore = null,
+        FakeNoteStore? notes = null)
         => new MainViewModel(
             new PdfReaderApp.Services.ITextPdfDocumentService(),
             new PdfReaderApp.Services.WindowsSettingsService(),
@@ -124,28 +127,21 @@ public class MainViewModelTests
             new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
                 System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
             new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
-            store);
-
-    private static MainViewModel VmWithWorkspaceStore(FakeWorkspaceStore wsStore)
-        => new MainViewModel(
-            new PdfReaderApp.Services.ITextPdfDocumentService(),
-            new PdfReaderApp.Services.WindowsSettingsService(),
-            new PdfReaderApp.Services.OpenAiChatClientFactory(),
-            new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
-                System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
-            workspaceStore: wsStore);
-
-    private static MainViewModel VmWith(FakeWorkspaceStore wsStore, FakeNoteStore notes)
-        => new MainViewModel(
-            new PdfReaderApp.Services.ITextPdfDocumentService(),
-            new PdfReaderApp.Services.WindowsSettingsService(),
-            new PdfReaderApp.Services.OpenAiChatClientFactory(),
-            new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
-                System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            new PdfReaderApp.Platform.NullThemeService(),
+            new PdfReaderApp.Platform.NullFilePickerService(),
+            new PdfReaderApp.Platform.NullSettingsDialogService(),
+            chatHistory: chatStore,
             noteStore: notes,
             workspaceStore: wsStore);
+
+    private static MainViewModel VmWithChatStore(FakeChatHistoryStore store)
+        => CreateVm(chatStore: store);
+
+    private static MainViewModel VmWithWorkspaceStore(FakeWorkspaceStore wsStore)
+        => CreateVm(wsStore: wsStore);
+
+    private static MainViewModel VmWith(FakeWorkspaceStore wsStore, FakeNoteStore notes)
+        => CreateVm(wsStore: wsStore, notes: notes);
 
     [Fact]
     public void ReloadWorkspaces_EmptyWorkspace_CardIsEmptyWithZeroCountLabel()
@@ -230,7 +226,7 @@ public class MainViewModelTests
     [Fact]
     public void MainViewModel_ShouldInitializeWithDefaultValues()
     {
-        var viewModel = new MainViewModel();
+        var viewModel = CreateVm();
         Assert.Equal("Trí Thư", viewModel.WindowTitle);
         Assert.Equal(1, viewModel.CurrentPage);
         Assert.Equal(1, viewModel.TotalPages);
@@ -247,7 +243,9 @@ public class MainViewModelTests
     [Fact]
     public void NextPageCommand_ShouldIncrementPage_WhenNotAtLastPage()
     {
-        var viewModel = new MainViewModel { TotalPages = 5, CurrentPage = 1 };
+        var viewModel = CreateVm();
+        viewModel.TotalPages = 5;
+        viewModel.CurrentPage = 1;
         viewModel.NextPageCommand.Execute(null);
         Assert.Equal(2, viewModel.CurrentPage);
     }
@@ -255,7 +253,9 @@ public class MainViewModelTests
     [Fact]
     public void NextPageCommand_ShouldNotIncrementPage_WhenAtLastPage()
     {
-        var viewModel = new MainViewModel { TotalPages = 5, CurrentPage = 5 };
+        var viewModel = CreateVm();
+        viewModel.TotalPages = 5;
+        viewModel.CurrentPage = 5;
         viewModel.NextPageCommand.Execute(null);
         Assert.Equal(5, viewModel.CurrentPage);
     }
@@ -263,7 +263,9 @@ public class MainViewModelTests
     [Fact]
     public void PreviousPageCommand_ShouldDecrementPage_WhenNotAtFirstPage()
     {
-        var viewModel = new MainViewModel { TotalPages = 5, CurrentPage = 2 };
+        var viewModel = CreateVm();
+        viewModel.TotalPages = 5;
+        viewModel.CurrentPage = 2;
         viewModel.PreviousPageCommand.Execute(null);
         Assert.Equal(1, viewModel.CurrentPage);
     }
@@ -271,7 +273,9 @@ public class MainViewModelTests
     [Fact]
     public void PreviousPageCommand_ShouldNotDecrementPage_WhenAtFirstPage()
     {
-        var viewModel = new MainViewModel { TotalPages = 5, CurrentPage = 1 };
+        var viewModel = CreateVm();
+        viewModel.TotalPages = 5;
+        viewModel.CurrentPage = 1;
         viewModel.PreviousPageCommand.Execute(null);
         Assert.Equal(1, viewModel.CurrentPage);
     }
@@ -279,7 +283,8 @@ public class MainViewModelTests
     [Fact]
     public void ZoomInCommand_ShouldIncreaseZoomLevel()
     {
-        var viewModel = new MainViewModel { ZoomLevel = 1.0 };
+        var viewModel = CreateVm();
+        viewModel.ZoomLevel = 1.0;
         viewModel.ZoomInCommand.Execute(null);
         Assert.Equal(1.2, viewModel.ZoomLevel, 1);
     }
@@ -287,7 +292,8 @@ public class MainViewModelTests
     [Fact]
     public void ZoomOutCommand_ShouldDecreaseZoomLevel_WhenAboveMinimum()
     {
-        var viewModel = new MainViewModel { ZoomLevel = 1.0 };
+        var viewModel = CreateVm();
+        viewModel.ZoomLevel = 1.0;
         viewModel.ZoomOutCommand.Execute(null);
         Assert.Equal(0.8, viewModel.ZoomLevel, 1);
     }
@@ -295,7 +301,8 @@ public class MainViewModelTests
     [Fact]
     public void ZoomOutCommand_ShouldNotDecreaseZoomLevel_WhenAtMinimum()
     {
-        var viewModel = new MainViewModel { ZoomLevel = 0.4 };
+        var viewModel = CreateVm();
+        viewModel.ZoomLevel = 0.4;
         viewModel.ZoomOutCommand.Execute(null);
         Assert.Equal(0.4, viewModel.ZoomLevel, 1);
     }
@@ -303,7 +310,7 @@ public class MainViewModelTests
     [Fact]
     public void OnSearchQueryChanged_ClearsPageHighlight()
     {
-        var vm = new MainViewModel();
+        var vm = CreateVm();
         vm.SelectedSearchQuery = "abc";
         vm.SearchQuery = "x";
         Assert.Equal(string.Empty, vm.SelectedSearchQuery);
@@ -312,7 +319,7 @@ public class MainViewModelTests
     [Fact]
     public void SearchQuery_SetEmpty_ClearsResultsAndExecutedQuery()
     {
-        var vm = new MainViewModel();
+        var vm = CreateVm();
         vm.SearchQuery = "abc";
         vm.ExecutedSearchQuery = "abc";
         vm.SearchQuery = "";
@@ -323,7 +330,7 @@ public class MainViewModelTests
     [Fact]
     public void ClearSearchCommand_ClearsQueryAndResults()
     {
-        var vm = new MainViewModel();
+        var vm = CreateVm();
         vm.SearchQuery = "abc";
         vm.ClearSearchCommand.Execute(null);
         Assert.Equal(string.Empty, vm.SearchQuery);
@@ -333,7 +340,8 @@ public class MainViewModelTests
     [Fact]
     public void SelectSearchResult_SetsPageAndHighlightQuery()
     {
-        var vm = new MainViewModel { SearchQuery = "hành" };
+        var vm = CreateVm();
+        vm.SearchQuery = "hành";
         var result = new SearchResult(2, "snip", 1);
         vm.SelectSearchResultCommand.Execute(result);
         Assert.Equal(3, vm.CurrentPage);
@@ -343,26 +351,29 @@ public class MainViewModelTests
     [Fact]
     public void ViewMode_DefaultsToContinuous()
     {
-        Assert.Equal(PdfViewMode.Continuous, new MainViewModel().ViewMode);
+        Assert.Equal(PdfViewMode.Continuous, CreateVm().ViewMode);
     }
 
     [Fact]
     public void ShowCoverSeparately_DefaultsToTrue()
     {
-        Assert.True(new MainViewModel().ShowCoverSeparately);
+        Assert.True(CreateVm().ShowCoverSeparately);
     }
 
     [Fact]
     public void ViewMode_CanChange()
     {
-        var vm = new MainViewModel { ViewMode = PdfViewMode.Facing };
+        var vm = CreateVm();
+        vm.ViewMode = PdfViewMode.Facing;
         Assert.Equal(PdfViewMode.Facing, vm.ViewMode);
     }
 
     [Fact]
     public void FirstPageCommand_GoesToPageOne()
     {
-        var vm = new MainViewModel { TotalPages = 10, CurrentPage = 7 };
+        var vm = CreateVm();
+        vm.TotalPages = 10;
+        vm.CurrentPage = 7;
         vm.FirstPageCommand.Execute(null);
         Assert.Equal(1, vm.CurrentPage);
     }
@@ -370,7 +381,9 @@ public class MainViewModelTests
     [Fact]
     public void LastPageCommand_GoesToLastPage()
     {
-        var vm = new MainViewModel { TotalPages = 10, CurrentPage = 3 };
+        var vm = CreateVm();
+        vm.TotalPages = 10;
+        vm.CurrentPage = 3;
         vm.LastPageCommand.Execute(null);
         Assert.Equal(10, vm.CurrentPage);
     }
@@ -378,7 +391,7 @@ public class MainViewModelTests
     [Fact]
     public void ShowLibraryViewCommand_SetsShowLibraryTrue()
     {
-        var vm = new MainViewModel();
+        var vm = CreateVm();
         vm.ShowLibrary = false;
         vm.ShowLibraryViewCommand.Execute(null);
         Assert.True(vm.ShowLibrary);
@@ -387,13 +400,13 @@ public class MainViewModelTests
     [Fact]
     public void ShowLibrary_DefaultsTrue()
     {
-        Assert.True(new MainViewModel().ShowLibrary);
+        Assert.True(CreateVm().ShowLibrary);
     }
 
     [Fact]
     public void ChatColumn_DefaultsHidden_WhenLibraryShown()
     {
-        var vm = new MainViewModel(); // ShowLibrary mặc định true
+        var vm = CreateVm(); // ShowLibrary mặc định true
         Assert.Equal(0, vm.ChatColumnWidth);
         Assert.Equal(0, vm.ChatColumnMinWidth);
     }
@@ -401,7 +414,7 @@ public class MainViewModelTests
     [Fact]
     public void ChatColumn_RestoresDefaultWidth_WhenLeavingLibrary()
     {
-        var vm = new MainViewModel();
+        var vm = CreateVm();
         vm.ShowLibrary = false;
         Assert.Equal(350, vm.ChatColumnWidth);
         Assert.Equal(280, vm.ChatColumnMinWidth);
@@ -410,7 +423,7 @@ public class MainViewModelTests
     [Fact]
     public void ChatColumn_RemembersResizedWidth_WithinSession()
     {
-        var vm = new MainViewModel();
+        var vm = CreateVm();
         vm.ShowLibrary = false;                          // hiện panel: 350
         vm.ChatColumnWidth = 500;                        // mô phỏng kéo GridSplitter
         vm.ShowLibrary = true;                           // vào thư viện: lưu 500, thu về 0
@@ -898,6 +911,9 @@ public class MainViewModelTests
             new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
                 System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
             new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            new PdfReaderApp.Platform.NullThemeService(),
+            new PdfReaderApp.Platform.NullFilePickerService(),
+            new PdfReaderApp.Platform.NullSettingsDialogService(),
             chatHistory: chat,
             noteStore: notes,
             workspaceStore: wsStore);

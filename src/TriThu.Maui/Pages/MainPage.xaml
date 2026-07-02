@@ -1,0 +1,861 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:PdfReaderApp.ViewModels;assembly=TriThu.Core"
+             xmlns:models="clr-namespace:PdfReaderApp.Models;assembly=TriThu.Core"
+             xmlns:controls="clr-namespace:TriThu.Maui.Controls"
+             x:Class="TriThu.Maui.Pages.MainPage"
+             x:Name="ThisPage"
+             x:DataType="vm:MainViewModel"
+             Title="{Binding WindowTitle}"
+             Shell.NavBarIsVisible="False">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         Main layout: Nav Rail (84) | Center (*) | Right Panel (auto)
+         ═══════════════════════════════════════════════════════════════ -->
+    <Grid ColumnDefinitions="84,*,Auto">
+
+        <!-- ═══════════════════════════════════════════════════════════
+             1. NAV RAIL (left, 84px wide)
+             ═══════════════════════════════════════════════════════════ -->
+        <Grid Grid.Column="0"
+              RowDefinitions="Auto,*,Auto"
+              BackgroundColor="{StaticResource TriThu.Color.Surface}"
+              WidthRequest="84">
+
+            <!-- Logo pill -->
+            <Border Grid.Row="0"
+                    WidthRequest="56" HeightRequest="56"
+                    StrokeShape="RoundRectangle 18"
+                    StrokeThickness="0"
+                    BackgroundColor="{StaticResource TriThu.Color.PrimaryContainer}"
+                    Shadow="{StaticResource TriThu.Elevation.E1}"
+                    HorizontalOptions="Center"
+                    Margin="0,14,0,14">
+                <Label Text="T"
+                       FontSize="24" FontAttributes="Bold"
+                       TextColor="{StaticResource TriThu.Color.PrimaryContainer.On}"
+                       HorizontalOptions="Center" VerticalOptions="Center"/>
+            </Border>
+
+            <!-- Nav items -->
+            <VerticalStackLayout Grid.Row="1" VerticalOptions="Start" Spacing="4">
+
+                <!-- Reader nav item (only visible when a document is open) -->
+                <Border StrokeThickness="0"
+                        StrokeShape="RoundRectangle 16"
+                        BackgroundColor="{Binding IsReadingDocument, Converter={StaticResource BoolToColorConverter}, ConverterParameter=NavActive}"
+                        Padding="0" Margin="4,0"
+                        HeightRequest="64"
+                        IsVisible="{Binding HasDocument}">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ShowReaderViewCommand}"/>
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="4">
+                        <Label Text="&#x1F4C4;"
+                               FontSize="20" HorizontalOptions="Center"/>
+                        <Label Text="Tai lieu"
+                               FontSize="11"
+                               TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                               HorizontalOptions="Center"/>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Library -->
+                <Border StrokeThickness="0"
+                        StrokeShape="RoundRectangle 16"
+                        BackgroundColor="{Binding ShowLibrary, Converter={StaticResource BoolToColorConverter}, ConverterParameter=NavActive}"
+                        Padding="0" Margin="4,0"
+                        HeightRequest="64">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ShowLibraryViewCommand}"/>
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="4">
+                        <Label Text="&#x1F4DA;"
+                               FontSize="20" HorizontalOptions="Center"/>
+                        <Label Text="Thu vien"
+                               FontSize="11"
+                               TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                               HorizontalOptions="Center"/>
+                    </VerticalStackLayout>
+                </Border>
+
+                <!-- Workspaces -->
+                <Border StrokeThickness="0"
+                        StrokeShape="RoundRectangle 16"
+                        BackgroundColor="{Binding ShowWorkspaces, Converter={StaticResource BoolToColorConverter}, ConverterParameter=NavActive}"
+                        Padding="0" Margin="4,0"
+                        HeightRequest="64">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Command="{Binding ShowWorkspacesViewCommand}"/>
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="4">
+                        <Label Text="&#x1F4C1;"
+                               FontSize="20" HorizontalOptions="Center"/>
+                        <Label Text="Workspace"
+                               FontSize="11"
+                               TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                               HorizontalOptions="Center"/>
+                    </VerticalStackLayout>
+                </Border>
+            </VerticalStackLayout>
+
+            <!-- Settings at bottom -->
+            <Border Grid.Row="2"
+                    StrokeThickness="0"
+                    StrokeShape="RoundRectangle 16"
+                    BackgroundColor="Transparent"
+                    Padding="0" Margin="4,0,4,14"
+                    HeightRequest="56">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Command="{Binding OpenSettingsCommand}"/>
+                </Border.GestureRecognizers>
+                <VerticalStackLayout VerticalOptions="Center" HorizontalOptions="Center" Spacing="4">
+                    <Label Text="&#x2699;"
+                           FontSize="20" HorizontalOptions="Center"/>
+                    <Label Text="Cai dat"
+                           FontSize="11"
+                           TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                           HorizontalOptions="Center"/>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             2. CENTER CONTENT AREA
+             ═══════════════════════════════════════════════════════════ -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
+
+            <!-- ─── 2a. Top Toolbar (only in reader view) ─── -->
+            <Border Grid.Row="0"
+                    BackgroundColor="{StaticResource TriThu.Color.Surface}"
+                    StrokeThickness="0"
+                    HeightRequest="64"
+                    Padding="16,0"
+                    IsVisible="{Binding IsReadingDocument}">
+                <HorizontalStackLayout VerticalOptions="Center" Spacing="6">
+                    <!-- Open PDF button -->
+                    <Button Text="Mo PDF"
+                            Style="{StaticResource TriThu.Button.Filled}"
+                            Command="{Binding OpenFileCommand}"/>
+
+                    <!-- Zoom controls -->
+                    <Button Text="-"
+                            Style="{StaticResource TriThu.Button.Outlined}"
+                            WidthRequest="40" HeightRequest="40"
+                            Padding="0"
+                            Command="{Binding ZoomOutCommand}"/>
+
+                    <Slider Minimum="0.4" Maximum="4.0"
+                            Value="{Binding ZoomLevel, Mode=TwoWay}"
+                            WidthRequest="120"
+                            VerticalOptions="Center"
+                            MinimumTrackColor="{StaticResource TriThu.Color.Primary}"
+                            MaximumTrackColor="{StaticResource TriThu.Color.OutlineVariant}"
+                            ThumbColor="{StaticResource TriThu.Color.Primary}"/>
+
+                    <Button Text="+"
+                            Style="{StaticResource TriThu.Button.Outlined}"
+                            WidthRequest="40" HeightRequest="40"
+                            Padding="0"
+                            Command="{Binding ZoomInCommand}"/>
+
+                    <Label Text="{Binding ZoomLevel, StringFormat='{0:P0}'}"
+                           FontSize="13"
+                           TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                           VerticalOptions="Center"
+                           WidthRequest="50"
+                           HorizontalTextAlignment="Center"/>
+
+                    <!-- Separator -->
+                    <BoxView WidthRequest="1" HeightRequest="26"
+                             Color="{StaticResource TriThu.Color.OutlineVariant}"
+                             VerticalOptions="Center"/>
+
+                    <!-- View mode buttons -->
+                    <Button Text="1pg"
+                            Style="{StaticResource TriThu.Button.Outlined}"
+                            Command="{Binding SetViewModeCommand}"
+                            CommandParameter="SinglePage"
+                            HeightRequest="36" Padding="10,0"
+                            FontSize="12"/>
+                    <Button Text="Cuon"
+                            Style="{StaticResource TriThu.Button.Outlined}"
+                            Command="{Binding SetViewModeCommand}"
+                            CommandParameter="Continuous"
+                            HeightRequest="36" Padding="10,0"
+                            FontSize="12"/>
+                    <Button Text="2pg"
+                            Style="{StaticResource TriThu.Button.Outlined}"
+                            Command="{Binding SetViewModeCommand}"
+                            CommandParameter="Facing"
+                            HeightRequest="36" Padding="10,0"
+                            FontSize="12"/>
+                    <Button Text="2+C"
+                            Style="{StaticResource TriThu.Button.Outlined}"
+                            Command="{Binding SetViewModeCommand}"
+                            CommandParameter="ContinuousFacing"
+                            HeightRequest="36" Padding="10,0"
+                            FontSize="12"/>
+
+                    <!-- Indexing status -->
+                    <Label Text="{Binding IndexingStatusText}"
+                           FontSize="13" FontAttributes="Italic"
+                           TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                           VerticalOptions="Center"
+                           LineBreakMode="TailTruncation"
+                           MaximumWidthRequest="200"/>
+                </HorizontalStackLayout>
+            </Border>
+
+            <!-- ─── 2b. Tab strip (workspace session only) ─── -->
+            <Border Grid.Row="1"
+                    IsVisible="{Binding IsDocumentTabStripVisible}"
+                    BackgroundColor="{StaticResource TriThu.Color.SurfaceTonalLow}"
+                    StrokeThickness="0"
+                    Padding="4,0">
+                <ScrollView Orientation="Horizontal"
+                            VerticalScrollBarVisibility="Never"
+                            HorizontalScrollBarVisibility="Default">
+                    <HorizontalStackLayout Spacing="4" Padding="4,6">
+                        <CollectionView ItemsSource="{Binding Tabs.Tabs}"
+                                        ItemsLayout="HorizontalList"
+                                        SelectionMode="None"
+                                        HeightRequest="36">
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:OpenTab">
+                                    <Border StrokeShape="RoundRectangle 18"
+                                            StrokeThickness="0"
+                                            BackgroundColor="{StaticResource TriThu.Color.SurfaceTonalHigh}"
+                                            Padding="14,0,8,0"
+                                            Margin="0,0,4,0"
+                                            HeightRequest="34">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={x:Reference ThisPage}, Path=BindingContext.ActivateTabCommand}"
+                                                CommandParameter="{Binding .}"/>
+                                        </Border.GestureRecognizers>
+                                        <HorizontalStackLayout VerticalOptions="Center" Spacing="6">
+                                            <Label Text="{Binding Title}"
+                                                   FontSize="13"
+                                                   LineBreakMode="TailTruncation"
+                                                   MaximumWidthRequest="150"
+                                                   VerticalOptions="Center"/>
+                                            <Label Text="&#x2715;"
+                                                   FontSize="12"
+                                                   TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                                                   VerticalOptions="Center">
+                                                <Label.GestureRecognizers>
+                                                    <TapGestureRecognizer
+                                                        Command="{Binding Source={x:Reference ThisPage}, Path=BindingContext.CloseTabCommand}"
+                                                        CommandParameter="{Binding .}"/>
+                                                </Label.GestureRecognizers>
+                                            </Label>
+                                        </HorizontalStackLayout>
+                                    </Border>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </HorizontalStackLayout>
+                </ScrollView>
+            </Border>
+
+            <!-- ─── 2c. Content views (stacked, visibility-toggled) ─── -->
+            <Grid Grid.Row="2">
+
+                <!-- ════════════════════════════════════
+                     READER VIEW
+                     ════════════════════════════════════ -->
+                <Grid IsVisible="{Binding IsReadingDocument}">
+                    <!-- PDF viewer control (standalone) -->
+                    <controls:PdfViewerControl x:Name="PdfViewer"
+                                               DocumentSource="{Binding StandaloneDocumentSource}"
+                                               CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
+                                               TotalPages="{Binding TotalPages, Mode=TwoWay}"
+                                               ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
+                                               HighlightQuery="{Binding SelectedSearchQuery}"
+                                               MatchSource="{Binding PdfService}"
+                                               ViewMode="{Binding ViewMode}"
+                                               ShowCover="{Binding ShowCoverSeparately}"
+                                               AddNoteFromSelectionCommand="{Binding AddNoteFromSelectionCommand}"
+                                               Highlights="{Binding Notes.Highlights}"
+                                               CurrentDocumentId="{Binding CurrentDocumentId}"
+                                               IsDarkMode="{Binding IsDarkMode}"
+                                               IsVisible="{Binding IsWorkspaceSession, Converter={StaticResource InverseBoolConverter}}"/>
+
+                    <!-- Empty state when no document -->
+                    <VerticalStackLayout HorizontalOptions="Center" VerticalOptions="Center"
+                                         Spacing="16"
+                                         IsVisible="{Binding HasDocument, Converter={StaticResource InverseBoolConverter}}">
+                        <Label Text="&#x1F4D6;"
+                               FontSize="48"
+                               HorizontalOptions="Center"/>
+                        <Label Text="Mo mot file PDF de bat dau doc"
+                               FontSize="16"
+                               TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                               HorizontalOptions="Center"/>
+                        <Button Text="Mo PDF"
+                                Style="{StaticResource TriThu.Button.Filled}"
+                                Command="{Binding OpenFileCommand}"
+                                HorizontalOptions="Center"/>
+                    </VerticalStackLayout>
+
+                    <!-- Floating page navigation pill -->
+                    <Border VerticalOptions="End" HorizontalOptions="Center"
+                            Margin="0,0,0,22"
+                            HeightRequest="44"
+                            Padding="5,0"
+                            StrokeShape="RoundRectangle 22"
+                            StrokeThickness="0"
+                            BackgroundColor="{StaticResource TriThu.Color.InverseSurface}"
+                            Shadow="{StaticResource TriThu.Elevation.E3}"
+                            IsVisible="{Binding HasDocument}"
+                            ZIndex="15">
+                        <HorizontalStackLayout VerticalOptions="Center" Spacing="0">
+                            <Button Text="&#x276E;"
+                                    TextColor="{StaticResource TriThu.Color.InverseSurface.On}"
+                                    BackgroundColor="Transparent"
+                                    FontSize="16"
+                                    WidthRequest="36" HeightRequest="36"
+                                    Padding="0"
+                                    CornerRadius="18"
+                                    Command="{Binding PreviousPageCommand}"/>
+                            <Label Text="{Binding CurrentPage}"
+                                   FontSize="13" FontAttributes="Bold"
+                                   TextColor="{StaticResource TriThu.Color.InverseSurface.On}"
+                                   VerticalOptions="Center"/>
+                            <Label Text=" / "
+                                   FontSize="13"
+                                   TextColor="{StaticResource TriThu.Color.InverseSurface.On}"
+                                   VerticalOptions="Center"/>
+                            <Label Text="{Binding TotalPages}"
+                                   FontSize="13" FontAttributes="Bold"
+                                   TextColor="{StaticResource TriThu.Color.InverseSurface.On}"
+                                   VerticalOptions="Center"/>
+                            <Button Text="&#x276F;"
+                                    TextColor="{StaticResource TriThu.Color.InverseSurface.On}"
+                                    BackgroundColor="Transparent"
+                                    FontSize="16"
+                                    WidthRequest="36" HeightRequest="36"
+                                    Padding="0"
+                                    CornerRadius="18"
+                                    Command="{Binding NextPageCommand}"/>
+                        </HorizontalStackLayout>
+                    </Border>
+                </Grid>
+
+                <!-- ════════════════════════════════════
+                     LIBRARY VIEW
+                     ════════════════════════════════════ -->
+                <Grid IsVisible="{Binding ShowLibrary}"
+                      BackgroundColor="{StaticResource TriThu.Color.Surface}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Library header -->
+                    <Grid Grid.Row="0" Padding="30,22,30,18"
+                          ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Grid.Column="0" VerticalOptions="Center">
+                            <Label Text="Thu vien"
+                                   FontSize="24"
+                                   TextColor="{StaticResource TriThu.Color.OnSurface}"/>
+                            <Label Text="{Binding Library.Count, StringFormat='{0} tai lieu'}"
+                                   FontSize="14"
+                                   TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                                   Margin="0,3,0,0"/>
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1"
+                                Text="Mo PDF"
+                                Style="{StaticResource TriThu.Button.Filled}"
+                                Command="{Binding OpenFileCommand}"
+                                VerticalOptions="Center"/>
+                    </Grid>
+
+                    <!-- Library grid -->
+                    <Grid Grid.Row="1">
+                        <!-- Empty state -->
+                        <Label Text="Chua co tai lieu. Bam Mo PDF de them vao thu vien."
+                               HorizontalOptions="Center" VerticalOptions="Center"
+                               TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                               IsVisible="{Binding Library.Count, Converter={StaticResource ZeroToTrueConverter}}"/>
+
+                        <CollectionView ItemsSource="{Binding Library}"
+                                        SelectionMode="None"
+                                        Margin="30,6,30,36">
+                            <CollectionView.ItemsLayout>
+                                <GridItemsLayout Orientation="Vertical"
+                                                 Span="3"
+                                                 HorizontalItemSpacing="22"
+                                                 VerticalItemSpacing="22"/>
+                            </CollectionView.ItemsLayout>
+                            <CollectionView.ItemTemplate>
+                                <DataTemplate x:DataType="models:LibraryItem">
+                                    <VerticalStackLayout>
+                                        <VerticalStackLayout.GestureRecognizers>
+                                            <TapGestureRecognizer
+                                                Command="{Binding Source={x:Reference ThisPage}, Path=BindingContext.OpenLibraryItemCommand}"
+                                                CommandParameter="{Binding .}"/>
+                                        </VerticalStackLayout.GestureRecognizers>
+
+                                        <!-- Cover tile -->
+                                        <Border HeightRequest="253"
+                                                StrokeShape="RoundRectangle 16"
+                                                StrokeThickness="0"
+                                                BackgroundColor="{StaticResource TriThu.Color.TertiaryContainer}">
+                                            <Grid>
+                                                <!-- Title overlay (when no thumbnail) -->
+                                                <Label Text="{Binding Title}"
+                                                       TextColor="White"
+                                                       FontSize="17" FontAttributes="Bold"
+                                                       LineBreakMode="WordWrap"
+                                                       Margin="16"
+                                                       VerticalOptions="End"/>
+
+                                                <!-- Page count pill -->
+                                                <Border HorizontalOptions="End" VerticalOptions="End"
+                                                        Margin="10"
+                                                        Padding="8,4"
+                                                        StrokeShape="RoundRectangle 10"
+                                                        StrokeThickness="0"
+                                                        BackgroundColor="#66000000">
+                                                    <Label Text="{Binding PageCount, StringFormat='{0}p'}"
+                                                           TextColor="White"
+                                                           FontSize="10"
+                                                           FontFamily="{StaticResource TriThu.Font.Mono}"/>
+                                                </Border>
+
+                                                <!-- Publisher chip (top-left) -->
+                                                <Border HorizontalOptions="Start" VerticalOptions="Start"
+                                                        Margin="10"
+                                                        Padding="8,4"
+                                                        StrokeShape="RoundRectangle 10"
+                                                        StrokeThickness="0"
+                                                        BackgroundColor="#66000000"
+                                                        IsVisible="{Binding Publisher, Converter={StaticResource NotNullToBoolConverter}}">
+                                                    <Label Text="{Binding Publisher}"
+                                                           TextColor="White"
+                                                           FontSize="10"/>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Title + meta below tile -->
+                                        <Label Text="{Binding Title}"
+                                               Margin="4,12,4,0"
+                                               FontSize="14" FontAttributes="Bold"
+                                               LineBreakMode="TailTruncation"
+                                               TextColor="{StaticResource TriThu.Color.OnSurface}"/>
+                                        <Label Text="{Binding PageCount, StringFormat='{0} trang'}"
+                                               Margin="4,3,4,0"
+                                               FontSize="12"
+                                               TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"/>
+                                        <Label Text="{Binding Author}"
+                                               Margin="4,2,4,0"
+                                               FontSize="12"
+                                               LineBreakMode="TailTruncation"
+                                               TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                                               IsVisible="{Binding Author, Converter={StaticResource NotNullToBoolConverter}}"/>
+                                    </VerticalStackLayout>
+                                </DataTemplate>
+                            </CollectionView.ItemTemplate>
+                        </CollectionView>
+                    </Grid>
+                </Grid>
+
+                <!-- ════════════════════════════════════
+                     WORKSPACES VIEW
+                     ════════════════════════════════════ -->
+                <Grid IsVisible="{Binding ShowWorkspaces}"
+                      BackgroundColor="{StaticResource TriThu.Color.Surface}">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <VerticalStackLayout Grid.Row="0" Margin="36,24,36,6">
+                        <Label Text="Workspace" FontSize="24"
+                               TextColor="{StaticResource TriThu.Color.OnSurface}"/>
+                        <Label Text="Gom cac tai lieu lien quan de doc va hoi AI theo ngu canh"
+                               FontSize="14" Margin="0,3,0,0"
+                               TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"/>
+                    </VerticalStackLayout>
+
+                    <!-- Create workspace -->
+                    <Grid Grid.Row="1" Margin="36,22,36,16"
+                          ColumnDefinitions="*,Auto">
+                        <Entry x:Name="NewWorkspaceNameEntry"
+                               Grid.Column="0"
+                               Placeholder="Ten Workspace moi"
+                               HeightRequest="52"
+                               Margin="0,0,12,0"
+                               Completed="OnCreateWorkspaceEntryCompleted"/>
+                        <Button Grid.Column="1"
+                                Text="+ Tao Workspace"
+                                Style="{StaticResource TriThu.Button.Filled}"
+                                Clicked="OnCreateWorkspaceClicked"
+                                VerticalOptions="Center"/>
+                    </Grid>
+
+                    <!-- Workspace grid -->
+                    <ScrollView Grid.Row="2" Padding="36,0,36,40">
+                        <Grid>
+                            <!-- Empty state -->
+                            <Label Text="Chua co workspace nao. Tao workspace de nhom tai lieu cung chu de."
+                                   TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                                   Margin="0,12"
+                                   IsVisible="{Binding Workspaces.Count, Converter={StaticResource ZeroToTrueConverter}}"/>
+
+                            <CollectionView ItemsSource="{Binding Workspaces}"
+                                            SelectionMode="None">
+                                <CollectionView.ItemsLayout>
+                                    <GridItemsLayout Orientation="Vertical"
+                                                     Span="2"
+                                                     HorizontalItemSpacing="16"
+                                                     VerticalItemSpacing="16"/>
+                                </CollectionView.ItemsLayout>
+                                <CollectionView.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:WorkspaceCard">
+                                        <Border StrokeShape="RoundRectangle 16"
+                                                Stroke="{StaticResource TriThu.Brush.OutlineVariant}"
+                                                StrokeThickness="1"
+                                                BackgroundColor="{StaticResource TriThu.Color.SurfaceTonalLowest}"
+                                                Padding="20"
+                                                MinimumHeightRequest="160">
+                                            <Border.GestureRecognizers>
+                                                <TapGestureRecognizer
+                                                    Command="{Binding Source={x:Reference ThisPage}, Path=BindingContext.OpenWorkspaceCommand}"
+                                                    CommandParameter="{Binding Workspace}"/>
+                                            </Border.GestureRecognizers>
+                                            <Grid>
+                                                <VerticalStackLayout Spacing="4">
+                                                    <!-- Folder icon -->
+                                                    <Border WidthRequest="52" HeightRequest="52"
+                                                            StrokeShape="RoundRectangle 16"
+                                                            StrokeThickness="0"
+                                                            BackgroundColor="{StaticResource TriThu.Color.PrimaryContainer}"
+                                                            HorizontalOptions="Start"
+                                                            Margin="0,0,0,12">
+                                                        <Label Text="&#x1F4C2;"
+                                                               FontSize="24"
+                                                               HorizontalOptions="Center"
+                                                               VerticalOptions="Center"/>
+                                                    </Border>
+
+                                                    <Label Text="{Binding Name}"
+                                                           FontSize="16" FontAttributes="Bold"
+                                                           LineBreakMode="TailTruncation"
+                                                           TextColor="{StaticResource TriThu.Color.OnSurface}"/>
+                                                    <Label Text="{Binding Label}"
+                                                           FontSize="13"
+                                                           TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"/>
+
+                                                    <!-- Active reading indicator -->
+                                                    <Label Text="{Binding ActiveTitle, StringFormat='Dang doc: {0}'}"
+                                                           FontSize="12"
+                                                           TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                                                           Margin="0,10,0,0"
+                                                           IsVisible="{Binding HasActiveTitle}"/>
+
+                                                    <!-- Empty workspace hint -->
+                                                    <Label Text="+ Chon tai lieu tu thu vien"
+                                                           FontSize="12" FontAttributes="Bold"
+                                                           TextColor="{StaticResource TriThu.Color.Primary}"
+                                                           Margin="0,10,0,0"
+                                                           IsVisible="{Binding IsEmpty}"/>
+                                                </VerticalStackLayout>
+
+                                                <!-- Delete button -->
+                                                <Button Text="&#x1F5D1;"
+                                                        BackgroundColor="Transparent"
+                                                        TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                                                        FontSize="16"
+                                                        WidthRequest="36" HeightRequest="36"
+                                                        Padding="0"
+                                                        CornerRadius="18"
+                                                        HorizontalOptions="End"
+                                                        VerticalOptions="Start"
+                                                        Command="{Binding Source={x:Reference ThisPage}, Path=BindingContext.DeleteWorkspaceCommand}"
+                                                        CommandParameter="{Binding Workspace}"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </CollectionView.ItemTemplate>
+                            </CollectionView>
+                        </Grid>
+                    </ScrollView>
+                </Grid>
+
+            </Grid>
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             3. RIGHT PANEL (Chat + Notes)
+             ═══════════════════════════════════════════════════════════ -->
+
+        <!-- Expanded right panel -->
+        <Border Grid.Column="2"
+                IsVisible="{Binding IsRightPanelExpanded}"
+                WidthRequest="340"
+                BackgroundColor="{StaticResource TriThu.Color.SurfaceTonalLowest}"
+                StrokeShape="RoundRectangle 12"
+                Stroke="{StaticResource TriThu.Brush.OutlineVariant}"
+                StrokeThickness="1"
+                Margin="4"
+                Shadow="{StaticResource TriThu.Elevation.E1}">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
+
+                <!-- Panel header with collapse button + tab selector -->
+                <Grid Grid.Row="0" Padding="12,8" ColumnDefinitions="*,Auto,Auto">
+                    <!-- Tab selector -->
+                    <HorizontalStackLayout Grid.Column="0" Spacing="0">
+                        <Button x:Name="ChatTabButton"
+                                Text="Chat"
+                                FontSize="14" FontAttributes="Bold"
+                                BackgroundColor="{StaticResource TriThu.Color.SecondaryContainer}"
+                                TextColor="{StaticResource TriThu.Color.SecondaryContainer.On}"
+                                CornerRadius="16"
+                                Padding="16,6"
+                                HeightRequest="34"
+                                Clicked="OnChatTabClicked"/>
+                        <Button x:Name="NotesTabButton"
+                                Text="Ghi chu"
+                                FontSize="14"
+                                BackgroundColor="Transparent"
+                                TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                                CornerRadius="16"
+                                Padding="16,6"
+                                HeightRequest="34"
+                                Clicked="OnNotesTabClicked"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Theme toggle -->
+                    <Button Grid.Column="1"
+                            Text="&#x263C;"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                            FontSize="18"
+                            WidthRequest="36" HeightRequest="36"
+                            Padding="0" CornerRadius="18"
+                            Command="{Binding ToggleThemeCommand}"/>
+
+                    <!-- Collapse button -->
+                    <Button Grid.Column="2"
+                            Text="&#x276F;"
+                            BackgroundColor="Transparent"
+                            TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                            FontSize="16"
+                            WidthRequest="36" HeightRequest="36"
+                            Padding="0" CornerRadius="18"
+                            Command="{Binding ToggleRightPanelCommand}"/>
+                </Grid>
+
+                <!-- Divider -->
+                <BoxView Grid.Row="1" HeightRequest="1"
+                         Color="{StaticResource TriThu.Color.OutlineVariant}"/>
+
+                <!-- ─── Chat tab content ─── -->
+                <Grid Grid.Row="2" x:Name="ChatTabContent"
+                      RowDefinitions="*,Auto" Padding="0">
+
+                    <!-- Chat messages -->
+                    <CollectionView Grid.Row="0"
+                                    ItemsSource="{Binding ChatMessages}"
+                                    Margin="12,8">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ChatMessage">
+                                <Border StrokeShape="RoundRectangle 12"
+                                        StrokeThickness="0"
+                                        Padding="12"
+                                        Margin="0,0,0,8"
+                                        BackgroundColor="{StaticResource TriThu.Color.SurfaceTonalLow}">
+                                    <VerticalStackLayout Spacing="4">
+                                        <Label Text="{Binding Role}"
+                                               FontAttributes="Bold"
+                                               FontSize="10"
+                                               Opacity="0.7"
+                                               TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"/>
+                                        <Label Text="{Binding Content}"
+                                               LineBreakMode="WordWrap"
+                                               FontSize="14"
+                                               TextColor="{StaticResource TriThu.Color.OnSurface}"/>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+
+                    <!-- Chat input area -->
+                    <Grid Grid.Row="1" Padding="12" ColumnDefinitions="*,Auto">
+                        <Editor Grid.Column="0"
+                                Placeholder="Hoi ve tai lieu..."
+                                Text="{Binding ChatInput, Mode=TwoWay}"
+                                HeightRequest="80"
+                                AutoSize="TextChanges"/>
+                        <Button Grid.Column="1"
+                                Text="&#x27A4;"
+                                Style="{StaticResource TriThu.Button.Filled}"
+                                WidthRequest="48" HeightRequest="48"
+                                Padding="0"
+                                CornerRadius="24"
+                                Margin="8,0,0,0"
+                                VerticalOptions="End"
+                                Command="{Binding SendMessageCommand}"/>
+                    </Grid>
+                </Grid>
+
+                <!-- ─── Notes tab content ─── -->
+                <Grid Grid.Row="2" x:Name="NotesTabContent"
+                      IsVisible="False"
+                      RowDefinitions="Auto,Auto,Auto,*"
+                      Padding="12,8">
+
+                    <!-- Filter -->
+                    <Entry Grid.Row="0"
+                           Placeholder="Loc ghi chu"
+                           Text="{Binding Notes.FilterText, Mode=TwoWay}"
+                           Margin="0,0,0,8"/>
+
+                    <!-- Draft editor -->
+                    <Editor Grid.Row="1"
+                            Placeholder="Viet ghi chu..."
+                            Text="{Binding Notes.Draft, Mode=TwoWay}"
+                            HeightRequest="80"
+                            AutoSize="TextChanges"
+                            Margin="0,0,0,4"/>
+
+                    <!-- Save / Cancel row -->
+                    <HorizontalStackLayout Grid.Row="2" Spacing="8" Margin="0,0,0,8">
+                        <Button Text="Luu"
+                                Style="{StaticResource TriThu.Button.Outlined}"
+                                Command="{Binding Notes.SaveCommand}"
+                                HeightRequest="36" Padding="12,0"
+                                FontSize="13"/>
+                        <Button Text="Huy"
+                                Style="{StaticResource TriThu.Button.Outlined}"
+                                Command="{Binding Notes.CancelEditCommand}"
+                                IsVisible="{Binding Notes.IsEditing}"
+                                HeightRequest="36" Padding="12,0"
+                                FontSize="13"/>
+                        <Label Text="{Binding Notes.StatusMessage}"
+                               TextColor="{StaticResource TriThu.Color.Primary}"
+                               VerticalOptions="Center"
+                               FontSize="13"/>
+                    </HorizontalStackLayout>
+
+                    <!-- Notes list -->
+                    <CollectionView Grid.Row="3"
+                                    ItemsSource="{Binding Notes.Items}">
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:Note">
+                                <Border StrokeShape="RoundRectangle 8"
+                                        StrokeThickness="0"
+                                        BackgroundColor="{StaticResource TriThu.Color.SurfaceTonalLow}"
+                                        Padding="10"
+                                        Margin="0,0,0,8">
+                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                        <VerticalStackLayout Grid.Column="0" Spacing="4">
+                                            <!-- Quote block -->
+                                            <Border StrokeThickness="0"
+                                                    BackgroundColor="{StaticResource TriThu.Color.SurfaceTonalHigh}"
+                                                    Padding="8,4"
+                                                    StrokeShape="RoundRectangle 4"
+                                                    IsVisible="{Binding Quote, Converter={StaticResource NotNullToBoolConverter}}">
+                                                <Label Text="{Binding Quote}"
+                                                       FontAttributes="Italic"
+                                                       FontSize="12"
+                                                       Opacity="0.75"
+                                                       MaxLines="3"
+                                                       LineBreakMode="TailTruncation"/>
+                                            </Border>
+                                            <Label Text="{Binding Content}"
+                                                   LineBreakMode="WordWrap"
+                                                   FontSize="14"/>
+                                            <Label Text="{Binding PageIndex, StringFormat='Trang {0}'}"
+                                                   FontSize="11"
+                                                   Opacity="0.7"
+                                                   IsVisible="{Binding PageIndex, Converter={StaticResource NotNullToBoolConverter}}"/>
+                                        </VerticalStackLayout>
+
+                                        <!-- Edit button -->
+                                        <Button Grid.Column="1"
+                                                Text="&#x270E;"
+                                                BackgroundColor="Transparent"
+                                                TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                                                FontSize="14"
+                                                WidthRequest="32" HeightRequest="32"
+                                                Padding="0" CornerRadius="16"
+                                                VerticalOptions="Start"
+                                                Command="{Binding Source={x:Reference ThisPage}, Path=BindingContext.Notes.BeginEditCommand}"
+                                                CommandParameter="{Binding .}"/>
+
+                                        <!-- Delete button -->
+                                        <Button Grid.Column="2"
+                                                Text="&#x1F5D1;"
+                                                BackgroundColor="Transparent"
+                                                TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                                                FontSize="14"
+                                                WidthRequest="32" HeightRequest="32"
+                                                Padding="0" CornerRadius="16"
+                                                VerticalOptions="Start"
+                                                Command="{Binding Source={x:Reference ThisPage}, Path=BindingContext.Notes.DeleteCommand}"
+                                                CommandParameter="{Binding .}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- Collapsed right panel strip (thin bar with expand button) -->
+        <Border Grid.Column="2"
+                IsVisible="{Binding IsRightPanelStripVisible}"
+                WidthRequest="40"
+                BackgroundColor="{StaticResource TriThu.Color.SurfaceTonalLow}"
+                StrokeShape="RoundRectangle 12"
+                StrokeThickness="0"
+                Margin="4">
+            <Button Text="&#x276E;"
+                    BackgroundColor="Transparent"
+                    TextColor="{StaticResource TriThu.Color.OnSurfaceVariant}"
+                    FontSize="18"
+                    WidthRequest="36" HeightRequest="36"
+                    Padding="0" CornerRadius="18"
+                    VerticalOptions="Start"
+                    Margin="0,8,0,0"
+                    Command="{Binding ToggleRightPanelCommand}"/>
+        </Border>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             4. SNACKBAR (bottom-center notification overlay)
+             ═══════════════════════════════════════════════════════════ -->
+        <Border Grid.ColumnSpan="3"
+                VerticalOptions="End" HorizontalOptions="Center"
+                Margin="0,0,0,24"
+                Padding="14,12,18,12"
+                StrokeShape="RoundRectangle 8"
+                StrokeThickness="0"
+                BackgroundColor="{StaticResource TriThu.Color.InverseSurface}"
+                Shadow="{StaticResource TriThu.Elevation.E3}"
+                ZIndex="100"
+                IsVisible="{Binding CurrentNotification, Converter={StaticResource NotNullToBoolConverter}}">
+            <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
+                <Label Text="&#x2139;"
+                       FontSize="16"
+                       TextColor="{StaticResource TriThu.Color.InversePrimary}"
+                       VerticalOptions="Center"/>
+                <Label Text="{Binding CurrentNotification.Message}"
+                       FontSize="14"
+                       TextColor="{StaticResource TriThu.Color.InverseSurface.On}"
+                       VerticalOptions="Center"/>
+            </HorizontalStackLayout>
+        </Border>
+
+    </Grid>
+
+</ContentPage>

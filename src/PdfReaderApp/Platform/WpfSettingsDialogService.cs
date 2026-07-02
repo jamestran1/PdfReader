@@ -4,7 +4,7 @@ namespace PdfReaderApp.Wpf.Platform;
 
 public sealed class WpfSettingsDialogService : ISettingsDialogService
 {
-    public string? ShowAndGetApiKey()
+    public Task<string?> ShowAndGetApiKeyAsync()
     {
         var window = new SettingsWindow
         {
@@ -12,8 +12,8 @@ public sealed class WpfSettingsDialogService : ISettingsDialogService
         };
 
         if (window.ShowDialog() == true && !string.IsNullOrWhiteSpace(window.ApiKey))
-            return window.ApiKey.Trim();
+            return Task.FromResult<string?>(window.ApiKey.Trim());
 
-        return null;
+        return Task.FromResult<string?>(null);
     }
 }

@@ -2,5 +2,5 @@ namespace PdfReaderApp.Platform;
 
 public interface ISettingsDialogService
 {
-    string? ShowAndGetApiKey();
+    Task<string?> ShowAndGetApiKeyAsync();
 }

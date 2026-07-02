@@ -26,6 +26,9 @@ public class MainViewModelTabCommandTests
                     System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
                     System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
                 new OpenAiEmbeddingGeneratorFactory(),
+                new PdfReaderApp.Platform.NullThemeService(),
+                new PdfReaderApp.Platform.NullFilePickerService(),
+                new PdfReaderApp.Platform.NullSettingsDialogService(),
                 workspaceStore: wsStore)
         { }
 

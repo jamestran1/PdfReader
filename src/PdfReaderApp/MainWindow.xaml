@@ -46,7 +46,7 @@
         <converters:DoubleToGridLengthConverter x:Key="DoubleToGridLengthConverter"/>
     </Window.Resources>
     <Window.DataContext>
-        <viewmodels:MainViewModel />
+        <viewmodels:WpfMainViewModel />
     </Window.DataContext>
     <Window.InputBindings>
         <KeyBinding Modifiers="Control" Key="OemPlus" Command="{Binding ZoomInCommand}" />

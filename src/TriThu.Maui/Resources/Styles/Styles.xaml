@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ResourceDictionary xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <!-- Component styles for Tri Thu MAUI — M3 look using TriThu tokens.
+         Merge TriThuTokens.xaml (or TriThuTokensDark.xaml) BEFORE this dictionary. -->
+
+    <!-- ── Label ── -->
+    <Style TargetType="Label">
+        <Setter Property="TextColor" Value="{StaticResource TriThu.Color.OnSurface}"/>
+        <Setter Property="FontFamily" Value="{StaticResource TriThu.Font.Sans}"/>
+        <Setter Property="FontSize" Value="{StaticResource TriThu.Font.Size.Body}"/>
+    </Style>
+
+    <Style x:Key="TriThu.Label.Title" TargetType="Label">
+        <Setter Property="TextColor" Value="{StaticResource TriThu.Color.OnSurface}"/>
+        <Setter Property="FontFamily" Value="{StaticResource TriThu.Font.Sans}"/>
+        <Setter Property="FontSize" Value="{StaticResource TriThu.Font.Size.Title}"/>
+        <Setter Property="FontAttributes" Value="Bold"/>
+    </Style>
+
+    <Style x:Key="TriThu.Label.Subtitle" TargetType="Label">
+        <Setter Property="TextColor" Value="{StaticResource TriThu.Color.OnSurface}"/>
+        <Setter Property="FontFamily" Value="{StaticResource TriThu.Font.Sans}"/>
+        <Setter Property="FontSize" Value="{StaticResource TriThu.Font.Size.Subtitle}"/>
+    </Style>
+
+    <Style x:Key="TriThu.Label.Caption" TargetType="Label">
+        <Setter Property="TextColor" Value="{StaticResource TriThu.Color.OnSurfaceVariant}"/>
+        <Setter Property="FontFamily" Value="{StaticResource TriThu.Font.Sans}"/>
+        <Setter Property="FontSize" Value="{StaticResource TriThu.Font.Size.Caption}"/>
+    </Style>
+
+    <!-- ── Button: Filled (M3 primary) ── -->
+    <Style x:Key="TriThu.Button.Filled" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="{StaticResource TriThu.Color.Primary}"/>
+        <Setter Property="TextColor" Value="{StaticResource TriThu.Color.OnPrimary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource TriThu.Font.Sans}"/>
+        <Setter Property="FontSize" Value="{StaticResource TriThu.Font.Size.Body}"/>
+        <Setter Property="CornerRadius" Value="20"/>
+        <Setter Property="Padding" Value="16,8"/>
+        <Setter Property="BorderWidth" Value="0"/>
+        <Setter Property="CharacterSpacing" Value="0.5"/>
+    </Style>
+
+    <!-- ── Button: Outlined (M3) ── -->
+    <Style x:Key="TriThu.Button.Outlined" TargetType="Button">
+        <Setter Property="BackgroundColor" Value="Transparent"/>
+        <Setter Property="TextColor" Value="{StaticResource TriThu.Color.Primary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource TriThu.Font.Sans}"/>
+        <Setter Property="FontSize" Value="{StaticResource TriThu.Font.Size.Body}"/>
+        <Setter Property="CornerRadius" Value="20"/>
+        <Setter Property="Padding" Value="16,8"/>
+        <Setter Property="BorderWidth" Value="1"/>
+        <Setter Property="BorderColor" Value="{StaticResource TriThu.Color.Outline}"/>
+        <Setter Property="CharacterSpacing" Value="0.5"/>
+    </Style>
+
+    <!-- ── Button: Icon (minimal chrome) ── -->
+    <Style x:Key="TriThu.Button.Icon" TargetType="ImageButton">
+        <Setter Property="BackgroundColor" Value="Transparent"/>
+        <Setter Property="Padding" Value="8"/>
+        <Setter Property="CornerRadius" Value="20"/>
+        <Setter Property="BorderWidth" Value="0"/>
+    </Style>
+
+    <!-- ── Entry ── -->
+    <Style TargetType="Entry">
+        <Setter Property="TextColor" Value="{StaticResource TriThu.Color.OnSurface}"/>
+        <Setter Property="BackgroundColor" Value="{StaticResource TriThu.Color.Surface}"/>
+        <Setter Property="PlaceholderColor" Value="{StaticResource TriThu.Color.Outline}"/>
+        <Setter Property="FontFamily" Value="{StaticResource TriThu.Font.Sans}"/>
+        <Setter Property="FontSize" Value="{StaticResource TriThu.Font.Size.Body}"/>
+    </Style>
+
+    <!-- ── Editor (multi-line) ── -->
+    <Style TargetType="Editor">
+        <Setter Property="TextColor" Value="{StaticResource TriThu.Color.OnSurface}"/>
+        <Setter Property="BackgroundColor" Value="{StaticResource TriThu.Color.Surface}"/>
+        <Setter Property="PlaceholderColor" Value="{StaticResource TriThu.Color.Outline}"/>
+        <Setter Property="FontFamily" Value="{StaticResource TriThu.Font.Sans}"/>
+        <Setter Property="FontSize" Value="{StaticResource TriThu.Font.Size.Body}"/>
+    </Style>
+
+    <!-- ── Border ── -->
+    <Style TargetType="Border">
+        <Setter Property="Stroke" Value="{StaticResource TriThu.Brush.OutlineVariant}"/>
+        <Setter Property="StrokeThickness" Value="1"/>
+        <Setter Property="StrokeShape" Value="RoundRectangle 8"/>
+    </Style>
+
+    <!-- ── Frame (legacy container) ── -->
+    <Style TargetType="Frame">
+        <Setter Property="BorderColor" Value="{StaticResource TriThu.Color.OutlineVariant}"/>
+        <Setter Property="BackgroundColor" Value="{StaticResource TriThu.Color.Surface}"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="16"/>
+        <Setter Property="HasShadow" Value="False"/>
+    </Style>
+
+    <!-- ── NavigationPage ── -->
+    <Style TargetType="NavigationPage">
+        <Setter Property="BarBackgroundColor" Value="{StaticResource TriThu.Color.Surface}"/>
+        <Setter Property="BarTextColor" Value="{StaticResource TriThu.Color.OnSurface}"/>
+    </Style>
+
+    <!-- ── Shell (if used) ── -->
+    <Style TargetType="Shell" ApplyToDerivedTypes="True">
+        <Setter Property="Shell.BackgroundColor" Value="{StaticResource TriThu.Color.Surface}"/>
+        <Setter Property="Shell.ForegroundColor" Value="{StaticResource TriThu.Color.OnSurface}"/>
+        <Setter Property="Shell.TitleColor" Value="{StaticResource TriThu.Color.OnSurface}"/>
+        <Setter Property="Shell.TabBarBackgroundColor" Value="{StaticResource TriThu.Color.Surface}"/>
+        <Setter Property="Shell.TabBarForegroundColor" Value="{StaticResource TriThu.Color.Primary}"/>
+        <Setter Property="Shell.TabBarUnselectedColor" Value="{StaticResource TriThu.Color.OnSurfaceVariant}"/>
+    </Style>
+
+    <!-- ── ContentPage background ── -->
+    <Style TargetType="ContentPage" ApplyToDerivedTypes="True">
+        <Setter Property="BackgroundColor" Value="{StaticResource TriThu.Color.Surface}"/>
+    </Style>
+
+    <!-- ── ActivityIndicator ── -->
+    <Style TargetType="ActivityIndicator">
+        <Setter Property="Color" Value="{StaticResource TriThu.Color.Primary}"/>
+    </Style>
+
+    <!-- ── Switch ── -->
+    <Style TargetType="Switch">
+        <Setter Property="OnColor" Value="{StaticResource TriThu.Color.Primary}"/>
+        <Setter Property="ThumbColor" Value="{StaticResource TriThu.Color.OnPrimary}"/>
+    </Style>
+
+    <!-- ── ProgressBar ── -->
+    <Style TargetType="ProgressBar">
+        <Setter Property="ProgressColor" Value="{StaticResource TriThu.Color.Primary}"/>
+    </Style>
+</ResourceDictionary>

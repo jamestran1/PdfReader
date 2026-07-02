@@ -322,7 +322,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             () => { _notificationTimer?.Dispose(); _notificationTimer = null; CurrentNotification = null; });
     }
 
-    private static string AppDir()
+    protected static string AppDir()
     {
         string dir = System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfReaderApp");
@@ -330,7 +330,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return dir;
     }
 
-    private static string IndexDbPath()
+    protected static string IndexDbPath()
     {
         string dir = System.IO.Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfReaderApp");
@@ -338,39 +338,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return System.IO.Path.Combine(dir, "index.db");
     }
 
-    public MainViewModel()
-        : this(new ITextPdfDocumentService(),
-               new WindowsSettingsService(),
-               new OpenAiChatClientFactory(),
-               new SqliteDocumentIndex(IndexDbPath(),
-                   System.IO.Path.Combine(AppContext.BaseDirectory, "vec0.dll")),
-               new OpenAiEmbeddingGeneratorFactory(),
-               uiDispatcher: new Wpf.Platform.WpfDispatcher(System.Windows.Application.Current.Dispatcher),
-               filePicker: new Wpf.Platform.WpfFilePickerService(),
-               settingsDialog: new Wpf.Platform.WpfSettingsDialogService())
-    { }
-
     public MainViewModel(
         IPdfDocumentService documentService,
         ISettingsService settingsService,
         IChatClientFactory chatClientFactory,
         IDocumentIndex documentIndex,
         IEmbeddingGeneratorFactory embeddingFactory,
+        IThemeService themeService,
+        IFilePickerService filePicker,
+        ISettingsDialogService settingsDialog,
         IChatHistoryStore? chatHistory = null,
         INoteStore? noteStore = null,
         IWorkspaceStore? workspaceStore = null,
-        IThemeService? themeService = null,
-        IUiDispatcher? uiDispatcher = null,
-        IFilePickerService? filePicker = null,
-        ISettingsDialogService? settingsDialog = null)
+        IUiDispatcher? uiDispatcher = null)
     {
         Tabs = new TabSetViewModel();
         _documentService = documentService;
         _settingsService = settingsService;
         _uiDispatcher = uiDispatcher;
-        _filePicker = filePicker ?? new Wpf.Platform.WpfFilePickerService();
-        _settingsDialog = settingsDialog ?? new Wpf.Platform.WpfSettingsDialogService();
-        _themeService = themeService ?? new MaterialDesignThemeService();
+        _filePicker = filePicker;
+        _settingsDialog = settingsDialog;
+        _themeService = themeService;
         IsDarkMode = settingsService.GetThemePreference() == AppTheme.Dark;
         _analyzer = new PdfStructureAnalyzer(_documentService);
         _chatService = new AiChatService(settingsService, chatClientFactory);
@@ -455,7 +443,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     // S2: thu thập Open Set hiện tại và lưu (thay thế) cho workspace đang hoạt động.
-    internal void SaveOpenSetNow()
+    public void SaveOpenSetNow()
     {
         if (_activeWorkspaceId is null || !IsWorkspaceSession) return;
         long nowUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -1197,9 +1185,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ClearSearch() => SearchQuery = string.Empty;
 
     [RelayCommand]
-    private void OpenSettings()
+    private async Task OpenSettings()
     {
-        var apiKey = _settingsDialog.ShowAndGetApiKey();
+        var apiKey = await _settingsDialog.ShowAndGetApiKeyAsync();
         if (apiKey is not null)
         {
             _settingsService.SaveApiKey(apiKey);

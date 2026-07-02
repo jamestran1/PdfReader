@@ -27,7 +27,9 @@ public class MainViewModelThemeTests
             new SqliteDocumentIndex(TempDb(),
                 Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
             new OpenAiEmbeddingGeneratorFactory(),
-            themeService: themeService);
+            themeService,
+            new Platform.NullFilePickerService(),
+            new Platform.NullSettingsDialogService());
 
     private static WindowsSettingsService FreshSettings()
     {
