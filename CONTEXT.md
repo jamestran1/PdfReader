@@ -51,7 +51,7 @@ Dải tab ngang ở đầu vùng nội dung chính (giữa toolbar và viewer). 
 _Avoid_: Tab bar (dùng được nhưng thống nhất "Tab Strip").
 
 **Workspace Documents surface**:
-Surface hai vùng cho Tài liệu của Workspace: (1) **thành viên** — thumbnail member doc, click → mở/kích hoạt Tab, kèm nút gỡ; (2) **thêm từ Library** — add vào membership (Add = thêm membership **và** mở Tab active). Cùng component xuất hiện ở 3 nơi: modal nút "+", canvas empty-state khi đóng Tab cuối, và lưới re-open. Chỉ ở named Workspace.
+Surface hai vùng cho Tài liệu của Workspace: (1) **thành viên** — thumbnail member doc, click → mở/kích hoạt Tab, kèm nút gỡ (**gỡ = xóa membership và đóng Tab nếu đang mở** — giữ bất biến Open Set ⊆ membership); (2) **thêm từ Library** — Add = thêm membership **và** mở Tab active. Header surface mang tên Workspace + đổi tên inline (bút chì). Cùng MỘT component ở **2 bối cảnh host**: modal nút "+" (DialogHost) và inline trong canvas khi Open Set rỗng (gộp empty-state lẫn lưới re-open). Chỉ ở named Workspace.
 _Avoid_: Thumbnail Gallery, document picker, doc grid, empty state.
 
 **Hydration / Eviction**:
