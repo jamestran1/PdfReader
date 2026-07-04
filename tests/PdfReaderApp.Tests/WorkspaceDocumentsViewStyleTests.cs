@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.RegularExpressions;
 using Xunit;
 
 namespace PdfReaderApp.Tests;
@@ -41,6 +42,7 @@ public class WorkspaceDocumentsViewStyleTests
         Assert.Contains("materialDesign:DialogHost", xaml);
         Assert.Contains("{Binding DocumentsSurface.IsModalOpen}", xaml);
         Assert.Contains("controls:WorkspaceDocumentsView", xaml);
+        Assert.Equal(2, Regex.Matches(xaml, "<controls:WorkspaceDocumentsView").Count);
     }
 
     [Fact]
