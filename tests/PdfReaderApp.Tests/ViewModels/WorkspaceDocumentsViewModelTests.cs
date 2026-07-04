@@ -120,4 +120,52 @@ public class WorkspaceDocumentsViewModelTests
         Assert.Empty(_closedTabDocumentIds);
         Assert.Equal(0, _stateChangedCount);
     }
+
+    [Fact]
+    public void CommitRename_ValidName_RenamesStore_UpdatesHeader_ExitsEditing()
+    {
+        var surface = BuildSurface();
+        surface.Refresh();
+        surface.BeginRenameCommand.Execute(null);
+        Assert.True(surface.IsRenaming);
+        Assert.Equal("Nghiên cứu", surface.RenameDraft);
+
+        surface.RenameDraft = "  Đề tài mới  ";
+        surface.CommitRenameCommand.Execute(null);
+
+        Assert.Equal("Đề tài mới", _store.Get("ws1")!.Name);
+        Assert.Equal("Đề tài mới", surface.WorkspaceName);
+        Assert.False(surface.IsRenaming);
+        Assert.Equal(string.Empty, surface.RenameError);
+        Assert.Equal(1, _stateChangedCount);
+    }
+
+    [Fact]
+    public void CommitRename_EmptyName_SetsError_KeepsEditing_StoreUntouched()
+    {
+        var surface = BuildSurface();
+        surface.Refresh();
+        surface.BeginRenameCommand.Execute(null);
+
+        surface.RenameDraft = "   ";
+        surface.CommitRenameCommand.Execute(null);
+
+        Assert.Equal("Nghiên cứu", _store.Get("ws1")!.Name);
+        Assert.True(surface.IsRenaming);
+        Assert.Equal("Tên workspace không được để trống.", surface.RenameError);
+    }
+
+    [Fact]
+    public void CancelRename_DropsDraft_WithoutTouchingStore()
+    {
+        var surface = BuildSurface();
+        surface.Refresh();
+        surface.BeginRenameCommand.Execute(null);
+        surface.RenameDraft = "Bị hủy";
+
+        surface.CancelRenameCommand.Execute(null);
+
+        Assert.False(surface.IsRenaming);
+        Assert.Equal("Nghiên cứu", _store.Get("ws1")!.Name);
+    }
 }

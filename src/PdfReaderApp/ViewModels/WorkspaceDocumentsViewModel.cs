@@ -102,4 +102,43 @@ public sealed partial class WorkspaceDocumentsViewModel : ObservableObject
 
     [RelayCommand]
     private void CloseModal() => IsModalOpen = false;
+
+    [ObservableProperty] private bool _isRenaming;
+    [ObservableProperty] private string _renameDraft = string.Empty;
+    [ObservableProperty] private string _renameError = string.Empty;
+
+    [RelayCommand]
+    private void BeginRename()
+    {
+        RenameDraft = WorkspaceName;
+        RenameError = string.Empty;
+        IsRenaming = true;
+    }
+
+    [RelayCommand]
+    private void CommitRename()
+    {
+        var workspace = _activeWorkspace();
+        if (workspace is null) { IsRenaming = false; return; }
+        if (string.IsNullOrWhiteSpace(RenameDraft))
+        {
+            RenameError = "Tên workspace không được để trống.";
+            return;   // giữ chế độ sửa để người dùng nhập lại
+        }
+        string newName = RenameDraft.Trim();
+        _workspaceStore.Rename(workspace.Id, newName, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+        IsRenaming = false;
+        RenameError = string.Empty;
+        // stateChanged TRƯỚC Refresh: parent làm mới SelectedWorkspace từ store để Refresh đọc tên mới.
+        _stateChanged();
+        Refresh();
+        _notify($"Đã đổi tên Workspace thành “{newName}”");
+    }
+
+    [RelayCommand]
+    private void CancelRename()
+    {
+        IsRenaming = false;
+        RenameError = string.Empty;
+    }
 }
