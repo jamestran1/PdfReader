@@ -197,8 +197,7 @@ public class MainViewModelTabCommandTests
     }
 
     // =========================================================
-    // ShowWorkspaceDocumentsCommand: "+" mở màn quản lý tài liệu workspace
-    // (surface tạm cho #47), không rời workspace, không mất Open Set.
+    // ShowWorkspaceDocumentsCommand: "+" mở Workspace Documents surface (modal DialogHost).
     // =========================================================
     [Fact]
     public void ShowWorkspaceDocumentsCommand_OpensWorkspaceDocumentSurface()
@@ -208,9 +207,7 @@ public class MainViewModelTabCommandTests
 
         vm.ShowWorkspaceDocumentsCommand.Execute(null);
 
-        Assert.True(vm.ShowWorkspaceDetail);
-        Assert.True(vm.ShowWorkspaces);
-        Assert.False(vm.IsWorkspaceSession);   // ẩn viewer host để không chồng lên surface
+        Assert.True(vm.DocumentsSurface.IsModalOpen);
     }
 
     [Fact]
@@ -231,10 +228,10 @@ public class MainViewModelTabCommandTests
         OpenTwoTabs(vm, wsStore);
 
         vm.ShowWorkspaceDocumentsCommand.Execute(null);
-        vm.OpenWorkspaceDocumentCommand.Execute(MakeItem("docA", "Tài liệu A", "/path/a.pdf"));
+        vm.DocumentsSurface.OpenMemberCommand.Execute(MakeItem("docA", "Tài liệu A", "/path/a.pdf"));
 
         Assert.True(vm.IsWorkspaceSession);
-        Assert.False(vm.ShowWorkspaceDetail);
+        Assert.False(vm.DocumentsSurface.IsModalOpen);
         Assert.Equal(2, vm.Tabs.Tabs.Count);                 // không tạo tab trùng
         Assert.Equal("docA", vm.Tabs.ActiveTab!.DocumentId);
     }
@@ -320,6 +317,6 @@ public class MainViewModelTabCommandTests
         vm.PromoteToWorkspaceCommand.Execute("Dự án A");
         vm.ShowWorkspaceDocumentsCommand.Execute(null);
 
-        Assert.Contains(vm.WorkspaceDocuments, d => d.DocumentId == "docA");
+        Assert.Contains(vm.DocumentsSurface.Members, d => d.DocumentId == "docA");
     }
 }

@@ -239,13 +239,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private Workspace? _selectedWorkspace;
 
-    // S2: hiện panel chi tiết workspace (ẩn lưới workspace)
-    [ObservableProperty]
-    private bool _showWorkspaceDetail;
-
-    // S2: tài liệu trong workspace đang mở chi tiết
-    public ObservableCollection<LibraryItem> WorkspaceDocuments { get; } = new();
-
     // S2: expose activeWorkspaceId cho test
     public string? ActiveWorkspaceId => _activeWorkspaceId;
 
@@ -255,30 +248,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // #38: có tài liệu đang mở hay không -> bật nút quay lại trình đọc trên nav rail.
     public bool HasDocument => _documentId != null;
 
-    // Lưới Workspaces chỉ hiện khi ở vùng Workspaces VÀ chưa mở chi tiết
-    public bool ShowWorkspacesGrid => ShowWorkspaces && !ShowWorkspaceDetail;
-
-    // Cập nhật ShowWorkspacesGrid khi ShowWorkspaces thay đổi
+    // Cập nhật chat column khi ShowWorkspaces thay đổi
     partial void OnShowWorkspacesChanged(bool value)
     {
         if (value) ShowLibrary = false;
         UpdateChatColumnVisibility();
-        OnPropertyChanged(nameof(ShowWorkspacesGrid));
-    }
-
-    // Cập nhật ShowWorkspacesGrid khi ShowWorkspaceDetail thay đổi
-    partial void OnShowWorkspaceDetailChanged(bool value)
-    {
-        OnPropertyChanged(nameof(ShowWorkspacesGrid));
     }
 
     // Thông báo lỗi khi tạo/đổi tên workspace; rỗng = không có lỗi.
     [ObservableProperty]
     private string _workspaceNameError = string.Empty;
-
-    // S4: nội dung ô đổi tên workspace trong màn chi tiết.
-    [ObservableProperty]
-    private string _renameDraft = string.Empty;
 
     public ObservableCollection<WorkspaceCard> Workspaces { get; } = new();
 
@@ -300,6 +279,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ChatMessage> ChatMessages { get; } = new();
 
     public NotesViewModel Notes { get; }
+    public WorkspaceDocumentsViewModel DocumentsSurface { get; }
     // #67: thông báo snackbar non-blocking, đáy-giữa, tự ẩn. Một surface duy nhất cho cả app.
     [ObservableProperty]
     private Notification? _currentNotification;
@@ -411,6 +391,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ReloadWorkspaces();
         LoadChatHistory();
 
+        DocumentsSurface = new WorkspaceDocumentsViewModel(
+            _workspaceStore,
+            activeWorkspace: () => SelectedWorkspace,
+            libraryItems: () => Library,
+            openTab: item => OpenWorkspaceDocument(item),
+            closeTabForDocument: documentId =>
+            {
+                var openTab = Tabs.Tabs.FirstOrDefault(t => t.DocumentId == documentId);
+                if (openTab is not null) Tabs.Close(openTab);
+            },
+            notify: NotifySuccess,
+            stateChanged: OnDocumentsSurfaceStateChanged);
+
         // Tab S1: khi ActiveTab thay đổi -> lưu view-state của tab cũ, hydrate tab mới.
         Tabs.ActiveTabChanged += OnActiveTabChanged;
 
@@ -434,11 +427,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (incoming is not null)
             HydrateTab(incoming);
+        else if (!_isRestoringOpenSet)
+            RefreshWorkspaceDocumentsSurface();   // đóng tab cuối -> surface inline cần dữ liệu mới
 
         // Tab active đổi -> toolbar phải đọc lại view-state của tab mới.
         OnPropertyChanged(nameof(CurrentPage));
         OnPropertyChanged(nameof(ZoomLevel));
         OnPropertyChanged(nameof(TotalPages));
+    }
+
+    private void OnDocumentsSurfaceStateChanged()
+    {
+        if (SelectedWorkspace is not null)
+            SelectedWorkspace = _workspaceStore.Get(SelectedWorkspace.Id);
+        UpdateNotesDocumentContext();
+        ReloadWorkspaces();
+    }
+
+    private void RefreshWorkspaceDocumentsSurface()
+    {
+        DocumentsSurface.Refresh();
+        UpdateNotesDocumentContext();
     }
 
     private void OnActiveTabViewStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -554,7 +563,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         tab.Zoom = document.Zoom;
 
         // Nạp danh sách tài liệu thành viên của workspace mới (giống OpenWorkspace), để surface "+" hiển thị đúng.
-        ReloadWorkspaceDocuments();
+        RefreshWorkspaceDocumentsSurface();
         ReloadWorkspaces();
     }
 
@@ -609,7 +618,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ShowWorkspacesView()
     {
         // S2: luôn về lưới khi bấm Workspaces từ navigation rail
-        ShowWorkspaceDetail = false;
         ReloadWorkspaces();
         ShowLibrary = false;
         ShowWorkspaces = true;
@@ -619,7 +627,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void ShowReaderView()
     {
-        ShowWorkspaceDetail = false;
         ShowLibrary = false;
         ShowWorkspaces = false;
     }
@@ -645,9 +652,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (workspace is null) return;
         SelectedWorkspace = workspace;
         Notes.LoadFor(workspace.Id);
-        ReloadWorkspaceDocuments();
-        ShowWorkspaces = true;
-        ShowWorkspaceDetail = true;   // mặc định màn quản lý tài liệu; vào phiên đọc sẽ tắt qua EnterReadingSession
+        RefreshWorkspaceDocumentsSurface();
+        ShowLibrary = false;   // thoát Thư viện khi mở workspace (EnterReadingSession không tắt Library)
         RestoreOrSeedOpenSet(workspace.Id);   // S2: vào Workspace = vào thẳng phiên đọc (nếu có tài liệu)
     }
 
@@ -690,9 +696,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             }
 
             var seedDocumentId = ResolveSeedDocument(workspaceId);
-            if (seedDocumentId is null) { IsWorkspaceSession = false; return; }   // workspace rỗng -> giữ màn quản lý
+            // Workspace rỗng / seed không còn trong Library: vẫn vào phiên workspace với Open Set rỗng —
+            // canvas hiện Workspace Documents surface inline (grill #47, thay màn quản lý cũ).
+            if (seedDocumentId is null) { EnterReadingSession(); return; }
             var seedItem = Library.FirstOrDefault(i => i.DocumentId == seedDocumentId);
-            if (seedItem is null) { IsWorkspaceSession = false; return; }
+            if (seedItem is null) { EnterReadingSession(); return; }
             Tabs.OpenOrActivate(seedItem.DocumentId, seedItem.Title, seedItem.StoredPath);
             EnterReadingSession();
         }
@@ -714,55 +722,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void EnterReadingSession()
     {
-        ShowWorkspaceDetail = false;
         ShowWorkspaces = false;
-    }
-
-    // S2: nạp lại danh sách tài liệu trong workspace đang xem chi tiết
-    private void ReloadWorkspaceDocuments()
-    {
-        WorkspaceDocuments.Clear();
-        if (SelectedWorkspace is not null)
-        {
-            var ids = _workspaceStore.GetDocumentIds(SelectedWorkspace.Id);
-            foreach (var id in ids)
-            {
-                var item = Library.FirstOrDefault(i => i.DocumentId == id);
-                if (item is not null) WorkspaceDocuments.Add(item);
-            }
-        }
-        // S3: danh sách tài liệu đổi -> cập nhật ngữ cảnh chip nhãn (gọi tại đây để mọi call-site đều được phủ)
-        UpdateNotesDocumentContext();
-    }
-
-    // S2: thêm nhiều tài liệu từ thư viện vào workspace (đa chọn)
-    [RelayCommand]
-    private void AddDocumentsToWorkspace(System.Collections.IList? items)
-    {
-        if (SelectedWorkspace is null || items is null) return;
-        foreach (var obj in items)
-        {
-            if (obj is LibraryItem it)
-                _workspaceStore.AddDocument(SelectedWorkspace.Id, it.DocumentId);
-        }
-        ReloadWorkspaceDocuments();
-    }
-
-    // S2: xoá tài liệu khỏi workspace
-    [RelayCommand]
-    private void RemoveDocumentFromWorkspace(LibraryItem? item)
-    {
-        if (item is null || SelectedWorkspace is null) return;
-        _workspaceStore.RemoveDocument(SelectedWorkspace.Id, item.DocumentId);
-        ReloadWorkspaceDocuments();
     }
 
     // S3: cập nhật ngữ cảnh chip nhãn tài liệu cho NotesViewModel
     private void UpdateNotesDocumentContext()
     {
         var titles = new Dictionary<string, string>();
-        foreach (var d in WorkspaceDocuments) titles[d.DocumentId] = d.Title;
-        Notes.SetDocumentContext(titles, showChips: WorkspaceDocuments.Count > 1);
+        foreach (var document in DocumentsSurface.Members) titles[document.DocumentId] = document.Title;
+        Notes.SetDocumentContext(titles, showChips: titles.Count > 1);
     }
 
     // S3 / Tab S1: callback mở tài liệu khác trong cùng workspace khi bấm note cross-doc.
@@ -784,14 +752,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
     }
 
-    // S2: quay lại lưới workspace từ màn chi tiết
-    [RelayCommand]
-    private void BackToWorkspaceList()
-    {
-        ShowWorkspaceDetail = false;
-        ReloadWorkspaces();
-    }
-
     // S4: xóa một workspace (không được xóa default workspace)
     [RelayCommand]
     private void DeleteWorkspace(Workspace? ws)
@@ -806,30 +766,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _activeWorkspaceId = null;
             Notes.LoadFor(null);
         }
-        if (ShowWorkspaceDetail && SelectedWorkspace?.Id == ws.Id)
-        {
-            SelectedWorkspace = null; // tránh giữ tham chiếu tới workspace đã xóa
-            ShowWorkspaceDetail = false;
-        }
-        ReloadWorkspaces();
-    }
-
-    // S4: đổi tên workspace đang mở chi tiết
-    [RelayCommand]
-    private void RenameWorkspace(string? newName)
-    {
-        if (SelectedWorkspace is null) return;
-        if (string.IsNullOrWhiteSpace(newName))
-        {
-            WorkspaceNameError = "Tên workspace không được để trống.";
-            return;
-        }
-        WorkspaceNameError = string.Empty;
-        long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        _workspaceStore.Rename(SelectedWorkspace.Id, newName.Trim(), now);
-        // Cập nhật header chi tiết workspace
-        SelectedWorkspace = _workspaceStore.Get(SelectedWorkspace.Id);
-        RenameDraft = string.Empty;
+        if (SelectedWorkspace?.Id == ws.Id)
+            SelectedWorkspace = null;
         ReloadWorkspaces();
     }
 
@@ -849,16 +787,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Tabs.Close(tab);
     }
 
-    // Tab S3 (#62): nút "+" trên Tab Strip mở Workspace Documents surface để thêm tài liệu.
-    // Tạm điều hướng về màn quản lý tài liệu của workspace; surface hai-vùng đầy đủ
-    // sẽ thay thế ở #47 (repoint lệnh này), nên #62 không bị chặn bởi #47.
+    // Tab S3 (#62) / #47: nút "+" mở Workspace Documents surface dạng modal (DialogHost).
     [RelayCommand]
     private void ShowWorkspaceDocuments()
     {
         if (SelectedWorkspace is null) return;
-        IsWorkspaceSession = false;   // ẩn viewer host; Open Set vẫn giữ trong TabSetViewModel
-        ShowWorkspaces = true;
-        ShowWorkspaceDetail = true;
+        DocumentsSurface.Refresh();
+        DocumentsSurface.IsModalOpen = true;
     }
 
     // S2 / Tab S1: mở tài liệu trong ngữ cảnh workspace -> route qua Open Set.
@@ -872,7 +807,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var tab = Tabs.OpenOrActivate(item.DocumentId, item.Title, item.StoredPath);
         // best-effort: cập nhật thời điểm mở
         try { _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()); } catch { }
-        ShowWorkspaceDetail = false;
         ShowWorkspaces = false;
     }
 
