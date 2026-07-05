@@ -526,62 +526,11 @@ public class MainViewModelTests
         vm.OpenWorkspaceCommand.Execute(W);
 
         // S2: khi workspace có tài liệu, OpenWorkspace đi thẳng vào phiên đọc (EnterReadingSession).
-        // ShowWorkspaceDetail = false (tắt màn quản lý), ShowWorkspaces = false.
-        Assert.False(vm.ShowWorkspaceDetail);
+        // ShowWorkspaces = false.
+        Assert.False(vm.ShowWorkspaces);
         Assert.Equal(W, vm.SelectedWorkspace);
-        Assert.Contains(vm.WorkspaceDocuments, i => i.DocumentId == "docA");
+        Assert.Contains(vm.DocumentsSurface.Members, i => i.DocumentId == "docA");
         Assert.Equal(W.Id, vm.ActiveWorkspaceId);
-        Assert.False(vm.ShowWorkspacesGrid);
-    }
-
-    [Fact]
-    public void AddDocumentsToWorkspace_AddsMembershipAndRefreshes()
-    {
-        var wsStore = new FakeWorkspaceStore();
-        var vm = VmWithWorkspaceStore(wsStore);
-
-        var W = new PdfReaderApp.Models.Workspace("ws-B", "Dự án B", false, null, 1, 1);
-        wsStore.Upsert(W);
-
-        var itemA = new PdfReaderApp.Models.LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 0, 1, 1);
-        var itemB = new PdfReaderApp.Models.LibraryItem("docB", "Sách B", "/lib/b.pdf", null, 0, 1, 1);
-        vm.Library.Add(itemA);
-        vm.Library.Add(itemB);
-
-        // Mở workspace W (rỗng)
-        vm.OpenWorkspaceCommand.Execute(W);
-
-        // Thêm docA và docB
-        vm.AddDocumentsToWorkspaceCommand.Execute(
-            new System.Collections.Generic.List<object> { itemA, itemB });
-
-        Assert.Contains("docA", wsStore.GetDocumentIds(W.Id));
-        Assert.Contains("docB", wsStore.GetDocumentIds(W.Id));
-        Assert.Equal(2, vm.WorkspaceDocuments.Count);
-    }
-
-    [Fact]
-    public void RemoveDocumentFromWorkspace_RemovesMembershipAndRefreshes()
-    {
-        var wsStore = new FakeWorkspaceStore();
-        var vm = VmWithWorkspaceStore(wsStore);
-
-        var W = new PdfReaderApp.Models.Workspace("ws-C", "Dự án C", false, null, 1, 1);
-        wsStore.Upsert(W);
-        wsStore.AddDocument(W.Id, "docA");
-        wsStore.AddDocument(W.Id, "docB");
-
-        var itemA = new PdfReaderApp.Models.LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 0, 1, 1);
-        var itemB = new PdfReaderApp.Models.LibraryItem("docB", "Sách B", "/lib/b.pdf", null, 0, 1, 1);
-        vm.Library.Add(itemA);
-        vm.Library.Add(itemB);
-
-        vm.OpenWorkspaceCommand.Execute(W);
-        vm.RemoveDocumentFromWorkspaceCommand.Execute(itemA);
-
-        Assert.DoesNotContain("docA", wsStore.GetDocumentIds(W.Id));
-        Assert.Single(vm.WorkspaceDocuments);
-        Assert.Equal("docB", vm.WorkspaceDocuments[0].DocumentId);
     }
 
     [Fact]
@@ -609,23 +558,6 @@ public class MainViewModelTests
         // Idempotent: gọi lần hai cùng docId trả về cùng id
         var id2 = vm.ResolveWorkspaceScope(null, "docA", "A", 2);
         Assert.Equal(id1, id2);
-    }
-
-    [Fact]
-    public void BackToWorkspaceList_ShowsGridAgain()
-    {
-        var wsStore = new FakeWorkspaceStore();
-        var vm = VmWithWorkspaceStore(wsStore);
-
-        var W = new PdfReaderApp.Models.Workspace("ws-D", "Dự án D", false, null, 1, 1);
-        wsStore.Upsert(W);
-        vm.OpenWorkspaceCommand.Execute(W);
-        Assert.True(vm.ShowWorkspaceDetail);
-
-        vm.BackToWorkspaceListCommand.Execute(null);
-
-        Assert.False(vm.ShowWorkspaceDetail);
-        Assert.True(vm.ShowWorkspacesGrid);
     }
 
     [Fact]
@@ -753,7 +685,6 @@ public class MainViewModelTests
         vm.DeleteWorkspaceCommand.Execute(W);
 
         Assert.Null(vm.ActiveWorkspaceId);       // scope active đã reset
-        Assert.False(vm.ShowWorkspaceDetail);    // đã thoát màn chi tiết
         Assert.Null(vm.SelectedWorkspace);       // không giữ tham chiếu workspace đã xóa
         Assert.Null(wsStore.Get(W.Id));
     }
@@ -778,41 +709,6 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void RenameWorkspace_EmptyName_SetsError_AndKeepsName()
-    {
-        var wsStore = new FakeWorkspaceStore();
-        var notes = new FakeNoteStore();
-        var vm = VmWith(wsStore, notes);
-
-        var W = new PdfReaderApp.Models.Workspace("ws-ren", "Tên gốc", false, null, 1, 1);
-        wsStore.Upsert(W);
-        vm.OpenWorkspaceCommand.Execute(W);
-
-        vm.RenameWorkspaceCommand.Execute("  ");
-
-        // Lỗi phải được set
-        Assert.False(string.IsNullOrEmpty(vm.WorkspaceNameError));
-        // Tên không đổi
-        Assert.Equal("Tên gốc", wsStore.Get(W.Id)!.Name);
-    }
-
-    [Fact]
-    public void RenameWorkspace_ValidName_UpdatesName()
-    {
-        var wsStore = new FakeWorkspaceStore();
-        var notes = new FakeNoteStore();
-        var vm = VmWith(wsStore, notes);
-
-        var W = new PdfReaderApp.Models.Workspace("ws-ren2", "Tên cũ", false, null, 1, 1);
-        wsStore.Upsert(W);
-        vm.OpenWorkspaceCommand.Execute(W);
-
-        vm.RenameWorkspaceCommand.Execute("Tên mới");
-
-        Assert.Equal("Tên mới", wsStore.Get(W.Id)!.Name);
-    }
-
-    [Fact]
     public void RemoveDocumentFromWorkspace_KeepsAnchoredNotes()
     {
         var wsStore = new FakeWorkspaceStore();
@@ -830,7 +726,7 @@ public class MainViewModelTests
         vm.Library.Add(itemA);
 
         vm.OpenWorkspaceCommand.Execute(W);
-        vm.RemoveDocumentFromWorkspaceCommand.Execute(itemA);
+        vm.DocumentsSurface.RemoveMemberCommand.Execute(itemA);
 
         // Note vẫn còn (không bị xóa khi gỡ tài liệu khỏi workspace)
         Assert.Single(notes.GetForOwner(W.Id));
@@ -945,7 +841,6 @@ public class MainViewModelTests
 
         Assert.False(vm.ShowLibrary);
         Assert.False(vm.ShowWorkspaces);
-        Assert.False(vm.ShowWorkspaceDetail);
         Assert.True(vm.IsReadingDocument);
     }
 

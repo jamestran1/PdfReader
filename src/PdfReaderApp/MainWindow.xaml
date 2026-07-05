@@ -112,7 +112,13 @@
             </DockPanel>
         </Border>
 
-        <Grid Grid.Row="1">
+        <materialDesign:DialogHost Grid.Row="1" CloseOnClickAway="True"
+                                   IsOpen="{Binding DocumentsSurface.IsModalOpen}">
+            <materialDesign:DialogHost.DialogContent>
+                <controls:WorkspaceDocumentsView DataContext="{Binding DocumentsSurface}"
+                                                 Width="720" MaxHeight="560"/>
+            </materialDesign:DialogHost.DialogContent>
+            <Grid>
             <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="*"/>
@@ -523,12 +529,12 @@
             <Border Grid.Row="2"
                     Visibility="{Binding IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
-                    <!-- Hint khi Open Set rỗng (#62 AC2): nhắc bấm "+" để thêm tài liệu -->
-                    <TextBlock Text="Chưa có tài liệu. Bấm + để thêm"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
-                               FontSize="16"
-                               Visibility="{Binding Tabs.HasTabs, Converter={StaticResource InverseBoolToVisibilityConverter}}"/>
+                    <!-- Hint khi Open Set rỗng (#62 AC2): inline WorkspaceDocumentsView khi chưa có tab -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  Visibility="{Binding Tabs.HasTabs, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                        <controls:WorkspaceDocumentsView DataContext="{Binding DataContext.DocumentsSurface, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                         MaxWidth="760" Margin="22" VerticalAlignment="Top"/>
+                    </ScrollViewer>
 
                     <!-- Một PdfViewerControl trên mỗi tab, xếp chồng, chỉ active visible -->
                     <ItemsControl ItemsSource="{Binding Tabs.Tabs}">
@@ -565,11 +571,11 @@
                 </Grid>
             </Border>
 
-            <!-- Workspaces: lưới (ShowWorkspacesGrid) + chi tiết (ShowWorkspaceDetail) cùng vùng Grid -->
+            <!-- Workspaces: lưới (ShowWorkspaces) cùng vùng Grid -->
 
-            <!-- Lưới workspace (chỉ hiện khi ShowWorkspacesGrid) -->
+            <!-- Lưới workspace (chỉ hiện khi ShowWorkspaces) -->
             <Border Grid.Row="2" Background="{DynamicResource TriThu.Brush.Surface}"
-                    Visibility="{Binding ShowWorkspacesGrid, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Visibility="{Binding ShowWorkspaces, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <DockPanel>
                     <StackPanel DockPanel.Dock="Top" Margin="36,24,36,6">
                         <TextBlock Text="Workspace" FontSize="24"
@@ -685,124 +691,6 @@
                         </StackPanel>
                     </ScrollViewer>
                 </DockPanel>
-            </Border>
-
-            <!-- Chi tiết workspace (hiện khi ShowWorkspaceDetail) -->
-            <Border Grid.Row="2" Background="{DynamicResource MaterialDesignPaper}"
-                    Visibility="{Binding ShowWorkspaceDetail, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <Grid Margin="16">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="200"/>
-                    </Grid.RowDefinitions>
-
-                    <!-- Hàng tiêu đề: nút Quay lại + tên workspace -->
-                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,12">
-                        <Button Style="{StaticResource MaterialDesignIconButton}"
-                                Command="{Binding BackToWorkspaceListCommand}"
-                                ToolTip="Quay lại">
-                            <materialDesign:PackIcon Kind="ArrowLeft" />
-                        </Button>
-                        <TextBlock Text="{Binding SelectedWorkspace.Name}" FontSize="20" FontWeight="Bold"
-                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
-                    </StackPanel>
-
-                    <!-- Hàng đổi tên workspace -->
-                    <StackPanel Grid.Row="1" Margin="0,0,0,12">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="RenameWorkspaceBox"
-                                     materialDesign:HintAssist.Hint="Tên mới..."
-                                     Style="{StaticResource MaterialDesignOutlinedTextBox}"
-                                     Text="{Binding RenameDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Margin="0,0,8,0"/>
-                            <Button Grid.Column="1"
-                                    Style="{StaticResource MaterialDesignRaisedButton}"
-                                    Content="Đổi tên"
-                                    Command="{Binding RenameWorkspaceCommand}"
-                                    CommandParameter="{Binding Text, ElementName=RenameWorkspaceBox}"
-                                    materialDesign:ButtonAssist.CornerRadius="20"/>
-                        </Grid>
-                        <TextBlock Text="{Binding WorkspaceNameError}" Foreground="#D32F2F"
-                                   FontSize="12" Margin="2,4,0,0" TextWrapping="Wrap"/>
-                    </StackPanel>
-
-                    <!-- Tiêu đề danh sách tài liệu -->
-                    <TextBlock Grid.Row="2" Text="Tài liệu trong workspace" FontSize="14" FontWeight="SemiBold"
-                               Margin="0,0,0,8"/>
-
-                    <!-- Danh sách tài liệu trong workspace -->
-                    <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <TextBlock Text="Chưa có tài liệu nào trong workspace. Thêm từ thư viện bên dưới."
-                                       HorizontalAlignment="Center" Opacity="0.6" Margin="0,16"
-                                       Visibility="{Binding WorkspaceDocuments.Count, Converter={StaticResource CountToInverseVisibilityConverter}}"/>
-                            <ItemsControl x:Name="WorkspaceDocsList" ItemsSource="{Binding WorkspaceDocuments}">
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Padding="8,4" BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="0,0,0,1">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="{Binding Title}" VerticalAlignment="Center"
-                                                           TextTrimming="CharacterEllipsis"/>
-                                                <Button Grid.Column="1"
-                                                        Style="{StaticResource MaterialDesignFlatButton}"
-                                                        Content="Mở"
-                                                        Command="{Binding DataContext.OpenWorkspaceDocumentCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}"
-                                                        Margin="4,0" Padding="8,4" MinWidth="0"/>
-                                                <Button Grid.Column="2"
-                                                        Style="{StaticResource MaterialDesignIconButton}"
-                                                        Width="28" Height="28"
-                                                        ToolTip="Xoá khỏi workspace"
-                                                        Command="{Binding DataContext.RemoveDocumentFromWorkspaceCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                        CommandParameter="{Binding}">
-                                                    <materialDesign:PackIcon Kind="Delete" Width="16" Height="16"/>
-                                                </Button>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- Tiêu đề khu thêm tài liệu -->
-                    <TextBlock Grid.Row="4" Text="Thêm tài liệu từ thư viện" FontSize="13" FontWeight="SemiBold"
-                               Margin="0,12,0,4"/>
-
-                    <!-- Khu thêm tài liệu: ListBox đa chọn + nút Thêm vào workspace -->
-                    <Grid Grid.Row="5">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <ListBox x:Name="LibraryPickerBox" Grid.Row="0"
-                                 SelectionMode="Extended"
-                                 ItemsSource="{Binding Library}"
-                                 DisplayMemberPath="Title"
-                                 ScrollViewer.VerticalScrollBarVisibility="Auto"/>
-                        <Button Grid.Row="1"
-                                Content="Thêm vào workspace"
-                                Style="{StaticResource MaterialDesignRaisedButton}"
-                                HorizontalAlignment="Left"
-                                Margin="0,8,0,0"
-                                materialDesign:ButtonAssist.CornerRadius="20"
-                                Command="{Binding AddDocumentsToWorkspaceCommand}"
-                                CommandParameter="{Binding SelectedItems, ElementName=LibraryPickerBox}"/>
-                    </Grid>
-                </Grid>
             </Border>
 
             <!-- Library screen (shown when ShowLibrary) -->
@@ -1193,6 +1081,7 @@
             </Button>
         </Border>
         </Grid>
+        </materialDesign:DialogHost>
         <!-- #67: snackbar non-blocking, đáy-giữa, tự ẩn; đổi icon theo mức độ (đặt ở grid ngoài để không nong cột nav). -->
         <Border Grid.RowSpan="2" Panel.ZIndex="100"
                 VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,24"
