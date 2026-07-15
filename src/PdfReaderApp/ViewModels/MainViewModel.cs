@@ -764,9 +764,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (_activeWorkspaceId == ws.Id)
         {
             _activeWorkspaceId = null;
+            IsWorkspaceSession = false;
+            DocumentsSurface.IsModalOpen = false;
             Notes.LoadFor(null);
+            SelectedWorkspace = null;   // null trước Tabs.Reset() — tránh Refresh stale qua OnActiveTabChanged
+            Tabs.Reset();
         }
-        if (SelectedWorkspace?.Id == ws.Id)
+        else if (SelectedWorkspace?.Id == ws.Id)
             SelectedWorkspace = null;
         ReloadWorkspaces();
     }
@@ -845,6 +849,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 // Workspace dùng chung: chỉ gỡ tài liệu ra, GIỮ các note neo tài liệu đó (mục 3)
                 _workspaceStore.RemoveDocument(wsId, docId);
+                // Bất biến Open Set ⊆ membership (#88): gỡ khỏi Library → gỡ membership → đóng Tab nếu workspace đang active.
+                if (wsId == _activeWorkspaceId)
+                {
+                    var openTab = Tabs.Tabs.FirstOrDefault(t => t.DocumentId == docId);
+                    if (openTab is not null) Tabs.Close(openTab);
+                }
             }
         }
         // Dọn note neo trực tiếp tới tài liệu ở mọi nơi

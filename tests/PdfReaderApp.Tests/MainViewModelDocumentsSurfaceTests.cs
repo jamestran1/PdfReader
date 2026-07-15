@@ -149,4 +149,80 @@ public class MainViewModelDocumentsSurfaceTests
         Assert.Equal("Đề tài mới", vm.SelectedWorkspace!.Name);
         Assert.Equal("Đề tài mới", vm.DocumentsSurface.WorkspaceName);
     }
+
+    // #88: RemoveLibraryItem trên doc đang có Tab mở trong workspace active phải đóng Tab đó.
+    [Fact]
+    public void RemoveLibraryItem_WhenDocInActiveWorkspace_WithOpenTab_ClosesTab()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = new TestableMainViewModel(wsStore);
+        var ws = new Workspace("ws1", "Dự án", false, null, 1, 1);
+        wsStore.Upsert(ws);
+        var item = new LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 5, 1, 1);
+        vm.Library.Add(item);
+        wsStore.AddDocument("ws1", "docA");
+        vm.OpenWorkspaceCommand.Execute(ws);   // seed docA tab, _activeWorkspaceId = "ws1"
+        Assert.True(vm.Tabs.HasTabs, "precondition: tab docA phai ton tai truoc khi xoa");
+
+        vm.RemoveLibraryItemCommand.Execute(item);
+
+        Assert.DoesNotContain(vm.Tabs.Tabs, t => t.DocumentId == "docA");
+    }
+
+    // #88 edge case: không crash khi doc không có Tab đang mở.
+    [Fact]
+    public void RemoveLibraryItem_WhenDocInActiveWorkspace_NoOpenTab_DoesNotCrash()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = new TestableMainViewModel(wsStore);
+        var ws = new Workspace("ws1", "Dự án", false, null, 1, 1);
+        wsStore.Upsert(ws);
+        var item = new LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 5, 1, 1);
+        vm.Library.Add(item);
+        wsStore.AddDocument("ws1", "docA");
+        vm.OpenWorkspaceCommand.Execute(ws);
+        vm.CloseTabCommand.Execute(vm.Tabs.ActiveTab);   // đóng tab trước
+        Assert.False(vm.Tabs.HasTabs, "precondition: khong co tab");
+
+        var ex = Record.Exception(() => vm.RemoveLibraryItemCommand.Execute(item));
+
+        Assert.Null(ex);
+        Assert.False(vm.Tabs.HasTabs);
+    }
+
+    // Reproduce test: DeleteWorkspace khi active phải không để lại library items
+    // trong LibraryAdditions (stale Refresh sau Tabs.Reset() với SelectedWorkspace chưa null).
+    [Fact]
+    public void DeleteWorkspace_WhenActive_LibraryNotInflatedIntoSurface()
+    {
+        var (vm, wsStore, ws) = MakeVmInWorkspace();
+        var doc = Seed(vm, "docA", "A");
+        wsStore.AddDocument("ws1", "docA");
+        vm.OpenWorkspaceDocumentCommand.Execute(doc);
+
+        vm.DeleteWorkspaceCommand.Execute(ws);
+
+        Assert.Empty(vm.DocumentsSurface.LibraryAdditions);
+    }
+
+    // Reproduce test cho bug #2: DeleteWorkspace trên workspace đang active
+    // phải đóng hết tab, thoát session, và tắt modal.
+    [Fact]
+    public void DeleteWorkspace_WhenActive_WithOpenTabsAndModal_ClosesTabsExitsSessionClearsModal()
+    {
+        var (vm, wsStore, ws) = MakeVmInWorkspace();
+        var doc = Seed(vm, "docA", "A");
+        wsStore.AddDocument("ws1", "docA");
+        vm.OpenWorkspaceDocumentCommand.Execute(doc);     // enters session, opens tab
+        vm.ShowWorkspaceDocumentsCommand.Execute(null);   // opens modal
+        Assert.True(vm.Tabs.HasTabs);
+        Assert.True(vm.IsWorkspaceSession);
+        Assert.True(vm.DocumentsSurface.IsModalOpen);
+
+        vm.DeleteWorkspaceCommand.Execute(ws);
+
+        Assert.False(vm.Tabs.HasTabs, "tabs phai dong het");
+        Assert.False(vm.IsWorkspaceSession, "phai thoat workspace session");
+        Assert.False(vm.DocumentsSurface.IsModalOpen, "modal phai tat");
+    }
 }
