@@ -54,6 +54,24 @@ _Avoid_: Tab bar (dùng được nhưng thống nhất "Tab Strip").
 Surface hai vùng cho Tài liệu của Workspace: (1) **thành viên** — thumbnail member doc, click → mở/kích hoạt Tab, kèm nút gỡ (**gỡ = xóa membership và đóng Tab nếu đang mở** — giữ bất biến Open Set ⊆ membership); (2) **thêm từ Library** — Add = thêm membership **và** mở Tab active. Header surface mang tên Workspace + đổi tên inline (bút chì). Cùng MỘT component ở **2 bối cảnh host**: modal nút "+" (DialogHost) và inline trong canvas khi Open Set rỗng (gộp empty-state lẫn lưới re-open). Chỉ ở named Workspace.
 _Avoid_: Thumbnail Gallery, document picker, doc grid, empty state.
 
+## Phát hành (Release)
+
+**Release**:
+Một phiên bản Trí Thư đánh dấu bằng git tag `vX.Y.Z` (SemVer, tag là nguồn sự thật duy nhất của version), đóng gói MSIX x64 self-contained và phân phối tới người dùng **chỉ qua Microsoft Store**. Không có kênh tải trực tiếp.
+_Avoid_: Build, deploy, bản phát hành GitHub (GitHub Release chỉ là nơi lưu artifact + notes cho dev, không phải kênh tới user).
+
+**Package Identity**:
+Danh tính MSIX (Package Name + Publisher) do Partner Center cấp khi reserve tên app — thứ Windows/Store dùng để nhận diện app, độc lập với tên hiển thị "Trí Thư".
+_Avoid_: App ID, tên app.
+
+**Submission**:
+Một lần nộp MSIX + listing lên Partner Center để Microsoft certification. Đạt thì Store tự ký package và phân phối; app không tự ký, không tự update (Store lo cả hai).
+_Avoid_: Upload, publish (mơ hồ giữa nộp và đã lên Store).
+
+**MSIX smoke test**:
+Bước kiểm tra bắt buộc trước mỗi Submission: cài bản MSIX thật trên máy local (dev cert) và chạy checklist ngắn — vì app trong MSIX chạy khác app từ `bin/` (AppData ảo hóa, package identity), test suite không bắt được lớp lỗi này.
+_Avoid_: QA, manual test (chung chung).
+
 **Hydration / Eviction**:
 **Hydrate** = nạp PDFium + render cho một Tab khi kích hoạt. **Evict** = giải phóng để giới hạn bộ nhớ. Chính sách: tab active render đầy đủ; mọi tab inactive bỏ bitmap cache; giữ handle PDFium cho active + ~5 tab MRU, quá thì dispose handle (còn header + view-state) và re-hydrate khi click. Khôi phục khi vào Workspace là **lười**: chỉ tab active nạp doc.
 _Avoid_: Load/unload, cache.
