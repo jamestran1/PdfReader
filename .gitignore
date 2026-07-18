@@ -489,3 +489,6 @@ conductor/
 
 # SDD scratch (subagent-driven-development ledger/briefs)
 .superpowers/
+
+# Development certificate
+devcert.pfx
