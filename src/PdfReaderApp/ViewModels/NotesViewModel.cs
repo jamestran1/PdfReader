@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -35,6 +35,9 @@ public sealed partial class NotesViewModel : ObservableObject
     [ObservableProperty] private int _rightTabIndex;
     [ObservableProperty] private string? _pendingQuote;
     [ObservableProperty] private bool _showDocumentChips;
+    [ObservableProperty] private bool _filterCurrentDocumentOnly;
+    [ObservableProperty] private double _notesScroll;
+    [ObservableProperty] private string? _selectedNoteId;
 
     // Từ điển tiêu đề tài liệu: documentId -> tiêu đề hiển thị (dùng cho chip nhãn)
     public IReadOnlyDictionary<string, string> DocumentTitles { get; private set; } = new Dictionary<string, string>();
@@ -70,10 +73,13 @@ public sealed partial class NotesViewModel : ObservableObject
         return b.CreatedAtUnixMs.CompareTo(a.CreatedAtUnixMs);
     }
 
-    public static bool MatchesFilter(Note n, string? filter)
-        => string.IsNullOrWhiteSpace(filter)
+    public bool MatchesFilter(Note n, string? filter)
+    {
+        if (FilterCurrentDocumentOnly && n.DocumentId != _currentDocumentId?.Invoke()) return false;
+        return string.IsNullOrWhiteSpace(filter)
            || n.Content.Contains(filter, StringComparison.OrdinalIgnoreCase)
            || (n.Quote != null && n.Quote.Contains(filter, StringComparison.OrdinalIgnoreCase));
+    }
 
     public void LoadFor(string? ownerKey)
     {
@@ -86,13 +92,20 @@ public sealed partial class NotesViewModel : ObservableObject
             try { _all.AddRange(_store.GetForOwner(ownerKey)); }
             catch { /* lỗi store không làm hỏng UI */ }
         }
-        RebuildItems();
-        Highlights.Clear();
-        foreach (var n in _all)
-            if (n.Rects != null && n.Rects.Count > 0) Highlights.Add(n);
+        RefreshForCurrentDocument();
     }
 
     partial void OnFilterTextChanged(string value) => RebuildItems();
+    partial void OnFilterCurrentDocumentOnlyChanged(bool value) => RebuildItems();
+
+    public void RefreshForCurrentDocument()
+    {
+        RebuildItems();
+        Highlights.Clear();
+        string? cur = _currentDocumentId?.Invoke();
+        foreach (var n in _all)
+            if (n.Rects != null && n.Rects.Count > 0 && n.DocumentId == cur) Highlights.Add(n);
+    }
 
     private void RebuildItems()
     {
