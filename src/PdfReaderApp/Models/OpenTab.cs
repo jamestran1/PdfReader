@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace PdfReaderApp.Models;
 
@@ -24,6 +24,18 @@ public sealed partial class OpenTab : ObservableObject
     /// <summary>Vị trí cuộn đã chuẩn hóa trong trang [0..1], best-effort. Mặc định 0.</summary>
     [ObservableProperty]
     private double _scrollNorm = 0.0;
+
+    /// <summary>Scroll của panel Notes. Mặc định 0.</summary>
+    [ObservableProperty]
+    private double _notesScroll = 0.0;
+
+    /// <summary>Id của note đang chọn. Mặc định null.</summary>
+    [ObservableProperty]
+    private string? _selectedNoteId;
+
+    /// <summary>Cờ lọc "chỉ tài liệu này". Mặc định false.</summary>
+    [ObservableProperty]
+    private bool _filterCurrentDocumentOnly = false;
 
     public OpenTab(string documentId, string title, string path)
     {
