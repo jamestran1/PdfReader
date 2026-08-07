@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using PdfReaderApp.Models;
@@ -195,11 +195,12 @@ public class NotesViewModelTests
     [Fact]
     public void MatchesFilter_Rules()
     {
+        var vm = new NotesViewModel(new FakeNoteStore(), () => 1, _ => { });
         var n = new Note("a", "o", "o", 1, null, "Hello World", 1, 1);
-        Assert.True(NotesViewModel.MatchesFilter(n, ""));
-        Assert.True(NotesViewModel.MatchesFilter(n, "  "));
-        Assert.True(NotesViewModel.MatchesFilter(n, "WORLD"));
-        Assert.False(NotesViewModel.MatchesFilter(n, "xyz"));
+        Assert.True(vm.MatchesFilter(n, ""));
+        Assert.True(vm.MatchesFilter(n, "  "));
+        Assert.True(vm.MatchesFilter(n, "WORLD"));
+        Assert.False(vm.MatchesFilter(n, "xyz"));
     }
 
     private static List<HighlightRect> SampleRects() => new() { new(1, 2, 30, 10) };
@@ -239,7 +240,7 @@ public class NotesViewModelTests
     public void Save_QuoteOnly_EmptyDraft_StillCreatesNote()
     {
         var store = new FakeNoteStore();
-        var vm = Make(store, page: 1);
+        var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
         vm.LoadFor("doc1");
         vm.BeginNoteFromSelection("chỉ trích dẫn", 0, new List<HighlightRect>());
         // Draft để rỗng
@@ -255,7 +256,7 @@ public class NotesViewModelTests
     public void CancelEdit_ClearsPendingQuote()
     {
         var store = new FakeNoteStore();
-        var vm = Make(store, page: 1);
+        var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
         vm.LoadFor("doc1");
         vm.BeginNoteFromSelection("trích", 0, SampleRects());
         vm.CancelEditCommand.Execute(null);
@@ -284,7 +285,7 @@ public class NotesViewModelTests
     public void AddNote_NoRects_NotInHighlights()
     {
         var store = new FakeNoteStore();
-        var vm = Make(store, page: 1);
+        var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
         vm.LoadFor("doc1");
         vm.AddNote("câu trả lời AI", null, null); // 2a: không rects
         Assert.Empty(vm.Highlights);
@@ -311,7 +312,7 @@ public class NotesViewModelTests
         var store = new FakeNoteStore();
         store.Add(new Note("a", "doc1", "doc1", 1, "q", "có rects", 1, 1, SampleRects(), "#FFEB3B"));
         store.Add(new Note("b", "doc1", "doc1", 1, null, "không rects", 2, 2));
-        var vm = Make(store, page: 1);
+        var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
 
         vm.FilterText = "zzz"; // không khớp gì
         vm.LoadFor("doc1");
@@ -342,7 +343,7 @@ public class NotesViewModelTests
     public void AddNote_NoDocumentOpen_ReturnsFalseAndAddsNothing()
     {
         var store = new FakeNoteStore();
-        var vm = Make(store, page: 1);
+        var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
         vm.LoadFor(null); // chưa mở sách
 
         bool ok = vm.AddNote("x", null, null);
@@ -355,7 +356,7 @@ public class NotesViewModelTests
     public void AddNote_EmptyContent_ReturnsFalse()
     {
         var store = new FakeNoteStore();
-        var vm = Make(store, page: 1);
+        var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
         vm.LoadFor("doc1");
 
         Assert.False(vm.AddNote("   ", null, null));
@@ -366,7 +367,7 @@ public class NotesViewModelTests
     public void AddNote_RespectsActiveFilter()
     {
         var store = new FakeNoteStore();
-        var vm = Make(store, page: 1);
+        var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
         vm.LoadFor("doc1");
         vm.FilterText = "xyz"; // không khớp note mới
 
@@ -520,7 +521,7 @@ public class NotesViewModelTests
     public void SetDocumentContext_TogglesShowChipsAndTitles()
     {
         var store = new FakeNoteStore();
-        var vm = Make(store, page: 1);
+        var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
 
         var map1 = new Dictionary<string, string> { ["doc1"] = "Tài liệu 1", ["doc2"] = "Tài liệu 2" };
         vm.SetDocumentContext(map1, showChips: true);

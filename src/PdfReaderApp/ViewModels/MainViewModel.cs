@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading;
@@ -420,10 +420,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // View-state sống trên OpenTab (một nguồn sự thật). Theo dõi tab active để khi viewer
         // ghi Page/Zoom/TotalPages thì toolbar (bind vm.CurrentPage/ZoomLevel/TotalPages) cập nhật.
         if (_subscribedTab is not null)
+        {
             _subscribedTab.PropertyChanged -= OnActiveTabViewStateChanged;
+            _subscribedTab.NotesScroll = Notes.NotesScroll;
+            _subscribedTab.SelectedNoteId = Notes.SelectedNoteId;
+            _subscribedTab.FilterCurrentDocumentOnly = Notes.FilterCurrentDocumentOnly;
+        }
+
         _subscribedTab = incoming;
         if (incoming is not null)
+        {
             incoming.PropertyChanged += OnActiveTabViewStateChanged;
+            Notes.NotesScroll = incoming.NotesScroll;
+            Notes.SelectedNoteId = incoming.SelectedNoteId;
+            Notes.FilterCurrentDocumentOnly = incoming.FilterCurrentDocumentOnly;
+        }
+
+        SearchQuery = string.Empty;
 
         if (incoming is not null)
             HydrateTab(incoming);
@@ -891,11 +904,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(CurrentDocumentId));
             OnPropertyChanged(nameof(HasDocument));
             OnPropertyChanged(nameof(CanPromoteToWorkspace));
-            LoadChatHistory();
             // S2: dùng seam ResolveWorkspaceScope để quyết định scope (workspace cụ thể hoặc default)
             long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string title = System.IO.Path.GetFileNameWithoutExtension(path);
             _activeWorkspaceId = ResolveWorkspaceScope(workspaceScopeId, _documentId, title, nowMs);
+            LoadChatHistory();
             Notes.LoadFor(_activeWorkspaceId);
             UpdateNotesDocumentContext();
             OnPropertyChanged(nameof(ActiveWorkspaceId));
@@ -928,11 +941,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Nạp lại khung chat theo sách đang mở: hiện bong bóng cũ và dựng lại bộ nhớ LLM.
     // Sách chưa có lịch sử (hoặc chưa mở sách nào) -> hiện 1 bong bóng chào, reset LLM.
+    private string? _currentChatOwnerId;
+
     private void LoadChatHistory()
     {
+        string? newOwnerId = IsWorkspaceSession ? _activeWorkspaceId : _documentId;
+        if (newOwnerId == _currentChatOwnerId && _currentChatOwnerId != null) return;
+        _currentChatOwnerId = newOwnerId;
+
         ChatMessages.Clear();
 
-        if (_documentId is null)
+        if (newOwnerId is null)
         {
             ShowGreeting();
             _chatService.ResetConversation();
@@ -940,7 +959,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         System.Collections.Generic.IReadOnlyList<ChatHistoryEntry> entries;
-        try { entries = _chatHistory.GetAll(_documentId); }
+        try { entries = _chatHistory.GetAll(newOwnerId); }
         catch { entries = System.Array.Empty<ChatHistoryEntry>(); }
 
         if (entries.Count == 0)
@@ -1049,12 +1068,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
             void PersistTurn(string answer)
             {
-                if (_documentId is null) return;
+                string? owner = IsWorkspaceSession ? _activeWorkspaceId : _documentId;
+                if (owner is null) return;
                 try
                 {
                     long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                    _chatHistory.Append(_documentId, "User", question, now);
-                    _chatHistory.Append(_documentId, "AI", answer, now);
+                    _chatHistory.Append(owner, "User", question, now);
+                    _chatHistory.Append(owner, "AI", answer, now);
                 }
                 catch { /* không chặn chat khi lưu lỗi */ }
             }
