@@ -30,12 +30,7 @@ if (Test-Path "Assets") {
 }
 
 Write-Host "Packaging MSIX..."
-# Generate a dummy dev cert if we don't have one for testing? Ticket says:
-# "Given dev cert self-signed đã cài (một lần). When cài file .msix vừa build và mở app. Then app khởi động..."
-# So the script should probably use --generate-cert or require a cert? 
-# Wait, winapp package has --generate-cert. Let's just create the msix without signing, or with a dummy cert?
-# Actually, the user says "dev cert self-signed đã cài". This means the cert is generated elsewhere or I can use --generate-cert and --install-cert here if they want? 
-# Let's generate a cert if it doesn't exist.
+# Cert dev chỉ để cài local khi smoke test; bản Store được Microsoft re-sign nên cert này không theo package (ADR 0005).
 if (-not (Test-Path "devcert.pfx")) {
     Write-Host "Generating devcert.pfx for testing..."
     winapp cert generate --output devcert.pfx --password password --publisher "CN=Placeholder"
