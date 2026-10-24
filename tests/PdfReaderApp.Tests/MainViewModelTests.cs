@@ -828,7 +828,7 @@ public class MainViewModelTests
         // Mọi membership docA phải gỡ sạch
         Assert.Empty(wsStore.GetWorkspaceIdsForDocument("docA"));
         // Không còn note nào neo tới docA
-        Assert.Empty(notes.Rows.Where(n => n.DocumentId == "docA"));
+        Assert.DoesNotContain(notes.Rows, n => string.Equals(n.DocumentId, "docA", StringComparison.Ordinal));
         // Chat history đã bị xóa
         Assert.Contains("docA", chat.Deleted, StringComparer.Ordinal);
         // LibraryItem đã bị xóa khỏi vm.Library
