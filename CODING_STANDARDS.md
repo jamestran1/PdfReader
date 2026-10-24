@@ -50,6 +50,7 @@ Lý do: bộ nhớ native không do GC quản lý; rò rỉ khi cuộn nhiều t
 Lý do: exception trong `async void` không bắt được và làm sập app.
 
 **CS-4** 🟡 Chỉ bắt exception mà code xử lý được: dùng kiểu cụ thể hoặc `catch (Exception ex) when (...)`. `catch (Exception)` trần chỉ đặt ở ranh giới (event handler, `[RelayCommand]`, vòng lặp stream) và phải hiển thị cho người dùng, ghi log, hoặc bọc lại kèm inner exception; không nuốt im lặng. (máy kiểm một phần: CA1031)
+Ở ranh giới hợp lệ, tắt CA1031 ngay tại chỗ và ghi lý do: `#pragma warning disable CA1031 // ranh giới UI: hiện lỗi cho người dùng` trước `catch` và `#pragma warning restore CA1031` sau khối đó, hoặc `[SuppressMessage("Design", "CA1031", Justification = "...")]` trên method. Không tắt CA1031 cho cả file hay cả project.
 Lý do: nuốt lỗi im lặng che lỗi thật và làm bug không tái hiện được.
 
 **CS-5** 🔵 Chuỗi hoặc số mang nghĩa miền dùng ở nhiều nơi (vai trò chat, key setting, tên bảng) là `const` PascalCase hoặc `enum`, không lặp literal. Chuỗi UI và giá trị chỉ dùng một lần được miễn.
