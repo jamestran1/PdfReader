@@ -590,7 +590,9 @@ public class MainViewModelTests
         Assert.True(vm.IsReadingDocument);
 
         // Dọn dẹp
+#pragma warning disable CA1031 // dọn thư mục tạm của test là best-effort
         try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
+#pragma warning restore CA1031
     }
 
     [Fact]
@@ -642,7 +644,9 @@ public class MainViewModelTests
         Assert.Equal(itemB.DocumentId, vm.CurrentDocumentId); // đã mở docB
         Assert.Equal(3, vm.CurrentPage);                       // mở thẳng tại trang neo (index 2 -> trang 3)
 
+#pragma warning disable CA1031 // dọn thư mục tạm của test là best-effort
         try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
+#pragma warning restore CA1031
     }
 
     // --- S4 tests (#36) ---
@@ -919,7 +923,9 @@ public class MainViewModelTests
         Assert.DoesNotContain(vm.Notes.Highlights, n => n.OwnerKey == Dft.Id);
         Assert.Empty(vm.Notes.Highlights); // W chưa có note
 
+#pragma warning disable CA1031 // dọn thư mục tạm của test là best-effort
         try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
+#pragma warning restore CA1031
     }
 
     [Fact]

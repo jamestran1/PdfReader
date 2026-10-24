@@ -167,6 +167,9 @@ PRAGMA user_version = 1;";
 
     public void Dispose()
     {
+#pragma warning disable CA1031 // dọn thư mục tạm của test là best-effort
         try { Directory.Delete(_dir, true); } catch { }
+#pragma warning restore CA1031
+        GC.SuppressFinalize(this);
     }
 }

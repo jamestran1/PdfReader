@@ -53,7 +53,9 @@ public partial class App : Application
         {
             System.IO.File.WriteAllText("pdf_crash_log.txt", detail);
         }
-        catch { }
+#pragma warning disable CA1031 // ghi crash log là best-effort: lỗi ghi file không được che hộp thoại báo lỗi gốc
+        catch (Exception inner) { System.Diagnostics.Trace.TraceWarning($"App.LogAndShowException: không ghi được crash log: {inner}"); }
+#pragma warning restore CA1031
 
         MessageBox.Show(detail, title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
@@ -72,7 +74,7 @@ public partial class App : Application
         while (current != null)
         {
             sb.AppendLine(CultureInfo.CurrentCulture, $"[Level {depth}] {current.GetType().FullName}");
-            sb.AppendLine($"Message: {current.Message}");
+            sb.AppendLine(CultureInfo.CurrentCulture, $"Message: {current.Message}");
             sb.AppendLine("Stack Trace:");
             sb.AppendLine(current.StackTrace);
             sb.AppendLine(new string('-', 40));

@@ -26,10 +26,13 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
             _conn.LoadExtension(vec0Path);
             _vecAvailable = true;
         }
-        catch (Exception)
+#pragma warning disable CA1031 // degrade: không nạp được vec0 thì chỉ dùng FTS5, RAG lùi về ngữ cảnh theo trang
+        catch (Exception ex)
         {
+            System.Diagnostics.Trace.TraceWarning($"SqliteDocumentIndex: không nạp được vec0: {ex}");
             _vecAvailable = false; // degrade: FTS5 only, RAG falls back to per-page context
         }
+#pragma warning restore CA1031
     }
 
     public void EnsureSchema()

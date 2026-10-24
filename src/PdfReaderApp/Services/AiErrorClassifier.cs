@@ -33,7 +33,9 @@ public static class AiErrorClassifier
         {
             string detail = cre.Message;
             try { detail += " " + cre.GetRawResponse()?.Content?.ToString(); }
-            catch { /* raw response not always available */ }
+#pragma warning disable CA1031 // best-effort: raw response không phải lúc nào cũng đọc được, mất chi tiết thì vẫn phân loại theo status
+            catch (Exception inner) { System.Diagnostics.Trace.TraceWarning($"AiErrorClassifier.Classify: không đọc được raw response: {inner}"); /* raw response not always available */ }
+#pragma warning restore CA1031
             return ClassifyResponse(cre.Status, detail);
         }
 

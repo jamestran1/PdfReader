@@ -7,7 +7,9 @@ public interface IWorkspaceStore
 {
     void EnsureSchema();
     void Upsert(Workspace workspace);
+#pragma warning disable CA1716 // "Get" trùng từ khoá VB; đổi tên sẽ kéo theo hàng chục chỗ gọi, ứng dụng chỉ dùng C#
     Workspace? Get(string id);
+#pragma warning restore CA1716
     IReadOnlyList<Workspace> GetAll(bool includeDefault);
     void AddDocument(string workspaceId, string documentId);
     void RemoveDocument(string workspaceId, string documentId);

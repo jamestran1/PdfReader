@@ -16,7 +16,9 @@ public class SearchSnippetHighlighterUiTests
         var t = new Thread(() =>
         {
             try { action(); }
+#pragma warning disable CA1031 // gom mọi exception trên luồng STA để ném lại ở luồng gọi
             catch (Exception e) { captured = e; }
+#pragma warning restore CA1031
         });
         t.SetApartmentState(ApartmentState.STA);
         t.Start();

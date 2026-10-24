@@ -61,5 +61,6 @@ public class SqliteDocumentIndexTrigramSearchTests : IDisposable
     {
         _idx.Dispose();
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+        GC.SuppressFinalize(this);
     }
 }
