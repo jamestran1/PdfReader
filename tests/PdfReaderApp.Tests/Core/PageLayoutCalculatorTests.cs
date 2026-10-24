@@ -98,6 +98,66 @@ public class PageLayoutCalculatorTests
     }
 
     [Fact]
+    public void Continuous_AppliesScale_ToSlotSizeAndContent()
+    {
+        var r = PageLayoutCalculator.Compute(PdfViewMode.Continuous, false, Pages(2), scale: 2.0,
+            viewportWidth: 500, pageGap: 10, unitGap: 20, currentPageIndex: 0);
+        Assert.All(r.Slots, s => Assert.Equal(200, s.Width, 3));
+        Assert.All(r.Slots, s => Assert.Equal(400, s.Height, 3));
+        Assert.Equal(new[] { 0.0, 420.0 }, r.Slots.Select(s => s.Y));
+        Assert.Equal(820, r.ContentHeight, 3); // 2*400 + 20
+    }
+
+    [Fact]
+    public void Facing_PagesOfDifferentHeight_AreVerticallyCenteredInRow()
+    {
+        var pages = new List<(double, double)> { (100, 200), (100, 100) };
+        var r = PageLayoutCalculator.Compute(PdfViewMode.Facing, false, pages, 1.0, 500, 10, 20, 0);
+        Assert.Equal(0, r.Slots[0].Y, 3);
+        Assert.Equal(50, r.Slots[1].Y, 3); // (200 - 100) / 2
+        Assert.Equal(200, r.ContentHeight, 3);
+    }
+
+    [Theory]
+    [InlineData(-5, 0)]
+    [InlineData(99, 4)]
+    public void SinglePage_OutOfRangeCurrentPage_IsClampedNotThrown(int current, int expectedPage)
+    {
+        var r = Run(PdfViewMode.SinglePage, false, 5, current: current);
+        Assert.Single(r.Slots);
+        Assert.Equal(expectedPage, r.Slots[0].PageIndex);
+    }
+
+    [Fact]
+    public void ContinuousFacing_NoCover_OddPageCount_StacksPairsThenSingleton()
+    {
+        var r = Run(PdfViewMode.ContinuousFacing, false, 3);
+        Assert.Equal(new[] { 0, 2 }, r.UnitStartPages);
+        Assert.Equal(new[] { 0, 1, 2 }, r.Slots.Select(s => s.PageIndex));
+        Assert.Equal(220, r.Slots[2].Y, 3);
+        Assert.Equal(200, r.Slots[2].X, 3); // singleton centered
+        Assert.Equal(420, r.ContentHeight, 3);
+    }
+
+    [Fact]
+    public void Facing_ShowCover_SinglePageDocument_IsCoverAlone()
+    {
+        var r = Run(PdfViewMode.Facing, true, 1, current: 0);
+        Assert.Single(r.Slots);
+        Assert.Equal(new[] { 0 }, r.UnitStartPages);
+    }
+
+    [Fact]
+    public void Continuous_WideUnit_CentersNarrowerUnitsInGrownContent()
+    {
+        var pages = new List<(double, double)> { (300, 100), (100, 100) };
+        var r = PageLayoutCalculator.Compute(PdfViewMode.Continuous, false, pages, 1.0, 200, 10, 20, 0);
+        Assert.Equal(300, r.ContentWidth, 3);
+        Assert.Equal(0, r.Slots[0].X, 3);
+        Assert.Equal(100, r.Slots[1].X, 3); // (300 - 100) / 2
+    }
+
+    [Fact]
     public void EmptyDocument_ReturnsEmpty()
     {
         var r = PageLayoutCalculator.Compute(PdfViewMode.Continuous, true,
