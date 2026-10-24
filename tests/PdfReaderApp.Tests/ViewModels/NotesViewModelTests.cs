@@ -520,14 +520,14 @@ public class NotesViewModelTests
         var store = new FakeNoteStore();
         var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
 
-        var map1 = new Dictionary<string, string> { ["doc1"] = "Tài liệu 1", ["doc2"] = "Tài liệu 2" };
+        var map1 = new Dictionary<string, string>(StringComparer.Ordinal) { ["doc1"] = "Tài liệu 1", ["doc2"] = "Tài liệu 2" };
         vm.SetDocumentContext(map1, showChips: true);
 
         Assert.True(vm.ShowDocumentChips);
         Assert.Equal("Tài liệu 1", vm.DocumentTitles["doc1"]);
         Assert.Equal("Tài liệu 2", vm.DocumentTitles["doc2"]);
 
-        var map2 = new Dictionary<string, string> { ["doc3"] = "Tài liệu 3" };
+        var map2 = new Dictionary<string, string>(StringComparer.Ordinal) { ["doc3"] = "Tài liệu 3" };
         vm.SetDocumentContext(map2, showChips: false);
 
         Assert.False(vm.ShowDocumentChips);

@@ -129,7 +129,7 @@ public class MainViewModelTabTests
         // Chỉ một tab
         Assert.Single(vm.Tabs.Tabs);
         // Membership không bị sửa (AddDocument hay RemoveDocument không được gọi thêm)
-        Assert.Contains("docA", wsStore.GetDocumentIds(W.Id));
+        Assert.Contains("docA", wsStore.GetDocumentIds(W.Id), StringComparer.Ordinal);
         Assert.Equal(0, wsStore.RemoveDocumentCallCount);
     }
 
@@ -156,7 +156,7 @@ public class MainViewModelTabTests
 
         // Membership phải nguyên vẹn - đóng tab != gỡ tài liệu khỏi workspace
         Assert.Equal(0, wsStore.RemoveDocumentCallCount);
-        Assert.Contains("docA", wsStore.GetDocumentIds(W.Id));
+        Assert.Contains("docA", wsStore.GetDocumentIds(W.Id), StringComparer.Ordinal);
     }
 
     // =========================================================
@@ -282,7 +282,7 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceCommand.Execute(workspace);
 
         Assert.True(vm.IsWorkspaceSession);
-        Assert.Equal(new[] { "docA", "docB" }, vm.Tabs.Tabs.Select(t => t.DocumentId));
+        Assert.Equal(new[] { "docA", "docB" }, vm.Tabs.Tabs.Select(t => t.DocumentId), StringComparer.Ordinal);
         Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
         Assert.Equal(8, vm.Tabs.ActiveTab!.Page);
         Assert.Equal(2.5, vm.Tabs.ActiveTab!.Zoom);

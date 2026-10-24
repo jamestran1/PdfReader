@@ -65,10 +65,10 @@ public class LibraryCardStyleTests
         // Cho phép scrim đen trong suốt (#AARRGGBB với RGB=000000) đè lên bìa tuỳ ý;
         // cấm hex màu thương hiệu (mọi hex có thành phần RGB khác 000000).
         var raw = File.ReadAllText(DictPath());
-        var hexColors = Regex.Matches(raw, "\"#([0-9A-Fa-f]{6,8})\"");
+        var hexColors = Regex.Matches(raw, "\"#(?<hex>[0-9A-Fa-f]{6,8})\"", RegexOptions.None, TimeSpan.FromSeconds(1));
         foreach (Match match in hexColors)
         {
-            string hex = match.Groups[1].Value;
+            string hex = match.Groups["hex"].Value;
             string rgb = hex.Length == 8 ? hex.Substring(2) : hex;
             Assert.Equal("000000", rgb.ToUpperInvariant());
         }

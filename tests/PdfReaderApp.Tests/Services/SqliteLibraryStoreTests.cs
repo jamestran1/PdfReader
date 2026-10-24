@@ -46,7 +46,7 @@ public class SqliteLibraryStoreTests : IDisposable
         _store.Upsert(Item("old", 100));
         _store.Upsert(Item("new", 900));
         _store.Upsert(Item("mid", 500));
-        Assert.Equal(new[] { "new", "mid", "old" }, _store.GetAll().Select(i => i.DocumentId));
+        Assert.Equal(new[] { "new", "mid", "old" }, _store.GetAll().Select(i => i.DocumentId), StringComparer.Ordinal);
     }
 
     [Fact]

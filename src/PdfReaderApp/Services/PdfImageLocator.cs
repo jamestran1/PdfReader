@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using iText.Kernel.Geom;
 using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
@@ -9,9 +10,10 @@ namespace PdfReaderApp.Services;
 
 public static class PdfImageLocator
 {
+    [StructLayout(LayoutKind.Auto)]
     public readonly record struct NormalizedRect(double Left, double Top, double Width, double Height);
 
-    public static Dictionary<int, IReadOnlyList<NormalizedRect>> GetNormalizedImageRectsByPage(string path)
+    public static IReadOnlyDictionary<int, IReadOnlyList<NormalizedRect>> GetNormalizedImageRectsByPage(string path)
     {
         var result = new Dictionary<int, IReadOnlyList<NormalizedRect>>();
         using var reader = new PdfReader(path);

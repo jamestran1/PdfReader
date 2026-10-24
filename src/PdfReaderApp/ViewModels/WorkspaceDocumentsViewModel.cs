@@ -24,8 +24,8 @@ public sealed partial class WorkspaceDocumentsViewModel : ObservableObject
     public ObservableCollection<LibraryItem> Members { get; } = [];
     public ObservableCollection<LibraryItem> LibraryAdditions { get; } = [];
 
-    [ObservableProperty] private bool _isModalOpen;
-    [ObservableProperty] private string _workspaceName = string.Empty;
+    [ObservableProperty] public partial bool IsModalOpen { get; set; }
+    [ObservableProperty] public partial string WorkspaceName { get; set; } = string.Empty;
 
     public WorkspaceDocumentsViewModel(
         IWorkspaceStore workspaceStore,
@@ -101,9 +101,9 @@ public sealed partial class WorkspaceDocumentsViewModel : ObservableObject
     [RelayCommand]
     private void CloseModal() => IsModalOpen = false;
 
-    [ObservableProperty] private bool _isRenaming;
-    [ObservableProperty] private string _renameDraft = string.Empty;
-    [ObservableProperty] private string _renameError = string.Empty;
+    [ObservableProperty] public partial bool IsRenaming { get; set; }
+    [ObservableProperty] public partial string RenameDraft { get; set; } = string.Empty;
+    [ObservableProperty] public partial string RenameError { get; set; } = string.Empty;
 
     [RelayCommand]
     private void BeginRename()

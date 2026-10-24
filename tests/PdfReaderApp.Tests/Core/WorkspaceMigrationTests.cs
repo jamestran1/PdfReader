@@ -42,7 +42,7 @@ public class WorkspaceMigrationTests : IDisposable
         // Mỗi tài liệu có đúng 1 default workspace
         var wsA = _wsStore.GetOrCreateDefaultForDocument("docA", "Tài liệu A", Now);
         var wsB = _wsStore.GetOrCreateDefaultForDocument("docB", "Tài liệu B", Now);
-        Assert.NotEqual(wsA.Id, wsB.Id);
+        Assert.NotEqual(wsA.Id, wsB.Id, StringComparer.Ordinal);
 
         // Ghi chú của docA đã chuyển sang wsA.Id
         Assert.Equal(2, _noteStore.GetForOwner(wsA.Id).Count);

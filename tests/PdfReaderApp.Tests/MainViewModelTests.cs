@@ -191,7 +191,7 @@ public class MainViewModelTests
 
         vm.RemoveLibraryItemCommand.Execute(item);
 
-        Assert.Contains("docX", store.Deleted);
+        Assert.Contains("docX", store.Deleted, StringComparer.Ordinal);
     }
 
     [Fact]
@@ -732,7 +732,7 @@ public class MainViewModelTests
         Assert.Single(notes.GetForOwner(W.Id));
         Assert.Equal("note neo", notes.GetForOwner(W.Id)[0].Content);
         // Membership docA-W đã gỡ
-        Assert.DoesNotContain("docA", wsStore.GetDocumentIds(W.Id));
+        Assert.DoesNotContain("docA", wsStore.GetDocumentIds(W.Id), StringComparer.Ordinal);
     }
 
     // ===== #63 Right-panel collapse (global, toggle -> thin strip) =====
@@ -825,7 +825,7 @@ public class MainViewModelTests
         // Không còn note nào neo tới docA
         Assert.Empty(notes.Rows.Where(n => n.DocumentId == "docA"));
         // Chat history đã bị xóa
-        Assert.Contains("docA", chat.Deleted);
+        Assert.Contains("docA", chat.Deleted, StringComparer.Ordinal);
         // LibraryItem đã bị xóa khỏi vm.Library
         Assert.DoesNotContain(vm.Library, i => i.DocumentId == "docA");
     }

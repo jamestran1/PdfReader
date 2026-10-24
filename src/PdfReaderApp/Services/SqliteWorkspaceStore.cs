@@ -9,7 +9,7 @@ public sealed class SqliteWorkspaceStore : IWorkspaceStore
 {
     private const long SchemaVersion = 2;
     private readonly string _connectionString;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public SqliteWorkspaceStore(string dbPath)
     {

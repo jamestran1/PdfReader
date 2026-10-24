@@ -20,14 +20,14 @@ public class DocumentChipTests
     {
         string[] palette = { "#1E88E5", "#43A047", "#E53935", "#8E24AA", "#FB8C00", "#00ACC1", "#3949AB", "#7CB342" };
         string result = DocumentChip.ColorHexFor("some-document-id");
-        Assert.Contains(result, palette);
+        Assert.Contains(result, palette, StringComparer.Ordinal);
     }
 
     [Fact]
     public void ColorHexFor_DiffersForDifferentIds()
     {
         // Với ít nhất 2 id khác nhau trong bảng 8 màu, đảm bảo ít nhất một cặp cho màu khác nhau
-        var results = new HashSet<string>();
+        var results = new HashSet<string>(StringComparer.Ordinal);
         string[] ids = { "doc-1", "doc-2", "doc-3", "doc-4", "doc-5", "doc-6", "doc-7", "doc-8", "doc-9" };
         foreach (var id in ids) results.Add(DocumentChip.ColorHexFor(id));
         // Với 9 id khác nhau, ít nhất phải có 2 màu khác nhau (bảng 8 màu)

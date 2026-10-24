@@ -9,7 +9,7 @@ public sealed class SqliteNoteStore : INoteStore
 {
     private const long SchemaVersion = 3;
     private readonly string _connectionString;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public SqliteNoteStore(string dbPath)
     {

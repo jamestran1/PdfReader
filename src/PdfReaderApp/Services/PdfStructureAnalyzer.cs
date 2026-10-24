@@ -19,7 +19,7 @@ public class PdfStructureAnalyzer
         _documentService = documentService;
     }
 
-    public List<TextChunk> Analyze() =>
+    public IReadOnlyList<TextChunk> Analyze() =>
         _documentService.ExtractStructure()
             .Select(b => new TextChunk
             {
@@ -29,5 +29,5 @@ public class PdfStructureAnalyzer
             })
             .ToList();
 
-    public List<TextBlock> AnalyzeRich() => _documentService.ExtractStructure();
+    public IReadOnlyList<TextBlock> AnalyzeRich() => _documentService.ExtractStructure();
 }

@@ -40,7 +40,7 @@ public class WorkspaceDocumentsViewStyleTests
         Assert.Contains("materialDesign:DialogHost", xaml);
         Assert.Contains("{Binding DocumentsSurface.IsModalOpen}", xaml);
         Assert.Contains("controls:WorkspaceDocumentsView", xaml);
-        Assert.Equal(2, Regex.Count(xaml, "<controls:WorkspaceDocumentsView"));
+        Assert.Equal(2, Regex.Count(xaml, "<controls:WorkspaceDocumentsView", RegexOptions.None, TimeSpan.FromSeconds(1)));
     }
 
     [Fact]

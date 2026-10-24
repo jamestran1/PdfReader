@@ -4,7 +4,7 @@ namespace PdfReaderApp.Services;
 
 public static class TextChunker
 {
-    public static List<Chunk> Chunk(
+    public static IReadOnlyList<Chunk> Chunk(
         string documentId, IReadOnlyList<TextBlock> blocks, int maxChars = 900, int overlap = 100)
     {
         var result = new List<Chunk>();
@@ -31,7 +31,7 @@ public static class TextChunker
         return result;
     }
 
-    public static List<Chunk> ChunkPages(
+    public static IReadOnlyList<Chunk> ChunkPages(
         string documentId, IReadOnlyList<PageText> pages, int maxChars = 900, int overlap = 100)
     {
         var result = new List<Chunk>();

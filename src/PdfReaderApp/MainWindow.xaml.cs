@@ -39,7 +39,7 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.None;
         if (ctrl && e.Key == Key.F)
         {
             SearchBox.Focus();
@@ -117,7 +117,7 @@ public class RoleToBrushConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 }
 
@@ -131,7 +131,7 @@ public class RoleToAlignConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 }
 

@@ -19,7 +19,11 @@ dotnet test                          # xUnit, project tests/PdfReaderApp.Tests
 dotnet run --project src/PdfReaderApp # chạy app WPF
 pwsh scripts/check.ps1               # lớp chặn: format, build, warning trên dòng đổi, XAML cấm, test
 Invoke-Pester scripts/tests          # test của script kiểm tra và hook (Pester 5+)
+pwsh scripts/snapshot.ps1 -Out x.png # app tự chụp cửa sổ chính (dữ liệu trống, không chụp màn hình)
+pwsh scripts/pr-assets.ps1 -Pr N -Files x.png # đưa ảnh lên nhánh pr-assets, in link để nhúng vào PR
 ```
+
+Biến môi trường dev: `TRITHU_DATA_DIR` (thư mục dữ liệu thay cho `%APPDATA%\PdfReaderApp`), `TRITHU_SCREENSHOT` / `TRITHU_SCREENSHOT_DELAY` (tự chụp rồi thoát).
 
 Hook Stop/SubagentStop (`.claude/hooks/stop-check.ps1`) chạy `scripts/check.ps1 -Fix` khi agent dừng và chặn dừng nếu còn lỗi. Tắt khi bị kẹt: `TRITHU_HOOKS=off`.
 

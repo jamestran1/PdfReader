@@ -50,7 +50,7 @@ public class SqliteWorkspaceStoreTests : IDisposable
         _store.AddDocument("w1", "docB");
 
         Assert.Equal(2, _store.GetDocumentIds("w1").Count);
-        Assert.Contains("w1", _store.GetWorkspaceIdsForDocument("docA"));
+        Assert.Contains("w1", _store.GetWorkspaceIdsForDocument("docA"), StringComparer.Ordinal);
 
         _store.RemoveDocument("w1", "docA");
         var ids = _store.GetDocumentIds("w1");
@@ -64,7 +64,7 @@ public class SqliteWorkspaceStoreTests : IDisposable
         var w = _store.GetOrCreateDefaultForDocument("docX", "Tài liệu X", 5);
         Assert.True(w.IsDefault);
         Assert.Equal("docX", w.DefaultDocumentId);
-        Assert.Contains("docX", _store.GetDocumentIds(w.Id));
+        Assert.Contains("docX", _store.GetDocumentIds(w.Id), StringComparer.Ordinal);
 
         var w2 = _store.GetOrCreateDefaultForDocument("docX", "Tài liệu X", 9);
         Assert.Equal(w.Id, w2.Id);
@@ -99,7 +99,7 @@ public class SqliteWorkspaceStoreTests : IDisposable
         // membership phải sạch
         Assert.Empty(_store.GetDocumentIds("w1"));
         // GetWorkspaceIdsForDocument("docA") không chứa "w1"
-        Assert.DoesNotContain("w1", _store.GetWorkspaceIdsForDocument("docA"));
+        Assert.DoesNotContain("w1", _store.GetWorkspaceIdsForDocument("docA"), StringComparer.Ordinal);
     }
 
     [Fact]
@@ -157,7 +157,7 @@ PRAGMA user_version = 1;";
         store.EnsureSchema();   // migration: tạo open_tab, bump user_version
 
         Assert.Equal("Dự án cũ", store.Get("w-old")!.Name);
-        Assert.Contains("docOld", store.GetDocumentIds("w-old"));
+        Assert.Contains("docOld", store.GetDocumentIds("w-old"), StringComparer.Ordinal);
 
         store.SaveOpenTabs("w-old", new[] { new OpenTabState("docOld", 0, true, 3, 1.5, 0.25, 10) });
         var restored = store.GetOpenTabs("w-old");
