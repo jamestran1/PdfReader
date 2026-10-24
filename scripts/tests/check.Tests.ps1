@@ -14,7 +14,8 @@ BeforeAll {
     function Write-SandboxFile([string]$Path, [string]$Content) {
         $full = Join-Path $Sandbox $Path
         New-Item -ItemType Directory -Force -Path (Split-Path $full) | Out-Null
-        Set-Content -LiteralPath $full -Value $Content -NoNewline
+        # CRLF like a Windows checkout: here-strings follow this file's line endings, inserted lines use `n.
+        Set-Content -LiteralPath $full -Value ($Content -replace "`r?`n", "`r`n") -NoNewline
     }
 
     function Invoke-SandboxGit {
@@ -23,10 +24,12 @@ BeforeAll {
     }
 
     # Runs the check on the current sandbox working tree; returns exit code + output lines.
-    function Invoke-Check {
+    function Invoke-Check([string]$Base = 'main', [switch]$Fix) {
         Push-Location $Sandbox
         try {
-            $output = & pwsh -NoProfile -File $CheckScript -Base main 2>&1 | ForEach-Object { "$_" }
+            $arguments = @('-NoProfile', '-File', $CheckScript, '-Base', $Base)
+            if ($Fix) { $arguments += '-Fix' }
+            $output = & pwsh @arguments 2>&1 | ForEach-Object { "$_" }
             [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
         }
         finally { Pop-Location }
@@ -64,16 +67,48 @@ public class Calc
 </Project>
 '@
     Write-SandboxFile 'src/Lib/Lib.csproj' $csproj
-    Write-SandboxFile 'tests/Lib.Tests/Lib.Tests.csproj' $csproj
+    # Same test packages as tests/PdfReaderApp.Tests, so restore hits the local cache.
+    Write-SandboxFile 'tests/Lib.Tests/Lib.Tests.csproj' @'
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Lib\Lib.csproj" />
+  </ItemGroup>
+</Project>
+'@
     Write-SandboxFile 'src/Lib/Calc.cs' $CalcOriginal
-    Write-SandboxFile 'tests/Lib.Tests/CalcTests.cs' @'
+    $script:CalcTestsOriginal = @'
 namespace Lib.Tests;
 
 public class CalcTests
 {
-    public static void Add_ReturnsSum() { }
+    [Fact]
+    public void Add_ReturnsSum() => Assert.Equal(3, Calc.Add(1, 2));
 }
 '@
+    Write-SandboxFile 'tests/Lib.Tests/CalcTests.cs' $CalcTestsOriginal
+    # Old XAML already uses the dead brush on a line nobody touches.
+    $script:XamlOriginal = @'
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+    <Border Background="{DynamicResource PrimaryHueMidBrush}" />
+    <Border CornerRadius="12" />
+</UserControl>
+'@
+    Write-SandboxFile 'src/Lib/Views/Panel.xaml' $XamlOriginal
+    Write-SandboxFile 'analyzers/clean-rules.txt' "# Rules with zero violations; blocked repo-wide (ADR 0007).`n"
 
     Invoke-SandboxGit init -q -b main
     Invoke-SandboxGit config user.email 'check@test'
@@ -92,9 +127,10 @@ AfterAll {
 
 Describe 'check.ps1' {
     BeforeEach {
-        Invoke-SandboxGit checkout -q -B work main
-        Invoke-SandboxGit reset -q --hard main
+        # Reset the dirty tree first: checkout refuses to leave uncommitted edits behind.
+        Invoke-SandboxGit reset -q --hard
         Invoke-SandboxGit clean -q -fd -e bin -e obj
+        Invoke-SandboxGit checkout -q -B work main
     }
 
     It 'passes when nothing changed, even with old warnings in the code' {
@@ -200,11 +236,124 @@ $ifs
     }
 
     It 'exits with the could-not-run code when the base ref does not exist' {
-        Push-Location $Sandbox
-        try {
-            & pwsh -NoProfile -File $CheckScript -Base no-such-branch 2>&1 | Out-Null
-            $LASTEXITCODE | Should -Be 2
+        $result = Invoke-Check -Base 'no-such-branch'
+
+        $result.ExitCode | Should -Be 2 -Because ($result.Output -join "`n")
+    }
+
+    Context 'format' {
+        BeforeEach {
+            $script:BadIndent = "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n}`n"
+            Write-SandboxFile 'src/Lib/Indent.cs' $BadIndent
         }
-        finally { Pop-Location }
+
+        It 'blocks a badly indented file in check mode and names it' {
+            $result = Invoke-Check
+
+            $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
+            $result.Output | Where-Object { $_ -match '^src/Lib/Indent\.cs:\d+: warning WHITESPACE: ' } | Should -Not -BeNullOrEmpty
+            (Get-Content (Join-Path $Sandbox 'src/Lib/Indent.cs') -Raw) -replace "`r`n", "`n" | Should -Be $BadIndent
+        }
+
+        It 'fixes the file in fix mode, names it and does not count it as a violation' {
+            $result = Invoke-Check -Fix
+
+            $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
+            $result.Output | Where-Object { $_ -match '^check: format đã sửa: .*src/Lib/Indent\.cs' } | Should -HaveCount 1
+            Get-Content (Join-Path $Sandbox 'src/Lib/Indent.cs') -Raw | Should -Match '\n    public static int One'
+        }
+    }
+
+    Context 'format on an existing file' {
+        # The badly indented file is committed on the work branch; -Base HEAD then compares only uncommitted edits.
+        BeforeEach {
+            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n    public static int Two() => 2;`n}`n"
+            Invoke-SandboxGit add -A
+            Invoke-SandboxGit commit -q -m 'old bad indentation'
+        }
+
+        It 'ignores bad indentation on an unchanged line' {
+            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n    public static int Two() => 3;`n}`n"
+
+            $result = Invoke-Check -Base 'HEAD'
+
+            $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
+        }
+
+        It 'reports bad indentation on a changed line at that line' {
+            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n  public static int Two() => 2;`n}`n"
+
+            $result = Invoke-Check -Base 'HEAD'
+
+            $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
+            $result.Output | Where-Object { $_ -match '^src/Lib/Indent\.cs:\d+: ' } | Should -HaveCount 1
+            $result.Output | Where-Object { $_ -match '^src/Lib/Indent\.cs:7: warning WHITESPACE: ' } | Should -HaveCount 1
+        }
+    }
+
+    Context 'forbidden XAML' {
+        It 'blocks PrimaryHueMidBrush on an added line with file and line' {
+            Write-SandboxFile 'src/Lib/Views/Panel.xaml' ($XamlOriginal -replace '(<Border CornerRadius="12" />)', "`$1`n    <TextBlock Foreground=`"{DynamicResource PrimaryHueMidBrush}`" />")
+            Invoke-SandboxGit commit -q -am 'new brush use'
+
+            $result = Invoke-Check
+
+            $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
+            $result.Output | Where-Object { $_ -match '^src/Lib/Views/Panel\.xaml:\d+: ' } | Should -HaveCount 1
+            $result.Output | Where-Object { $_ -match '^src/Lib/Views/Panel\.xaml:4: warning UI-3: ' } | Should -HaveCount 1
+        }
+
+        It 'blocks CornerRadius="100" on an added line with file and line' {
+            Write-SandboxFile 'src/Lib/Views/Pill.xaml' "<UserControl xmlns=`"http://schemas.microsoft.com/winfx/2006/xaml/presentation`">`n    <Border CornerRadius=`"100`" />`n</UserControl>`n"
+
+            $result = Invoke-Check
+
+            $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
+            $result.Output | Where-Object { $_ -match '^src/Lib/Views/Pill\.xaml:2: warning UI-5: ' } | Should -HaveCount 1
+        }
+
+        It 'does not report a forbidden value that sits on an unchanged line' {
+            Write-SandboxFile 'src/Lib/Views/Panel.xaml' ($XamlOriginal -replace 'CornerRadius="12"', 'CornerRadius="8"')
+            Invoke-SandboxGit commit -q -am 'touch another line'
+
+            $result = Invoke-Check
+
+            $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
+            $result.Output | Should -Not -Match 'UI-3'
+        }
+    }
+
+    It 'blocks a clean rule repo-wide, even on an untouched line' {
+        Add-Content -LiteralPath (Join-Path $Sandbox 'analyzers/clean-rules.txt') -Value 'CA1707'
+        Invoke-SandboxGit commit -q -am 'CA1707 is clean'
+
+        $result = Invoke-Check
+
+        $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
+        $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:7: warning CA1707: .*Old_Name' } | Should -HaveCount 1
+    }
+
+    It 'blocks a failing test and prints its name' {
+        Write-SandboxFile 'tests/Lib.Tests/CalcTests.cs' ($CalcTestsOriginal -replace 'Assert.Equal\(3', 'Assert.Equal(4')
+        Invoke-SandboxGit commit -q -am 'break the test'
+
+        $result = Invoke-Check
+
+        $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
+        $result.Output | Where-Object { $_ -match '^TEST: Lib\.Tests\.CalcTests\.Add_ReturnsSum$' } | Should -HaveCount 1
+    }
+
+    It 'skips build and tests when only markdown changed' {
+        $sarif = Join-Path $Sandbox 'src/Lib/obj/Lib.sarif'
+        Remove-Item -LiteralPath $sarif -ErrorAction SilentlyContinue
+        Write-SandboxFile 'README.md' "# Lib`n"
+        Invoke-SandboxGit add -A
+        Invoke-SandboxGit commit -q -m 'docs only'
+
+        $result = Invoke-Check
+
+        $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
+        ($result.Output -join "`n") | Should -Match 'bỏ qua build và test'
+        Test-Path $sarif | Should -BeFalse
     }
 }
