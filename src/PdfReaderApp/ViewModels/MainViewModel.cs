@@ -22,10 +22,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public TabSetViewModel Tabs { get; }
 
     [ObservableProperty]
-    private bool _isWorkspaceSession;
+    public partial bool IsWorkspaceSession { get; set; }
 
     [ObservableProperty]
-    private bool _isDarkMode;
+    public partial bool IsDarkMode { get; set; }
 
     [RelayCommand]
     private void ToggleTheme()
@@ -62,18 +62,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private CancellationTokenSource? _indexCts;
 
     [ObservableProperty]
-    private string _indexingStatusText = string.Empty;
+    public partial string IndexingStatusText { get; set; } = string.Empty;
 
     public ObservableCollection<SearchResult> SearchResults { get; } = [];
 
     [ObservableProperty]
-    private string _searchQuery = string.Empty;
+    public partial string SearchQuery { get; set; } = string.Empty;
 
     [ObservableProperty]
-    private string _selectedSearchQuery = string.Empty;
+    public partial string SelectedSearchQuery { get; set; } = string.Empty;
 
     [ObservableProperty]
-    private string _executedSearchQuery = string.Empty;
+    public partial string ExecutedSearchQuery { get; set; } = string.Empty;
 
     // Mỗi khi người dùng sửa/xóa ô tìm: tắt highlight trên trang ngay lập tức.
     // Nếu ô rỗng: xóa luôn danh sách kết quả và query đã chạy.
@@ -139,13 +139,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [ObservableProperty]
-    private PdfViewMode _viewMode = PdfViewMode.Continuous;
+    public partial PdfViewMode ViewMode { get; set; } = PdfViewMode.Continuous;
 
     [ObservableProperty]
-    private bool _showCoverSeparately = true;
+    public partial bool ShowCoverSeparately { get; set; } = true;
 
     [ObservableProperty]
-    private bool _showLibrary = true;
+    public partial bool ShowLibrary { get; set; } = true;
 
     private const double DefaultChatWidthPx = 350;
     private const double MinChatWidthPx = 280;
@@ -155,10 +155,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // app mở ở thư viện -> panel ẩn. MinWidth cũng động: 0 khi ẩn, 280 khi hiện (nếu để cố định
     // 280 thì không thu cột về 0 được khi ẩn).
     [ObservableProperty]
-    private System.Windows.GridLength _chatColumnWidth = new System.Windows.GridLength(0);
+    public partial System.Windows.GridLength ChatColumnWidth { get; set; } = new System.Windows.GridLength(0);
 
     [ObservableProperty]
-    private double _chatColumnMinWidth = 0;
+    public partial double ChatColumnMinWidth { get; set; } = 0;
 
     // #63: bề rộng dải mỏng khi panel phải thu gọn.
     private const double CollapsedStripWidthPx = 48;
@@ -166,7 +166,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // #63: thu/mở panel phải (chat/notes). Trạng thái GLOBAL -- một cờ cho cả app, không theo tab.
     // Không lưu qua phiên (in-memory); persistence ngoài phạm vi #63.
     [ObservableProperty]
-    private bool _isRightPanelCollapsed;
+    public partial bool IsRightPanelCollapsed { get; set; }
 
     partial void OnIsRightPanelCollapsedChanged(bool value) => UpdateChatColumnVisibility();
 
@@ -229,11 +229,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         : Core.NavDestination.Reader;
 
     [ObservableProperty]
-    private bool _showWorkspaces;
+    public partial bool ShowWorkspaces { get; set; }
 
     // S2: workspace đang xem chi tiết
     [ObservableProperty]
-    private Workspace? _selectedWorkspace;
+    public partial Workspace? SelectedWorkspace { get; set; }
 
     // S2: expose activeWorkspaceId cho test
     public string? ActiveWorkspaceId => _activeWorkspaceId;
@@ -253,7 +253,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Thông báo lỗi khi tạo/đổi tên workspace; rỗng = không có lỗi.
     [ObservableProperty]
-    private string _workspaceNameError = string.Empty;
+    public partial string WorkspaceNameError { get; set; } = string.Empty;
 
     public ObservableCollection<WorkspaceCard> Workspaces { get; } = [];
 
@@ -270,7 +270,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [ObservableProperty]
-    private string _chatInput = string.Empty;
+    public partial string ChatInput { get; set; } = string.Empty;
 
     public ObservableCollection<ChatMessage> ChatMessages { get; } = [];
 
@@ -278,7 +278,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public WorkspaceDocumentsViewModel DocumentsSurface { get; }
     // #67: thông báo snackbar non-blocking, đáy-giữa, tự ẩn. Một surface duy nhất cho cả app.
     [ObservableProperty]
-    private Notification? _currentNotification;
+    public partial Notification? CurrentNotification { get; set; }
 
     private System.Windows.Threading.DispatcherTimer? _notificationTimer;
 
@@ -1242,10 +1242,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 public partial class ChatMessage : ObservableObject
 {
     [ObservableProperty]
-    private string _role = "User";
+    public partial string Role { get; set; } = "User";
 
     [ObservableProperty]
-    private string _content = string.Empty;
+    public partial string Content { get; set; } = string.Empty;
 
     public DateTime Timestamp { get; } = DateTime.Now;
 }
