@@ -23,7 +23,7 @@ public static class PageLayoutCalculator
         bool continuous = mode is PdfViewMode.Continuous or PdfViewMode.ContinuousFacing;
 
         var metrics = new UnitMetrics(scale, pageGap);
-        var units = BuildUnits(pages.Count, facing, showCover);
+        var units = facing ? BuildFacingUnits(pages.Count, showCover) : BuildSingleUnits(pages.Count);
         // Clamp (don't throw): the UI may pass a transient out-of-range page during navigation.
         var (firstUnit, lastUnit) = continuous
             ? (0, units.Count - 1)
@@ -51,16 +51,17 @@ public static class PageLayoutCalculator
         return new LayoutResult(slots, contentWidth, contentHeight, unitStarts);
     }
 
-    private static List<List<int>> BuildUnits(int pageCount, bool facing, bool showCover)
+    private static List<List<int>> BuildSingleUnits(int pageCount)
     {
         var units = new List<List<int>>();
-        if (!facing)
-        {
-            for (int i = 0; i < pageCount; i++)
-                units.Add([i]);
-            return units;
-        }
+        for (int i = 0; i < pageCount; i++)
+            units.Add([i]);
+        return units;
+    }
 
+    private static List<List<int>> BuildFacingUnits(int pageCount, bool showCover)
+    {
+        var units = new List<List<int>>();
         int next = 0;
         if (showCover) { units.Add([0]); next = 1; }
         for (; next < pageCount; next += 2)
