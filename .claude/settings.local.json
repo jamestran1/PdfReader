@@ -1,13 +1,14 @@
 {
-  "enabledMcpjsonServers": [
-    "ado",
-    "ado-bliksund",
-    "github"
-  ],
   "permissions": {
     "allow": [
       "Bash(git mv *)",
       "Bash(ls docs/plans/)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "ado",
+    "ado-bliksund",
+    "github"
+  ],
+  "outputStyle": "Learning"
 }
