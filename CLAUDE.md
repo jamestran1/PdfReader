@@ -17,7 +17,11 @@ Hướng dẫn cho Claude Code khi làm việc trong repo này: bản đồ dự
 dotnet build PdfReaderApp.slnx
 dotnet test                          # xUnit, project tests/PdfReaderApp.Tests
 dotnet run --project src/PdfReaderApp # chạy app WPF
+pwsh scripts/check.ps1               # lớp chặn: format, build, warning trên dòng đổi, XAML cấm, test
+Invoke-Pester scripts/tests          # test của script kiểm tra và hook (Pester 5+)
 ```
+
+Hook Stop/SubagentStop (`.claude/hooks/stop-check.ps1`) chạy `scripts/check.ps1 -Fix` khi agent dừng và chặn dừng nếu còn lỗi. Tắt khi bị kẹt: `TRITHU_HOOKS=off`.
 
 ## Kiến trúc (Hybrid Engine)
 
