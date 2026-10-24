@@ -17,6 +17,7 @@ public partial class MainWindow : Window
             InitializeComponent();
             Closing += (_, _) => (DataContext as ViewModels.MainViewModel)?.SaveOpenSetNow();
         }
+#pragma warning disable CA1031 // ranh giới khởi tạo cửa sổ: ghi log và hiện lỗi cho người dùng rồi tắt app; ghi log là best-effort
         catch (Exception ex)
         {
             string detail = GetExceptionDetails(ex);
@@ -24,11 +25,12 @@ public partial class MainWindow : Window
             {
                 System.IO.File.WriteAllText("pdf_crash_log.txt", detail);
             }
-            catch { }
+            catch (Exception inner) { System.Diagnostics.Trace.TraceWarning($"MainWindow: không ghi được crash log: {inner}"); }
 
             MessageBox.Show(detail, "Lỗi Khởi tạo Hệ thống", MessageBoxButton.OK, MessageBoxImage.Error);
             Application.Current.Shutdown();
         }
+#pragma warning restore CA1031
     }
 
     // Phím tắt không gắn command: Ctrl+F focus ô tìm kiếm, Ctrl+0 fit trang vừa khung.
@@ -90,7 +92,7 @@ public partial class MainWindow : Window
         while (current != null)
         {
             sb.AppendLine(CultureInfo.CurrentCulture, $"[Level {depth}] {current.GetType().FullName}");
-            sb.AppendLine($"Message: {current.Message}");
+            sb.AppendLine(CultureInfo.CurrentCulture, $"Message: {current.Message}");
             sb.AppendLine("Stack Trace:");
             sb.AppendLine(current.StackTrace);
             sb.AppendLine(new string('-', 40));
@@ -135,43 +137,43 @@ public class RoleToAlignConverter : IValueConverter
 
 public sealed class CountToBoolConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object p, CultureInfo c) => value is int n && n > 0;
-    public object ConvertBack(object value, Type t, object p, CultureInfo c) => throw new NotSupportedException();
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is int n && n > 0;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
 public sealed class PageDisplayConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object p, CultureInfo c) => value is int n ? n + 1 : value;
-    public object ConvertBack(object value, Type t, object p, CultureInfo c) => throw new NotSupportedException();
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is int n ? n + 1 : value;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }
 
 public sealed class InverseBoolToVisibilityConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object p, CultureInfo c)
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         => value is true ? Visibility.Collapsed : Visibility.Visible;
-    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
 public sealed class CountToInverseVisibilityConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object p, CultureInfo c)
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         => value is int n && n > 0 ? Visibility.Collapsed : Visibility.Visible;
-    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
 // Unix seconds -> chuỗi ngày địa phương (cho nhãn "lần mở cuối" trên thẻ thư viện).
 public sealed class UnixToDateConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object p, CultureInfo c)
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         => value is long secs ? DateTimeOffset.FromUnixTimeSeconds(secs).LocalDateTime.ToString("dd/MM/yyyy", CultureInfo.CurrentCulture) : "";
-    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
 // Đường dẫn file -> BitmapImage nạp với OnLoad + IgnoreImageCache: đọc hết vào RAM nên KHÔNG
 // khoá file (xoá/ghi lại được) và KHÔNG dùng ảnh cache cũ theo URI.
 public sealed class PathToImageConverter : IValueConverter
 {
-    public object? Convert(object value, Type t, object p, CultureInfo c)
+    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         if (value is not string path || string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
         var bmp = new BitmapImage();
@@ -183,42 +185,42 @@ public sealed class PathToImageConverter : IValueConverter
         bmp.Freeze();
         return bmp;
     }
-    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
 // PageIndex (0-based, int?) -> chuỗi "Trang N" (N = index + 1). Null -> rỗng.
 public sealed class PageBadgeConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object p, CultureInfo c)
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         => value is int i ? $"Trang {i + 1}" : string.Empty;
-    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
 // Giá trị null -> Collapsed, có giá trị -> Visible (ẩn badge khi note không neo trang).
 public sealed class NullToCollapsedConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object p, CultureInfo c)
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         => value is null ? Visibility.Collapsed : Visibility.Visible;
-    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
 // S3: chuyển DocumentId -> SolidColorBrush cho chip nhãn tài liệu
 public sealed class DocumentIdToBrushConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object p, CultureInfo c)
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         string hex = PdfReaderApp.ViewModels.DocumentChip.ColorHexFor(value as string);
         if (System.Windows.Media.ColorConverter.ConvertFromString(hex) is System.Windows.Media.Color col)
             return new System.Windows.Media.SolidColorBrush(col);
         return System.Windows.Media.Brushes.Gray;
     }
-    public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
 }
 
 // S3: IMultiValueConverter nhận [DocumentId, DocumentTitles] -> nhãn rút gọn cho chip
 public sealed class DocumentIdToTitleConverter : System.Windows.Data.IMultiValueConverter
 {
-    public object Convert(object[] values, Type t, object p, CultureInfo c)
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
     {
         if (values.Length < 2) return string.Empty;
         string? docId = values[0] as string;
@@ -228,29 +230,29 @@ public sealed class DocumentIdToTitleConverter : System.Windows.Data.IMultiValue
         // Không có tiêu đề cho documentId này -> nhãn rỗng (không lộ id nội bộ ra UI)
         return string.Empty;
     }
-    public object[] ConvertBack(object value, Type[] t, object p, CultureInfo c) => Array.Empty<object>();
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) => Array.Empty<object>();
 }
 
 // Checks a PdfViewMode against the mode name passed as ConverterParameter, for radio-style toggles.
 public sealed class ViewModeToBoolConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object parameter, CultureInfo c)
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         => value is PdfReaderApp.Core.PdfViewMode m && parameter is string p
            && string.Equals(m.ToString(), p, StringComparison.Ordinal);
 
-    public object? ConvertBack(object value, Type t, object parameter, CultureInfo c)
+    public object? ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => value is true && parameter is string p
            && Enum.TryParse<PdfReaderApp.Core.PdfViewMode>(p, out var m) ? m : Binding.DoNothing;
 }
 
 public sealed class NavDestinationToBoolConverter : IValueConverter
 {
-    public object Convert(object value, Type t, object parameter, CultureInfo c)
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         => value is PdfReaderApp.Core.NavDestination d && parameter is string p
            && string.Equals(d.ToString(), p, StringComparison.Ordinal);
 
     // OneWay: nav rail highlight chỉ đọc đích; Command mới là thứ đổi đích.
-    public object ConvertBack(object value, Type t, object parameter, CultureInfo c)
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         => Binding.DoNothing;
 }
 
@@ -258,10 +260,10 @@ public sealed class NavDestinationToBoolConverter : IValueConverter
 // Dùng trong ItemTemplate viewer-per-tab để chỉ tab active render, còn lại Collapsed.
 public sealed class IsActiveTabConverter : System.Windows.Data.IMultiValueConverter
 {
-    public object Convert(object[] values, Type t, object p, CultureInfo c)
+    public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
     {
         if (values.Length < 2) return Visibility.Collapsed;
         return ReferenceEquals(values[0], values[1]) ? Visibility.Visible : Visibility.Collapsed;
     }
-    public object[] ConvertBack(object value, Type[] t, object p, CultureInfo c) => Array.Empty<object>();
+    public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture) => Array.Empty<object>();
 }

@@ -19,6 +19,6 @@ public static class DocumentChip
     {
         if (string.IsNullOrWhiteSpace(title)) return string.Empty;
         title = title.Trim();
-        return title.Length <= maxLen ? title : title.Substring(0, maxLen - 1) + "…";
+        return title.Length <= maxLen ? title : string.Concat(title.AsSpan(0, maxLen - 1), "…");
     }
 }

@@ -97,11 +97,13 @@ public sealed class AiChatService : IDisposable
                     hasNext = await e.MoveNextAsync();
                     if (hasNext) text = e.Current.Text;
                 }
+#pragma warning disable CA1031 // ranh giới stream AI: SDK ném nhiều kiểu lỗi, được phân loại (AiErrorClassifier) và bọc lại kèm inner exception
                 catch (Exception ex)
                 {
                     if (assistant.Length > 0) interrupted = true;
                     else fatal = new AiChatException(AiErrorClassifier.Classify(ex), "Lỗi gọi dịch vụ AI.", ex);
                 }
+#pragma warning restore CA1031
 
                 if (fatal != null)
                 {

@@ -125,5 +125,6 @@ INSERT INTO library VALUES ('old', 'old.pdf', '/lib/old.pdf', NULL, 5, 10, 20);"
     public void Dispose()
     {
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+        GC.SuppressFinalize(this);
     }
 }

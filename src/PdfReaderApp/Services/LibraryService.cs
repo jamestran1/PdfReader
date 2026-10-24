@@ -56,7 +56,9 @@ public sealed class LibraryService
         {
             pageCount = doc.PageCount;
             try { RenderThumbnail(doc.Pages[0], thumbPath); }
-            catch { thumbPath = null; } // thumbnail là phụ; thiếu vẫn import được
+#pragma warning disable CA1031 // degrade: thumbnail là phụ, thiếu vẫn import được
+            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"LibraryService.Import: không tạo được thumbnail: {ex}"); thumbPath = null; } // thumbnail là phụ; thiếu vẫn import được
+#pragma warning restore CA1031
         }
 
         var metadata = PdfMetadataReader.Read(storedPath);
@@ -87,6 +89,8 @@ public sealed class LibraryService
 
     private static void TryDelete(string path)
     {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
+#pragma warning disable CA1031 // best-effort: dọn file thừa, không được làm gãy luồng gọi
+        try { if (File.Exists(path)) File.Delete(path); } catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"LibraryService.TryDelete: không xoá được file thừa: {ex}"); }
+#pragma warning restore CA1031
     }
 }

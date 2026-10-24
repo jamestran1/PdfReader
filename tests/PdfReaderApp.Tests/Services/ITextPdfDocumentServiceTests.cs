@@ -237,5 +237,6 @@ public class ITextPdfDocumentServiceTests : IDisposable
     public void Dispose()
     {
         if (File.Exists(_tempPdf)) File.Delete(_tempPdf);
+        GC.SuppressFinalize(this);
     }
 }

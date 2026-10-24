@@ -67,7 +67,7 @@ CREATE INDEX IF NOT EXISTS ix_open_tab_ws ON open_tab(workspace_id);";
         }
     }
 
-    public void Upsert(Workspace w)
+    public void Upsert(Workspace workspace)
     {
         lock (_lock)
         {
@@ -77,12 +77,12 @@ CREATE INDEX IF NOT EXISTS ix_open_tab_ws ON open_tab(workspace_id);";
 INSERT INTO workspace (id, name, is_default, default_document_id, created_at, updated_at)
 VALUES ($id, $name, $def, $defDoc, $created, $updated)
 ON CONFLICT(id) DO UPDATE SET name=$name, is_default=$def, default_document_id=$defDoc, updated_at=$updated;";
-            cmd.Parameters.AddWithValue("$id", w.Id);
-            cmd.Parameters.AddWithValue("$name", w.Name);
-            cmd.Parameters.AddWithValue("$def", w.IsDefault ? 1 : 0);
-            cmd.Parameters.AddWithValue("$defDoc", (object?)w.DefaultDocumentId ?? System.DBNull.Value);
-            cmd.Parameters.AddWithValue("$created", w.CreatedAtUnixMs);
-            cmd.Parameters.AddWithValue("$updated", w.UpdatedAtUnixMs);
+            cmd.Parameters.AddWithValue("$id", workspace.Id);
+            cmd.Parameters.AddWithValue("$name", workspace.Name);
+            cmd.Parameters.AddWithValue("$def", workspace.IsDefault ? 1 : 0);
+            cmd.Parameters.AddWithValue("$defDoc", (object?)workspace.DefaultDocumentId ?? System.DBNull.Value);
+            cmd.Parameters.AddWithValue("$created", workspace.CreatedAtUnixMs);
+            cmd.Parameters.AddWithValue("$updated", workspace.UpdatedAtUnixMs);
             cmd.ExecuteNonQuery();
         }
     }
@@ -148,7 +148,7 @@ ON CONFLICT(id) DO UPDATE SET name=$name, is_default=$def, default_document_id=$
     public System.Collections.Generic.IReadOnlyList<string> GetWorkspaceIdsForDocument(string documentId)
         => QueryStrings("SELECT workspace_id FROM workspace_document WHERE document_id=$k", documentId);
 
-    private System.Collections.Generic.IReadOnlyList<string> QueryStrings(string sql, string key)
+    private System.Collections.Generic.List<string> QueryStrings(string sql, string key)
     {
         lock (_lock)
         {

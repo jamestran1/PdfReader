@@ -70,5 +70,6 @@ public class SqliteDocumentIndexSchemaTests : IDisposable
         // With Pooling=False the index's own Dispose() fully releases the file handle.
         // No need for ClearAllPools(); just delete the temp dir.
         if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+        GC.SuppressFinalize(this);
     }
 }
