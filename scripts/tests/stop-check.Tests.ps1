@@ -37,12 +37,14 @@ exit ([int]$env:FAKE_EXIT)
     }
 
     # Starts the hook as Claude Code would: JSON on stdin, cwd in the payload.
-    function Start-Hook([string]$Event = 'Stop', [bool]$StopHookActive = $false, [string]$Transcript = 'main.jsonl') {
+    # Subagents share the session's transcript_path and differ by agent_id, as in Claude Code's SubagentStop input.
+    function Start-Hook([string]$Event = 'Stop', [bool]$StopHookActive = $false, [string]$AgentId) {
         $payload = @{
             session_id       = 'test-session'
-            transcript_path  = (Join-Path $Sandbox $Transcript)
+            transcript_path  = (Join-Path $Sandbox 'main.jsonl')
             cwd              = $Work
             hook_event_name  = $Event
+            agent_id         = $AgentId
             stop_hook_active = $StopHookActive
         } | ConvertTo-Json -Compress
         $info = [Diagnostics.ProcessStartInfo]::new('pwsh', @('-NoProfile', '-File', $Hook))
@@ -63,8 +65,8 @@ exit ([int]$env:FAKE_EXIT)
         [pscustomobject]@{ ExitCode = $Started.Process.ExitCode; Stdout = $Started.Stdout.Result; Stderr = $Started.Stderr.Result }
     }
 
-    function Invoke-Hook([string]$Event = 'Stop', [bool]$StopHookActive = $false) {
-        Wait-Hook (Start-Hook -Event $Event -StopHookActive $StopHookActive)
+    function Invoke-Hook([string]$Event = 'Stop', [bool]$StopHookActive = $false, [string]$AgentId) {
+        Wait-Hook (Start-Hook -Event $Event -StopHookActive $StopHookActive -AgentId $AgentId)
     }
 
     function Get-CallCount {
@@ -140,7 +142,7 @@ Describe 'stop-check hook' {
         $env:FAKE_EXIT = '1'
         $env:FAKE_OUTPUT = 'TEST: Lib.Tests.CalcTests.Add_ReturnsSum|check: 0 vi phạm, 1 test đỏ (so với main)'
 
-        $result = Invoke-Hook -Event 'SubagentStop'
+        $result = Invoke-Hook -Event 'SubagentStop' -AgentId 'implementer'
 
         $result.ExitCode | Should -Be 2 -Because $result.Stderr
         $result.Stderr | Should -Match 'TEST: Lib\.Tests\.CalcTests\.Add_ReturnsSum'
@@ -231,8 +233,8 @@ Describe 'stop-check hook' {
         $env:FAKE_SLEEP = '3'
         $env:FAKE_OUTPUT = 'src/Calc.cs:2: warning CA1707: Remove the underscores'
 
-        $first = Start-Hook -Event 'SubagentStop' -Transcript 'agent-a.jsonl'
-        $second = Start-Hook -Event 'SubagentStop' -Transcript 'agent-b.jsonl'
+        $first = Start-Hook -Event 'SubagentStop' -AgentId 'agent-a'
+        $second = Start-Hook -Event 'SubagentStop' -AgentId 'agent-b'
         $results = @(Wait-Hook $first), @(Wait-Hook $second)
 
         $results | ForEach-Object {
@@ -241,5 +243,29 @@ Describe 'stop-check hook' {
         }
         # Runs never overlap: every start is followed by its end.
         (Get-Content -LiteralPath $CallLog) -join ',' | Should -Match '^(start [^,]+,end,?)+$'
+    }
+
+    It 'keeps a separate block counter per subagent of the same session' {
+        Write-WorkFile 'src/Calc.cs' "namespace Lib;`npublic class Bad_Name {}`n"
+        $env:FAKE_EXIT = '1'
+        $env:FAKE_OUTPUT = 'src/Calc.cs:2: warning CA1707: Remove the underscores'
+        1..3 | ForEach-Object { (Invoke-Hook -Event 'SubagentStop' -StopHookActive ($_ -gt 1) -AgentId 'agent-a').ExitCode | Should -Be 2 }
+
+        # A fresh stop of agent-b must neither reset nor use agent-a's counter.
+        (Invoke-Hook -Event 'SubagentStop' -StopHookActive $false -AgentId 'agent-b').ExitCode | Should -Be 2
+        $fourthOfA = Invoke-Hook -Event 'SubagentStop' -StopHookActive $true -AgentId 'agent-a'
+
+        $fourthOfA.ExitCode | Should -Be 0 -Because $fourthOfA.Stderr
+    }
+
+    It 'fails open when the check exits 1 without any finding (script died early)' {
+        Write-WorkFile 'src/Calc.cs' "namespace Lib;`n// changed`n"
+        $env:FAKE_EXIT = '1'
+        $env:FAKE_OUTPUT = 'ParserError: unexpected token'
+
+        $result = Invoke-Hook
+
+        $result.ExitCode | Should -Be 0 -Because $result.Stderr
+        ($result.Stdout | ConvertFrom-Json).systemMessage | Should -Match 'chưa kiểm tra được'
     }
 }

@@ -26,7 +26,7 @@ $ErrorActionPreference = 'Stop'
 $MaxBlocks = 3
 $LockWaitSeconds = 300
 # Paths that can change what the check reports; anything else (markdown...) never needs a build.
-$CodePathspecs = '*.cs', '*.xaml', '*.csproj', '*.props', '*.targets', '.editorconfig', 'global.json',
+$CodePathspecs = '*.cs', '*.xaml', '*.csproj', '*.props', '*.targets', '*.slnx', '*.sln', '.editorconfig', 'global.json',
     'CodeMetricsConfig.txt', 'analyzers/clean-rules.txt'
 
 # Let the agent stop; the message is shown to the user, not the agent.
@@ -80,6 +80,10 @@ function Invoke-Check([string]$Script, [string]$Base, [int]$TimeoutSeconds) {
     @{ ExitCode = $process.ExitCode; Output = @($lines) }
 }
 
+function Save-State($State) {
+    $State | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath
+}
+
 function Read-State([string]$Path) {
     if (Test-Path -LiteralPath $Path) { Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable }
     else { @{ Fingerprint = $null; ExitCode = $null; Output = @(); Blocks = @{} } }
@@ -98,8 +102,9 @@ $statePath = Join-Path $stateDir 'state.json'
 $checkScript = if ($env:TRITHU_CHECK_SCRIPT) { $env:TRITHU_CHECK_SCRIPT } else { Join-Path $repoRoot 'scripts/check.ps1' }
 $base = if ($env:TRITHU_CHECK_BASE) { $env:TRITHU_CHECK_BASE } else { 'origin/main' }
 $timeout = if ($env:TRITHU_HOOK_TIMEOUT) { [int]$env:TRITHU_HOOK_TIMEOUT } else { 180 }
-# Each agent (main session or subagent) has its own transcript, hence its own block counter.
-$agentKey = "$($hookInput.hook_event_name)|$($hookInput.transcript_path)"
+# Each agent has its own block counter. Subagents share the session transcript_path, so prefer agent_id.
+$agentId = if ($hookInput.agent_id) { $hookInput.agent_id } elseif ($hookInput.agent_transcript_path) { $hookInput.agent_transcript_path } else { $hookInput.transcript_path }
+$agentKey = "$($hookInput.hook_event_name)|$agentId"
 
 # Parallel subagents in one worktree: wait for the running check instead of building over it.
 $lock = $null
@@ -133,27 +138,30 @@ try {
         $state.Output = $result.Output
     }
 
+    # Exit codes and line formats are check.ps1's contract (see its help).
     $isBuildError = $result.ExitCode -eq 2 -and ($result.Output -match 'build lỗi')
+    $hasFindings = $result.ExitCode -eq 1 -and ($result.Output -match '^(.+?):\d+: \w+ \S+: |^TEST: ')
     if ($result.ExitCode -eq 0) {
         $state.Blocks[$agentKey] = 0
-        $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath
+        Save-State $state
         Exit-Allow (@($result.Output -match '^check: format đã sửa') -join "`n")
     }
-    if ($result.ExitCode -ne 1 -and -not $isBuildError) {
+    # Exit 1 without any finding means the script died early (e.g. a parse error), not a real violation.
+    if (-not $hasFindings -and -not $isBuildError) {
         # Do not cache a broken run; the next stop retries.
         $state.Fingerprint = $null
-        $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath
+        Save-State $state
         Exit-Allow ("check: chưa kiểm tra được (mã thoát $($result.ExitCode))`n" + ($result.Output -join "`n"))
     }
 
     $findings = $result.Output -join "`n"
     if ($blocks -ge $MaxBlocks) {
         $state.Blocks[$agentKey] = 0
-        $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath
+        Save-State $state
         Exit-Allow "check: đã chặn $MaxBlocks lần liên tiếp, cho dừng. Lỗi còn lại cần người xử lý:`n$findings"
     }
     $state.Blocks[$agentKey] = $blocks + 1
-    $state | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $statePath
+    Save-State $state
     Exit-Block "check chặn dừng (lần $($blocks + 1)/$MaxBlocks). Sửa các lỗi sau rồi dừng lại:`n$findings"
 }
 finally {
