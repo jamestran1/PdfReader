@@ -40,11 +40,9 @@ Mỗi góp ý là một comment theo dòng, dùng `mcp__github_inline_comment__c
 <giải thích ngắn, cách sửa>
 
 Nguồn: <link hoặc đường dẫn, nếu có>
-
-<!-- ai-review-run: RUN -->
 ```
 
-Mã quy tắc: mã trong `CODING_STANDARDS.md` cho trục Standards, `SPEC` cho trục Spec, `BUG` cho trục Correctness. Thay `RUN` bằng giá trị `RUN` ở đầu prompt.
+Mã quy tắc: mã trong `CODING_STANDARDS.md` cho trục Standards, `SPEC` cho trục Spec, `BUG` cho trục Correctness.
 
 Góp ý không gắn được vào một dòng (vd thiếu cả một yêu cầu) thì chỉ ghi trong bảng tổng hợp.
 
