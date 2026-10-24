@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -53,14 +49,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // S2: khoá ghi Open Set trong lúc reset/khôi phục để wiring auto-save không ghi đè state đang dựng.
     private bool _isRestoringOpenSet;
 
-    private List<TextBlock> _documentBlocks = new();
+    private List<TextBlock> _documentBlocks = [];
     public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
 
     // Exposed so PdfViewerControl can ask iText for exact keyword match rectangles to highlight.
     public IPdfDocumentService PdfService => _documentService;
     private bool _isSending;
 
-    private List<PageText> _pageTexts = new();
+    private List<PageText> _pageTexts = [];
 
     private string? _documentId;
     private CancellationTokenSource? _indexCts;
@@ -68,7 +64,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _indexingStatusText = string.Empty;
 
-    public ObservableCollection<SearchResult> SearchResults { get; } = new();
+    public ObservableCollection<SearchResult> SearchResults { get; } = [];
 
     [ObservableProperty]
     private string _searchQuery = string.Empty;
@@ -92,10 +88,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [ObservableProperty]
-    private string windowTitle = "Trí Thư";
+    public partial string WindowTitle { get; set; } = "Trí Thư";
 
     [ObservableProperty]
-    private string? filePath;
+    public partial string? FilePath { get; set; }
 
     // Tab S1 (fix #44): trang/zoom/tổng-trang là MỘT nguồn sự thật với tab active.
     // Trong phiên Workspace có tab active: proxy thẳng vào OpenTab (viewer per-tab bind cùng OpenTab)
@@ -259,9 +255,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _workspaceNameError = string.Empty;
 
-    public ObservableCollection<WorkspaceCard> Workspaces { get; } = new();
+    public ObservableCollection<WorkspaceCard> Workspaces { get; } = [];
 
-    public ObservableCollection<LibraryItem> Library { get; } = new();
+    public ObservableCollection<LibraryItem> Library { get; } = [];
 
     private readonly LibraryService _library;
     private readonly IChatHistoryStore _chatHistory;
@@ -276,7 +272,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _chatInput = string.Empty;
 
-    public ObservableCollection<ChatMessage> ChatMessages { get; } = new();
+    public ObservableCollection<ChatMessage> ChatMessages { get; } = [];
 
     public NotesViewModel Notes { get; }
     public WorkspaceDocumentsViewModel DocumentsSurface { get; }
@@ -696,7 +692,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     if (item is null) continue;   // tài liệu đã bị gỡ khỏi thư viện -> bỏ qua
                     restored.Add(new OpenTab(state.DocumentId, item.Title, item.StoredPath)
                     {
-                        Page = state.Page, Zoom = state.Zoom, ScrollNorm = state.ScrollNorm
+                        Page = state.Page,
+                        Zoom = state.Zoom,
+                        ScrollNorm = state.ScrollNorm
                     });
                     if (state.IsActive) activeDocumentId = state.DocumentId;
                 }
@@ -784,7 +782,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Tabs.Reset();
         }
         else if (SelectedWorkspace?.Id == ws.Id)
+        {
             SelectedWorkspace = null;
+        }
+
         ReloadWorkspaces();
     }
 
@@ -917,7 +918,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         catch (Exception ex)
         {
-            _documentBlocks = new List<TextBlock>();
+            _documentBlocks = [];
             OnPropertyChanged(nameof(DocumentBlocks));
             _documentId = null;
             // S2: nếu mở trong workspace (workspaceScopeId có giá trị), giữ nguyên _activeWorkspaceId

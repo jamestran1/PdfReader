@@ -1,2 +1,9 @@
 # Rule đã về 0 vi phạm: bị chặn trên toàn repo, không lọc diff (ADR 0007).
 # Mỗi dòng một mã rule, vd CA1725. Thêm rule vào đây trong PR dọn rule đó.
+IDE0005
+IDE0011
+IDE0044
+IDE0052
+IDE0161
+IDE1006
+IDE0028

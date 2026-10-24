@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
@@ -62,8 +58,8 @@ public class DocumentIndexingServiceTests
     // Records what the service asked the index to do.
     private sealed class RecordingIndex : IDocumentIndex
     {
-        public List<Chunk> Written = new();
-        public List<(long, float[])> Embeddings = new();
+        public List<Chunk> Written = [];
+        public List<(long, float[])> Embeddings = [];
         public string? FinalStatusDoc;
         public DocumentIndexStatus FinalStatus;
         public DocumentIndexStatus StatusToReturn = DocumentIndexStatus.None;
@@ -79,8 +75,8 @@ public class DocumentIndexingServiceTests
         public void WriteEmbeddings(IReadOnlyList<(long ChunkId, float[] Vector)> e) => Embeddings.AddRange(e);
         public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel)
         { FinalStatusDoc = documentId; FinalStatus = status; }
-        public List<SearchResult> SearchText(string d, string q, int l = 50) => new();
-        public List<Chunk> RetrieveRelevant(string d, float[] v, int k = 5) => new();
+        public List<SearchResult> SearchText(string d, string q, int l = 50) => [];
+        public List<Chunk> RetrieveRelevant(string d, float[] v, int k = 5) => [];
         public void Dispose() { }
     }
 
@@ -119,7 +115,7 @@ public class DocumentIndexingServiceTests
         var index = new RecordingIndex();
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
 
-        await svc.IndexAsync("doc1", null, new List<PageText>(), null, CancellationToken.None);
+        await svc.IndexAsync("doc1", null, [], null, CancellationToken.None);
 
         Assert.Equal(DocumentIndexStatus.Empty, index.FinalStatus);
     }

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -27,7 +25,7 @@ public partial class MainWindow : Window
                 System.IO.File.WriteAllText("pdf_crash_log.txt", detail);
             }
             catch { }
-            
+
             MessageBox.Show(detail, "Lỗi Khởi tạo Hệ thống", MessageBoxButton.OK, MessageBoxImage.Error);
             Application.Current.Shutdown();
         }
@@ -81,7 +79,7 @@ public partial class MainWindow : Window
     private static string GetExceptionDetails(Exception? ex)
     {
         if (ex == null) return "No exception details available.";
-        
+
         System.Text.StringBuilder sb = new();
         sb.AppendLine("=== PDF READER CRASH LOG ===");
         sb.AppendLine($"Time: {DateTime.Now}");
@@ -96,11 +94,11 @@ public partial class MainWindow : Window
             sb.AppendLine("Stack Trace:");
             sb.AppendLine(current.StackTrace);
             sb.AppendLine(new string('-', 40));
-            
+
             current = current.InnerException;
             depth++;
         }
-        
+
         return sb.ToString();
     }
 }

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 using PdfReaderApp.Models;
 
@@ -53,8 +52,11 @@ CREATE TABLE IF NOT EXISTS library (
         cmd.CommandText = $"PRAGMA table_info({table})";
         using var reader = cmd.ExecuteReader();
         while (reader.Read())
+        {
             if (string.Equals(reader.GetString(1), column, System.StringComparison.Ordinal))
                 return true;
+        }
+
         return false;
     }
 

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -12,7 +11,7 @@ namespace PdfReaderApp.Services;
 /// </summary>
 public static class SearchNormalizer
 {
-    private static readonly Regex _whitespace = new(@"\s+", RegexOptions.Compiled);
+    private static readonly Regex Whitespace = new(@"\s+", RegexOptions.Compiled, TimeSpan.FromSeconds(1));
 
     public static string Fold(string s)
     {
@@ -36,7 +35,7 @@ public static class SearchNormalizer
         s = sb.ToString().ToLowerInvariant();
 
         // Step 5: collapse any run of whitespace to a single space and trim
-        return _whitespace.Replace(s, " ").Trim();
+        return Whitespace.Replace(s, " ").Trim();
     }
 
     /// <summary>
@@ -66,7 +65,7 @@ public static class SearchNormalizer
             }
         }
 
-        // Phase 2: gop run whitespace thanh 1 space, trim hai dau (khop _whitespace.Replace + Trim).
+        // Phase 2: gộp chuỗi whitespace thành 1 space, trim hai đầu (khớp Whitespace.Replace + Trim).
         var sb = new StringBuilder(chars.Count);
         var map = new List<int>(chars.Count);
         bool pendingSpace = false;

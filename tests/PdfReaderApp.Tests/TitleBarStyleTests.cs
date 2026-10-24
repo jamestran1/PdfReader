@@ -1,9 +1,6 @@
-using System;
 using System.IO;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
-using Xunit;
 
 namespace PdfReaderApp.Tests;
 

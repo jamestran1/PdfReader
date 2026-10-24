@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Core;

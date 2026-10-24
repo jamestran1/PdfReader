@@ -15,7 +15,7 @@ public sealed class AiChatService : IDisposable
 
     private readonly ISettingsService _settings;
     private readonly IChatClientFactory _factory;
-    private readonly List<ChatMessage> _history = new();
+    private readonly List<ChatMessage> _history = [];
 
     private IChatClient? _client;
     private string? _clientKey;

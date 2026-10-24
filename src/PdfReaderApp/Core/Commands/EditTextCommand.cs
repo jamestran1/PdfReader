@@ -8,14 +8,12 @@ public interface IUndoCommand
 
 public class EditTextCommand : IUndoCommand
 {
-    private readonly int _pageIndex;
     private readonly int _charIndex;
     private readonly string _oldText;
     private readonly string _newText;
 
     public EditTextCommand(int pageIndex, int charIndex, string oldText, string newText)
     {
-        _pageIndex = pageIndex;
         _charIndex = charIndex;
         _oldText = oldText;
         _newText = newText;
