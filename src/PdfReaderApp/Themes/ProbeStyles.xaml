@@ -1,7 +1,8 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:core="clr-namespace:PdfReaderApp.Core">
     <Style x:Key="TriThu.Probe.Label" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource MaterialDesign.Brush.Primary}" />
-        <Setter Property="Text" Value="Đang tải" />
+        <Setter Property="Text" Value="{x:Static core:TitleFormatter.LoadingText}" />
     </Style>
 </ResourceDictionary>
