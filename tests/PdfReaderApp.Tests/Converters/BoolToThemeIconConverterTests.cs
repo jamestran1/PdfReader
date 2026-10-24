@@ -1,6 +1,5 @@
 using MaterialDesignThemes.Wpf;
 using PdfReaderApp.Converters;
-using Xunit;
 
 namespace PdfReaderApp.Tests.Converters;
 

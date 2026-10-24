@@ -1,7 +1,4 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
@@ -174,7 +171,7 @@ public class SqliteNoteStoreTests : IDisposable
         Assert.Equal("cũ", got.Content);
         Assert.Null(got.Rects);
         store.Add(new Note("new", "docA", "docA", 1, "q2", "mới", 2, 2,
-            new List<HighlightRect> { new(0, 0, 5, 5) }, "#FFEB3B"));
+            [new(0, 0, 5, 5)], "#FFEB3B"));
         Assert.Contains(store.GetForOwner("docA"), n => n.Rects != null && n.Rects.Count == 1);
     }
 

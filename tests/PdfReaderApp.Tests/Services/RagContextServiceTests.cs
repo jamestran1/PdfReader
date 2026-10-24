@@ -1,7 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
@@ -41,10 +37,10 @@ public class RagContextServiceTests
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string d, string m) => _status;
         public void DeleteDocument(string d) { }
-        public IReadOnlyList<long> WriteChunks(string d, string? f, int p, IReadOnlyList<Chunk> c) => new List<long>();
+        public IReadOnlyList<long> WriteChunks(string d, string? f, int p, IReadOnlyList<Chunk> c) => [];
         public void WriteEmbeddings(IReadOnlyList<(long, float[])> e) { }
         public void SetStatus(string d, DocumentIndexStatus s, string m) { }
-        public List<SearchResult> SearchText(string d, string q, int l = 50) => new();
+        public List<SearchResult> SearchText(string d, string q, int l = 50) => [];
         public List<Chunk> RetrieveRelevant(string d, float[] v, int k = 5) => _retrieve;
         public void Dispose() { }
     }
@@ -52,10 +48,10 @@ public class RagContextServiceTests
     [Fact]
     public async Task BuildContext_Complete_ReturnsJoinedChunks()
     {
-        var idx = new StubIndex(DocumentIndexStatus.Complete, new List<Chunk>
-        {
+        var idx = new StubIndex(DocumentIndexStatus.Complete,
+        [
             new("d", 0, 0, "first chunk"), new("d", 1, 1, "second chunk")
-        });
+        ]);
         var svc = new RagContextService(idx, new FakeFactory(), new FakeSettings("sk-x"));
 
         var ctx = await svc.BuildContextAsync("d", "câu hỏi");
@@ -69,7 +65,7 @@ public class RagContextServiceTests
     public async Task BuildContext_NotComplete_ReturnsNull()
     {
         var svc = new RagContextService(
-            new StubIndex(DocumentIndexStatus.TextOnly, new()), new FakeFactory(), new FakeSettings("sk-x"));
+            new StubIndex(DocumentIndexStatus.TextOnly, []), new FakeFactory(), new FakeSettings("sk-x"));
         Assert.Null(await svc.BuildContextAsync("d", "q"));
     }
 
@@ -77,7 +73,7 @@ public class RagContextServiceTests
     public async Task BuildContext_NoKey_ReturnsNull()
     {
         var svc = new RagContextService(
-            new StubIndex(DocumentIndexStatus.Complete, new()), new FakeFactory(), new FakeSettings(null));
+            new StubIndex(DocumentIndexStatus.Complete, []), new FakeFactory(), new FakeSettings(null));
         Assert.Null(await svc.BuildContextAsync("d", "q"));
     }
 
@@ -85,7 +81,7 @@ public class RagContextServiceTests
     public async Task BuildContext_NoResults_ReturnsNull()
     {
         var svc = new RagContextService(
-            new StubIndex(DocumentIndexStatus.Complete, new()), new FakeFactory(), new FakeSettings("sk-x"));
+            new StubIndex(DocumentIndexStatus.Complete, []), new FakeFactory(), new FakeSettings("sk-x"));
         Assert.Null(await svc.BuildContextAsync("d", "q"));
     }
 }

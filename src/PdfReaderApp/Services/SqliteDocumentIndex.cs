@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Linq;
 using Microsoft.Data.Sqlite;
 using PdfReaderApp.Models;
 
@@ -11,7 +10,7 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
     private const int SchemaVersion = 4;
     private readonly SqliteConnection _conn;
     private readonly object _lock = new();
-    private bool _vecAvailable;
+    private readonly bool _vecAvailable;
 
     /// <summary>True when sqlite-vec loaded; false -> vector RAG degrades, FTS5 search still works.</summary>
     public bool VectorSearchAvailable => _vecAvailable;
@@ -49,8 +48,10 @@ CREATE INDEX IF NOT EXISTS idx_chunks_doc ON chunks(document_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
   search_text, content='chunks', content_rowid='chunk_id', tokenize='trigram');");
             if (_vecAvailable)
+            {
                 Exec(@"CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
   document_id TEXT partition key, chunk_id INTEGER PRIMARY KEY, embedding FLOAT[" + EmbeddingDim + "]);");
+            }
 
             // Migration: ensure existing DBs have search_text column and trigram FTS
             MigrateToTrigramIfNeeded();
@@ -403,12 +404,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
     public List<SearchResult> SearchText(string documentId, string query, int limit = 50)
     {
-        if (string.IsNullOrWhiteSpace(query)) return new List<SearchResult>();
+        if (string.IsNullOrWhiteSpace(query)) return [];
 
         lock (_lock)
         {
             string phrase = SearchNormalizer.Fold(query);
-            if (phrase.Length == 0) return new List<SearchResult>();
+            if (phrase.Length == 0) return [];
 
             var results = new List<SearchResult>();
 
@@ -436,10 +437,12 @@ LIMIT $lim";
 
                     using var r = cmd.ExecuteReader();
                     while (r.Read())
+                    {
                         results.Add(new SearchResult(
                             r.GetInt32(0),
                             SearchSnippetBuilder.Build(r.GetString(1), query),
                             r.GetInt64(2)));
+                    }
                 }
                 else
                 {
@@ -454,15 +457,17 @@ LIMIT $lim";
 
                     using var r = cmd.ExecuteReader();
                     while (r.Read())
+                    {
                         results.Add(new SearchResult(
                             r.GetInt32(0),
                             SearchSnippetBuilder.Build(r.GetString(1), query),
                             r.GetInt64(2)));
+                    }
                 }
             }
             catch (Microsoft.Data.Sqlite.SqliteException)
             {
-                return new List<SearchResult>();
+                return [];
             }
 
             return results;
@@ -472,7 +477,7 @@ LIMIT $lim";
     public List<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5)
     {
         ArgumentNullException.ThrowIfNull(queryVector);
-        if (!_vecAvailable) return new List<Chunk>(); // degrade: caller falls back to per-page context
+        if (!_vecAvailable) return []; // degrade: caller falls back to per-page context
         lock (_lock)
         {
             var results = new List<Chunk>();
@@ -495,7 +500,7 @@ ORDER BY distance";
             }
             catch (Microsoft.Data.Sqlite.SqliteException)
             {
-                return new List<Chunk>(); // degrade: vec0 query error, caller falls back
+                return []; // degrade: vec0 query error, caller falls back
             }
 
             return results;

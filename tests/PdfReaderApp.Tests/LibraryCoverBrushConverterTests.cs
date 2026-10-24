@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Windows.Media;
 using PdfReaderApp.Converters;
 using PdfReaderApp.Models;
-using Xunit;
 
 namespace PdfReaderApp.Tests;
 

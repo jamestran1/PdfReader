@@ -1,5 +1,3 @@
-using System;
-using System.Text;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;

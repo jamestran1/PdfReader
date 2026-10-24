@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
@@ -9,11 +8,11 @@ public class DocumentContextBuilderTests
     private static TextBlock Block(string text, int pageIndex) =>
         new(text, 0f, 0f, 0f, 0f, 12f, pageIndex, "Paragraph");
 
-    private static List<TextBlock> FivePages() => new()
-    {
+    private static List<TextBlock> FivePages() =>
+    [
         Block("page0", 0), Block("page1", 1), Block("page2", 2),
         Block("page3", 3), Block("page4", 4)
-    };
+    ];
 
     [Fact]
     public void BuildAround_IncludesWindowPagesOnly()
@@ -41,7 +40,7 @@ public class DocumentContextBuilderTests
     [Fact]
     public void BuildAround_EmptyBlocks_ReturnsEmptyString()
     {
-        var ctx = DocumentContextBuilder.BuildAround(new List<TextBlock>(), currentPageOneBased: 1, window: 2);
+        var ctx = DocumentContextBuilder.BuildAround([], currentPageOneBased: 1, window: 2);
         Assert.Equal(string.Empty, ctx);
     }
 

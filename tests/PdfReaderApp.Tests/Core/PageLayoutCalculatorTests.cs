@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using PdfReaderApp.Core;
 
 namespace PdfReaderApp.Tests.Core;

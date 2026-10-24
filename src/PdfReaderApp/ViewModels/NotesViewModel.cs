@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Linq;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PdfReaderApp.Models;
@@ -21,11 +18,11 @@ public sealed partial class NotesViewModel : ObservableObject
     private readonly Func<string?>? _currentDocumentId;
     private readonly Action<string, int?>? _openDocument;
 
-    private readonly List<Note> _all = new(); // nguồn đầy đủ; Items là phần đã lọc/sắp
+    private readonly List<Note> _all = []; // nguồn đầy đủ; Items là phần đã lọc/sắp
     private string? _ownerKey;
     private string? _editingId;
 
-    public ObservableCollection<Note> Items { get; } = new();
+    public ObservableCollection<Note> Items { get; } = [];
 
     [ObservableProperty] private string _draft = string.Empty;
     [ObservableProperty] private bool _isEditing;
@@ -44,7 +41,7 @@ public sealed partial class NotesViewModel : ObservableObject
     private int _pendingPageIndex;
     private const string DefaultHighlightColor = "#FFEB3B";
     private IReadOnlyList<HighlightRect>? _pendingRects;
-    public ObservableCollection<Note> Highlights { get; } = new();
+    public ObservableCollection<Note> Highlights { get; } = [];
 
     public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex,
         Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null)

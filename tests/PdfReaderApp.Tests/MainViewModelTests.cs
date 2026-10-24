@@ -1,11 +1,7 @@
-using System.Collections.Generic;
-using System.Linq;
 using PdfReaderApp.Core;
 using PdfReaderApp.Models;
-using PdfReaderApp.Services;
 using PdfReaderApp.ViewModels;
 using System.Windows;
-using Xunit;
 
 namespace PdfReaderApp.Tests;
 
@@ -13,9 +9,9 @@ public class MainViewModelTests
 {
     private sealed class FakeChatHistoryStore : PdfReaderApp.Services.IChatHistoryStore
     {
-        public readonly List<string> Deleted = new();
-        public readonly List<(string doc, string role, string content)> Appended = new();
-        private readonly List<PdfReaderApp.Models.ChatHistoryEntry> _entries = new();
+        public readonly List<string> Deleted = [];
+        public readonly List<(string doc, string role, string content)> Appended = [];
+        private readonly List<PdfReaderApp.Models.ChatHistoryEntry> _entries = [];
 
         public void EnsureSchema() { }
         public void Append(string documentId, string role, string content, long createdAtUnix)
@@ -30,9 +26,9 @@ public class MainViewModelTests
 
     private sealed class FakeWorkspaceStore : PdfReaderApp.Services.IWorkspaceStore
     {
-        public readonly List<PdfReaderApp.Models.Workspace> All = new();
+        public readonly List<PdfReaderApp.Models.Workspace> All = [];
         // S2: theo dõi membership (wsId -> docIds)
-        public readonly Dictionary<string, HashSet<string>> Membership = new();
+        public readonly Dictionary<string, HashSet<string>> Membership = [];
 
         public void EnsureSchema() { }
         public void Upsert(PdfReaderApp.Models.Workspace w) { All.RemoveAll(x => x.Id == w.Id); All.Add(w); }
@@ -41,7 +37,7 @@ public class MainViewModelTests
             => All.Where(w => includeDefault || !w.IsDefault).ToList();
         public void AddDocument(string workspaceId, string documentId)
         {
-            if (!Membership.TryGetValue(workspaceId, out var s)) { s = new(); Membership[workspaceId] = s; }
+            if (!Membership.TryGetValue(workspaceId, out var s)) { s = []; Membership[workspaceId] = s; }
             s.Add(documentId);
         }
         public void RemoveDocument(string workspaceId, string documentId)
@@ -49,7 +45,7 @@ public class MainViewModelTests
             if (Membership.TryGetValue(workspaceId, out var s)) s.Remove(documentId);
         }
         public IReadOnlyList<string> GetDocumentIds(string workspaceId)
-            => Membership.TryGetValue(workspaceId, out var s) ? s.ToList() : new List<string>();
+            => Membership.TryGetValue(workspaceId, out var s) ? s.ToList() : [];
         public IReadOnlyList<string> GetWorkspaceIdsForDocument(string documentId)
         {
             var result = new List<string>();
@@ -76,18 +72,18 @@ public class MainViewModelTests
             All.RemoveAll(w => w.Id == id);
             Membership.Remove(id);
         }
-        public readonly System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<PdfReaderApp.Models.OpenTabState>> OpenSets = new();
+        public readonly System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<PdfReaderApp.Models.OpenTabState>> OpenSets = [];
 
         public void SaveOpenTabs(string workspaceId, IReadOnlyList<PdfReaderApp.Models.OpenTabState> tabs)
             => OpenSets[workspaceId] = tabs.OrderBy(t => t.TabOrder).ToList();
 
         public IReadOnlyList<PdfReaderApp.Models.OpenTabState> GetOpenTabs(string workspaceId)
-            => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : new List<PdfReaderApp.Models.OpenTabState>();
+            => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : [];
     }
 
     private sealed class FakeNoteStore : PdfReaderApp.Services.INoteStore
     {
-        public readonly List<PdfReaderApp.Models.Note> Rows = new();
+        public readonly List<PdfReaderApp.Models.Note> Rows = [];
         public void EnsureSchema() { }
         public void Add(PdfReaderApp.Models.Note note) => Rows.Add(note);
         public int Update(string id, string content, long now)

@@ -4,7 +4,6 @@ using iText.Kernel.Font;
 using iText.Kernel.Pdf;
 using iText.Layout;
 using iText.Layout.Element;
-using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;

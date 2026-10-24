@@ -1,7 +1,4 @@
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -25,12 +22,11 @@ public class SqliteDocumentIndexKnnTests : IDisposable
         _idx = new SqliteDocumentIndex(Path.Combine(_dir, "t.db"),
             Path.Combine(AppContext.BaseDirectory, "vec0.dll"));
         _idx.EnsureSchema();
-        var ids = _idx.WriteChunks("doc1", null, 3, new List<Chunk>
-        {
+        var ids = _idx.WriteChunks("doc1", null, 3, [
             new("doc1", 0, 0, "chunk hot-0"),
             new("doc1", 1, 1, "chunk hot-1"),
             new("doc1", 2, 2, "chunk hot-2")
-        });
+        ]);
         _idx.WriteEmbeddings(new List<(long, float[])>
         {
             (ids[0], Hot(0)), (ids[1], Hot(1)), (ids[2], Hot(2))

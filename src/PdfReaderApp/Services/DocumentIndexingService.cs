@@ -1,5 +1,3 @@
-using System.Linq;
-using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;

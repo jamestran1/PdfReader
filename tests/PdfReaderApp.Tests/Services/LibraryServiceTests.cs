@@ -1,6 +1,4 @@
-using System;
 using System.IO;
-using System.Linq;
 using iText.IO.Font;
 using iText.Kernel.Font;
 using iText.Kernel.Pdf;

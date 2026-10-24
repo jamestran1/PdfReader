@@ -1,7 +1,5 @@
 using System.Globalization;
-using PdfReaderApp;
 using PdfReaderApp.Core;
-using Xunit;
 
 namespace PdfReaderApp.Tests;
 
