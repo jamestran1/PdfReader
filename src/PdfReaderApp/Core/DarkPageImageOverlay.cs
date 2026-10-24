@@ -1,8 +1,5 @@
 namespace PdfReaderApp.Core;
 
-/// <summary>Hình chữ nhật (left, top, width, height) bằng số thực đơn giản, để tính toán không phụ thuộc Skia/WPF.</summary>
-public readonly record struct RectF(float Left, float Top, float Width, float Height);
-
 /// <summary>
 /// Logic thuần map vùng ảnh chuẩn hoá [0,1] lên bitmap trang (nguồn) và vùng vẽ trên canvas (đích),
 /// dùng khi vẽ lại ảnh bằng pixel gốc đè lên trang đã đảo màu ở chế độ tối.

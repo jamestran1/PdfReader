@@ -247,72 +247,50 @@ public partial class PdfViewerControl : UserControl, IDisposable
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
             e.Handled = true;
-
-            if (_currentDocument == null) return;
-
-            // 1. Capture initial state
-            Point mousePos = e.GetPosition(PagesScrollViewer);
-            double oldHOffset = PagesScrollViewer.HorizontalOffset;
-            double oldVOffset = PagesScrollViewer.VerticalOffset;
-            double oldZoom = ZoomLevel;
-
-            double absoluteX = oldHOffset + mousePos.X;
-            double absoluteY = oldVOffset + mousePos.Y;
-
-            double relX = absoluteX / oldZoom;
-            double relY = absoluteY / oldZoom;
-
-            // 2. Calculate new zoom level
-            double zoomDelta = e.Delta > 0 ? 0.1 : -0.1;
-            double newZoom = oldZoom + zoomDelta;
-
-            // Constrain zoom
-            newZoom = Math.Max(0.1, Math.Min(5.0, newZoom));
-
-            // If hitting limits, don't jump layout
-            if (Math.Abs(newZoom - oldZoom) < 0.01) return;
-
-            // This updates DependencyProperty and triggers RefreshLayout via OnZoomLevelChanged
-            ZoomLevel = newZoom;
-
-            // Force layout update so ScrollViewer knows about new InteractionCanvas size
-            this.UpdateLayout();
-
-            // 3. Adjust scroll offsets to anchor cursor
-            double newAbsoluteX = relX * newZoom;
-            double newAbsoluteY = relY * newZoom;
-
-            double newHOffset = newAbsoluteX - mousePos.X;
-            double newVOffset = newAbsoluteY - mousePos.Y;
-
-            PagesScrollViewer.ScrollToHorizontalOffset(newHOffset);
-            PagesScrollViewer.ScrollToVerticalOffset(newVOffset);
+            ZoomAtCursor(e);
         }
         else if (ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing && _currentDocument != null)
         {
-            // The current unit fills the view. If it is taller than the viewport, let the wheel scroll
-            // within it first; only advance to the next/prev unit when already at the boundary.
-            bool atTop = PagesScrollViewer.VerticalOffset <= 0.5;
-            bool atBottom = PagesScrollViewer.VerticalOffset >= PagesScrollViewer.ScrollableHeight - 0.5;
-
-            if (e.Delta < 0 && atBottom && CurrentPage < TotalPages)
-            {
-                e.Handled = true;
-                if (ViewMode == Core.PdfViewMode.Facing)
-                    CurrentPage = Math.Clamp(Core.PageLayoutCalculator.AdjacentFacingUnitFirstPage(ShowCover, TotalPages, CurrentPage - 1, forward: true) + 1, 1, TotalPages);
-                else
-                    CurrentPage = Math.Min(TotalPages, CurrentPage + 1);
-                PagesScrollViewer.ScrollToVerticalOffset(0);
-            }
-            else if (e.Delta > 0 && atTop && CurrentPage > 1)
-            {
-                e.Handled = true;
-                if (ViewMode == Core.PdfViewMode.Facing)
-                    CurrentPage = Math.Clamp(Core.PageLayoutCalculator.AdjacentFacingUnitFirstPage(ShowCover, TotalPages, CurrentPage - 1, forward: false) + 1, 1, TotalPages);
-                else
-                    CurrentPage = Math.Max(1, CurrentPage - 1);
-            }
+            NavigatePageByWheel(e);
         }
+    }
+
+    private void ZoomAtCursor(MouseWheelEventArgs e)
+    {
+        if (_currentDocument == null) return;
+
+        Point mousePos = e.GetPosition(PagesScrollViewer);
+        var anchor = new Core.WheelZoomAnchor(
+            PagesScrollViewer.HorizontalOffset, PagesScrollViewer.VerticalOffset, mousePos.X, mousePos.Y);
+        double oldZoom = ZoomLevel;
+
+        if (Core.ViewerWheelMath.NextZoom(oldZoom, e.Delta) is not double newZoom) return;
+
+        // This updates DependencyProperty and triggers RefreshLayout via OnZoomLevelChanged
+        ZoomLevel = newZoom;
+
+        // Force layout update so ScrollViewer knows about new InteractionCanvas size
+        this.UpdateLayout();
+
+        var (newHOffset, newVOffset) = Core.ViewerWheelMath.AnchoredOffsets(anchor, oldZoom, newZoom);
+        PagesScrollViewer.ScrollToHorizontalOffset(newHOffset);
+        PagesScrollViewer.ScrollToVerticalOffset(newVOffset);
+    }
+
+    private void NavigatePageByWheel(MouseWheelEventArgs e)
+    {
+        // The current unit fills the view. If it is taller than the viewport, let the wheel scroll
+        // within it first; only advance to the next/prev unit when already at the boundary.
+        var decision = Core.ViewerWheelMath.ResolvePageChange(new Core.WheelPageContext(
+            e.Delta,
+            AtTop: PagesScrollViewer.VerticalOffset <= 0.5,
+            AtBottom: PagesScrollViewer.VerticalOffset >= PagesScrollViewer.ScrollableHeight - 0.5,
+            CurrentPage, TotalPages, ViewMode == Core.PdfViewMode.Facing, ShowCover));
+        if (!decision.Handled) return;
+
+        e.Handled = true;
+        if (decision.NewPage is int page) CurrentPage = page;
+        if (decision.ScrollToTop) PagesScrollViewer.ScrollToVerticalOffset(0);
     }
 
     private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
@@ -698,57 +676,59 @@ public partial class PdfViewerControl : UserControl, IDisposable
         double viewTop = PagesScrollViewer.VerticalOffset;
         double viewBottom = viewTop + PagesScrollViewer.ViewportHeight;
 
-        // Retrieve horizontal offset
-        double viewLeft = PagesScrollViewer.HorizontalOffset;
-
         // Translate canvas for BOTH X and Y scrolling
-        canvas.Translate((float)-viewLeft, (float)-viewTop);
+        canvas.Translate((float)-PagesScrollViewer.HorizontalOffset, (float)-viewTop);
 
         foreach (var slot in _slots)
         {
             var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
-            if (rect.Bottom >= viewTop && rect.Top <= viewBottom)
-            {
-                _objectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
+            if (rect.Bottom < viewTop || rect.Top > viewBottom) continue;
 
-                // Render at device-pixel resolution (zoom * DPI) so the page stays crisp when the
-                // canvas is scaled by DPI; draw into the DIP dest rect so it maps 1:1 in pixels.
-                if (!_pageCache.ContainsKey(slot.PageIndex))
-                    _pageCache[slot.PageIndex] = _renderEngine.RenderPage(_currentDocument.Pages[slot.PageIndex], scale * dpiX);
+            DrawPageSlot(canvas, slot, rect, scale, dpiX);
+            DrawHighlights(canvas, slot.PageIndex, rect, scale);
+            DrawSelectionOverlay(canvas, slot.PageIndex, rect, scale);
+            DrawSavedHighlights(canvas, slot.PageIndex, rect, scale);
+        }
+    }
 
-                var bitmap = _pageCache[slot.PageIndex];
-                var dest = SKRect.Create((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height);
-                if (Services.MaterialDesignThemeService.Current == Models.AppTheme.Dark)
-                {
-                    using var invertPaint = new SKPaint { ColorFilter = DarkPageColorFilter };
-                    canvas.DrawBitmap(bitmap, dest, invertPaint);
-                    // Vẽ lại vùng ảnh bằng pixel gốc (không đảo màu) đè lên trên.
-                    if (_imageRectsByPage.TryGetValue(slot.PageIndex, out var imageRects))
-                    {
-                        foreach (var img in imageRects)
-                        {
-                            var src = SKRect.Create(
-                                (float)(img.Left * bitmap.Width), (float)(img.Top * bitmap.Height),
-                                (float)(img.Width * bitmap.Width), (float)(img.Height * bitmap.Height));
-                            var imgDst = SKRect.Create(
-                                (float)(rect.Left + img.Left * rect.Width), (float)(rect.Top + img.Top * rect.Height),
-                                (float)(img.Width * rect.Width), (float)(img.Height * rect.Height));
-                            canvas.DrawBitmap(bitmap, src, imgDst);
-                        }
-                    }
-                }
-                else
-                {
-                    canvas.DrawBitmap(bitmap, dest);
-                }
+    private void DrawPageSlot(SKCanvas canvas, Core.PageSlot slot, System.Windows.Rect rect, float scale, float dpiX)
+    {
+        _objectManager.MapPage(_currentDocument!.Pages[slot.PageIndex], slot.PageIndex);
 
-                using var paint = new SKPaint { Color = SKColors.Black, IsStroke = true, StrokeWidth = 1 };
-                canvas.DrawRect((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height, paint);
+        // Render at device-pixel resolution (zoom * DPI) so the page stays crisp when the
+        // canvas is scaled by DPI; draw into the DIP dest rect so it maps 1:1 in pixels.
+        if (!_pageCache.ContainsKey(slot.PageIndex))
+            _pageCache[slot.PageIndex] = _renderEngine.RenderPage(_currentDocument.Pages[slot.PageIndex], scale * dpiX);
 
-                DrawHighlights(canvas, slot.PageIndex, rect, scale);
-                DrawSelectionOverlay(canvas, slot.PageIndex, rect, scale);
-                DrawSavedHighlights(canvas, slot.PageIndex, rect, scale);
-            }
+        var bitmap = _pageCache[slot.PageIndex];
+        var dest = SKRect.Create((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height);
+        if (Services.MaterialDesignThemeService.Current == Models.AppTheme.Dark)
+        {
+            using var invertPaint = new SKPaint { ColorFilter = DarkPageColorFilter };
+            canvas.DrawBitmap(bitmap, dest, invertPaint);
+            DrawOriginalImages(canvas, slot.PageIndex, bitmap, rect);
+        }
+        else
+        {
+            canvas.DrawBitmap(bitmap, dest);
+        }
+
+        using var paint = new SKPaint { Color = SKColors.Black, IsStroke = true, StrokeWidth = 1 };
+        canvas.DrawRect((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height, paint);
+    }
+
+    // Vẽ lại vùng ảnh bằng pixel gốc (không đảo màu) đè lên trang đã đảo màu.
+    private void DrawOriginalImages(SKCanvas canvas, int pageIndex, SKBitmap bitmap, System.Windows.Rect rect)
+    {
+        if (!_imageRectsByPage.TryGetValue(pageIndex, out var imageRects)) return;
+
+        var pageRect = new Core.RectF((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height);
+        foreach (var img in imageRects)
+        {
+            var (src, dst) = Core.DarkPageImageOverlay.Map(img, bitmap.Width, bitmap.Height, pageRect);
+            canvas.DrawBitmap(bitmap,
+                SKRect.Create(src.Left, src.Top, src.Width, src.Height),
+                SKRect.Create(dst.Left, dst.Top, dst.Width, dst.Height));
         }
     }
 

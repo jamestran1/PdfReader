@@ -1,15 +1,5 @@
 namespace PdfReaderApp.Core;
 
-/// <summary>Trạng thái cuộn của viewer tại thời điểm lăn chuột (đầu vào cho ResolvePageChange).</summary>
-public sealed record WheelPageContext(
-    int Delta, bool AtTop, bool AtBottom, int CurrentPage, int TotalPages, bool IsFacing, bool ShowCover);
-
-/// <summary>Kết quả lăn chuột ở chế độ một trang / hai trang: có nuốt sự kiện không, trang mới, có cuộn về đầu không.</summary>
-public sealed record WheelPageDecision(bool Handled, int? NewPage, bool ScrollToTop);
-
-/// <summary>Điểm neo (toạ độ chuột trong ScrollViewer) cùng offset cuộn hiện tại khi zoom bằng Ctrl+lăn.</summary>
-public sealed record WheelZoomAnchor(double HorizontalOffset, double VerticalOffset, double MouseX, double MouseY);
-
 /// <summary>
 /// Logic thuần (tách khỏi code-behind để test) cho thao tác lăn chuột trên PdfViewerControl:
 /// zoom bám con trỏ và chuyển trang khi đã chạm biên.
@@ -50,15 +40,15 @@ public static class ViewerWheelMath
             int next = ctx.IsFacing
                 ? Math.Clamp(PageLayoutCalculator.AdjacentFacingUnitFirstPage(ctx.ShowCover, ctx.TotalPages, ctx.CurrentPage - 1, forward: true) + 1, 1, ctx.TotalPages)
                 : Math.Min(ctx.TotalPages, ctx.CurrentPage + 1);
-            return new WheelPageDecision(true, next, true);
+            return new WheelPageDecision(Handled: true, NewPage: next, ScrollToTop: true);
         }
         if (ctx.Delta > 0 && ctx.AtTop && ctx.CurrentPage > 1)
         {
             int previous = ctx.IsFacing
                 ? Math.Clamp(PageLayoutCalculator.AdjacentFacingUnitFirstPage(ctx.ShowCover, ctx.TotalPages, ctx.CurrentPage - 1, forward: false) + 1, 1, ctx.TotalPages)
                 : Math.Max(1, ctx.CurrentPage - 1);
-            return new WheelPageDecision(true, previous, false);
+            return new WheelPageDecision(Handled: true, NewPage: previous, ScrollToTop: false);
         }
-        return new WheelPageDecision(false, null, false);
+        return new WheelPageDecision(Handled: false, NewPage: null, ScrollToTop: false);
     }
 }

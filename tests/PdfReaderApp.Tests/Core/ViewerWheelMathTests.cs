@@ -39,11 +39,11 @@ public class ViewerWheelMathTests
 
     [Fact]
     public void ResolvePageChange_DownAtBottom_AdvancesAndScrollsToTop()
-        => Assert.Equal(new WheelPageDecision(true, 6, true), ViewerWheelMath.ResolvePageChange(Ctx(-120, atBottom: true)));
+        => Assert.Equal(new WheelPageDecision(Handled: true, NewPage: 6, ScrollToTop: true), ViewerWheelMath.ResolvePageChange(Ctx(-120, atBottom: true)));
 
     [Fact]
     public void ResolvePageChange_DownNotAtBottom_NotHandled()
-        => Assert.Equal(new WheelPageDecision(false, null, false), ViewerWheelMath.ResolvePageChange(Ctx(-120)));
+        => Assert.Equal(new WheelPageDecision(Handled: false, NewPage: null, ScrollToTop: false), ViewerWheelMath.ResolvePageChange(Ctx(-120)));
 
     [Fact]
     public void ResolvePageChange_DownAtBottomOnLastPage_NotHandled()
@@ -51,7 +51,7 @@ public class ViewerWheelMathTests
 
     [Fact]
     public void ResolvePageChange_UpAtTop_GoesBackWithoutScrollToTop()
-        => Assert.Equal(new WheelPageDecision(true, 4, false), ViewerWheelMath.ResolvePageChange(Ctx(120, atTop: true)));
+        => Assert.Equal(new WheelPageDecision(Handled: true, NewPage: 4, ScrollToTop: false), ViewerWheelMath.ResolvePageChange(Ctx(120, atTop: true)));
 
     [Fact]
     public void ResolvePageChange_UpAtTopOnFirstPage_NotHandled()
@@ -62,13 +62,13 @@ public class ViewerWheelMathTests
     {
         // 10 trang, không bìa: đơn vị (1,2)(3,4)(5,6)... đang ở trang 3 thì sang trang 5.
         var d = ViewerWheelMath.ResolvePageChange(Ctx(-120, atBottom: true, page: 3, facing: true));
-        Assert.Equal(new WheelPageDecision(true, 5, true), d);
+        Assert.Equal(new WheelPageDecision(Handled: true, NewPage: 5, ScrollToTop: true), d);
     }
 
     [Fact]
     public void ResolvePageChange_FacingUpAtTop_JumpsToPreviousUnitFirstPage()
     {
         var d = ViewerWheelMath.ResolvePageChange(Ctx(120, atTop: true, page: 5, facing: true));
-        Assert.Equal(new WheelPageDecision(true, 3, false), d);
+        Assert.Equal(new WheelPageDecision(Handled: true, NewPage: 3, ScrollToTop: false), d);
     }
 }
