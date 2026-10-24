@@ -11,12 +11,14 @@ namespace PdfReaderApp.ViewModels;
 public sealed partial class NotesViewModel : ObservableObject
 {
     private const int MaxNoteLength = 20000;
+    private const string SaveFailedMessage = "Không lưu được ghi chú.";
 
     private readonly INoteStore _store;
     private readonly Func<int?> _currentPageIndex;
     private readonly Action<int> _jumpToPageIndex;
     private readonly Func<string?>? _currentDocumentId;
     private readonly Action<string, int?>? _openDocument;
+    private readonly Action<string>? _notifyError;
 
     private readonly List<Note> _all = []; // nguồn đầy đủ; Items là phần đã lọc/sắp
     private string? _ownerKey;
@@ -44,8 +46,10 @@ public sealed partial class NotesViewModel : ObservableObject
     public ObservableCollection<Note> Highlights { get; } = [];
 
     public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex,
-        Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null)
+        Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null,
+        Action<string>? notifyError = null)
     {
+        _notifyError = notifyError;
         _store = store;
         _currentPageIndex = currentPageIndex;
         _jumpToPageIndex = jumpToPageIndex;
@@ -141,8 +145,8 @@ public sealed partial class NotesViewModel : ObservableObject
         string? docId = _currentDocumentId?.Invoke();
         var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, docId, pageIndex, quote, text, now, now);
         try { _store.Add(note); }
-#pragma warning disable CA1031 // ranh giới UI: lưu note lỗi thì ghi log và trả false, không làm gãy UI; báo lỗi cho người dùng làm ở #165
-        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.AddNote: lưu note lỗi: {ex}"); return false; }
+#pragma warning disable CA1031 // ranh giới UI: ghi log, báo lỗi cho người dùng và trả false
+        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.AddNote: lưu note lỗi: {ex}"); _notifyError?.Invoke(SaveFailedMessage); return false; }
 #pragma warning restore CA1031
         _all.Add(note);
         if (MatchesFilter(note, FilterText)) InsertSorted(note);
@@ -174,8 +178,8 @@ public sealed partial class NotesViewModel : ObservableObject
             var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, docId,
                 page, PendingQuote, content, now, now, rects, color);
             try { _store.Add(note); }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: lưu note lỗi thì ghi log, không làm gãy UI; báo lỗi cho người dùng làm ở #165
-            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: tạo note lỗi: {ex}"); return; }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: ghi log và báo lỗi cho người dùng
+            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: tạo note lỗi: {ex}"); _notifyError?.Invoke(SaveFailedMessage); return; }
 #pragma warning restore CA1031
             _all.Add(note);
             if (MatchesFilter(note, FilterText)) InsertSorted(note);
@@ -185,8 +189,8 @@ public sealed partial class NotesViewModel : ObservableObject
         {
             int rows;
             try { rows = _store.Update(_editingId, content, now); }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: cập nhật note lỗi thì ghi log, không làm gãy UI; báo lỗi cho người dùng làm ở #165
-            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: cập nhật note lỗi: {ex}"); return; }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: ghi log và báo lỗi cho người dùng
+            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: cập nhật note lỗi: {ex}"); _notifyError?.Invoke(SaveFailedMessage); return; }
 #pragma warning restore CA1031
             if (rows == 0) { LoadFor(_ownerKey); return; } // note đã bị xóa nơi khác
             int ai = _all.FindIndex(n => n.Id == _editingId);
@@ -228,8 +232,8 @@ public sealed partial class NotesViewModel : ObservableObject
         if (note == null) return;
         if (_editingId == note.Id) CancelEdit();
         try { _store.Delete(note.Id); }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: xoá note lỗi thì ghi log, không làm gãy UI; báo lỗi cho người dùng làm ở #165
-        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Delete: xoá note lỗi: {ex}"); return; }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: ghi log và báo lỗi cho người dùng
+        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Delete: xoá note lỗi: {ex}"); _notifyError?.Invoke("Không xoá được ghi chú."); return; }
 #pragma warning restore CA1031
         _all.RemoveAll(n => n.Id == note.Id);
         int ii = IndexInItems(note.Id);
