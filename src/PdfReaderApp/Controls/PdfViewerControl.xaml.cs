@@ -16,12 +16,9 @@ public partial class PdfViewerControl : UserControl, IDisposable
     public event System.Action<string>? LoadFailed;
 #pragma warning restore MA0046
 
-    private PdfDocument? _currentDocument;
+    private Viewer.PdfDocumentSession? _session;
     private readonly RenderEngine _renderEngine = new();
-    private readonly PdfObjectManager _objectManager = new();
-    private readonly Stack<IUndoCommand> _undoStack = new();
     private readonly Dictionary<int, SKBitmap> _pageCache = [];
-    private IReadOnlyDictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>> _imageRectsByPage = new Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>>();
     private bool _disposed;
 
     // Dark mode: đảo độ sáng (nền tối, chữ sáng) nhưng GIỮ hue — dễ đọc hơn đảo RGB thẳng.
@@ -33,6 +30,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             Contrast = 0f
         });
 
+    private PdfDocument? _currentDocument => _session?.Document;
     private readonly List<Core.PageSlot> _slots = [];
     private PdfObjectManager.GhostText? _activeEditTarget;
 
@@ -313,7 +311,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             var sp = e.GetPosition(InteractionCanvas);
             if (TryPageHit(sp, out var slot, out var pdf))
             {
-                _objectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
+                _session!.ObjectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
                 var chars = BuildSelChars(slot.PageIndex);
                 int anchor = Core.TextSelectionResolver.NearestCharIndex(chars, pdf);
                 if (anchor >= 0)
@@ -330,7 +328,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private List<Core.SelChar> BuildSelChars(int pageIndex)
     {
         var list = new List<Core.SelChar>();
-        foreach (var g in _objectManager.GetPageTexts(pageIndex))
+        foreach (var g in _session!.ObjectManager.GetPageTexts(pageIndex))
             list.Add(new Core.SelChar(g.CharIndex, g.Text, g.Bounds));
         return list;
     }
@@ -432,7 +430,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
                 double pdfX = (screenPoint.X - rect.Left) / scale;
                 double pdfY = (screenPoint.Y - rect.Top) / scale;
 
-                var hit = _objectManager.HitTest(slot.PageIndex, new Point(pdfX, pdfY));
+                var hit = _session!.ObjectManager.HitTest(slot.PageIndex, new Point(pdfX, pdfY));
                 if (hit != null)
                 {
                     ShowEditor(hit, rect, scale);
@@ -459,7 +457,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             var command = new EditTextCommand(_activeEditTarget.PageIndex, _activeEditTarget.CharIndex, _activeEditTarget.Text, newText);
             command.Execute();
-            _undoStack.Push(command);
+            _session!.UndoStack.Push(command);
 
             _activeEditTarget.Text = newText;
         }
@@ -520,27 +518,19 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
             if (!File.Exists(path)) return;
 
-            byte[] fileBytes = File.ReadAllBytes(path);
-            var ms = new MemoryStream(fileBytes);
-
-            _currentDocument = PdfDocument.Load(ms);
+            _session = Viewer.PdfDocumentSession.Open(path);
             _matchCache.Clear();
             _matchCacheQuery = null;
-            TotalPages = _currentDocument.PageCount;
-            try { _imageRectsByPage = Services.PdfImageLocator.GetNormalizedImageRectsByPage(path); }
-#pragma warning disable CA1031 // degrade: không đọc được vùng ảnh thì PDF vẫn mở được, chỉ mất chọn ảnh
-            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"PdfViewerControl.LoadDocument: không đọc được vùng ảnh: {ex}"); _imageRectsByPage = new Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>>(); }
-#pragma warning restore CA1031
+            TotalPages = _session.PageCount;
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
-            CurrentPage = System.Math.Clamp(CurrentPage, 1, _currentDocument.PageCount);
+            CurrentPage = System.Math.Clamp(CurrentPage, 1, _session.PageCount);
 
             // Bật GUARD pending NGAY (trước FitToViewport/RefreshLayout): các bước layout đó phát ScrollChanged
             // đồng bộ scroll->trang (kéo CurrentPage về trang đang hiển thị) -> guard chặn ghi đè trang đích.
             ArmPendingScrollGuard();
 
-            _objectManager.Clear();
-            _undoStack.Clear();
+            _session.ResetEditState();
             FitToViewport();   // zoom trang đầu vừa khung trước khi layout
             RefreshLayout();
 
@@ -600,12 +590,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             _pageCache.Clear();
         }
 
-        var sizes = new List<(double WidthPt, double HeightPt)>(_currentDocument.PageCount);
-        for (int i = 0; i < _currentDocument.PageCount; i++)
-        {
-            var s = _currentDocument.Pages[i].Size;
-            sizes.Add((s.Width, s.Height));
-        }
+        var sizes = _session!.GetPageSizes();
 
         // Canh giữa theo bề rộng thực của canvas Skia (không phải ScrollViewer.ViewportWidth).
         // skiaCanvas a Margin=10, donc on utilise ActualWidth - 20 comme fallback.
@@ -633,7 +618,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         double vpW = skiaCanvas.ActualWidth > 0 ? skiaCanvas.ActualWidth : this.ActualWidth - 20;
         double vpH = skiaCanvas.ActualHeight > 0 ? skiaCanvas.ActualHeight : this.ActualHeight - 20;
         if (vpW <= 0 || vpH <= 0) return;
-        var size = _currentDocument.Pages[0].Size;
+        var size = _session!.GetPageSize(0);
         if (size.Width <= 0 || size.Height <= 0) return;
         double fit = Math.Min((vpW - 24) / size.Width, (vpH - 24) / size.Height);
         ZoomLevel = Math.Clamp(fit, 0.4, 4.0);
@@ -693,7 +678,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void DrawPageSlot(SKCanvas canvas, Core.PageSlot slot, System.Windows.Rect rect, float scale, float dpiX)
     {
-        _objectManager.MapPage(_currentDocument!.Pages[slot.PageIndex], slot.PageIndex);
+        _session!.ObjectManager.MapPage(_currentDocument!.Pages[slot.PageIndex], slot.PageIndex);
 
         // Render at device-pixel resolution (zoom * DPI) so the page stays crisp when the
         // canvas is scaled by DPI; draw into the DIP dest rect so it maps 1:1 in pixels.
@@ -720,7 +705,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     // Vẽ lại vùng ảnh bằng pixel gốc (không đảo màu) đè lên trang đã đảo màu.
     private void DrawOriginalImages(SKCanvas canvas, int pageIndex, SKBitmap bitmap, System.Windows.Rect rect)
     {
-        if (!_imageRectsByPage.TryGetValue(pageIndex, out var imageRects)) return;
+        if (!_session!.ImageRectsByPage.TryGetValue(pageIndex, out var imageRects)) return;
 
         var pageRect = new Core.RectF((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height);
         foreach (var img in imageRects)
@@ -799,7 +784,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         // i.e. 1 PDF point = `scale` pixels. The highlight mapper must use the SAME pixels-per-point,
         // which means dpi=72 (ppp = scale * 72/72 = scale). Using 96 over-scales by 1.333x and the
         // rects drift away from the text (worse further from the origin).
-        var pageSize = _currentDocument.Pages[pageIndex].Size;
+        var pageSize = _session!.GetPageSize(pageIndex);
         float pageHeightPt = (float)pageSize.Height;
         var mapper = new PdfCoordinateMapper(pageHeightPt, scale, 72);
 
@@ -939,15 +924,12 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void DisposeCurrentDocument()
     {
-        if (_currentDocument != null)
+        if (_session != null)
         {
             _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
-            _imageRectsByPage = new Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>>();
-            _objectManager.Clear();
-            _undoStack.Clear();
-            _currentDocument.Dispose();
-            _currentDocument = null;
+            _session.Dispose();
+            _session = null;
         }
     }
 
