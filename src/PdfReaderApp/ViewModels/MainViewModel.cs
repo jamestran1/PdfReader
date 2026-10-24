@@ -342,12 +342,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _indexingService = new DocumentIndexingService(_documentIndex, embeddingFactory, settingsService);
         _ragContext = new RagContextService(_documentIndex, embeddingFactory, settingsService);
 
-        var libraryStore = new SqliteLibraryStore(System.IO.Path.Combine(AppDir(), "library.db"));
-        libraryStore.EnsureSchema();
-        _library = new LibraryService(libraryStore,
-            System.IO.Path.Combine(AppDir(), "library"),
-            System.IO.Path.Combine(AppDir(), "library", "thumbs"),
-            new PdfReaderApp.Core.RenderEngine());
+        _library = CreateLibraryService();
         ReloadLibrary();
 
         _chatHistory = chatHistory ?? new SqliteChatHistoryStore(System.IO.Path.Combine(AppDir(), "chats.db"));
@@ -366,6 +361,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _workspaceStore = workspaceStore ?? new SqliteWorkspaceStore(System.IO.Path.Combine(AppDir(), "workspaces.db"));
         _workspaceStore.EnsureSchema();
 
+        MigrateLegacyNotesToDefaultWorkspace();
+
+        ReloadWorkspaces();
+        LoadChatHistory();
+
+        DocumentsSurface = CreateDocumentsSurface();
+
+        WireTabEvents();
+    }
+
+    private static LibraryService CreateLibraryService()
+    {
+        var libraryStore = new SqliteLibraryStore(System.IO.Path.Combine(AppDir(), "library.db"));
+        libraryStore.EnsureSchema();
+        return new LibraryService(libraryStore,
+            System.IO.Path.Combine(AppDir(), "library"),
+            System.IO.Path.Combine(AppDir(), "library", "thumbs"),
+            new PdfReaderApp.Core.RenderEngine());
+    }
+
+    private void MigrateLegacyNotesToDefaultWorkspace()
+    {
         // Di trú: chuyển ghi chú cũ (owner_key=documentId) sang default workspace.
         // Bọc try/catch để lỗi store không chặn app khởi động (di trú best-effort, idempotent nên chạy lại được).
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -374,11 +391,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 #pragma warning disable CA1031 // degrade: di trú lỗi thì app vẫn mở, thử lại lần khởi động sau
         catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel: di trú workspace lỗi: {ex}"); /* di trú lỗi: app vẫn mở; thử lại lần khởi động sau */ }
 #pragma warning restore CA1031
+    }
 
-        ReloadWorkspaces();
-        LoadChatHistory();
-
-        DocumentsSurface = new WorkspaceDocumentsViewModel(
+    private WorkspaceDocumentsViewModel CreateDocumentsSurface()
+        => new WorkspaceDocumentsViewModel(
             _workspaceStore,
             activeWorkspace: () => SelectedWorkspace,
             libraryItems: () => Library,
@@ -391,10 +407,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             notify: NotifySuccess,
             stateChanged: OnDocumentsSurfaceStateChanged);
 
-        // Tab S1: khi ActiveTab thay đổi -> lưu view-state của tab cũ, hydrate tab mới.
+    private void WireTabEvents()
+    {
+        // Khi ActiveTab thay đổi -> lưu view-state của tab cũ, hydrate tab mới.
         Tabs.ActiveTabChanged += OnActiveTabChanged;
 
-        // Tab S2: lập lịch lưu Open Set khi danh sách tab thay đổi hoặc tab active đổi.
+        // Lập lịch lưu Open Set khi danh sách tab thay đổi hoặc tab active đổi.
         Tabs.Tabs.CollectionChanged += (_, _) => ScheduleSaveOpenSet();
         Tabs.ActiveTabChanged += _ => ScheduleSaveOpenSet();
     }
@@ -1066,9 +1084,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-#pragma warning disable MA0051 // Hàm dài đã có từ trước, tách ở đợt dọn độ phức tạp riêng
     private async Task SendMessageAsync()
-#pragma warning restore MA0051
     {
         if (string.IsNullOrWhiteSpace(ChatInput)) return;
         if (_isSending) return;
@@ -1080,70 +1096,75 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ChatInput = string.Empty;
             ChatMessages.Add(new ChatMessage { Role = "User", Content = question });
 
-            void PersistTurn(string answer)
-            {
-                string? owner = IsWorkspaceSession ? _activeWorkspaceId : _documentId;
-                if (owner is null) return;
-                try
-                {
-                    long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                    _chatHistory.Append(owner, "User", question, now);
-                    _chatHistory.Append(owner, "AI", answer, now);
-                }
-#pragma warning disable CA1031 // best-effort: lưu lịch sử lỗi không được chặn chat
-                catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.PersistTurn: lưu lịch sử chat lỗi: {ex}"); /* không chặn chat khi lưu lỗi */ }
-#pragma warning restore CA1031
-            }
-
             if (!_chatService.IsConfigured)
             {
                 ChatMessages.Add(new ChatMessage { Role = "AI", Content = NotConfiguredMessage });
-                PersistTurn(NotConfiguredMessage);
+                PersistTurn(question, NotConfiguredMessage);
                 return;
             }
 
-            string context;
-            if (_documentId is not null)
-            {
-                string? rag = null;
-                try { rag = await _ragContext.BuildContextAsync(_documentId, question); }
-#pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
-                catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.SendMessage: RAG lỗi: {ex}"); rag = null; }
-#pragma warning restore CA1031
-                context = rag ?? DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
-            }
-            else
-            {
-                context = DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
-            }
+            string context = await BuildChatContextAsync(question);
 
             var aiMessage = new ChatMessage { Role = "AI", Content = string.Empty };
             ChatMessages.Add(aiMessage);
 
-            try
-            {
-                await foreach (var token in _chatService.AskStreamingAsync(question, context))
-                {
-                    aiMessage.Content += token;
-                }
-            }
-            catch (AiChatException ex)
-            {
-                aiMessage.Content = MapError(ex.Error);
-            }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: lỗi chat không lường trước thì hiện thông báo lỗi chung
-            catch (Exception ex)
-            {
-                System.Diagnostics.Trace.TraceWarning($"MainViewModel.SendMessage: lỗi chat không lường trước: {ex}");
-                aiMessage.Content = UnknownErrorMessage;
-            }
-#pragma warning restore CA1031
-            PersistTurn(aiMessage.Content);
+            await StreamAnswerAsync(aiMessage, question, context);
+            PersistTurn(question, aiMessage.Content);
         }
         finally
         {
             _isSending = false;
         }
+    }
+
+    private void PersistTurn(string question, string answer)
+    {
+        string? owner = IsWorkspaceSession ? _activeWorkspaceId : _documentId;
+        if (owner is null) return;
+        try
+        {
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            _chatHistory.Append(owner, "User", question, now);
+            _chatHistory.Append(owner, "AI", answer, now);
+        }
+#pragma warning disable CA1031 // best-effort: lưu lịch sử lỗi không được chặn chat
+        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.PersistTurn: lưu lịch sử chat lỗi: {ex}"); /* không chặn chat khi lưu lỗi */ }
+#pragma warning restore CA1031
+    }
+
+    private async Task<string> BuildChatContextAsync(string question)
+    {
+        string? rag = null;
+        if (_documentId is not null)
+        {
+            try { rag = await _ragContext.BuildContextAsync(_documentId, question, ct: CancellationToken.None); }
+#pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
+            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.SendMessage: RAG lỗi: {ex}"); rag = null; }
+#pragma warning restore CA1031
+        }
+        return rag ?? DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
+    }
+
+    private async Task StreamAnswerAsync(ChatMessage aiMessage, string question, string context)
+    {
+        try
+        {
+            await foreach (var token in _chatService.AskStreamingAsync(question, context, CancellationToken.None))
+            {
+                aiMessage.Content += token;
+            }
+        }
+        catch (AiChatException ex)
+        {
+            aiMessage.Content = MapError(ex.Error);
+        }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: lỗi chat không lường trước thì hiện thông báo lỗi chung
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.TraceWarning($"MainViewModel.SendMessage: lỗi chat không lường trước: {ex}");
+            aiMessage.Content = UnknownErrorMessage;
+        }
+#pragma warning restore CA1031
     }
 
     private static string MapError(AiChatError error) => error switch
