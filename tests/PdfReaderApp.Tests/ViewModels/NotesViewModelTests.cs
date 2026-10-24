@@ -9,16 +9,26 @@ public class NotesViewModelTests
     private sealed class FakeNoteStore : INoteStore
     {
         public readonly List<Note> Rows = [];
+        public bool FailWrites { get; set; }
         public void EnsureSchema() { }
-        public void Add(Note note) => Rows.Add(note);
+        public void Add(Note note)
+        {
+            if (FailWrites) throw new InvalidOperationException("Lỗi giả lập khi ghi");
+            Rows.Add(note);
+        }
         public int Update(string id, string content, long now)
         {
+            if (FailWrites) throw new InvalidOperationException("Lỗi giả lập khi ghi");
             int i = Rows.FindIndex(n => n.Id == id);
             if (i < 0) return 0;
             Rows[i] = Rows[i] with { Content = content, UpdatedAtUnixMs = now };
             return 1;
         }
-        public int Delete(string id) => Rows.RemoveAll(n => n.Id == id);
+        public int Delete(string id)
+        {
+            if (FailWrites) throw new InvalidOperationException("Lỗi giả lập khi ghi");
+            return Rows.RemoveAll(n => n.Id == id);
+        }
         public IReadOnlyList<Note> GetForOwner(string ownerKey)
             => Rows.Where(n => n.OwnerKey == ownerKey).ToList();
         public int ReassignOwner(string oldKey, string newKey)
@@ -39,8 +49,83 @@ public class NotesViewModelTests
     }
 
     private static NotesViewModel Make(FakeNoteStore store, int? page, Action<int>? onJump = null,
-        Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null)
-        => new NotesViewModel(store, () => page, idx => onJump?.Invoke(idx), currentDocumentId, openDocument);
+        Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null,
+        Action<string>? notifyError = null)
+        => new NotesViewModel(store, () => page, idx => onJump?.Invoke(idx), currentDocumentId, openDocument, notifyError);
+
+    private static NotesViewModel MakeWithError(FakeNoteStore store, List<string> errors)
+    {
+        var vm = Make(store, page: 1, notifyError: errors.Add);
+        vm.LoadFor("doc1");
+        return vm;
+    }
+
+    [Fact]
+    public void AddNote_StoreFails_NotifiesUserAndReturnsFalse()
+    {
+        var store = new FakeNoteStore();
+        var errors = new List<string>();
+        var vm = MakeWithError(store, errors);
+        store.FailWrites = true;
+
+        bool saved = vm.AddNote("Nội dung", null, 1);
+
+        Assert.False(saved);
+        Assert.Single(errors);
+        Assert.Empty(vm.Items);
+    }
+
+    [Fact]
+    public void Save_CreateStoreFails_NotifiesUserAndKeepsDraft()
+    {
+        var store = new FakeNoteStore();
+        var errors = new List<string>();
+        var vm = MakeWithError(store, errors);
+        vm.Draft = "Ghi chú mới";
+        store.FailWrites = true;
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Single(errors);
+        Assert.Empty(vm.Items);
+        Assert.Equal("Ghi chú mới", vm.Draft);
+    }
+
+    [Fact]
+    public void Save_UpdateStoreFails_NotifiesUserAndKeepsEditing()
+    {
+        var store = new FakeNoteStore();
+        var errors = new List<string>();
+        var vm = MakeWithError(store, errors);
+        vm.Draft = "Gốc";
+        vm.SaveCommand.Execute(null);
+        var note = vm.Items.Single();
+        vm.BeginEditCommand.Execute(note);
+        vm.Draft = "Sửa";
+        store.FailWrites = true;
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Single(errors);
+        Assert.True(vm.IsEditing);
+        Assert.Equal("Gốc", vm.Items.Single().Content);
+    }
+
+    [Fact]
+    public void Delete_StoreFails_NotifiesUserAndKeepsNote()
+    {
+        var store = new FakeNoteStore();
+        var errors = new List<string>();
+        var vm = MakeWithError(store, errors);
+        vm.Draft = "Giữ lại";
+        vm.SaveCommand.Execute(null);
+        store.FailWrites = true;
+
+        vm.DeleteCommand.Execute(vm.Items.Single());
+
+        Assert.Single(errors);
+        Assert.Single(vm.Items);
+    }
 
     [Fact]
     public void Save_AddsNote_WithOwnerAndCurrentPage()
