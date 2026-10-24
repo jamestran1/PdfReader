@@ -7,8 +7,9 @@ status: accepted
 Bật analyzer (SDK `10.0-recommended` + Meziantou) trên code hiện tại cho ra khoảng 700 vi phạm và khoảng 12 method quá phức tạp. Bật chặn một lần thì mọi PR đỏ; không chặn thì chuẩn không bao giờ được áp. Quyết định:
 
 - **Chặn theo dòng:** chỉ warning nằm trên dòng PR thêm hoặc sửa (so với `merge-base` với nhánh gốc) mới chặn. Warning trên dòng cũ, kể cả trong file PR có đụng tới, không chặn. Việc lọc nằm trong một script dùng chung (`scripts/check.ps1`) cho CI (#128) và hook của agent (#129).
-- **Siết dần theo rule:** dọn từng rule trong PR riêng. Rule đã về 0 vi phạm được ghi vào `analyzers/clean-rules.txt` (script đọc file này từ #127) và từ đó bị chặn trên toàn repo, không lọc diff. Khi mọi rule đều sạch thì bỏ lọc diff.
+- **Siết dần theo rule:** dọn từng rule trong PR riêng. Rule đã về 0 vi phạm được ghi vào `analyzers/clean-rules.txt` và từ đó bị chặn trên toàn repo, không lọc diff. Khi mọi rule đều sạch thì bỏ lọc diff.
 - Rule độ phức tạp (CA1502, MA0051) báo ở dòng khai báo method, nên chỉ chặn khi PR thêm method mới hoặc sửa chữ ký. Method cũ do đợt dọn riêng xử lý.
+- Format (`dotnet format` whitespace + style) cũng chỉ tính trên dòng thêm/sửa, cùng lý do: PR tính năng không phải định dạng lại cả file cũ. Chế độ tự sửa của hook định dạng lại cả file có lỗi trên dòng đã sửa.
 - Hai mức: warning chặn (có lọc), suggestion chỉ hiện trong IDE. Không bật `TreatWarningsAsErrors`.
 
 ## Considered options
