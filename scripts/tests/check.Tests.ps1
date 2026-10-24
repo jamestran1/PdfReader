@@ -127,9 +127,10 @@ AfterAll {
 
 Describe 'check.ps1' {
     BeforeEach {
-        Invoke-SandboxGit checkout -q -B work main
-        Invoke-SandboxGit reset -q --hard main
+        # Reset the dirty tree first: checkout refuses to leave uncommitted edits behind.
+        Invoke-SandboxGit reset -q --hard
         Invoke-SandboxGit clean -q -fd -e bin -e obj
+        Invoke-SandboxGit checkout -q -B work main
     }
 
     It 'passes when nothing changed, even with old warnings in the code' {
@@ -263,6 +264,33 @@ $ifs
         }
     }
 
+    Context 'format on an existing file' {
+        # The badly indented file is committed on the work branch; -Base HEAD then compares only uncommitted edits.
+        BeforeEach {
+            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n    public static int Two() => 2;`n}`n"
+            Invoke-SandboxGit add -A
+            Invoke-SandboxGit commit -q -m 'old bad indentation'
+        }
+
+        It 'ignores bad indentation on an unchanged line' {
+            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n    public static int Two() => 3;`n}`n"
+
+            $result = Invoke-Check -Base 'HEAD'
+
+            $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
+        }
+
+        It 'reports bad indentation on a changed line at that line' {
+            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n  public static int Two() => 2;`n}`n"
+
+            $result = Invoke-Check -Base 'HEAD'
+
+            $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
+            $result.Output | Where-Object { $_ -match '^src/Lib/Indent\.cs:\d+: ' } | Should -HaveCount 1
+            $result.Output | Where-Object { $_ -match '^src/Lib/Indent\.cs:7: warning WHITESPACE: ' } | Should -HaveCount 1
+        }
+    }
+
     Context 'forbidden XAML' {
         It 'blocks PrimaryHueMidBrush on an added line with file and line' {
             Write-SandboxFile 'src/Lib/Views/Panel.xaml' ($XamlOriginal -replace '(<Border CornerRadius="12" />)', "`$1`n    <TextBlock Foreground=`"{DynamicResource PrimaryHueMidBrush}`" />")
@@ -312,7 +340,7 @@ $ifs
         $result = Invoke-Check
 
         $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
-        $result.Output | Where-Object { $_ -match 'Lib\.Tests\.CalcTests\.Add_ReturnsSum' } | Should -Not -BeNullOrEmpty
+        $result.Output | Where-Object { $_ -match '^TEST: Lib\.Tests\.CalcTests\.Add_ReturnsSum$' } | Should -HaveCount 1
     }
 
     It 'skips build and tests when only markdown changed' {

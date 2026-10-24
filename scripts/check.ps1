@@ -11,7 +11,7 @@
       2. build     analyzers write SARIF per project (see Directory.Build.props).
       3. filter    warnings on changed lines; rules listed in analyzers/clean-rules.txt count everywhere (ADR 0007).
       4. XAML      PrimaryHueMidBrush / CornerRadius="100" on changed lines (CODING_STANDARDS.md UI-3, UI-5).
-      5. test      only when .cs / .xaml / .csproj files changed.
+      5. test      only when .cs / .xaml / .csproj (or .props / .targets / global.json) files changed.
     When nothing that affects the build changed (e.g. only markdown), build and test are skipped.
 
     Exit codes:
@@ -46,12 +46,14 @@ $ExitViolations = 1
 $ExitCannotRun = 2
 
 $CleanRulesFile = 'analyzers/clean-rules.txt'
-$TestExtensions = '.cs', '.xaml', '.csproj'
-$BuildExtensions = $TestExtensions + '.props', '.targets', '.editorconfig', '.slnx', '.sln'
-$BuildFiles = 'codemetricsconfig.txt', $CleanRulesFile, 'global.json'
+# Package/SDK changes (.props, .targets, global.json) can break tests too, so they also trigger them.
+$TestExtensions = '.cs', '.xaml', '.csproj', '.props', '.targets'
+$TestFiles = @('global.json')
+$BuildExtensions = $TestExtensions + '.editorconfig', '.slnx', '.sln'
+$BuildFiles = $TestFiles + 'codemetricsconfig.txt', $CleanRulesFile
 $ForbiddenXaml = @(
     @{ Rule = 'UI-3'; Pattern = 'PrimaryHueMid(Foreground)?Brush'; Message = 'brush chết dưới CustomColorTheme; dùng MaterialDesign.Brush.Primary hoặc TriThu.Brush.*' }
-    @{ Rule = 'UI-5'; Pattern = 'CornerRadius\s*=\s*"100"'; Message = 'CornerRadius="100" vẽ thành elip; nút dùng CornerRadius="12"' }
+    @{ Rule = 'UI-5'; Pattern = 'CornerRadius\s*=\s*"100"'; Message = 'CornerRadius="100" vẽ thành elip; nút dài dùng CornerRadius="12", cần bo tròn hai đầu thì dùng đúng nửa chiều cao' }
 )
 
 function Stop-CannotRun([string]$Message) {
@@ -98,8 +100,7 @@ function Get-ChangedLines([string]$MergeBase) {
 }
 
 function Test-ChangedLine([string]$File, [int]$Line) {
-    $key = $File
-    $changed.ContainsKey($key) -and ($null -eq $changed[$key] -or $changed[$key].Contains($Line))
+    $changed.ContainsKey($File) -and ($null -eq $changed[$File] -or $changed[$File].Contains($Line))
 }
 
 # Existing changed files whose extension is in $Extensions (repo-relative, original casing).
@@ -145,6 +146,9 @@ function Invoke-FormatStep {
         & dotnet format style $Target --include @toFix --diagnostics @styleRules 2>&1 | Out-Null
     }
     Write-Host "check: format đã sửa: $($toFix -join ', ')"
+
+    # Some style issues have no code fix; whatever is left still blocks.
+    @(Get-FormatIssues 'whitespace' $toFix) + @(Get-FormatIssues 'style' $toFix)
 }
 
 function Get-SarifResults {
@@ -177,8 +181,10 @@ function Get-AnalyzerViolations {
     $cleanRules = Get-CleanRules
     Get-SarifResults | Where-Object {
         $isSource = -not ($_.File.StartsWith('../') -or $_.File -match '(^|/)obj/')
-        if ($_.Rule -in $cleanRules) { $isSource -and $_.Level -ne 'none' }
-        else { $_.Level -in 'warning', 'error' -and (Test-ChangedLine $_.File $_.Line) }
+        # Suggestions never block, not even for a clean rule.
+        if ($_.Level -notin 'warning', 'error') { $false }
+        elseif ($_.Rule -in $cleanRules) { $isSource }
+        else { Test-ChangedLine $_.File $_.Line }
     }
 }
 
@@ -230,7 +236,8 @@ try {
         }
         $violations += @(Get-AnalyzerViolations)
 
-        if (@(Get-ChangedFiles $TestExtensions).Count -gt 0) { $failedTests = @(Get-FailedTests) }
+        $needsTests = @(Get-ChangedFiles $TestExtensions).Count -gt 0 -or @($changed.Keys | Where-Object { $_ -in $TestFiles }).Count -gt 0
+        if ($needsTests) { $failedTests = @(Get-FailedTests) }
     }
     else {
         Write-Host 'check: bỏ qua build và test (không có thay đổi ảnh hưởng tới code)'

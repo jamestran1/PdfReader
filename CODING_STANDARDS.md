@@ -11,7 +11,7 @@ Cách đọc:
 
 ## Analyzer
 
-Style, format, đặt tên và độ phức tạp do analyzer kiểm **(máy kiểm)**, không chép lại ở đây. Xem `.editorconfig`, `Directory.Build.props` và `CodeMetricsConfig.txt`.
+Style, format, đặt tên và độ phức tạp do analyzer và `dotnet format` kiểm qua `scripts/check.ps1` **(máy kiểm)**, không chép lại ở đây. Xem `.editorconfig`, `Directory.Build.props` và `CodeMetricsConfig.txt`.
 
 ## UI: giao diện và XAML
 
