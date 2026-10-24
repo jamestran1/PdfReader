@@ -12,10 +12,7 @@ public sealed class WindowsSettingsService : ISettingsService
 
     public WindowsSettingsService(string? storageDirectory = null)
     {
-        string dir = storageDirectory
-            ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "PdfReaderApp");
+        string dir = storageDirectory ?? Core.AppDataDirectory.Current();
         Directory.CreateDirectory(dir);
         _filePath = Path.Combine(dir, "settings.dat");
         _themeFilePath = Path.Combine(dir, "theme.pref");
