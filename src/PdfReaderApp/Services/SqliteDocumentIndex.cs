@@ -69,55 +69,56 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
     private void MigrateToTrigramIfNeeded()
     {
-        // Check whether search_text column exists in chunks
-        bool hasSearchText = false;
-        using (var cmd = _conn.CreateCommand())
-        {
-            cmd.CommandText = "PRAGMA table_info(chunks)";
-            using var r = cmd.ExecuteReader();
-            while (r.Read())
-            {
-                if (r.GetString(1) == "search_text") { hasSearchText = true; break; }
-            }
-        }
-
-        // Check whether chunks_fts is already a trigram table
-        bool isTrigram = false;
-        using (var cmd = _conn.CreateCommand())
-        {
-            cmd.CommandText = "SELECT sql FROM sqlite_master WHERE name='chunks_fts'";
-            var val = cmd.ExecuteScalar() as string;
-            isTrigram = val != null && val.Contains("trigram", StringComparison.OrdinalIgnoreCase);
-        }
-
-        if (hasSearchText && isTrigram) return; // nothing to migrate
+        bool hasSearchText = HasSearchTextColumn();
+        if (hasSearchText && IsChunksFtsTrigram()) return; // nothing to migrate
 
         using var tx = _conn.BeginTransaction();
 
         if (!hasSearchText)
-        {
-            using var alter = _conn.CreateCommand();
-            alter.Transaction = tx;
-            alter.CommandText = "ALTER TABLE chunks ADD COLUMN search_text TEXT;";
-            alter.ExecuteNonQuery();
-        }
+            ExecInTransaction(tx, "ALTER TABLE chunks ADD COLUMN search_text TEXT;");
 
         // Recreate FTS as trigram (drop old non-trigram version)
-        using (var drop = _conn.CreateCommand())
+        ExecInTransaction(tx, "DROP TABLE IF EXISTS chunks_fts;");
+        ExecInTransaction(tx, @"CREATE VIRTUAL TABLE chunks_fts USING fts5(
+  search_text, content='chunks', content_rowid='chunk_id', tokenize='trigram');");
+
+        BackfillSearchTextAndFts(tx);
+
+        tx.Commit();
+    }
+
+    private bool HasSearchTextColumn()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "PRAGMA table_info(chunks)";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
         {
-            drop.Transaction = tx;
-            drop.CommandText = "DROP TABLE IF EXISTS chunks_fts;";
-            drop.ExecuteNonQuery();
-        }
-        using (var create = _conn.CreateCommand())
-        {
-            create.Transaction = tx;
-            create.CommandText = @"CREATE VIRTUAL TABLE chunks_fts USING fts5(
-  search_text, content='chunks', content_rowid='chunk_id', tokenize='trigram');";
-            create.ExecuteNonQuery();
+            if (string.Equals(r.GetString(1), "search_text", StringComparison.Ordinal)) return true;
         }
 
-        // Backfill search_text and FTS for existing rows
+        return false;
+    }
+
+    private bool IsChunksFtsTrigram()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT sql FROM sqlite_master WHERE name='chunks_fts'";
+        var val = cmd.ExecuteScalar() as string;
+        return val != null && val.Contains("trigram", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void ExecInTransaction(SqliteTransaction tx, string sql)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = sql;
+        cmd.ExecuteNonQuery();
+    }
+
+    // Backfill search_text and FTS for existing rows.
+    private void BackfillSearchTextAndFts(SqliteTransaction tx)
+    {
         var rowsToBackfill = new List<(long ChunkId, string Text)>();
         using (var sel = _conn.CreateCommand())
         {
@@ -145,8 +146,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             ins.Parameters.AddWithValue("$st", folded);
             ins.ExecuteNonQuery();
         }
-
-        tx.Commit();
     }
 
     private void RefoldSearchTextIfStale()
@@ -405,9 +404,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         }
     }
 
-#pragma warning disable MA0051 // Hàm dài đã có từ trước, tách ở đợt dọn độ phức tạp riêng
     public IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50)
-#pragma warning restore MA0051
     {
         if (string.IsNullOrWhiteSpace(query)) return [];
 
@@ -416,18 +413,27 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             string phrase = SearchNormalizer.Fold(query);
             if (phrase.Length == 0) return [];
 
-            var results = new List<SearchResult>();
-
             try
             {
-                if (phrase.Length >= 3)
-                {
-                    // Trigram MATCH path: match the whole folded phrase as a single quoted string
-                    // so "kinh hanh" matches the contiguous substring, not AND-of-words.
-                    string matchExpr = "\"" + phrase.Replace("\"", "\"\"") + "\"";
+                return phrase.Length >= 3
+                    ? SearchTrigram(documentId, query, phrase, limit)
+                    : SearchLike(documentId, query, phrase, limit);
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+                return [];
+            }
+        }
+    }
 
-                    using var cmd = _conn.CreateCommand();
-                    cmd.CommandText = @"
+    // Trigram MATCH path: match the whole folded phrase as a single quoted string
+    // so "kinh hanh" matches the contiguous substring, not AND-of-words.
+    private List<SearchResult> SearchTrigram(string documentId, string query, string phrase, int limit)
+    {
+        string matchExpr = "\"" + phrase.Replace("\"", "\"\"", StringComparison.Ordinal) + "\"";
+
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"
 SELECT c.page_index,
        c.text,
        c.chunk_id
@@ -436,47 +442,38 @@ JOIN chunks c ON c.chunk_id = chunks_fts.rowid
 WHERE chunks_fts MATCH $q AND c.document_id = $id
 ORDER BY rank
 LIMIT $lim";
-                    cmd.Parameters.AddWithValue("$q", matchExpr);
-                    cmd.Parameters.AddWithValue("$id", documentId);
-                    cmd.Parameters.AddWithValue("$lim", limit);
+        cmd.Parameters.AddWithValue("$q", matchExpr);
+        cmd.Parameters.AddWithValue("$id", documentId);
+        cmd.Parameters.AddWithValue("$lim", limit);
+        return ReadSearchResults(cmd, query);
+    }
 
-                    using var r = cmd.ExecuteReader();
-                    while (r.Read())
-                    {
-                        results.Add(new SearchResult(
-                            r.GetInt32(0),
-                            SearchSnippetBuilder.Build(r.GetString(1), query),
-                            r.GetInt64(2)));
-                    }
-                }
-                else
-                {
-                    // LIKE fallback for phrases shorter than 3 chars (trigram can't index them)
-                    using var cmd = _conn.CreateCommand();
-                    cmd.CommandText =
-                        "SELECT page_index, text, chunk_id FROM chunks " +
-                        "WHERE document_id=$id AND search_text LIKE $p LIMIT $lim";
-                    cmd.Parameters.AddWithValue("$id", documentId);
-                    cmd.Parameters.AddWithValue("$p", "%" + phrase + "%");
-                    cmd.Parameters.AddWithValue("$lim", limit);
+    // LIKE fallback for phrases shorter than 3 chars (trigram can't index them).
+    private List<SearchResult> SearchLike(string documentId, string query, string phrase, int limit)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText =
+            "SELECT page_index, text, chunk_id FROM chunks " +
+            "WHERE document_id=$id AND search_text LIKE $p LIMIT $lim";
+        cmd.Parameters.AddWithValue("$id", documentId);
+        cmd.Parameters.AddWithValue("$p", "%" + phrase + "%");
+        cmd.Parameters.AddWithValue("$lim", limit);
+        return ReadSearchResults(cmd, query);
+    }
 
-                    using var r = cmd.ExecuteReader();
-                    while (r.Read())
-                    {
-                        results.Add(new SearchResult(
-                            r.GetInt32(0),
-                            SearchSnippetBuilder.Build(r.GetString(1), query),
-                            r.GetInt64(2)));
-                    }
-                }
-            }
-            catch (Microsoft.Data.Sqlite.SqliteException)
-            {
-                return [];
-            }
-
-            return results;
+    private static List<SearchResult> ReadSearchResults(SqliteCommand cmd, string query)
+    {
+        var results = new List<SearchResult>();
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            results.Add(new SearchResult(
+                r.GetInt32(0),
+                SearchSnippetBuilder.Build(r.GetString(1), query),
+                r.GetInt64(2)));
         }
+
+        return results;
     }
 
     public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5)
