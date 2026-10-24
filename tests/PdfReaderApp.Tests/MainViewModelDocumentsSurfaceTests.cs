@@ -66,7 +66,7 @@ public class MainViewModelDocumentsSurfaceTests
 
         vm.DocumentsSurface.AddFromLibraryCommand.Execute(item);
 
-        Assert.Contains("docB", wsStore.GetDocumentIds("ws1"));
+        Assert.Contains("docB", wsStore.GetDocumentIds("ws1"), StringComparer.Ordinal);
         Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
         Assert.Contains(wsStore.OpenSets["ws1"], t => t.DocumentId == "docB" && t.IsActive);
         Assert.False(vm.DocumentsSurface.IsModalOpen);
@@ -86,7 +86,7 @@ public class MainViewModelDocumentsSurfaceTests
 
         vm.DocumentsSurface.RemoveMemberCommand.Execute(itemB);
 
-        Assert.DoesNotContain("docB", wsStore.GetDocumentIds("ws1"));
+        Assert.DoesNotContain("docB", wsStore.GetDocumentIds("ws1"), StringComparer.Ordinal);
         Assert.DoesNotContain(vm.Tabs.Tabs, t => t.DocumentId == "docB");
         Assert.Equal("docA", vm.Tabs.ActiveTab!.DocumentId);   // MRU promote
     }

@@ -33,7 +33,9 @@ public sealed class TabSetViewModel : ObservableObject
     public bool HasTabs => Tabs.Count > 0;
 
     /// <summary>Phát khi ActiveTab thay đổi (kể cả khi thành null).</summary>
+#pragma warning disable MA0046 // Sự kiện nội bộ dùng với lambda ở ViewModel và test; giữ chữ ký Action để không đổi hành vi
     public event Action<OpenTab?>? ActiveTabChanged;
+#pragma warning restore MA0046
 
     // Danh sách MRU (most-recently-activated): phần tử đầu = được kích hoạt gần nhất.
     private readonly List<OpenTab> _mru = [];

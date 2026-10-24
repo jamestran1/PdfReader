@@ -9,7 +9,7 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
     private const string EmbeddingDim = "1536";
     private const int SchemaVersion = 4;
     private readonly SqliteConnection _conn;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
     private readonly bool _vecAvailable;
 
     /// <summary>True when sqlite-vec loaded; false -> vector RAG degrades, FTS5 search still works.</summary>
@@ -153,7 +153,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         using (var cmd = _conn.CreateCommand())
         {
             cmd.CommandText = "PRAGMA user_version";
-            currentVersion = Convert.ToInt32(cmd.ExecuteScalar());
+            currentVersion = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
 
         if (currentVersion >= SchemaVersion) return;
@@ -207,7 +207,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         using (var cmd = _conn.CreateCommand())
         {
             cmd.CommandText = "PRAGMA user_version";
-            currentVersion = Convert.ToInt32(cmd.ExecuteScalar());
+            currentVersion = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
 
         if (currentVersion >= SchemaVersion) return;
@@ -402,7 +402,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         }
     }
 
-    public List<SearchResult> SearchText(string documentId, string query, int limit = 50)
+#pragma warning disable MA0051 // Hàm dài đã có từ trước, tách ở đợt dọn độ phức tạp riêng
+    public IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50)
+#pragma warning restore MA0051
     {
         if (string.IsNullOrWhiteSpace(query)) return [];
 
@@ -474,7 +476,7 @@ LIMIT $lim";
         }
     }
 
-    public List<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5)
+    public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5)
     {
         ArgumentNullException.ThrowIfNull(queryVector);
         if (!_vecAvailable) return []; // degrade: caller falls back to per-page context

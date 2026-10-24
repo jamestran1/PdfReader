@@ -19,7 +19,7 @@ public class DocumentIdTests
     {
         var a = DocumentId.FromBytes(Encoding.UTF8.GetBytes("hello"));
         var b = DocumentId.FromBytes(Encoding.UTF8.GetBytes("world"));
-        Assert.NotEqual(a, b);
+        Assert.NotEqual(a, b, StringComparer.Ordinal);
     }
 
     [Fact]

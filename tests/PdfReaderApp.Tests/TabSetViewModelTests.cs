@@ -194,7 +194,7 @@ public class TabSetViewModelTests
         var tabB = new OpenTab("docB", "B", "/b.pdf") { Page = 7, Zoom = 2.0 };
         tabSet.RestoreTabs(new[] { tabA, tabB }, activeDocumentId: "docB");
 
-        Assert.Equal(new[] { "docA", "docB" }, tabSet.Tabs.Select(t => t.DocumentId));
+        Assert.Equal(new[] { "docA", "docB" }, tabSet.Tabs.Select(t => t.DocumentId), StringComparer.Ordinal);
         Assert.Same(tabB, tabSet.ActiveTab);
         Assert.Equal(1, activationCount);
         Assert.Equal(7, tabSet.ActiveTab!.Page);
