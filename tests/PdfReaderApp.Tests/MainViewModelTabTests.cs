@@ -357,7 +357,7 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceCommand.Execute(workspace);
 
         Assert.Equal(afterFirstEntry, vm.Tabs.Tabs.Count);
-        Assert.Single(vm.Tabs.Tabs.Where(t => t.DocumentId == "docA"));
+        Assert.Single(vm.Tabs.Tabs, t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal));
     }
 
     // REGRESSION (S2): chuyển sang Workspace khác phải THAY THẾ Open Set, không tích lũy tab cũ.
