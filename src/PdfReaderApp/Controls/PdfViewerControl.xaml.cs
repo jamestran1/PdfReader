@@ -337,16 +337,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private bool TryPageHit(Point screenPoint, out Core.PageSlot slot, out Point pdfPoint)
     {
-        float scale = (float)ZoomLevel;
-        foreach (var s in _slots)
+        if (Core.SlotHitTester.AtPoint(_slots, screenPoint) is { } hit)
         {
-            var rect = new System.Windows.Rect(s.X, s.Y, s.Width, s.Height);
-            if (rect.Contains(screenPoint))
-            {
-                slot = s;
-                pdfPoint = new Point((screenPoint.X - rect.Left) / scale, (screenPoint.Y - rect.Top) / scale);
-                return true;
-            }
+            slot = hit;
+            pdfPoint = Core.SlotHitTester.ToPdfPoint(hit, screenPoint, ZoomLevel);
+            return true;
         }
         slot = default!;
         pdfPoint = default;
@@ -424,21 +419,13 @@ public partial class PdfViewerControl : UserControl, IDisposable
         var screenPoint = e.GetPosition(InteractionCanvas);
         float scale = (float)ZoomLevel;
 
-        foreach (var slot in _slots)
-        {
-            var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
-            if (rect.Contains(screenPoint))
-            {
-                double pdfX = (screenPoint.X - rect.Left) / scale;
-                double pdfY = (screenPoint.Y - rect.Top) / scale;
+        if (Core.SlotHitTester.AtPoint(_slots, screenPoint) is not { } slot) return;
 
-                var hit = _objectManager.HitTest(slot.PageIndex, new Point(pdfX, pdfY));
-                if (hit != null)
-                {
-                    ShowEditor(hit, rect, scale);
-                }
-                break;
-            }
+        var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
+        var hit = _objectManager.HitTest(slot.PageIndex, Core.SlotHitTester.ToPdfPoint(slot, screenPoint, scale));
+        if (hit != null)
+        {
+            ShowEditor(hit, rect, scale);
         }
     }
 
@@ -563,28 +550,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
     // capture page + fraction before relayout, then restore the same point afterwards.
     private void RefreshLayoutPreservingAnchor()
     {
-        int anchorSlot = 0;
-        double anchorFrac = 0;
         double centerY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
-        for (int i = 0; i < _slots.Count; i++)
-        {
-            var s = _slots[i];
-            if (centerY < s.Y + s.Height || i == _slots.Count - 1)
-            {
-                anchorSlot = i;
-                anchorFrac = s.Height > 0 ? Math.Clamp((centerY - s.Y) / s.Height, 0, 1) : 0;
-                break;
-            }
-        }
+        int anchorSlot = Core.SlotHitTester.CaptureAnchor(_slots, centerY, out double anchorFrac);
 
         RefreshLayout(keepCache: false);
 
         // The ScrollViewer extent updates on the next layout pass, so restore after it.
         _ = Dispatcher.BeginInvoke(new Action(() =>
         {
-            if (anchorSlot < 0 || anchorSlot >= _slots.Count) return;
-            var ns = _slots[anchorSlot];
-            double newCenterY = ns.Y + anchorFrac * ns.Height;
+            if (!Core.SlotHitTester.TryRestoreCenterY(_slots, anchorSlot, anchorFrac, out double newCenterY)) return;
             PagesScrollViewer.ScrollToVerticalOffset(newCenterY - PagesScrollViewer.ViewportHeight / 2);
         }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
@@ -741,7 +715,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             if (obj is not PdfReaderApp.Models.Note note) continue;
             if (note.PageIndex != pageIndex || note.Rects == null) continue;
             if (CurrentDocumentId != null && note.DocumentId != null && note.DocumentId != CurrentDocumentId) continue;
-            var color = ParseHighlightColor(note.Color);
+            var color = HighlightColor.Parse(note.Color);
             using var paint = new SKPaint { Color = color, Style = SKPaintStyle.Fill };
             foreach (var r in note.Rects)
             {
@@ -752,18 +726,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
                     (float)(r.H * scale)), paint);
             }
         }
-    }
-
-    private static SKColor ParseHighlightColor(string? hex)
-    {
-        // Mac dinh vang mo; parse #RRGGBB neu co.
-        byte rr = 255, gg = 235, bb = 59;
-        if (!string.IsNullOrEmpty(hex) && hex.StartsWith('#') && hex.Length == 7
-            && byte.TryParse(hex.AsSpan(1, 2), System.Globalization.NumberStyles.HexNumber, null, out var pr)
-            && byte.TryParse(hex.AsSpan(3, 2), System.Globalization.NumberStyles.HexNumber, null, out var pg)
-            && byte.TryParse(hex.AsSpan(5, 2), System.Globalization.NumberStyles.HexNumber, null, out var pb))
-        { rr = pr; gg = pg; bb = pb; }
-        return new SKColor(rr, gg, bb, 80);
     }
 
     private void DrawSelectionOverlay(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
@@ -900,14 +862,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
         skiaCanvas.InvalidateVisual();
 
         double middleY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
-        foreach (var slot in _slots)
+        if (Core.SlotHitTester.AtOffset(_slots, middleY) is { } slot)
         {
-            if (middleY >= slot.Y && middleY <= slot.Y + slot.Height)
-            {
-                int newPage = slot.PageIndex + 1;
-                if (CurrentPage != newPage) CurrentPage = newPage;
-                break;
-            }
+            int newPage = slot.PageIndex + 1;
+            if (CurrentPage != newPage) CurrentPage = newPage;
         }
     }
 
