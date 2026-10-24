@@ -38,6 +38,9 @@ function Stop-CannotRun([string]$Message) {
     exit $ExitCannotRun
 }
 
+# Any unexpected failure (dotnet missing, bad SARIF...) must not look like exit 1 = violations.
+trap { Stop-CannotRun "$_" }
+
 function Invoke-Git {
     $output = & git -c core.quotepath=off @args 2>&1
     if ($LASTEXITCODE -ne 0) { Stop-CannotRun "git $($args -join ' '): $output" }
@@ -52,7 +55,9 @@ function Get-ChangedLines([string]$MergeBase) {
     $file = $null
     foreach ($line in Invoke-Git diff --unified=0 --no-color --no-ext-diff --no-renames $MergeBase) {
         if ($line -match '^\+\+\+ (?:b/)?(.+)$') {
-            $file = if ($Matches[1] -eq '/dev/null') { $null } else { $Matches[1].ToLowerInvariant() }
+            # git appends a tab after paths that contain spaces
+            $path = $Matches[1].TrimEnd("`t")
+            $file = if ($path -eq '/dev/null') { $null } else { $path.ToLowerInvariant() }
             if ($file -and -not $changed.ContainsKey($file)) { $changed[$file] = [Collections.Generic.HashSet[int]]::new() }
         }
         elseif ($file -and $line -match '^@@ -\S+ \+(\d+)(?:,(\d+))? @@') {

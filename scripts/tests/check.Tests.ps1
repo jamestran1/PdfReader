@@ -148,6 +148,8 @@ public class Flags
         $result = Invoke-Check
 
         $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
+        # Guard against a vacuous pass: the rule must actually have fired.
+        Get-Content (Join-Path $Sandbox 'src/Lib/obj/Lib.sarif') -Raw | Should -Match '"MA0003"'
     }
 
     It 'does not report CA1707 for underscored test names under tests/' {
