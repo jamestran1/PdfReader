@@ -166,7 +166,7 @@ public sealed partial class NotesViewModel : ObservableObject
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         bool saved = _editingId == null
             ? CreateNoteFromDraft(_ownerKey, content, hasQuote, now)
-            : UpdateEditingNote(_ownerKey, _editingId, content, now);
+            : UpdateEditingNote(new EditRequest(_ownerKey, _editingId, content, now));
         if (!saved) return;
 
         Draft = string.Empty;
@@ -193,17 +193,19 @@ public sealed partial class NotesViewModel : ObservableObject
     }
 
     // Trả true nếu đã lưu xong và cần dọn composer; false nếu store lỗi hoặc note đã bị xóa nơi khác (khi đó nạp lại).
-    private bool UpdateEditingNote(string ownerKey, string editingId, string content, long now)
+    private bool UpdateEditingNote(EditRequest edit)
     {
         int rows;
-        try { rows = _store.Update(editingId, content, now); }
+        try { rows = _store.Update(edit.NoteId, edit.Content, edit.NowUnixMs); }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: cập nhật note lỗi thì ghi log, không làm gãy UI; báo lỗi cho người dùng làm ở #165
         catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: cập nhật note lỗi: {ex}"); return false; }
 #pragma warning restore CA1031
-        if (rows == 0) { LoadFor(ownerKey); return false; } // note đã bị xóa nơi khác
-        ApplyEditToLists(editingId, content, now);
+        if (rows == 0) { LoadFor(edit.OwnerKey); return false; } // note đã bị xóa nơi khác
+        ApplyEditToLists(edit.NoteId, edit.Content, edit.NowUnixMs);
         return true;
     }
+
+    private sealed record EditRequest(string OwnerKey, string NoteId, string Content, long NowUnixMs);
 
     private void ApplyEditToLists(string editingId, string content, long now)
     {
