@@ -52,12 +52,18 @@ try {
     if ($Page -gt 0) { $info.Environment['TRITHU_SCREENSHOT_PAGE'] = "$Page" }
     if ($Zoom -gt 0) { $info.Environment['TRITHU_SCREENSHOT_ZOOM'] = $Zoom.ToString([Globalization.CultureInfo]::InvariantCulture) }
     if ($Panel) { $info.Environment['TRITHU_SCREENSHOT_PANEL'] = $Panel }
+    # App là WinExe, không có console: phải redirect thì mới đọc được lỗi nó ghi ra stderr.
+    $info.RedirectStandardError = $true
+    $info.StandardErrorEncoding = [Text.Encoding]::UTF8
     $process = [Diagnostics.Process]::Start($info)
+    $stderr = $process.StandardError.ReadToEndAsync()
     if (-not $process.WaitForExit(90000)) {
         $process.Kill($true)
         throw 'App không tự thoát sau 90 giây.'
     }
-    if ($process.ExitCode -ne 0 -or -not (Test-Path $Out)) { throw "App thoát (mã $($process.ExitCode)) nhưng không có ảnh." }
+    if ($process.ExitCode -ne 0 -or -not (Test-Path $Out)) {
+        throw "App thoát (mã $($process.ExitCode)) nhưng không có ảnh.`n$($stderr.Result.Trim())"
+    }
     Write-Output $Out
 }
 finally {
