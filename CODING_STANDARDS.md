@@ -21,13 +21,13 @@ Lý do: đồ tự vẽ lệch elevation, state layer và shape của M3, nhìn 
 **UI-2** 🟡 Nút dài (filled, text, outlined) là hình chữ nhật bo góc `CornerRadius="12"`, không bao giờ hình viên thuốc. Đọc `border-radius:999px` trong CSS thiết kế là "bo góc 12". Nút icon vuông, tròn được miễn.
 Lý do: chủ repo đã sửa lỗi này nhiều lần; quyết định của chủ repo đứng trên bản thiết kế.
 
-**UI-3** 🔴 Không dùng `PrimaryHueMidBrush` / `PrimaryHueMidForegroundBrush`; dùng `MaterialDesign.Brush.Primary`, `MaterialDesign.Brush.Primary.Foreground` hoặc `TriThu.Brush.*`. (máy kiểm trong XAML của diff)
+**UI-3** 🔴 Không dùng `PrimaryHueMidBrush` / `PrimaryHueMidForegroundBrush`; dùng `MaterialDesign.Brush.Primary`, `MaterialDesign.Brush.Primary.Foreground` hoặc `TriThu.Brush.*`. (máy kiểm trong XAML của diff từ #127; trước đó AI review vẫn kiểm)
 Lý do: dưới `CustomColorTheme` các key cũ không tồn tại, `DynamicResource` âm thầm trả về trong suốt.
 
 **UI-4** 🔴 Token màu mới phải thêm vào cả `TriThuTokens.xaml` lẫn `TriThuTokens.Dark.xaml` với cùng `x:Key`, bind bằng `DynamicResource`; không hardcode màu.
 Lý do: thiếu một bên thì chế độ sáng hoặc tối hiển thị sai mà build không báo.
 
-**UI-5** 🟡 Không dùng `CornerRadius="100"` để làm bo tròn hai đầu; nếu thật sự cần, dùng đúng nửa chiều cao. (máy kiểm trong XAML của diff)
+**UI-5** 🟡 Không dùng `CornerRadius="100"` để làm bo tròn hai đầu; nếu thật sự cần, dùng đúng nửa chiều cao. (máy kiểm trong XAML của diff từ #127; trước đó AI review vẫn kiểm)
 Lý do: trong WPF 10 giá trị này không bị kẹp về nửa chiều cao mà vẽ thành hình elip trên phần tử không vuông.
 
 **UI-6** 🟡 Dùng `Slider` có sẵn của MaterialDesignThemes, không tự làm template `Track`.
