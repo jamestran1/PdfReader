@@ -52,66 +52,25 @@ public sealed class AiChatService : IDisposable
         string question, string documentContext,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        string? key = _settings.GetApiKey();
-        if (string.IsNullOrEmpty(key))
-            throw new AiChatException(AiChatError.Unauthorized, "Chưa cấu hình API key.");
-
-        if (_client is null || _clientKey != key)
-        {
-            _client?.Dispose();
-            _client = _factory.Create(key);
-            _clientKey = key;
-        }
-
-        string context = documentContext.Length > MaxContextChars
-            ? documentContext[..MaxContextChars]
-            : documentContext;
-        _history.Add(new ChatMessage(ChatRole.User,
-            $"Ngữ cảnh tài liệu:\n{context}\n\nCâu hỏi: {question}"));
+        var client = EnsureClient();
+        _history.Add(BuildUserTurn(question, documentContext));
 
         var assistant = new StringBuilder();
-
-        IAsyncEnumerator<ChatResponseUpdate> e;
-        try
-        {
-            e = _client.GetStreamingResponseAsync(_history, options: null, ct)
-                       .GetAsyncEnumerator(ct);
-        }
-        catch (Exception ex)
-        {
-            _history.RemoveAt(_history.Count - 1);
-            throw new AiChatException(AiErrorClassifier.Classify(ex), "Lỗi gọi dịch vụ AI.", ex);
-        }
+        var e = StartStream(client, ct);
 
         try
         {
             while (true)
             {
-                bool hasNext = false;
-                string? text = null;
-                bool interrupted = false;
-                AiChatException? fatal = null;
+                var step = await ReadNextAsync(e, hasPartialReply: assistant.Length > 0);
 
-                try
-                {
-                    hasNext = await e.MoveNextAsync();
-                    if (hasNext) text = e.Current.Text;
-                }
-#pragma warning disable CA1031 // ranh giới stream AI: SDK ném nhiều kiểu lỗi, được phân loại (AiErrorClassifier) và bọc lại kèm inner exception
-                catch (Exception ex)
-                {
-                    if (assistant.Length > 0) interrupted = true;
-                    else fatal = new AiChatException(AiErrorClassifier.Classify(ex), "Lỗi gọi dịch vụ AI.", ex);
-                }
-#pragma warning restore CA1031
-
-                if (fatal != null)
+                if (step.Fatal != null)
                 {
                     _history.RemoveAt(_history.Count - 1);
-                    throw fatal;
+                    throw step.Fatal;
                 }
 
-                if (interrupted)
+                if (step.Interrupted)
                 {
                     assistant.Append(InterruptedSentinel);
                     _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
@@ -119,13 +78,13 @@ public sealed class AiChatService : IDisposable
                     yield break;
                 }
 
-                if (!hasNext)
+                if (!step.HasNext)
                     break;
 
-                if (!string.IsNullOrEmpty(text))
+                if (!string.IsNullOrEmpty(step.Text))
                 {
-                    assistant.Append(text);
-                    yield return text;
+                    assistant.Append(step.Text);
+                    yield return step.Text;
                 }
             }
         }
@@ -135,6 +94,69 @@ public sealed class AiChatService : IDisposable
         }
 
         _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
+    }
+
+    /// <summary>Kết quả một lần đọc stream. Lỗi đọc được gói lại vì iterator không được yield
+    /// bên trong khối try/catch; vòng lặp xử lý sau khi thoát khối catch.</summary>
+    private readonly record struct StreamStep(bool HasNext, string? Text, bool Interrupted, AiChatException? Fatal);
+
+    private IChatClient EnsureClient()
+    {
+        string? key = _settings.GetApiKey();
+        if (string.IsNullOrEmpty(key))
+            throw new AiChatException(AiChatError.Unauthorized, "Chưa cấu hình API key.");
+
+        if (_client is null || !string.Equals(_clientKey, key, StringComparison.Ordinal))
+        {
+            _client?.Dispose();
+            _client = _factory.Create(key);
+            _clientKey = key;
+        }
+
+        return _client;
+    }
+
+    private static ChatMessage BuildUserTurn(string question, string documentContext)
+    {
+        string context = documentContext.Length > MaxContextChars
+            ? documentContext[..MaxContextChars]
+            : documentContext;
+        return new ChatMessage(ChatRole.User, $"Ngữ cảnh tài liệu:\n{context}\n\nCâu hỏi: {question}");
+    }
+
+    private IAsyncEnumerator<ChatResponseUpdate> StartStream(IChatClient client, CancellationToken ct)
+    {
+        try
+        {
+            return client.GetStreamingResponseAsync(_history, options: null, ct)
+                         .GetAsyncEnumerator(ct);
+        }
+#pragma warning disable CA1031 // ranh giới gọi AI: SDK ném nhiều kiểu lỗi, được phân loại (AiErrorClassifier) và bọc lại kèm inner exception
+        catch (Exception ex)
+        {
+            _history.RemoveAt(_history.Count - 1);
+            throw new AiChatException(AiErrorClassifier.Classify(ex), "Lỗi gọi dịch vụ AI.", ex);
+        }
+#pragma warning restore CA1031
+    }
+
+    private static async Task<StreamStep> ReadNextAsync(
+        IAsyncEnumerator<ChatResponseUpdate> e, bool hasPartialReply)
+    {
+        try
+        {
+            bool hasNext = await e.MoveNextAsync();
+            return new StreamStep(hasNext, hasNext ? e.Current.Text : null, Interrupted: false, Fatal: null);
+        }
+#pragma warning disable CA1031 // ranh giới stream AI: SDK ném nhiều kiểu lỗi, được phân loại (AiErrorClassifier) và bọc lại kèm inner exception
+        catch (Exception ex)
+        {
+            return hasPartialReply
+                ? new StreamStep(HasNext: false, Text: null, Interrupted: true, Fatal: null)
+                : new StreamStep(HasNext: false, Text: null, Interrupted: false,
+                    new AiChatException(AiErrorClassifier.Classify(ex), "Lỗi gọi dịch vụ AI.", ex));
+        }
+#pragma warning restore CA1031
     }
 
     public void Dispose() => _client?.Dispose();
