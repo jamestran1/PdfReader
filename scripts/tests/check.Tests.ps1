@@ -334,6 +334,25 @@ $ifs
         $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:7: warning CA1707: .*Old_Name' } | Should -HaveCount 1
     }
 
+    It 'ignores SARIF from nested worktrees under .claude/worktrees' {
+        # A subagent worktree inside the repo leaves its own obj/*.sarif behind; it is not this checkout's code.
+        & dotnet build (Join-Path $Sandbox 'Sample.slnx') -nologo -v:q | Out-Null
+        $sarif = Get-Content (Join-Path $Sandbox 'src/Lib/obj/Lib.sarif') -Raw
+        $worktree = Join-Path $Sandbox '.claude/worktrees/agent-x'
+        $sandboxUri = ([Uri](Join-Path $Sandbox 'src')).AbsoluteUri
+        $worktreeUri = ([Uri](Join-Path $worktree 'src')).AbsoluteUri
+        New-Item -ItemType Directory -Force (Join-Path $worktree 'src/Lib/obj') | Out-Null
+        Set-Content -LiteralPath (Join-Path $worktree 'src/Lib/obj/Lib.sarif') -Value $sarif.Replace($sandboxUri, $worktreeUri)
+        Add-Content -LiteralPath (Join-Path $Sandbox '.gitignore') -Value '.claude/'
+        Add-Content -LiteralPath (Join-Path $Sandbox 'analyzers/clean-rules.txt') -Value 'CA1707'
+        Invoke-SandboxGit commit -q -am 'CA1707 is clean'
+
+        $result = Invoke-Check
+
+        $result.Output | Should -Not -Match '\.claude/' -Because ($result.Output -join "`n")
+        $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:7: warning CA1707: ' } | Should -HaveCount 1
+    }
+
     It 'blocks a failing test and prints its name' {
         Write-SandboxFile 'tests/Lib.Tests/CalcTests.cs' ($CalcTestsOriginal -replace 'Assert.Equal\(3', 'Assert.Equal(4')
         Invoke-SandboxGit commit -q -am 'break the test'
