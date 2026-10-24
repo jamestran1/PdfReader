@@ -26,7 +26,7 @@ Góp ý của lượt review gần nhất nằm trong `.ai-review/findings.md`.
 ## Kiểm tra và commit
 
 1. Chạy `pwsh scripts/check.ps1 -Base origin/$BASE -Fix` và sửa đến khi đạt. Khi bạn dừng, hook của repo chạy lại đúng kiểm tra này và sẽ giữ bạn lại nếu còn lỗi.
-2. Commit thay đổi với message là giá trị `COMMIT`. Sửa thêm sau đó thì commit tiếp; workflow sẽ gộp lại thành một commit và push. Bạn không push, không rebase.
+2. Không commit, không push. Để thay đổi trong working tree; workflow tự commit tất cả với message `COMMIT` rồi push.
 3. Kết thúc bằng một tin nhắn trả lời chủ repo; workflow đăng nguyên văn tin nhắn cuối của bạn lên PR. Nội dung: id nào đã sửa và sửa thế nào (mỗi id một dòng), id nào không sửa và vì sao, và các lỗi máy kiểm bạn phải sửa thêm để qua hook (nếu có).
 
-Không có gì để sửa thì không commit, chỉ trả lời giải thích.
+Không có gì để sửa thì không đổi file nào, chỉ trả lời giải thích.
