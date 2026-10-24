@@ -1,3 +1,4 @@
+using System.Windows;
 using PdfReaderApp.Core;
 
 namespace PdfReaderApp.Tests.Core;
@@ -17,37 +18,39 @@ public class SlotHitTesterTests
     ];
 
     [Fact]
-    public void TryHit_PointInsideContinuousPage_ReturnsSlotAndPdfPointDividedByScale()
+    public void AtPoint_PointInsideContinuousPage_ReturnsThatPage()
+        => Assert.Equal(1, SlotHitTester.AtPoint(Continuous, new Point(60, 320))!.PageIndex);
+
+    [Fact]
+    public void AtPoint_PointInGutter_ReturnsNull()
+        => Assert.Null(SlotHitTester.AtPoint(Continuous, new Point(60, 215)));
+
+    [Fact]
+    public void AtPoint_PointOnEdge_CountsAsHit()
     {
-        var hit = SlotHitTester.TryHit(Continuous, 60, 320, 2.0);
-        Assert.NotNull(hit);
-        Assert.Equal(1, hit.Slot.PageIndex);
-        Assert.Equal(25, hit.PdfX, 6);
-        Assert.Equal(50, hit.PdfY, 6);
+        Assert.NotNull(SlotHitTester.AtPoint(Continuous, new Point(110, 210)));
+        Assert.NotNull(SlotHitTester.AtPoint(Continuous, new Point(10, 10)));
     }
 
     [Fact]
-    public void TryHit_PointInGutter_ReturnsNull()
-        => Assert.Null(SlotHitTester.TryHit(Continuous, 60, 215, 1.0));
-
-    [Fact]
-    public void TryHit_PointOnEdge_CountsAsHit()
+    public void AtPoint_TwoPageLayout_PicksPageBySideOfGap()
     {
-        Assert.NotNull(SlotHitTester.TryHit(Continuous, 110, 210, 1.0));
-        Assert.NotNull(SlotHitTester.TryHit(Continuous, 10, 10, 1.0));
+        Assert.Equal(0, SlotHitTester.AtPoint(TwoPage, new Point(50, 20))!.PageIndex);
+        Assert.Equal(1, SlotHitTester.AtPoint(TwoPage, new Point(150, 20))!.PageIndex);
+        Assert.Null(SlotHitTester.AtPoint(TwoPage, new Point(105, 20)));
     }
 
     [Fact]
-    public void TryHit_TwoPageLayout_PicksPageBySideOfGap()
-    {
-        Assert.Equal(0, SlotHitTester.TryHit(TwoPage, 50, 20, 1.0)!.Slot.PageIndex);
-        Assert.Equal(1, SlotHitTester.TryHit(TwoPage, 150, 20, 1.0)!.Slot.PageIndex);
-        Assert.Null(SlotHitTester.TryHit(TwoPage, 105, 20, 1.0));
-    }
+    public void AtPoint_NoSlots_ReturnsNull()
+        => Assert.Null(SlotHitTester.AtPoint([], new Point(5, 5)));
 
     [Fact]
-    public void TryHit_NoSlots_ReturnsNull()
-        => Assert.Null(SlotHitTester.TryHit([], 5, 5, 1.0));
+    public void ToPdfPoint_DividesOffsetFromPageOriginByZoom()
+    {
+        var pdf = SlotHitTester.ToPdfPoint(Continuous[1], new Point(60, 320), 2.0);
+        Assert.Equal(25, pdf.X, 6);
+        Assert.Equal(50, pdf.Y, 6);
+    }
 
     [Fact]
     public void AtOffset_InsidePage_ReturnsThatPage()
@@ -64,40 +67,44 @@ public class SlotHitTesterTests
     [Fact]
     public void CaptureAnchor_MidPage_ReturnsSlotAndFraction()
     {
-        var anchor = SlotHitTester.CaptureAnchor(Continuous, 320);
-        Assert.Equal(1, anchor.SlotIndex);
-        Assert.Equal(0.5, anchor.Fraction, 6);
+        int index = SlotHitTester.CaptureAnchor(Continuous, 320, out double fraction);
+        Assert.Equal(1, index);
+        Assert.Equal(0.5, fraction, 6);
     }
 
     [Fact]
     public void CaptureAnchor_InGutter_AnchorsToNextPageWithClampedFraction()
     {
-        var anchor = SlotHitTester.CaptureAnchor(Continuous, 215);
-        Assert.Equal(1, anchor.SlotIndex);
-        Assert.Equal(0, anchor.Fraction, 6);
+        int index = SlotHitTester.CaptureAnchor(Continuous, 215, out double fraction);
+        Assert.Equal(1, index);
+        Assert.Equal(0, fraction, 6);
     }
 
     [Fact]
     public void CaptureAnchor_BelowLastPage_AnchorsToLastPageWithFractionOne()
     {
-        var anchor = SlotHitTester.CaptureAnchor(Continuous, 9999);
-        Assert.Equal(1, anchor.SlotIndex);
-        Assert.Equal(1, anchor.Fraction, 6);
+        int index = SlotHitTester.CaptureAnchor(Continuous, 9999, out double fraction);
+        Assert.Equal(1, index);
+        Assert.Equal(1, fraction, 6);
     }
 
     [Fact]
     public void CaptureAnchor_NoSlots_ReturnsFirstSlotZero()
-        => Assert.Equal(new SlotAnchor(0, 0), SlotHitTester.CaptureAnchor([], 100));
-
-    [Fact]
-    public void RestoreCenterY_AfterRelayout_KeepsSameFractionOfNewHeight()
     {
-        PageSlot[] bigger = [new(0, 10, 10, 200, 400), new(1, 10, 420, 200, 400)];
-        var anchor = new SlotAnchor(1, 0.5);
-        Assert.Equal(620, SlotHitTester.RestoreCenterY(bigger, anchor)!.Value, 6);
+        int index = SlotHitTester.CaptureAnchor([], 100, out double fraction);
+        Assert.Equal(0, index);
+        Assert.Equal(0, fraction);
     }
 
     [Fact]
-    public void RestoreCenterY_SlotGone_ReturnsNull()
-        => Assert.Null(SlotHitTester.RestoreCenterY(Continuous, new SlotAnchor(5, 0.5)));
+    public void TryRestoreCenterY_AfterRelayout_KeepsSameFractionOfNewHeight()
+    {
+        PageSlot[] bigger = [new(0, 10, 10, 200, 400), new(1, 10, 420, 200, 400)];
+        Assert.True(SlotHitTester.TryRestoreCenterY(bigger, 1, 0.5, out double centerY));
+        Assert.Equal(620, centerY, 6);
+    }
+
+    [Fact]
+    public void TryRestoreCenterY_SlotGone_ReturnsFalse()
+        => Assert.False(SlotHitTester.TryRestoreCenterY(Continuous, 5, 0.5, out _));
 }
