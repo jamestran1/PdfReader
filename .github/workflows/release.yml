@@ -11,6 +11,9 @@ permissions:
 jobs:
   release:
     runs-on: windows-latest
+    # Tag đi qua env thay vì ${{ }} trong script, tránh chèn lệnh từ tên tag.
+    env:
+      TAG: ${{ github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,7 +33,8 @@ jobs:
       - name: Pack MSIX
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
+          $version = $env:TAG.TrimStart("v")
+          "VERSION=$version" >> $env:GITHUB_ENV
           ./pack-msix.ps1 -Version $version
 
       - name: Upload MSIX artifact
@@ -44,6 +48,4 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
-          gh release create "${{ github.ref_name }}" "PdfReaderApp_$version.msix" --generate-notes --verify-tag
+        run: gh release create $env:TAG "PdfReaderApp_$($env:VERSION).msix" --generate-notes --verify-tag
