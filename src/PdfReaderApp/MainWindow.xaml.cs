@@ -135,6 +135,7 @@ public class RoleToAlignConverter : IValueConverter
     }
 }
 
+// Bật nút khi danh sách có ít nhất một phần tử.
 public sealed class CountToBoolConverter : IValueConverter
 {
     public object Convert(object value, Type t, object p, CultureInfo c) => value is int n && n > 0;
