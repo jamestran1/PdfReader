@@ -14,6 +14,7 @@ public sealed class MainViewModelChatTests : IDisposable
 {
     private readonly List<MainViewModel> _viewModels = [];
     private readonly List<string> _tempDbPaths = [];
+    private readonly List<string> _tempFiles = [];
 
     private const string NotConfigured =
         "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key.";
@@ -55,6 +56,34 @@ public sealed class MainViewModelChatTests : IDisposable
             => Appended.Add((documentId, role, content));
         public IReadOnlyList<ChatHistoryEntry> GetAll(string documentId) => [];
         public void DeleteForDocument(string documentId) { }
+    }
+
+    private sealed class FakeDocumentService : IPdfDocumentService
+    {
+        public void LoadFile(string filePath) { }
+        public IReadOnlyList<TextBlock> ExtractStructure() => [];
+        public IReadOnlyList<PageText> ExtractPageTexts() => [];
+        public IReadOnlyList<MatchRect> FindMatchRects(int pageIndex, string query) => [];
+        public void Dispose() { }
+    }
+
+    private sealed class FakeDocumentIndex(DocumentIndexStatus status) : IDocumentIndex
+    {
+        public void EnsureSchema() { }
+        public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) => status;
+        public void DeleteDocument(string documentId) { }
+        public IReadOnlyList<long> WriteChunks(string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks) => [];
+        public void WriteEmbeddings(IReadOnlyList<(long ChunkId, float[] Vector)> embeddings) { }
+        public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel) { }
+        public IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50) => [];
+        public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5) => [];
+        public void Dispose() { }
+    }
+
+    private sealed class ThrowingEmbeddingFactory : IEmbeddingGeneratorFactory
+    {
+        public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey)
+            => throw new InvalidOperationException("embedding không khả dụng");
     }
 
     private static async IAsyncEnumerable<ChatResponseUpdate> Tokens(params string[] tokens)
@@ -101,6 +130,7 @@ public sealed class MainViewModelChatTests : IDisposable
     public void Dispose()
     {
         foreach (var vm in _viewModels) vm.Dispose();
+        _tempDbPaths.AddRange(_tempFiles);
         foreach (string path in _tempDbPaths)
         {
             foreach (string file in new[] { path, path + "-wal", path + "-shm" })
@@ -276,5 +306,46 @@ public sealed class MainViewModelChatTests : IDisposable
 
         var saved = store.OpenSets["ws-tabs"];
         Assert.DoesNotContain(saved, t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal));
+    }
+
+    // Mở một tài liệu thật (file tạm) qua dịch vụ PDF giả để _documentId khác null.
+    private (MainViewModel vm, FakeChatHistoryStore chat) OpenedDocumentVm(DocumentIndexStatus indexStatus)
+    {
+        var chat = new FakeChatHistoryStore();
+        var vm = new MainViewModel(
+            new FakeDocumentService(),
+            new FakeSettings(hasKey: true),
+            new FakeChatClientFactory(() => Tokens("Đáp ", "án")),
+            new FakeDocumentIndex(indexStatus),
+            new ThrowingEmbeddingFactory(),
+            chatHistory: chat,
+            workspaceStore: new FakeWorkspaceStore());
+        _viewModels.Add(vm);
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        File.WriteAllText(path, "nội dung giả " + Guid.NewGuid());
+        _tempFiles.Add(path);
+        vm.OpenLibraryItemCommand.Execute(
+            new LibraryItem("docOpen", "Sách mở", path, ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1));
+        chat.Appended.Clear();
+        return (vm, chat);
+    }
+
+    [Theory]
+    [InlineData(DocumentIndexStatus.Complete)] // RAG ném lỗi khi tạo embedding
+    [InlineData(DocumentIndexStatus.None)]     // RAG trả null vì chưa lập chỉ mục
+    public async Task SendMessage_WithOpenDocument_StreamsAnswerAndPersistsUnderDocumentId_WhenRagFailsOrIsEmpty(
+        DocumentIndexStatus indexStatus)
+    {
+        var (vm, chat) = OpenedDocumentVm(indexStatus);
+        string? documentId = vm.CurrentDocumentId;
+        Assert.NotNull(documentId);
+        vm.ChatInput = "Hỏi";
+
+        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
+
+        Assert.Equal("Đáp án", vm.ChatMessages[^1].Content);
+        Assert.Equal(
+            [(documentId, "User", "Hỏi"), (documentId, "AI", "Đáp án")],
+            chat.Appended);
     }
 }
