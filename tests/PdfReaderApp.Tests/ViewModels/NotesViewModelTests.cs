@@ -618,4 +618,92 @@ public class NotesViewModelTests
         Assert.False(vm.ShowDocumentChips);
         Assert.Equal("Tài liệu 3", vm.DocumentTitles["doc3"]);
     }
+
+    [Fact]
+    public void Save_TooLongContent_SetsStatusMessageAndKeepsDraft()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, 1);
+        vm.LoadFor("doc1");
+        vm.Draft = new string('a', 20001);
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Empty(store.Rows);
+        Assert.Contains("20000", vm.StatusMessage, StringComparison.Ordinal);
+        Assert.Equal(20001, vm.Draft.Length);
+    }
+
+    [Fact]
+    public void Save_SuccessfulAfterTooLong_ClearsStatusMessage()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, 1);
+        vm.LoadFor("doc1");
+        vm.Draft = new string('a', 20001);
+        vm.SaveCommand.Execute(null);
+
+        vm.Draft = "ngắn";
+        vm.SaveCommand.Execute(null);
+
+        Assert.Equal(string.Empty, vm.StatusMessage);
+        Assert.Single(store.Rows);
+    }
+
+    [Fact]
+    public void Save_WhileEditing_NoteDeletedElsewhere_ReloadsFromStoreAndExitsEdit()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, 2);
+        vm.LoadFor("doc1");
+        vm.Draft = "đầu";
+        vm.SaveCommand.Execute(null);
+        var note = vm.Items.Single();
+        vm.BeginEditCommand.Execute(note);
+        store.Rows.Clear(); // note bị xóa nơi khác
+        vm.Draft = "đã sửa";
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Empty(vm.Items);
+        Assert.False(vm.IsEditing);
+        Assert.Equal(string.Empty, vm.Draft);
+    }
+
+    [Fact]
+    public void Save_WhileEditing_ContentNoLongerMatchesFilter_RemovesFromItemsKeepsInAll()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, 2);
+        vm.LoadFor("doc1");
+        vm.Draft = "táo";
+        vm.SaveCommand.Execute(null);
+        vm.FilterText = "táo";
+        var note = vm.Items.Single();
+        vm.BeginEditCommand.Execute(note);
+        vm.Draft = "cam";
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Empty(vm.Items);
+        Assert.Equal("cam", store.Rows.Single().Content);
+        vm.FilterText = string.Empty;
+        Assert.Equal("cam", vm.Items.Single().Content);
+    }
+
+    [Fact]
+    public void Save_NewNote_NotMatchingActiveFilter_StoredButNotListed()
+    {
+        var store = new FakeNoteStore();
+        var vm = Make(store, 1);
+        vm.LoadFor("doc1");
+        vm.FilterText = "xyz";
+        vm.Draft = "khác";
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Single(store.Rows);
+        Assert.Empty(vm.Items);
+        Assert.Equal(string.Empty, vm.Draft);
+    }
 }
