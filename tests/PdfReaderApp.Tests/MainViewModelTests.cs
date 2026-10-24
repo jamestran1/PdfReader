@@ -84,8 +84,13 @@ public class MainViewModelTests
     private sealed class FakeNoteStore : PdfReaderApp.Services.INoteStore
     {
         public readonly List<PdfReaderApp.Models.Note> Rows = [];
+        public bool FailWrites { get; set; }
         public void EnsureSchema() { }
-        public void Add(PdfReaderApp.Models.Note note) => Rows.Add(note);
+        public void Add(PdfReaderApp.Models.Note note)
+        {
+            if (FailWrites) throw new InvalidOperationException("Lỗi giả lập khi ghi");
+            Rows.Add(note);
+        }
         public int Update(string id, string content, long now)
         {
             int i = Rows.FindIndex(n => n.Id == id);
@@ -938,6 +943,21 @@ public class MainViewModelTests
         Assert.NotNull(vm.CurrentNotification);
         Assert.Equal("Đã lưu vào ghi chú", vm.CurrentNotification!.Message);
         Assert.False(vm.CurrentNotification.IsError);
+    }
+
+    [Fact]
+    public void SaveAnswerAsNote_StoreFailsWithOpenOwner_ShowsSaveFailedNotNoDocument()
+    {
+        var notes = new FakeNoteStore();
+        var vm = VmWith(new FakeWorkspaceStore(), notes);
+        vm.Notes.LoadFor("doc1");
+        notes.FailWrites = true;
+
+        vm.SaveAnswerAsNoteCommand.Execute(new ChatMessage { Role = "AI", Content = "Câu trả lời" });
+
+        Assert.NotNull(vm.CurrentNotification);
+        Assert.True(vm.CurrentNotification!.IsError);
+        Assert.Equal("Không lưu được ghi chú.", vm.CurrentNotification.Message);
     }
 
     [Fact]
