@@ -1,0 +1,12 @@
+is_global = true
+
+# Complexity rules are off by default; enable at SDK default thresholds.
+dotnet_diagnostic.CA1502.severity = warning
+dotnet_diagnostic.CA1505.severity = warning
+dotnet_diagnostic.CA1506.severity = warning
+
+# strict run: explicit complexity/length rules (Sonar defaults: S3776=15, S1541=10, S138=80)
+dotnet_diagnostic.S3776.severity = warning
+dotnet_diagnostic.S1541.severity = warning
+dotnet_diagnostic.S138.severity = warning
+dotnet_diagnostic.S104.severity = warning
