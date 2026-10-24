@@ -3,10 +3,6 @@ using System.Windows;
 
 namespace PdfReaderApp.Core;
 
-public readonly record struct SelChar(int CharIndex, string Text, Rect Bounds);
-
-public sealed record SelectionResult(string Text, IReadOnlyList<Rect> LineRects);
-
 /// <summary>Tính vùng chọn text theo dòng chữ: từ dải [anchor,focus] (theo CharIndex) trên
 /// một trang -> chuỗi text theo thứ tự đọc + các rect gộp theo dòng. Thuần, không phụ thuộc view.</summary>
 public static class TextSelectionResolver
