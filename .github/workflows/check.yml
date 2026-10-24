@@ -1,0 +1,79 @@
+name: Check
+
+# Lớp chặn merge (#128, ADR 0007). Job `check` là tên check dùng cho branch protection.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: check
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # merge-base với nhánh gốc cần đủ lịch sử.
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Runner Windows chỉ có Pester 3.4 dựng sẵn.
+      - name: Install Pester
+        shell: pwsh
+        run: Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
+
+      # Mỗi vi phạm thành annotation tại dòng trong tab "Files changed"; không comment lên PR.
+      - name: Check (format, build, warning trên dòng đổi, XAML cấm, test)
+        if: github.event_name == 'pull_request'
+        shell: pwsh
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          function Format-Data([string]$Text) { $Text -replace '%', '%25' -replace "`r", '%0D' -replace "`n", '%0A' }
+          function Format-Property([string]$Text) { (Format-Data $Text) -replace ':', '%3A' -replace ',', '%2C' }
+
+          $output = & ./scripts/check.ps1 -Base "origin/$env:BASE_REF" 6>&1 | ForEach-Object { "$_" }
+          $code = $LASTEXITCODE
+          foreach ($line in $output) {
+              Write-Output $line
+              if ($line -match '^(.+?):(\d+): (\w+) (\S+): (.*)$') {
+                  Write-Output "::error file=$(Format-Property $Matches[1]),line=$($Matches[2]),title=$(Format-Property $Matches[4])::$(Format-Data $Matches[5])"
+              }
+              elseif ($line -match '^TEST: (.+)$') {
+                  Write-Output "::error title=Test đỏ::$(Format-Data $Matches[1])"
+              }
+          }
+          if ($code -eq 2) { Write-Output '::error title=check::Script kiểm tra không chạy được, xem log của bước này.' }
+          exit $code
+
+      - name: Pester (script kiểm tra + hook)
+        if: success() || failure()
+        shell: pwsh
+        run: Invoke-Pester -Path scripts/tests -CI
+
+      - name: Test
+        if: github.event_name == 'push'
+        run: dotnet test PdfReaderApp.slnx
+
+      # Tiến độ dọn code cũ: số warning còn lại theo từng rule.
+      - name: Warning còn lại theo rule
+        if: github.event_name == 'push'
+        shell: pwsh
+        run: |
+          "## Warning còn lại theo rule" >> $env:GITHUB_STEP_SUMMARY
+          ./scripts/check.ps1 -Summary >> $env:GITHUB_STEP_SUMMARY
+          exit $LASTEXITCODE
