@@ -10,6 +10,18 @@ public class TitleFormatterTests
     public void Shorten_TitleLongerThanMax_ResultHasMaxLengthCharsPlusEllipsis()
         => Assert.Equal("abcde" + TitleFormatter.Ellipsis, TitleFormatter.Shorten("abcdefgh", 5));
 
+    [Fact]
+    public void Shorten_NegativeMax_DoesNotThrowAndReturnsEllipsisOnly()
+        => Assert.Equal(TitleFormatter.Ellipsis, TitleFormatter.Shorten("abc", -1));
+
+    [Fact]
+    public void Shorten_CutInsideCombiningMark_DropsWholeTextElement()
+        => Assert.Equal("ab" + TitleFormatter.Ellipsis, TitleFormatter.Shorten("abéf", 3));
+
+    [Fact]
+    public void Shorten_CutInsideSurrogatePair_DropsWholePair()
+        => Assert.Equal("ab" + TitleFormatter.Ellipsis, TitleFormatter.Shorten("ab\U0001F600c", 3));
+
     [Theory]
     [InlineData("abcde", 5)]  // đúng bằng giới hạn -> giữ nguyên
     [InlineData("abc", 5)]    // ngắn hơn giới hạn -> giữ nguyên
