@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using PdfReaderApp.Models;
+﻿using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 using PdfReaderApp.ViewModels;
 

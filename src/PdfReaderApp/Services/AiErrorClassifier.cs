@@ -19,7 +19,9 @@ public static class AiErrorClassifier
     {
         if (status == 429 && detail is not null
             && detail.Contains("insufficient_quota", StringComparison.OrdinalIgnoreCase))
+        {
             return AiChatError.InsufficientQuota;
+        }
 
         return ClassifyStatus(status);
     }

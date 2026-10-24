@@ -1,6 +1,3 @@
-using System;
-using System.Collections.Generic;
-
 namespace PdfReaderApp.Core;
 
 public enum PdfViewMode { Continuous, SinglePage, ContinuousFacing, Facing }

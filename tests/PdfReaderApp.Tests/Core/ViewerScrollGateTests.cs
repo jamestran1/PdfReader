@@ -1,5 +1,4 @@
 using PdfReaderApp.Core;
-using Xunit;
 
 namespace PdfReaderApp.Tests.Core;
 

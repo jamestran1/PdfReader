@@ -1,9 +1,7 @@
-using System.Collections.Generic;
 using System.IO;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 using PdfReaderApp.ViewModels;
-using Xunit;
 
 namespace PdfReaderApp.Tests;
 

@@ -18,7 +18,7 @@ public class DocumentChipTests
     [Fact]
     public void ColorHexFor_ReturnsValueFromPalette()
     {
-        string[] palette = { "#1E88E5","#43A047","#E53935","#8E24AA","#FB8C00","#00ACC1","#3949AB","#7CB342" };
+        string[] palette = { "#1E88E5", "#43A047", "#E53935", "#8E24AA", "#FB8C00", "#00ACC1", "#3949AB", "#7CB342" };
         string result = DocumentChip.ColorHexFor("some-document-id");
         Assert.Contains(result, palette);
     }

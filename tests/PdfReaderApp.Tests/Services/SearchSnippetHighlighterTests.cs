@@ -1,6 +1,3 @@
-using System.Linq;
-using PdfReaderApp;
-
 namespace PdfReaderApp.Tests.Services;
 
 public class SearchSnippetHighlighterTests

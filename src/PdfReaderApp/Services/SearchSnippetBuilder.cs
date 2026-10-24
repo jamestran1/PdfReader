@@ -1,5 +1,3 @@
-using System;
-
 namespace PdfReaderApp.Services;
 
 /// <summary>

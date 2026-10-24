@@ -1,9 +1,6 @@
-using System.Collections.Generic;
-using System.Linq;
 using PdfReaderApp.Models;
 using PdfReaderApp.Tests.Fakes;
 using PdfReaderApp.ViewModels;
-using Xunit;
 
 namespace PdfReaderApp.Tests.ViewModels;
 
@@ -15,7 +12,7 @@ public class WorkspaceDocumentsViewModelTests
     private readonly List<string> _closedTabDocumentIds = new();
     private readonly List<string> _notifications = new();
     private int _stateChangedCount;
-    private Workspace _workspace;
+    private readonly Workspace _workspace;
 
     public WorkspaceDocumentsViewModelTests()
     {

@@ -1,8 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;

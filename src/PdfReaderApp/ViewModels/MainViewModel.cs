@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Threading;
-using System.Threading.Tasks;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -92,10 +88,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [ObservableProperty]
-    private string windowTitle = "Trí Thư";
+    private string _windowTitle = "Trí Thư";
 
     [ObservableProperty]
-    private string? filePath;
+    private string? _filePath;
 
     // Tab S1 (fix #44): trang/zoom/tổng-trang là MỘT nguồn sự thật với tab active.
     // Trong phiên Workspace có tab active: proxy thẳng vào OpenTab (viewer per-tab bind cùng OpenTab)
@@ -696,7 +692,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     if (item is null) continue;   // tài liệu đã bị gỡ khỏi thư viện -> bỏ qua
                     restored.Add(new OpenTab(state.DocumentId, item.Title, item.StoredPath)
                     {
-                        Page = state.Page, Zoom = state.Zoom, ScrollNorm = state.ScrollNorm
+                        Page = state.Page,
+                        Zoom = state.Zoom,
+                        ScrollNorm = state.ScrollNorm
                     });
                     if (state.IsActive) activeDocumentId = state.DocumentId;
                 }
@@ -784,7 +782,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Tabs.Reset();
         }
         else if (SelectedWorkspace?.Id == ws.Id)
+        {
             SelectedWorkspace = null;
+        }
+
         ReloadWorkspaces();
     }
 
