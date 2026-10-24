@@ -66,6 +66,21 @@ public class ViewerWheelMathTests
     }
 
     [Fact]
+    public void ResolvePageChange_FacingWithCoverDownAtBottom_JumpsToNextUnitFirstPage()
+    {
+        // Có bìa: đơn vị (1)(2,3)(4,5)... đang ở trang 2 thì lăn xuống sang trang 4.
+        var d = ViewerWheelMath.ResolvePageChange(Ctx(-120, atBottom: true, page: 2, facing: true, cover: true));
+        Assert.Equal(new WheelPageDecision(Handled: true, NewPage: 4, ScrollToTop: true), d);
+    }
+
+    [Fact]
+    public void ResolvePageChange_FacingWithCoverUpAtTop_GoesBackToCoverPage()
+    {
+        var d = ViewerWheelMath.ResolvePageChange(Ctx(120, atTop: true, page: 2, facing: true, cover: true));
+        Assert.Equal(new WheelPageDecision(Handled: true, NewPage: 1, ScrollToTop: false), d);
+    }
+
+    [Fact]
     public void ResolvePageChange_FacingUpAtTop_JumpsToPreviousUnitFirstPage()
     {
         var d = ViewerWheelMath.ResolvePageChange(Ctx(120, atTop: true, page: 5, facing: true));
