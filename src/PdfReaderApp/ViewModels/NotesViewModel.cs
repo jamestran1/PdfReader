@@ -24,17 +24,17 @@ public sealed partial class NotesViewModel : ObservableObject
 
     public ObservableCollection<Note> Items { get; } = [];
 
-    [ObservableProperty] private string _draft = string.Empty;
-    [ObservableProperty] private bool _isEditing;
-    [ObservableProperty] private string _filterText = string.Empty;
-    [ObservableProperty] private bool _canAddNote;
-    [ObservableProperty] private string _statusMessage = string.Empty;
-    [ObservableProperty] private int _rightTabIndex;
-    [ObservableProperty] private string? _pendingQuote;
-    [ObservableProperty] private bool _showDocumentChips;
-    [ObservableProperty] private bool _filterCurrentDocumentOnly;
-    [ObservableProperty] private double _notesScroll;
-    [ObservableProperty] private string? _selectedNoteId;
+    [ObservableProperty] public partial string Draft { get; set; } = string.Empty;
+    [ObservableProperty] public partial bool IsEditing { get; set; }
+    [ObservableProperty] public partial string FilterText { get; set; } = string.Empty;
+    [ObservableProperty] public partial bool CanAddNote { get; set; }
+    [ObservableProperty] public partial string StatusMessage { get; set; } = string.Empty;
+    [ObservableProperty] public partial int RightTabIndex { get; set; }
+    [ObservableProperty] public partial string? PendingQuote { get; set; }
+    [ObservableProperty] public partial bool ShowDocumentChips { get; set; }
+    [ObservableProperty] public partial bool FilterCurrentDocumentOnly { get; set; }
+    [ObservableProperty] public partial double NotesScroll { get; set; }
+    [ObservableProperty] public partial string? SelectedNoteId { get; set; }
 
     // Từ điển tiêu đề tài liệu: documentId -> tiêu đề hiển thị (dùng cho chip nhãn)
     public IReadOnlyDictionary<string, string> DocumentTitles { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
