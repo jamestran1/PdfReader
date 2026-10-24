@@ -1,11 +1,5 @@
 namespace PdfReaderApp.Core.Commands;
 
-public interface IUndoCommand
-{
-    void Execute();
-    void Undo();
-}
-
 public class EditTextCommand : IUndoCommand
 {
     private readonly int _charIndex;
