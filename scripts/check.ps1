@@ -1,28 +1,40 @@
 #requires -Version 7
 <#
 .SYNOPSIS
-    Shared check for CI and the Claude Code hook: report analyzer warnings on lines added or changed since the base.
+    Shared check for CI and the Claude Code hook: format, build, analyzer warnings on changed lines, forbidden XAML, tests.
 
 .DESCRIPTION
-    Builds the repo (analyzers write SARIF per project, see Directory.Build.props), then keeps only
-    warnings that sit on lines added or changed relative to `git merge-base <Base> HEAD`, including
-    uncommitted and untracked files. Warnings on untouched lines are ignored (ADR 0007).
+    Compares the working tree (including uncommitted and untracked files) with `git merge-base <Base> HEAD`
+    and runs, in order:
+      1. format    whitespace + style on changed .cs files; only issues on changed lines count.
+                   -Fix rewrites those files instead and reports them on one line.
+      2. build     analyzers write SARIF per project (see Directory.Build.props).
+      3. filter    warnings on changed lines; rules listed in analyzers/clean-rules.txt count everywhere (ADR 0007).
+      4. XAML      PrimaryHueMidBrush / CornerRadius="100" on changed lines (CODING_STANDARDS.md UI-3, UI-5).
+      5. test      only when .cs / .xaml / .csproj files changed.
+    When nothing that affects the build changed (e.g. only markdown), build and test are skipped.
 
     Exit codes:
       0  pass
-      1  blocking violations found (one line each on stdout: <file>:<line>: <level> <rule>: <message>)
-      2  could not run (build failed, git error, no SARIF); never reported as a pass
+      1  blocking violations; one line each on stdout:
+           <file>:<line>: <level> <rule>: <message>
+           TEST: <fully qualified test name>
+      2  could not run (build failed, git error, no SARIF...); never reported as a pass
 
 .PARAMETER Base
     Git ref to compare against. Default origin/main.
 
 .PARAMETER Target
     Solution or project to build. Default: the single *.slnx / *.sln at the repo root.
+
+.PARAMETER Fix
+    Rewrite badly formatted files instead of reporting them (for the agent hook). CI runs without it.
 #>
 [CmdletBinding()]
 param(
     [string]$Base = 'origin/main',
-    [string]$Target
+    [string]$Target,
+    [switch]$Fix
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,6 +44,15 @@ $ErrorActionPreference = 'Stop'
 $ExitPass = 0
 $ExitViolations = 1
 $ExitCannotRun = 2
+
+$CleanRulesFile = 'analyzers/clean-rules.txt'
+$TestExtensions = '.cs', '.xaml', '.csproj'
+$BuildExtensions = $TestExtensions + '.props', '.targets', '.editorconfig', '.slnx', '.sln'
+$BuildFiles = 'codemetricsconfig.txt', $CleanRulesFile, 'global.json'
+$ForbiddenXaml = @(
+    @{ Rule = 'UI-3'; Pattern = 'PrimaryHueMid(Foreground)?Brush'; Message = 'brush chết dưới CustomColorTheme; dùng MaterialDesign.Brush.Primary hoặc TriThu.Brush.*' }
+    @{ Rule = 'UI-5'; Pattern = 'CornerRadius\s*=\s*"100"'; Message = 'CornerRadius="100" vẽ thành elip; nút dùng CornerRadius="12"' }
+)
 
 function Stop-CannotRun([string]$Message) {
     Write-Host "check: không chạy được: $Message"
@@ -48,7 +69,11 @@ function Invoke-Git {
     $output | Where-Object { $_ -isnot [Management.Automation.ErrorRecord] }
 }
 
-# Returns a map: repo-relative path (forward slashes, lower case) -> HashSet[int] of added/changed lines,
+function ConvertTo-RepoPath([string]$Path) {
+    ([IO.Path]::GetRelativePath($repoRoot, $Path) -replace '\\', '/')
+}
+
+# Returns a case-insensitive map: repo-relative path (forward slashes) -> HashSet[int] of added/changed lines,
 # or $null for files that are new and untracked (every line counts).
 function Get-ChangedLines([string]$MergeBase) {
     $changed = @{}
@@ -57,7 +82,7 @@ function Get-ChangedLines([string]$MergeBase) {
         if ($line -match '^\+\+\+ (?:b/)?(.+)$') {
             # git appends a tab after paths that contain spaces
             $path = $Matches[1].TrimEnd("`t")
-            $file = if ($path -eq '/dev/null') { $null } else { $path.ToLowerInvariant() }
+            $file = if ($path -eq '/dev/null') { $null } else { $path }
             if ($file -and -not $changed.ContainsKey($file)) { $changed[$file] = [Collections.Generic.HashSet[int]]::new() }
         }
         elseif ($file -and $line -match '^@@ -\S+ \+(\d+)(?:,(\d+))? @@') {
@@ -67,13 +92,63 @@ function Get-ChangedLines([string]$MergeBase) {
         }
     }
     foreach ($untracked in Invoke-Git ls-files --others --exclude-standard) {
-        $changed[$untracked.ToLowerInvariant()] = $null
+        $changed[$untracked] = $null
     }
     $changed
 }
 
-function Get-SarifResults([string]$RepoRoot) {
-    $sarifFiles = Get-ChildItem -Path $RepoRoot -Recurse -File -Filter '*.sarif' |
+function Test-ChangedLine([string]$File, [int]$Line) {
+    $key = $File
+    $changed.ContainsKey($key) -and ($null -eq $changed[$key] -or $changed[$key].Contains($Line))
+}
+
+# Existing changed files whose extension is in $Extensions (repo-relative, original casing).
+function Get-ChangedFiles([string[]]$Extensions) {
+    foreach ($key in $changed.Keys) {
+        if ([IO.Path]::GetExtension($key) -notin $Extensions) { continue }
+        $item = Get-Item -LiteralPath (Join-Path $repoRoot $key) -ErrorAction SilentlyContinue
+        if ($item) { ConvertTo-RepoPath $item.FullName }
+    }
+}
+
+function New-Violation([string]$File, [int]$Line, [string]$Level, [string]$Rule, [string]$Message) {
+    [pscustomobject]@{ File = $File; Line = $Line; Level = $Level; Rule = $Rule; Message = ($Message -replace '\s+', ' ').Trim() }
+}
+
+# Runs `dotnet format <whitespace|style> --verify-no-changes` and returns its diagnostics.
+function Get-FormatIssues([string]$Kind, [string[]]$Files) {
+    $output = & dotnet format $Kind $Target --verify-no-changes --include @Files 2>&1 | ForEach-Object { "$_" }
+    if ($LASTEXITCODE -notin 0, 2) { Stop-CannotRun ("dotnet format $Kind lỗi`n" + ($output -join "`n")) }
+    foreach ($line in $output) {
+        if ($line -notmatch '^(.+?)\((\d+),\d+\): (?:error|warning|info) (\S+): (.+?) \[[^\]]+\]$') { continue }
+        $file = ConvertTo-RepoPath $Matches[1]
+        $at = [int]$Matches[2]
+        # A whitespace fix starts at the end of the previous line (e.g. bad indentation of line N is reported at N-1).
+        $hit = @($at, ($at + 1)) | Where-Object { Test-ChangedLine $file $_ } | Select-Object -First 1
+        if ($null -ne $hit) { New-Violation $file $hit 'warning' $Matches[3] $Matches[4] }
+    }
+}
+
+function Invoke-FormatStep {
+    $files = @(Get-ChangedFiles '.cs')
+    if (-not $files) { return }
+
+    $issues = @(Get-FormatIssues 'whitespace' $files) + @(Get-FormatIssues 'style' $files)
+    if (-not $Fix -or -not $issues) { return $issues }
+
+    $toFix = @($issues.File | Sort-Object -Unique)
+    if ($issues | Where-Object Rule -eq 'WHITESPACE') {
+        & dotnet format whitespace $Target --include @toFix 2>&1 | Out-Null
+    }
+    $styleRules = @($issues.Rule | Where-Object { $_ -ne 'WHITESPACE' } | Sort-Object -Unique)
+    if ($styleRules) {
+        & dotnet format style $Target --include @toFix --diagnostics @styleRules 2>&1 | Out-Null
+    }
+    Write-Host "check: format đã sửa: $($toFix -join ', ')"
+}
+
+function Get-SarifResults {
+    $sarifFiles = Get-ChildItem -Path $repoRoot -Recurse -File -Filter '*.sarif' |
         Where-Object { $_.Directory.Name -eq 'obj' -and $_.Name -notlike '*_wpftmp*' }
     if (-not $sarifFiles) { Stop-CannotRun 'không tìm thấy file SARIF trong obj/ (thiếu ErrorLog trong Directory.Build.props?)' }
 
@@ -85,17 +160,48 @@ function Get-SarifResults([string]$RepoRoot) {
                 $location = $result.locations | Select-Object -First 1
                 $uri = $location.physicalLocation.artifactLocation.uri
                 if (-not $uri) { continue }
-                $path = [IO.Path]::GetRelativePath($RepoRoot, ([Uri]$uri).LocalPath) -replace '\\', '/'
-                [pscustomobject]@{
-                    File    = $path
-                    Line    = [int]$location.physicalLocation.region.startLine
-                    Level   = $result.level
-                    Rule    = $result.ruleId
-                    Message = ($result.message.text -replace '\s+', ' ').Trim()
-                }
+                New-Violation (ConvertTo-RepoPath ([Uri]$uri).LocalPath) $location.physicalLocation.region.startLine `
+                    $result.level $result.ruleId $result.message.text
             }
         }
     }
+}
+
+function Get-CleanRules {
+    $path = Join-Path $repoRoot $CleanRulesFile
+    if (-not (Test-Path -LiteralPath $path)) { return @() }
+    @(Get-Content -LiteralPath $path | ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ })
+}
+
+function Get-AnalyzerViolations {
+    $cleanRules = Get-CleanRules
+    Get-SarifResults | Where-Object {
+        $isSource = -not ($_.File.StartsWith('../') -or $_.File -match '(^|/)obj/')
+        if ($_.Rule -in $cleanRules) { $isSource -and $_.Level -ne 'none' }
+        else { $_.Level -in 'warning', 'error' -and (Test-ChangedLine $_.File $_.Line) }
+    }
+}
+
+function Get-XamlViolations {
+    foreach ($file in Get-ChangedFiles '.xaml') {
+        $lineNumber = 0
+        foreach ($text in Get-Content -LiteralPath (Join-Path $repoRoot $file)) {
+            $lineNumber++
+            if (-not (Test-ChangedLine $file $lineNumber)) { continue }
+            foreach ($rule in $ForbiddenXaml) {
+                if ($text -match $rule.Pattern) { New-Violation $file $lineNumber 'warning' $rule.Rule $rule.Message }
+            }
+        }
+    }
+}
+
+# Returns the names of failed tests; stops when the test run fails without any failed test.
+function Get-FailedTests {
+    $output = & dotnet test $Target --no-build -nologo 2>&1 | ForEach-Object { "$_" }
+    if ($LASTEXITCODE -eq 0) { return }
+    $failed = @($output | ForEach-Object { if ($_ -match '^\s*Failed (\S+) \[') { $Matches[1] } } | Sort-Object -Unique)
+    if (-not $failed) { Stop-CannotRun ("dotnet test lỗi`n" + (($output | Select-Object -Last 20) -join "`n")) }
+    $failed
 }
 
 $repoRoot = (Invoke-Git rev-parse --show-toplevel | Select-Object -First 1).Trim()
@@ -110,30 +216,37 @@ try {
     $mergeBase = (Invoke-Git merge-base $Base HEAD | Select-Object -First 1).Trim()
     $changed = Get-ChangedLines $mergeBase
 
-    $buildOutput = & dotnet build $Target -nologo -v:q 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        $errors = $buildOutput | Where-Object { $_ -match ': error ' } | Select-Object -Unique
-        if (-not $errors) { $errors = $buildOutput | Select-Object -Last 20 }
-        Stop-CannotRun ("build lỗi`n" + ($errors -join "`n"))
+    $violations = @(Get-XamlViolations)
+    $failedTests = @()
+    $needsBuild = @($changed.Keys | Where-Object { [IO.Path]::GetExtension($_) -in $BuildExtensions -or $_ -in $BuildFiles }).Count -gt 0
+    if ($needsBuild) {
+        $violations += @(Invoke-FormatStep)
+
+        $buildOutput = & dotnet build $Target -nologo -v:q 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            $errors = $buildOutput | Where-Object { $_ -match ': error ' } | Select-Object -Unique
+            if (-not $errors) { $errors = $buildOutput | Select-Object -Last 20 }
+            Stop-CannotRun ("build lỗi`n" + ($errors -join "`n"))
+        }
+        $violations += @(Get-AnalyzerViolations)
+
+        if (@(Get-ChangedFiles $TestExtensions).Count -gt 0) { $failedTests = @(Get-FailedTests) }
+    }
+    else {
+        Write-Host 'check: bỏ qua build và test (không có thay đổi ảnh hưởng tới code)'
     }
 
-    $violations = Get-SarifResults $repoRoot |
-        Where-Object { $_.Level -in 'warning', 'error' } |
-        Where-Object {
-            $key = $_.File.ToLowerInvariant()
-            $changed.ContainsKey($key) -and ($null -eq $changed[$key] -or $changed[$key].Contains($_.Line))
-        } |
-        Sort-Object File, Line, Rule, Message -Unique
-
+    $violations = @($violations | Sort-Object File, Line, Rule, Message -Unique)
     foreach ($v in $violations) {
         Write-Output ('{0}:{1}: {2} {3}: {4}' -f $v.File, $v.Line, $v.Level, $v.Rule, $v.Message)
     }
+    foreach ($test in $failedTests) { Write-Output "TEST: $test" }
 
-    if ($violations) {
-        Write-Host "check: $(@($violations).Count) vi phạm trên dòng thêm/sửa so với $Base"
+    if ($violations -or $failedTests) {
+        Write-Host "check: $($violations.Count) vi phạm, $($failedTests.Count) test đỏ (so với $Base)"
         exit $ExitViolations
     }
-    Write-Host "check: đạt (không có warning trên dòng thêm/sửa so với $Base)"
+    Write-Host "check: đạt (so với $Base)"
     exit $ExitPass
 }
 finally {
