@@ -29,31 +29,87 @@ internal static class WindowSnapshot
             }
 
             timer.Stop();
-            var capture = new DispatcherTimer { Interval = request.Delay };
-            capture.Tick += (_, _) =>
-            {
-                capture.Stop();
-                var exitCode = 1;
-                try
-                {
-                    Save(window, request.Path);
-                    exitCode = 0;
-                }
-                // Công cụ dev: lỗi gì cũng phải thoát kèm mã lỗi, không để app đứng ở hộp thoại lỗi.
-#pragma warning disable CA1031 // ranh giới công cụ dev: ghi lỗi ra stderr và thoát với mã 1
-                catch (Exception ex)
-                {
-                    Console.Error.WriteLine($"TRITHU_SCREENSHOT: không lưu được ảnh: {ex}");
-                }
-#pragma warning restore CA1031
-                finally
-                {
-                    app.Shutdown(exitCode);
-                }
-            };
-            capture.Start();
+            // Cảnh chụp: mở tài liệu, chờ render, rồi đặt trang / zoom / tab panel, chờ tiếp rồi mới chụp.
+            Step(app, () => OpenDocument(window, request), request.Delay,
+                () => Step(app, () => ApplyView(window, request), request.Delay,
+                    () => Step(app, () => Save(window, request.Path), TimeSpan.Zero, () => app.Shutdown(0))));
         };
         timer.Start();
+    }
+
+    // Chạy một bước rồi hẹn bước sau; lỗi ở bước nào cũng thoát với mã 1, không để app đứng ở hộp thoại lỗi.
+    private static void Step(Application app, Action action, TimeSpan wait, Action next)
+    {
+        try
+        {
+            action();
+        }
+#pragma warning disable CA1031 // ranh giới công cụ dev: ghi lỗi ra stderr và thoát với mã 1
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"TRITHU_SCREENSHOT: lỗi khi dựng cảnh hoặc lưu ảnh: {ex}");
+            app.Shutdown(1);
+            return;
+        }
+#pragma warning restore CA1031
+
+        if (wait <= TimeSpan.Zero)
+        {
+            next();
+            return;
+        }
+
+        var timer = new DispatcherTimer { Interval = wait };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            next();
+        };
+        timer.Start();
+    }
+
+    private static void OpenDocument(Window window, SnapshotRequest request)
+    {
+        if (request.OpenPath is not { } path)
+        {
+            return;
+        }
+
+        if (window.DataContext is not ViewModels.MainViewModel vm)
+        {
+            throw new InvalidOperationException("DataContext của cửa sổ chính không phải MainViewModel.");
+        }
+
+        vm.ImportAndOpen(path);
+        // Viewer giữ trang đích đặt trước khi nó nạp xong tài liệu (như khi nhảy tới trang của ghi chú);
+        // đặt sau khi đã nạp thì đồng bộ cuộn kéo trang về chỗ đang hiển thị.
+        if (request.Page is { } page)
+        {
+            vm.CurrentPage = page;
+        }
+        // ImportAndOpen báo lỗi bằng notification trên UI; đưa nó ra stderr để script thấy nguyên nhân.
+        if (vm.CurrentNotification is { IsError: true } error)
+        {
+            throw new InvalidOperationException($"Mở {path} lỗi: {error.Message}");
+        }
+    }
+
+    private static void ApplyView(Window window, SnapshotRequest request)
+    {
+        if (window.DataContext is not ViewModels.MainViewModel vm)
+        {
+            return;
+        }
+
+        if (request.Zoom is { } zoom)
+        {
+            vm.ZoomLevel = zoom;
+        }
+
+        if (request.RightTabIndex is { } tab)
+        {
+            vm.Notes.RightTabIndex = tab;
+        }
     }
 
     private static void Save(Window window, string path)

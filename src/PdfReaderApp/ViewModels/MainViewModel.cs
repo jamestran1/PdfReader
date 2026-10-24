@@ -573,9 +573,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         if (dialog.ShowDialog() != true) return;
 
+        ImportAndOpen(dialog.FileName);
+    }
+
+    /// <summary>Import một file PDF vào thư viện rồi mở nó (dùng cho Mở PDF và cho ảnh chụp dev).</summary>
+    internal void ImportAndOpen(string path)
+    {
         try
         {
-            var item = _library.Import(dialog.FileName, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            var item = _library.Import(path, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             ReloadLibrary();
             OpenLibraryItem(item);
         }

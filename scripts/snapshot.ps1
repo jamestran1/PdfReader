@@ -8,13 +8,22 @@
     TRITHU_SCREENSHOT: app tự render cửa sổ chính bằng RenderTargetBitmap, lưu PNG rồi thoát.
     Không chụp màn hình nên không lộ cửa sổ khác trên desktop.
 
+    Cảnh chụp tuỳ chọn: -Open mở một file PDF (-Open sample dùng scripts/assets/snapshot-sample.pdf),
+    -Page, -Zoom, -Panel chat|notes. Mỗi lần chạy chụp một ảnh.
+
 .EXAMPLE
     pwsh scripts/snapshot.ps1 -Out artifacts/main.png
+.EXAMPLE
+    pwsh scripts/snapshot.ps1 -Out artifacts/notes.png -Open sample -Page 2 -Zoom 1.2 -Panel notes
 #>
 param(
     [Parameter(Mandatory)][string]$Out,
     [string]$Exe,
-    [int]$DelaySeconds = 3
+    [int]$DelaySeconds = 3,
+    [string]$Open,
+    [int]$Page,
+    [double]$Zoom,
+    [ValidateSet('', 'chat', 'notes')][string]$Panel = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,6 +45,13 @@ try {
     $info.Environment['TRITHU_DATA_DIR'] = Join-Path $profile 'Data'
     $info.Environment['TRITHU_SCREENSHOT'] = $Out
     $info.Environment['TRITHU_SCREENSHOT_DELAY'] = "$DelaySeconds"
+    if ($Open) {
+        $pdf = if ($Open -eq 'sample') { Join-Path $repoRoot 'scripts/assets/snapshot-sample.pdf' } else { $Open }
+        $info.Environment['TRITHU_SCREENSHOT_OPEN'] = (Resolve-Path $pdf).Path
+    }
+    if ($Page -gt 0) { $info.Environment['TRITHU_SCREENSHOT_PAGE'] = "$Page" }
+    if ($Zoom -gt 0) { $info.Environment['TRITHU_SCREENSHOT_ZOOM'] = $Zoom.ToString([Globalization.CultureInfo]::InvariantCulture) }
+    if ($Panel) { $info.Environment['TRITHU_SCREENSHOT_PANEL'] = $Panel }
     $process = [Diagnostics.Process]::Start($info)
     if (-not $process.WaitForExit(90000)) {
         $process.Kill($true)
