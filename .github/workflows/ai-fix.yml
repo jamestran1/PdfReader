@@ -12,6 +12,8 @@ permissions:
   contents: read
   pull-requests: read
   issues: read
+  # Đọc giờ bắt đầu của lượt review để lấy đúng góp ý của lượt đó.
+  actions: read
 
 jobs:
   fix:
@@ -101,7 +103,8 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      # Góp ý của lượt review gần nhất: comment theo dòng của bot review mang id lượt chạy ghi trong comment tổng hợp.
+      # Góp ý của lượt review gần nhất: comment theo dòng của bot review tạo sau khi lượt chạy ghi trong
+      # comment tổng hợp bắt đầu. (Marker HTML trong comment theo dòng bị action lọc mất, nên dùng thời gian.)
       - name: Lấy góp ý và dựng prompt
         id: prompt
         if: steps.command.outputs.act == 'True'
@@ -120,9 +123,10 @@ jobs:
               Where-Object { $_.user.login -eq $reviewBot -and $_.body.StartsWith('<!-- trithu-ai-review-summary -->') } |
               Select-Object -First 1
           $run = if ($summary -and $summary.body -match '<!-- ai-review-run: (\d+) -->') { $Matches[1] }
-          # Chỉ comment của bot review: comment của người khác mang marker giả không vào được prompt.
+          $started = if ($run) { [datetimeoffset](gh api "repos/$repo/actions/runs/$run" --jq '.run_started_at') }
+          # Chỉ comment của bot review: comment của người khác không vào được prompt.
           $inline = gh api "repos/$repo/pulls/$env:PR/comments" --paginate --jq '.[]' | ForEach-Object { $_ | ConvertFrom-Json } |
-              Where-Object { $run -and $_.user.login -eq $reviewBot -and $_.body -match "<!-- ai-review-run: $run -->" }
+              Where-Object { $started -and $_.user.login -eq $reviewBot -and [datetimeoffset]$_.created_at -ge $started }
 
           New-Item -ItemType Directory -Force .ai-review | Out-Null
           $lines = @('# Góp ý của lượt review gần nhất', '')
