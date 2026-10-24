@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+﻿﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -359,7 +359,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             () => _documentId is null ? (int?)null : CurrentPage - 1,
             idx => CurrentPage = idx + 1,
             () => _documentId,
-            OpenDocumentForNote);
+            OpenDocumentForNote,
+            NotifyError);
 
         // Workspace store: real db in AppDir hoac inject (test)
         _workspaceStore = workspaceStore ?? new SqliteWorkspaceStore(System.IO.Path.Combine(AppDir(), "workspaces.db"));
