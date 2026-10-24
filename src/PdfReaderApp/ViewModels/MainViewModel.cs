@@ -305,21 +305,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return timer;
     }
 
-    private static string AppDir()
-    {
-        string dir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfReaderApp");
-        System.IO.Directory.CreateDirectory(dir);
-        return dir;
-    }
+    private static string AppDir() => Core.AppDataDirectory.Current();
 
-    private static string IndexDbPath()
-    {
-        string dir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfReaderApp");
-        System.IO.Directory.CreateDirectory(dir);
-        return System.IO.Path.Combine(dir, "index.db");
-    }
+    private static string IndexDbPath() => System.IO.Path.Combine(AppDir(), "index.db");
 
     public MainViewModel()
         : this(new ITextPdfDocumentService(),
@@ -585,9 +573,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         };
         if (dialog.ShowDialog() != true) return;
 
+        ImportAndOpen(dialog.FileName);
+    }
+
+    /// <summary>Import một file PDF vào thư viện rồi mở nó (dùng cho Mở PDF và cho ảnh chụp dev).</summary>
+    internal void ImportAndOpen(string path)
+    {
         try
         {
-            var item = _library.Import(dialog.FileName, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            var item = _library.Import(path, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             ReloadLibrary();
             OpenLibraryItem(item);
         }
