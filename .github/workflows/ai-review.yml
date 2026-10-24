@@ -14,10 +14,6 @@ permissions:
   pull-requests: write
   issues: read
 
-concurrency:
-  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number }}
-  cancel-in-progress: false
-
 jobs:
   review:
     if: >-
@@ -25,6 +21,10 @@ jobs:
       (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
        github.event.comment.user.login == github.repository_owner &&
        startsWith(github.event.comment.body, '@claude review'))
+    # Ở mức job: comment khác trên PR không chiếm chỗ chờ của lượt review đang xếp hàng.
+    concurrency:
+      group: ai-review-${{ github.event.pull_request.number || github.event.issue.number }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -37,11 +37,19 @@ jobs:
         if: github.event_name == 'issue_comment'
         run: gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=eyes
 
+      # Lượt từ comment có secret: không review code của fork (prompt injection khi đang giữ secret).
       - name: Đọc nhánh gốc của PR
         id: pr
-        run: echo "base=$(gh pr view "$PR" --repo "${{ github.repository }}" --json baseRefName -q .baseRefName)" >> "$GITHUB_OUTPUT"
+        run: |
+          read -r base cross < <(gh pr view "$PR" --repo "${{ github.repository }}" --json baseRefName,isCrossRepository -q '"\(.baseRefName) \(.isCrossRepository)"')
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "issue_comment" ] && [ "$cross" = "true" ]; then
+            echo "::notice::PR từ fork, bỏ qua AI review theo lệnh comment."
+            echo "fork=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Checkout PR
+        if: steps.pr.outputs.fork != 'true'
         uses: actions/checkout@v4
         with:
           ref: refs/pull/${{ env.PR }}/head
@@ -52,7 +60,9 @@ jobs:
         id: prompt
         env:
           BASE: ${{ steps.pr.outputs.base }}
+          FORK: ${{ steps.pr.outputs.fork }}
         run: |
+          if [ "$FORK" = "true" ]; then echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           if ! body=$(git show "origin/$BASE:.github/claude/review-prompt.md" 2>/dev/null); then
             echo "::notice::Nhánh gốc $BASE chưa có .github/claude/review-prompt.md, bỏ qua AI review."
             echo "skip=true" >> "$GITHUB_OUTPUT"
@@ -83,11 +93,12 @@ jobs:
           claude_args: |
             --model opus
             --max-turns 30
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Grep,Glob,Write,WebFetch,Bash(git diff:*),Bash(git show:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Grep,Glob,Write,WebFetch(domain:learn.microsoft.com),Bash(git diff:*),Bash(git show:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*)"
 
-      # Một comment tổng hợp cho mỗi PR, sửa đè ở mỗi lượt.
+      # Một comment tổng hợp cho mỗi PR, sửa đè ở mỗi lượt. Cả khi review lỗi: lệnh fix
+      # không được làm theo góp ý của lượt cũ.
       - name: Đăng comment tổng hợp
-        if: steps.prompt.outputs.skip != 'true'
+        if: always() && steps.prompt.outputs.skip != 'true' && steps.prompt.outcome == 'success'
         run: |
           marker='<!-- trithu-ai-review-summary -->'
           if [ -s .ai-review/summary.md ]; then

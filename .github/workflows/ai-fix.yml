@@ -1,18 +1,17 @@
 name: AI fix
 
 # Lệnh sửa (#132): chủ repo comment "@claude fix R3 R5" / "@claude fix blockers" / "@claude fix <câu>".
-# Claude (Sonnet) sửa trên nhánh PR, một commit "fix(review): ...". Push bằng GitHub App riêng
-# để commit kích hoạt CI chặn; AI review không chạy lại vì nó không nghe sự kiện push.
+# Claude (Sonnet) sửa trên nhánh PR và chỉ commit cục bộ; workflow gộp thành một commit
+# "fix(review): ..." rồi push bằng GitHub App trithu-ai, để commit kích hoạt CI chặn.
+# AI review không chạy lại vì nó không nghe sự kiện push.
 on:
   issue_comment:
     types: [created]
 
 permissions:
   contents: read
-
-concurrency:
-  group: ai-fix-${{ github.event.issue.number }}
-  cancel-in-progress: false
+  pull-requests: read
+  issues: read
 
 jobs:
   fix:
@@ -20,25 +19,17 @@ jobs:
       github.event.issue.pull_request &&
       github.event.comment.user.login == github.repository_owner &&
       startsWith(github.event.comment.body, '@claude fix')
+    # Chỉ xếp hàng các lượt thật sự là lệnh fix; comment khác không chiếm chỗ chờ.
+    concurrency:
+      group: ai-fix-${{ github.event.issue.number }}
+      cancel-in-progress: false
     # Windows: hook lúc dừng build được net10.0-windows.
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       PR: ${{ github.event.issue.number }}
+      GH_TOKEN: ${{ github.token }}
     steps:
-      - name: Token của GitHub App
-        id: app-token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.AI_APP_ID }}
-          private-key: ${{ secrets.AI_APP_PRIVATE_KEY }}
-
-      - name: Báo đã nhận lệnh
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=eyes | Out-Null
-
       # Parser lấy từ nhánh mặc định, vào thư mục riêng; bước checkout nhánh PR sau sẽ dọn nó đi.
       - name: Checkout script đọc lệnh
         uses: actions/checkout@v4
@@ -52,16 +43,12 @@ jobs:
         shell: pwsh
         env:
           BODY: ${{ github.event.comment.body }}
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           $command = & ./.trithu-main/scripts/ai/Get-FixCommand.ps1 -Body $env:BODY
           $pr = gh pr view $env:PR --repo "${{ github.repository }}" --json baseRefName,headRefName,isCrossRepository | ConvertFrom-Json
-          if ($pr.isCrossRepository) {
-              gh pr comment $env:PR --repo "${{ github.repository }}" --body 'PR từ fork: AI không push được lên nhánh này.'
-              "mode=none" >> $env:GITHUB_OUTPUT
-              exit 0
-          }
-          "mode=$($command.Mode)" >> $env:GITHUB_OUTPUT
+          $mode = if ($pr.isCrossRepository -and $command.Mode -ne 'none') { 'fork' } else { $command.Mode }
+          "mode=$mode" >> $env:GITHUB_OUTPUT
+          "act=$($mode -in 'ids', 'blockers', 'free')" >> $env:GITHUB_OUTPUT
           "ids=$($command.Ids -join ' ')" >> $env:GITHUB_OUTPUT
           "commit=$($command.CommitMessage)" >> $env:GITHUB_OUTPUT
           "base=$($pr.baseRefName)" >> $env:GITHUB_OUTPUT
@@ -69,34 +56,57 @@ jobs:
           $delimiter = "INSTR_$([guid]::NewGuid().ToString('N'))"
           "instruction<<$delimiter`n$($command.Instruction)`n$delimiter" >> $env:GITHUB_OUTPUT
 
-      - name: Hỏi lại khi lệnh không nêu góp ý
-        if: steps.command.outputs.mode == 'ask'
+      # Token chỉ cho việc cần: comment và push lên nhánh PR.
+      - name: Token của GitHub App
+        id: app-token
+        if: steps.command.outputs.mode != 'none'
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AI_APP_ID }}
+          private-key: ${{ secrets.AI_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+
+      - name: Báo đã nhận lệnh
+        if: steps.command.outputs.mode != 'none'
         shell: pwsh
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: gh pr comment $env:PR --repo "${{ github.repository }}" --body 'Anh muốn sửa góp ý nào? Ví dụ `@claude fix R1 R3`, `@claude fix blockers`, hoặc `@claude fix <mô tả việc cần sửa>`.'
+        run: gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=eyes | Out-Null
 
+      - name: Trả lời khi không sửa được
+        if: steps.command.outputs.mode == 'ask' || steps.command.outputs.mode == 'fork'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          MODE: ${{ steps.command.outputs.mode }}
+        run: |
+          $body = if ($env:MODE -eq 'fork') { 'PR từ fork: AI không push được lên nhánh này.' }
+                  else { 'Anh muốn sửa góp ý nào? Ví dụ `@claude fix R1 R3`, `@claude fix blockers`, hoặc `@claude fix <mô tả việc cần sửa>`.' }
+          gh pr comment $env:PR --repo "${{ github.repository }}" --body $body
+
+      # Không lưu token trong .git/config: Claude và code build của PR không đọc được nó.
       - name: Checkout nhánh PR
-        if: contains(fromJSON('["ids","blockers","free"]'), steps.command.outputs.mode)
+        if: steps.command.outputs.act == 'True'
         uses: actions/checkout@v4
         with:
           ref: ${{ steps.command.outputs.head }}
-          token: ${{ steps.app-token.outputs.token }}
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup .NET 10
-        if: contains(fromJSON('["ids","blockers","free"]'), steps.command.outputs.mode)
+        if: steps.command.outputs.act == 'True'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
 
-      # Góp ý của lượt review gần nhất: comment theo dòng mang id lượt chạy ghi trong comment tổng hợp.
+      # Góp ý của lượt review gần nhất: comment theo dòng của bot review mang id lượt chạy ghi trong comment tổng hợp.
       - name: Lấy góp ý và dựng prompt
         id: prompt
-        if: contains(fromJSON('["ids","blockers","free"]'), steps.command.outputs.mode)
+        if: steps.command.outputs.act == 'True'
         shell: pwsh
         env:
-          GH_TOKEN: ${{ github.token }}
           BASE: ${{ steps.command.outputs.base }}
           MODE: ${{ steps.command.outputs.mode }}
           IDS: ${{ steps.command.outputs.ids }}
@@ -104,13 +114,15 @@ jobs:
           INSTRUCTION: ${{ steps.command.outputs.instruction }}
         run: |
           $repo = "${{ github.repository }}"
+          $reviewBot = 'github-actions[bot]'
           $summary = gh api "repos/$repo/issues/$env:PR/comments" --paginate --jq '.[]' |
               ForEach-Object { $_ | ConvertFrom-Json } |
-              Where-Object { $_.user.login -eq 'github-actions[bot]' -and $_.body.StartsWith('<!-- trithu-ai-review-summary -->') } |
+              Where-Object { $_.user.login -eq $reviewBot -and $_.body.StartsWith('<!-- trithu-ai-review-summary -->') } |
               Select-Object -First 1
           $run = if ($summary -and $summary.body -match '<!-- ai-review-run: (\d+) -->') { $Matches[1] }
+          # Chỉ comment của bot review: comment của người khác mang marker giả không vào được prompt.
           $inline = gh api "repos/$repo/pulls/$env:PR/comments" --paginate --jq '.[]' | ForEach-Object { $_ | ConvertFrom-Json } |
-              Where-Object { $run -and $_.body -match "<!-- ai-review-run: $run -->" }
+              Where-Object { $run -and $_.user.login -eq $reviewBot -and $_.body -match "<!-- ai-review-run: $run -->" }
 
           New-Item -ItemType Directory -Force .ai-review | Out-Null
           $lines = @('# Góp ý của lượt review gần nhất', '')
@@ -119,6 +131,7 @@ jobs:
           if (-not $summary) { $lines += 'Chưa có lượt AI review nào trên PR này.' }
           Set-Content -LiteralPath .ai-review/findings.md -Value $lines -Encoding utf8
 
+          "start=$(git rev-parse HEAD)" >> $env:GITHUB_OUTPUT
           $prompt = @(
               "REPO: $repo", "PR: $env:PR", "BASE: $env:BASE", "MODE: $env:MODE", "IDS: $env:IDS",
               "INSTRUCTION: $env:INSTRUCTION", "COMMIT: $env:COMMIT", '',
@@ -127,20 +140,56 @@ jobs:
           $delimiter = "PROMPT_$([guid]::NewGuid().ToString('N'))"
           "text<<$delimiter`n$prompt`n$delimiter" >> $env:GITHUB_OUTPUT
 
+      # Claude chỉ có GITHUB_TOKEN chỉ-đọc: không push, không comment được.
+      # Hook lúc dừng (.claude/ lấy từ nhánh gốc) chạy scripts/check.ps1 của nhánh PR; chỉ chủ repo kích hoạt được.
       - name: Claude fix
-        if: contains(fromJSON('["ids","blockers","free"]'), steps.command.outputs.mode)
+        if: steps.command.outputs.act == 'True'
         uses: anthropics/claude-code-action@v1
         env:
-          # Hook lúc dừng (.claude/settings.json trên nhánh gốc) so với đúng nhánh gốc của PR.
           TRITHU_CHECK_BASE: origin/${{ steps.command.outputs.base }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ steps.app-token.outputs.token }}
+          github_token: ${{ github.token }}
           include_comments_by_actor: ${{ github.repository_owner }}
+          # Danh tính git cho commit cục bộ của Claude: tài khoản bot của app trithu-ai.
           bot_name: trithu-ai[bot]
           bot_id: "347430536"
           prompt: ${{ steps.prompt.outputs.text }}
           claude_args: |
             --model sonnet
             --max-turns 50
-            --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(dotnet build:*),Bash(dotnet test:*),Bash(pwsh scripts/check.ps1:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh issue view:*)"
+            --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*),Bash(dotnet build:*),Bash(dotnet test:*),Bash(pwsh scripts/check.ps1:*),Bash(gh pr view:*),Bash(gh issue view:*)"
+
+      # Mỗi lệnh đúng một commit: gộp mọi commit của Claude rồi push lên nhánh PR.
+      - name: Gộp commit và push
+        id: push
+        if: steps.command.outputs.act == 'True'
+        shell: pwsh
+        env:
+          TOKEN: ${{ steps.app-token.outputs.token }}
+          START: ${{ steps.prompt.outputs.start }}
+          HEAD_REF: ${{ steps.command.outputs.head }}
+          COMMIT: ${{ steps.command.outputs.commit }}
+        run: |
+          if ((git rev-parse HEAD) -eq $env:START) { "pushed=false" >> $env:GITHUB_OUTPUT; exit 0 }
+          git reset --soft $env:START
+          git -c user.name='trithu-ai[bot]' -c user.email='347430536+trithu-ai[bot]@users.noreply.github.com' commit -q -m $env:COMMIT
+          git push "https://x-access-token:$env:TOKEN@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$env:HEAD_REF"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          "pushed=true" >> $env:GITHUB_OUTPUT
+
+      - name: Trả lời trên PR
+        if: always() && steps.command.outputs.act == 'True'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PUSHED: ${{ steps.push.outputs.pushed }}
+          COMMIT: ${{ steps.command.outputs.commit }}
+        run: |
+          $reply = if (Test-Path .ai-review/reply.md) { Get-Content .ai-review/reply.md -Raw } else { '' }
+          $status = switch ($env:PUSHED) {
+              'true'  { "Đã push commit ``$env:COMMIT``. CI chặn sẽ chạy lại trên commit này." }
+              'false' { 'Không có thay đổi nào được commit.' }
+              default { "Lượt sửa lỗi, không push gì. Xem log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" }
+          }
+          gh pr comment $env:PR --repo "${{ github.repository }}" --body "$status`n`n$reply"
