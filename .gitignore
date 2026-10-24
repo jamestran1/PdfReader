@@ -492,3 +492,6 @@ conductor/
 
 # Development certificate
 devcert.pfx
+
+# AI review/fix: file tạm của workflow (.github/workflows/ai-*.yml)
+.ai-review/
