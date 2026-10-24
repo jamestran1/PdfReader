@@ -12,7 +12,8 @@ permissions:
 
 concurrency:
   group: check-${{ github.ref }}
-  cancel-in-progress: true
+  # Push lên main phải chạy xong để ghi bảng warning; chỉ huỷ lượt cũ của PR.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   check:
@@ -48,8 +49,13 @@ jobs:
 
           $output = & ./scripts/check.ps1 -Base "origin/$env:BASE_REF" 6>&1 | ForEach-Object { "$_" }
           $code = $LASTEXITCODE
+          # Build/test output comes from PR code: never let a line in it act as a workflow command.
+          $token = [guid]::NewGuid().ToString('N')
+          Write-Output "::stop-commands::$token"
+          $output | ForEach-Object { Write-Output $_ }
+          Write-Output "::$token::"
+          # GitHub shows at most 10 error annotations per step; the log above always has the full list.
           foreach ($line in $output) {
-              Write-Output $line
               if ($line -match '^(.+?):(\d+): (\w+) (\S+): (.*)$') {
                   Write-Output "::error file=$(Format-Property $Matches[1]),line=$($Matches[2]),title=$(Format-Property $Matches[4])::$(Format-Data $Matches[5])"
               }
