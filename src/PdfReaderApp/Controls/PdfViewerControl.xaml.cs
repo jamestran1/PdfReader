@@ -825,20 +825,18 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     // Trang chờ cuộn tới sau khi nạp tài liệu (cross-doc jump) ở chế độ cuộn liên tục; 0 = không có.
     // Trong khi pending > 0, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
-    private int _pendingScrollPage;
+    private readonly Core.ScrollSettleState _scrollSettle = new();
     // Timer "ổn định hoá": sau nạp, extent ảo hoá lớn dần qua nhiều đợt layout và có thể reset offset về 0.
     // Timer re-assert cuộn tới đích mỗi tick, chỉ gỡ guard khi offset đã ĐỨNG YÊN tại đích vài tick liên tiếp.
     private System.Windows.Threading.DispatcherTimer? _scrollSettleTimer;
-    private int _scrollSettleStable;
-    private int _scrollSettleElapsed;
 
     // Bật guard pending (chặn đồng bộ scroll->trang) NGAY trước các bước layout của LoadDocument để
     // ScrollChanged trung gian không kéo CurrentPage về trang đầu. Việc cuộn thực sự do timer ổn-định-hoá
     // (ScheduleScrollToCurrentPage) lo SAU khi layout xong.
     private void ArmPendingScrollGuard()
     {
-        _pendingScrollPage = (CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing)
-            ? CurrentPage : 0;
+        _scrollSettle.Arm((CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing)
+            ? CurrentPage : 0);
     }
 
     // Cuộn tới CurrentPage ở chế độ cuộn liên tục sau khi nạp tài liệu. Vì extent ảo hoá lớn dần qua nhiều
@@ -849,13 +847,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (!(CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing))
         {
-            _pendingScrollPage = 0;
+            _scrollSettle.Clear();
             StopScrollSettleTimer();
             return;
         }
-        _pendingScrollPage = CurrentPage;   // guard ON suốt quá trình ổn định
-        _scrollSettleStable = 0;
-        _scrollSettleElapsed = 0;
+        _scrollSettle.Begin(CurrentPage);   // guard ON suốt quá trình ổn định
         if (_scrollSettleTimer == null)
         {
             _scrollSettleTimer = new System.Windows.Threading.DispatcherTimer
@@ -869,37 +865,16 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void OnScrollSettleTick(object? sender, EventArgs e)
     {
-        if (_pendingScrollPage <= 0 || _currentDocument == null) { StopScrollSettleTimer(); return; }
-        _scrollSettleElapsed++;
+        // Slot chưa dựng (đang chờ layout) trả null; state machine bỏ cuộc sau trần tick để khỏi kẹt guard.
+        var step = _scrollSettle.Tick(
+            _currentDocument != null,
+            pageIndex => _slots.FirstOrDefault(s => s.PageIndex == pageIndex)?.Y,
+            PagesScrollViewer.ScrollableHeight,
+            PagesScrollViewer.VerticalOffset);
 
-        var slot = _slots.FirstOrDefault(s => s.PageIndex == _pendingScrollPage - 1);
-        if (slot == null)
-        {
-            // slot chưa dựng (đang chờ layout). Bỏ cuộc sau trần thời gian để khỏi kẹt guard.
-            if (_scrollSettleElapsed > 80) { _pendingScrollPage = 0; StopScrollSettleTimer(); }
-            return;
-        }
-
-        double sh = PagesScrollViewer.ScrollableHeight;
-        double target = System.Math.Min(slot.Y, sh);
-        double vOff = PagesScrollViewer.VerticalOffset;
-
-        if (System.Math.Abs(vOff - target) > 1)
-        {
-            PagesScrollViewer.ScrollToVerticalOffset(target);   // re-assert: layout có thể đã reset offset
-            _scrollSettleStable = 0;
-        }
-        else
-        {
-            _scrollSettleStable++;   // offset đang đứng yên tại đích
-        }
-
-        // Gỡ guard khi đã đứng yên tại đích đủ lâu (offset thực sự dính), hoặc hết trần thời gian (~2.4s).
-        if (_scrollSettleStable >= 3 || _scrollSettleElapsed > 80)
-        {
-            _pendingScrollPage = 0;
-            StopScrollSettleTimer();
-        }
+        // Re-assert: layout có thể đã reset offset.
+        if (step.ReassertOffset is { } offset) PagesScrollViewer.ScrollToVerticalOffset(offset);
+        if (step.ShouldStop) StopScrollSettleTimer();
     }
 
     private void PagesScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -913,7 +888,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
         // Đang chờ cuộn tới trang đích (sau khi nạp): KHÔNG đồng bộ scroll->trang để khỏi bị kéo về cover.
         // Guard được gỡ bởi timer ổn-định-hoá (OnScrollSettleTick) khi offset đã dính tại đích.
-        if (_pendingScrollPage > 0)
+        if (_scrollSettle.IsPending)
         {
             skiaCanvas.InvalidateVisual();
             return;

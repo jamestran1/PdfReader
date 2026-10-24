@@ -1,13 +1,6 @@
 namespace PdfReaderApp.Core;
 
 /// <summary>
-/// Kết quả một tick ổn định hoá: có dừng timer không, và có phải cuộn lại tới offset đích không.
-/// </summary>
-/// <param name="ShouldStop">true khi timer phải dừng.</param>
-/// <param name="ReassertOffset">Offset dọc cần cuộn lại tới; null nếu không phải cuộn.</param>
-public readonly record struct ScrollSettleStep(bool ShouldStop, double? ReassertOffset);
-
-/// <summary>
 /// State machine thuần của việc cuộn tới trang đích sau khi nạp tài liệu. Extent ảo hoá lớn dần qua nhiều
 /// đợt layout và có thể reset offset về 0, nên không thể cuộn một lần rồi gỡ guard: mỗi tick re-assert
 /// offset đích, chỉ gỡ guard khi offset đã đứng yên tại đích vài tick liên tiếp hoặc hết trần thời gian.
@@ -54,7 +47,7 @@ public sealed class ScrollSettleState
     /// <param name="verticalOffset">Offset dọc hiện tại.</param>
     public ScrollSettleStep Tick(bool hasDocument, Func<int, double?> slotYOfPage, double scrollableHeight, double verticalOffset)
     {
-        if (!IsPending || !hasDocument) return new ScrollSettleStep(true, null);
+        if (!IsPending || !hasDocument) return new ScrollSettleStep(ShouldStop: true, ReassertOffset: null);
         _elapsedTicks++;
 
         double? slotY = slotYOfPage(PendingPage - 1);
@@ -75,15 +68,15 @@ public sealed class ScrollSettleState
         if (_stableTicks >= StableTicksRequired || _elapsedTicks > MaxTicks)
         {
             Clear();
-            return new ScrollSettleStep(true, reassert);
+            return new ScrollSettleStep(ShouldStop: true, ReassertOffset: reassert);
         }
-        return new ScrollSettleStep(false, reassert);
+        return new ScrollSettleStep(ShouldStop: false, ReassertOffset: reassert);
     }
 
     private ScrollSettleStep WaitForSlot()
     {
-        if (_elapsedTicks <= MaxTicks) return new ScrollSettleStep(false, null);
+        if (_elapsedTicks <= MaxTicks) return new ScrollSettleStep(ShouldStop: false, ReassertOffset: null);
         Clear();
-        return new ScrollSettleStep(true, null);
+        return new ScrollSettleStep(ShouldStop: true, ReassertOffset: null);
     }
 }
