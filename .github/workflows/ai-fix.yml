@@ -1,0 +1,146 @@
+name: AI fix
+
+# Lệnh sửa (#132): chủ repo comment "@claude fix R3 R5" / "@claude fix blockers" / "@claude fix <câu>".
+# Claude (Sonnet) sửa trên nhánh PR, một commit "fix(review): ...". Push bằng GitHub App riêng
+# để commit kích hoạt CI chặn; AI review không chạy lại vì nó không nghe sự kiện push.
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-fix-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    if: >-
+      github.event.issue.pull_request &&
+      github.event.comment.user.login == github.repository_owner &&
+      startsWith(github.event.comment.body, '@claude fix')
+    # Windows: hook lúc dừng build được net10.0-windows.
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      PR: ${{ github.event.issue.number }}
+    steps:
+      - name: Token của GitHub App
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.AI_APP_ID }}
+          private-key: ${{ secrets.AI_APP_PRIVATE_KEY }}
+
+      - name: Báo đã nhận lệnh
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=eyes | Out-Null
+
+      # Parser lấy từ nhánh mặc định, vào thư mục riêng; bước checkout nhánh PR sau sẽ dọn nó đi.
+      - name: Checkout script đọc lệnh
+        uses: actions/checkout@v4
+        with:
+          path: .trithu-main
+          sparse-checkout: scripts/ai
+
+      # Lệnh đi qua env, không nhúng ${{ }} vào script.
+      - name: Đọc lệnh
+        id: command
+        shell: pwsh
+        env:
+          BODY: ${{ github.event.comment.body }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          $command = & ./.trithu-main/scripts/ai/Get-FixCommand.ps1 -Body $env:BODY
+          $pr = gh pr view $env:PR --repo "${{ github.repository }}" --json baseRefName,headRefName,isCrossRepository | ConvertFrom-Json
+          if ($pr.isCrossRepository) {
+              gh pr comment $env:PR --repo "${{ github.repository }}" --body 'PR từ fork: AI không push được lên nhánh này.'
+              "mode=none" >> $env:GITHUB_OUTPUT
+              exit 0
+          }
+          "mode=$($command.Mode)" >> $env:GITHUB_OUTPUT
+          "ids=$($command.Ids -join ' ')" >> $env:GITHUB_OUTPUT
+          "commit=$($command.CommitMessage)" >> $env:GITHUB_OUTPUT
+          "base=$($pr.baseRefName)" >> $env:GITHUB_OUTPUT
+          "head=$($pr.headRefName)" >> $env:GITHUB_OUTPUT
+          $delimiter = "INSTR_$([guid]::NewGuid().ToString('N'))"
+          "instruction<<$delimiter`n$($command.Instruction)`n$delimiter" >> $env:GITHUB_OUTPUT
+
+      - name: Hỏi lại khi lệnh không nêu góp ý
+        if: steps.command.outputs.mode == 'ask'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: gh pr comment $env:PR --repo "${{ github.repository }}" --body 'Anh muốn sửa góp ý nào? Ví dụ `@claude fix R1 R3`, `@claude fix blockers`, hoặc `@claude fix <mô tả việc cần sửa>`.'
+
+      - name: Checkout nhánh PR
+        if: contains(fromJSON('["ids","blockers","free"]'), steps.command.outputs.mode)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.command.outputs.head }}
+          token: ${{ steps.app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Setup .NET 10
+        if: contains(fromJSON('["ids","blockers","free"]'), steps.command.outputs.mode)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      # Góp ý của lượt review gần nhất: comment theo dòng mang id lượt chạy ghi trong comment tổng hợp.
+      - name: Lấy góp ý và dựng prompt
+        id: prompt
+        if: contains(fromJSON('["ids","blockers","free"]'), steps.command.outputs.mode)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ steps.command.outputs.base }}
+          MODE: ${{ steps.command.outputs.mode }}
+          IDS: ${{ steps.command.outputs.ids }}
+          COMMIT: ${{ steps.command.outputs.commit }}
+          INSTRUCTION: ${{ steps.command.outputs.instruction }}
+        run: |
+          $repo = "${{ github.repository }}"
+          $summary = gh api "repos/$repo/issues/$env:PR/comments" --paginate --jq '.[]' |
+              ForEach-Object { $_ | ConvertFrom-Json } |
+              Where-Object { $_.user.login -eq 'github-actions[bot]' -and $_.body.StartsWith('<!-- trithu-ai-review-summary -->') } |
+              Select-Object -First 1
+          $run = if ($summary -and $summary.body -match '<!-- ai-review-run: (\d+) -->') { $Matches[1] }
+          $inline = gh api "repos/$repo/pulls/$env:PR/comments" --paginate --jq '.[]' | ForEach-Object { $_ | ConvertFrom-Json } |
+              Where-Object { $run -and $_.body -match "<!-- ai-review-run: $run -->" }
+
+          New-Item -ItemType Directory -Force .ai-review | Out-Null
+          $lines = @('# Góp ý của lượt review gần nhất', '')
+          if ($summary) { $lines += '## Tổng hợp', '', $summary.body, '' }
+          foreach ($c in $inline) { $lines += "## $($c.path):$($c.line)", '', $c.body, '' }
+          if (-not $summary) { $lines += 'Chưa có lượt AI review nào trên PR này.' }
+          Set-Content -LiteralPath .ai-review/findings.md -Value $lines -Encoding utf8
+
+          $prompt = @(
+              "REPO: $repo", "PR: $env:PR", "BASE: $env:BASE", "MODE: $env:MODE", "IDS: $env:IDS",
+              "INSTRUCTION: $env:INSTRUCTION", "COMMIT: $env:COMMIT", '',
+              (git show "origin/${env:BASE}:.github/claude/fix-prompt.md") -join "`n"
+          ) -join "`n"
+          $delimiter = "PROMPT_$([guid]::NewGuid().ToString('N'))"
+          "text<<$delimiter`n$prompt`n$delimiter" >> $env:GITHUB_OUTPUT
+
+      - name: Claude fix
+        if: contains(fromJSON('["ids","blockers","free"]'), steps.command.outputs.mode)
+        uses: anthropics/claude-code-action@v1
+        env:
+          # Hook lúc dừng (.claude/settings.json trên nhánh gốc) so với đúng nhánh gốc của PR.
+          TRITHU_CHECK_BASE: origin/${{ steps.command.outputs.base }}
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ steps.app-token.outputs.token }}
+          include_comments_by_actor: ${{ github.repository_owner }}
+          bot_name: trithu-ai[bot]
+          bot_id: "347430536"
+          prompt: ${{ steps.prompt.outputs.text }}
+          claude_args: |
+            --model sonnet
+            --max-turns 50
+            --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(dotnet build:*),Bash(dotnet test:*),Bash(pwsh scripts/check.ps1:*),Bash(gh pr view:*),Bash(gh pr comment:*),Bash(gh issue view:*)"

@@ -1,0 +1,105 @@
+name: AI review
+
+# Lớp góp ý (#131): Claude review PR theo ba trục, không chặn merge.
+# Chạy khi PR mở / chuyển sang ready / mở lại (bỏ qua draft, không chạy khi push thêm),
+# hoặc khi chủ repo comment "@claude review".
+on:
+  pull_request:
+    types: [opened, ready_for_review, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: read
+
+concurrency:
+  group: ai-review-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  review:
+    if: >-
+      (github.event_name == 'pull_request' && github.event.pull_request.draft == false) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request &&
+       github.event.comment.user.login == github.repository_owner &&
+       startsWith(github.event.comment.body, '@claude review'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+      # Review không sửa code; hook lúc dừng (cần Windows để build) không có việc gì ở đây.
+      TRITHU_HOOKS: "off"
+    steps:
+      - name: Báo đã nhận lệnh
+        if: github.event_name == 'issue_comment'
+        run: gh api "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=eyes
+
+      - name: Đọc nhánh gốc của PR
+        id: pr
+        run: echo "base=$(gh pr view "$PR" --repo "${{ github.repository }}" --json baseRefName -q .baseRefName)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          ref: refs/pull/${{ env.PR }}/head
+          fetch-depth: 0
+
+      # Prompt luôn lấy từ nhánh gốc: PR không sửa được prompt review chính nó.
+      - name: Dựng prompt từ nhánh gốc
+        id: prompt
+        env:
+          BASE: ${{ steps.pr.outputs.base }}
+        run: |
+          if ! body=$(git show "origin/$BASE:.github/claude/review-prompt.md" 2>/dev/null); then
+            echo "::notice::Nhánh gốc $BASE chưa có .github/claude/review-prompt.md, bỏ qua AI review."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          mkdir -p .ai-review
+          delimiter="PROMPT_$(openssl rand -hex 8)"
+          {
+            echo "text<<$delimiter"
+            echo "REPO: ${{ github.repository }}"
+            echo "PR: $PR"
+            echo "BASE: $BASE"
+            echo "RUN: ${{ github.run_id }}"
+            echo
+            echo "$body"
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Claude review
+        if: steps.prompt.outputs.skip != 'true'
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          # Chỉ comment của chủ repo vào ngữ cảnh; không nạp comment cũ của bot.
+          include_comments_by_actor: ${{ github.repository_owner }}
+          prompt: ${{ steps.prompt.outputs.text }}
+          claude_args: |
+            --model opus
+            --max-turns 30
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Read,Grep,Glob,Write,WebFetch,Bash(git diff:*),Bash(git show:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh issue view:*)"
+
+      # Một comment tổng hợp cho mỗi PR, sửa đè ở mỗi lượt.
+      - name: Đăng comment tổng hợp
+        if: steps.prompt.outputs.skip != 'true'
+        run: |
+          marker='<!-- trithu-ai-review-summary -->'
+          if [ -s .ai-review/summary.md ]; then
+            content=$(cat .ai-review/summary.md)
+          else
+            content=$'## AI review\n\nLượt review không tạo được bảng tổng hợp, xem log của workflow.'
+          fi
+          body=$(printf '%s\n%s\n\n%s\n' "$marker" "<!-- ai-review-run: ${{ github.run_id }} -->" "$content")
+          existing=$(gh api "repos/${{ github.repository }}/issues/$PR/comments" --paginate \
+            -q "[.[] | select(.user.login == \"github-actions[bot]\" and (.body | startswith(\"$marker\")))][0].id // empty" | head -n1)
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "repos/${{ github.repository }}/issues/comments/$existing" -f body="$body" > /dev/null
+          else
+            gh api "repos/${{ github.repository }}/issues/$PR/comments" -f body="$body" > /dev/null
+          fi
