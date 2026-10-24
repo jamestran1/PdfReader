@@ -144,6 +144,19 @@ jobs:
           $delimiter = "PROMPT_$([guid]::NewGuid().ToString('N'))"
           "text<<$delimiter`n$prompt`n$delimiter" >> $env:GITHUB_OUTPUT
 
+      # Script cài Claude Code có sẵn trong action không chạy trên Windows; dùng bộ cài Windows chính thức
+      # (tự kiểm checksum của bản tải về) rồi trỏ action tới claude.exe.
+      - name: Cài Claude Code cho Windows
+        id: claude-cli
+        if: steps.command.outputs.act == 'True'
+        shell: pwsh
+        run: |
+          & ([scriptblock]::Create((Invoke-RestMethod https://claude.ai/install.ps1)))
+          $exe = Join-Path $env:USERPROFILE '.local\bin\claude.exe'
+          if (-not (Test-Path $exe)) { throw "Không thấy $exe sau khi cài" }
+          & $exe --version
+          "path=$exe" >> $env:GITHUB_OUTPUT
+
       # Claude chỉ có GITHUB_TOKEN chỉ-đọc: không push, không comment được.
       # Hook lúc dừng (.claude/ lấy từ nhánh gốc) chạy scripts/check.ps1 của nhánh PR; chỉ chủ repo kích hoạt được.
       - name: Claude fix
@@ -152,6 +165,7 @@ jobs:
         env:
           TRITHU_CHECK_BASE: origin/${{ steps.command.outputs.base }}
         with:
+          path_to_claude_code_executable: ${{ steps.claude-cli.outputs.path }}
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           include_comments_by_actor: ${{ github.repository_owner }}
