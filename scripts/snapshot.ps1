@@ -24,6 +24,8 @@ if (-not $Exe) {
 }
 if (-not (Test-Path $Exe)) { throw "Không thấy $Exe; chạy dotnet build trước." }
 $Out = [IO.Path]::GetFullPath($Out)
+# Ảnh cũ từ lần chạy trước không được lọt qua như ảnh mới.
+Remove-Item -LiteralPath $Out -ErrorAction SilentlyContinue
 
 $profile = Join-Path ([IO.Path]::GetTempPath()) "trithu-snap-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
 New-Item -ItemType Directory -Force -Path $profile | Out-Null
@@ -39,7 +41,7 @@ try {
         $process.Kill($true)
         throw 'App không tự thoát sau 90 giây.'
     }
-    if (-not (Test-Path $Out)) { throw "App thoát (mã $($process.ExitCode)) nhưng không có ảnh." }
+    if ($process.ExitCode -ne 0 -or -not (Test-Path $Out)) { throw "App thoát (mã $($process.ExitCode)) nhưng không có ảnh." }
     Write-Output $Out
 }
 finally {
