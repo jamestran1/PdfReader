@@ -20,6 +20,7 @@ public partial class App : Application
         base.OnStartup(e);
 
         ApplySavedTheme();
+        WindowSnapshot.ScheduleIfRequested(this, Core.SnapshotRequest.FromEnvironment(Environment.GetEnvironmentVariable));
 
         this.DispatcherUnhandledException += (s, args) =>
         {

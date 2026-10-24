@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Threading;
@@ -309,21 +309,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return timer;
     }
 
-    private static string AppDir()
-    {
-        string dir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfReaderApp");
-        System.IO.Directory.CreateDirectory(dir);
-        return dir;
-    }
+    private static string AppDir() => Core.AppDataDirectory.Current();
 
-    private static string IndexDbPath()
-    {
-        string dir = System.IO.Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "PdfReaderApp");
-        System.IO.Directory.CreateDirectory(dir);
-        return System.IO.Path.Combine(dir, "index.db");
-    }
+    private static string IndexDbPath() => System.IO.Path.Combine(AppDir(), "index.db");
 
     public MainViewModel()
         : this(new ITextPdfDocumentService(),
