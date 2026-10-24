@@ -8,7 +8,7 @@ public class NotesViewModelTests
 {
     private sealed class FakeNoteStore : INoteStore
     {
-        public readonly List<Note> Rows = new();
+        public readonly List<Note> Rows = [];
         public void EnsureSchema() { }
         public void Add(Note note) => Rows.Add(note);
         public int Update(string id, string content, long now)
@@ -200,7 +200,7 @@ public class NotesViewModelTests
         Assert.False(vm.MatchesFilter(n, "xyz"));
     }
 
-    private static List<HighlightRect> SampleRects() => new() { new(1, 2, 30, 10) };
+    private static List<HighlightRect> SampleRects() => [new(1, 2, 30, 10)];
 
     [Fact]
     public void BeginNoteFromSelection_SetsPendingQuoteAndSwitchesTab()
@@ -239,7 +239,7 @@ public class NotesViewModelTests
         var store = new FakeNoteStore();
         var vm = Make(store, page: 1, currentDocumentId: () => "doc1");
         vm.LoadFor("doc1");
-        vm.BeginNoteFromSelection("chỉ trích dẫn", 0, new List<HighlightRect>());
+        vm.BeginNoteFromSelection("chỉ trích dẫn", 0, []);
         // Draft để rỗng
 
         vm.SaveCommand.Execute(null);

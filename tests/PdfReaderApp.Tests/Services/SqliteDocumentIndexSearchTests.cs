@@ -1,5 +1,4 @@
 using System.IO;
-using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -16,16 +15,14 @@ public class SqliteDocumentIndexSearchTests : IDisposable
         _idx = new SqliteDocumentIndex(Path.Combine(_dir, "t.db"),
             Path.Combine(AppContext.BaseDirectory, "vec0.dll"));
         _idx.EnsureSchema();
-        _idx.WriteChunks("doc1", null, 3, new List<Chunk>
-        {
+        _idx.WriteChunks("doc1", null, 3, [
             new("doc1", 0, 0, "the quick brown fox"),
             new("doc1", 1, 1, "lazy dog sleeps"),
             new("doc1", 2, 2, "the fox jumps high")
-        });
-        _idx.WriteChunks("doc2", null, 1, new List<Chunk>
-        {
+        ]);
+        _idx.WriteChunks("doc2", null, 1, [
             new("doc2", 0, 0, "unrelated fox content")
-        });
+        ]);
     }
 
     [Fact]

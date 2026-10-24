@@ -37,12 +37,12 @@ public static class PageLayoutCalculator
         if (!facing)
         {
             for (int i = 0; i < pages.Count; i++)
-                units.Add(new List<int> { i });
+                units.Add([i]);
         }
         else
         {
             int i = 0;
-            if (showCover) { units.Add(new List<int> { 0 }); i = 1; }
+            if (showCover) { units.Add([0]); i = 1; }
             for (; i < pages.Count; i += 2)
             {
                 var u = new List<int> { i };
@@ -112,7 +112,7 @@ public static class PageLayoutCalculator
         if (pageCount <= 0) return 0;
         var units = new List<List<int>>();
         int i = 0;
-        if (showCover) { units.Add(new List<int> { 0 }); i = 1; }
+        if (showCover) { units.Add([0]); i = 1; }
         for (; i < pageCount; i += 2)
         {
             var u = new List<int> { i };

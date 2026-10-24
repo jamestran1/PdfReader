@@ -5,8 +5,8 @@ namespace PdfReaderApp.Tests.Fakes;
 
 public sealed class FakeWorkspaceStore : IWorkspaceStore
 {
-    public readonly List<Workspace> All = new();
-    public readonly Dictionary<string, HashSet<string>> Membership = new();
+    public readonly List<Workspace> All = [];
+    public readonly Dictionary<string, HashSet<string>> Membership = [];
     public int RemoveDocumentCallCount { get; private set; }
 
     public void EnsureSchema() { }
@@ -16,7 +16,7 @@ public sealed class FakeWorkspaceStore : IWorkspaceStore
         => All.Where(w => includeDefault || !w.IsDefault).ToList();
     public void AddDocument(string workspaceId, string documentId)
     {
-        if (!Membership.TryGetValue(workspaceId, out var s)) { s = new(); Membership[workspaceId] = s; }
+        if (!Membership.TryGetValue(workspaceId, out var s)) { s = []; Membership[workspaceId] = s; }
         s.Add(documentId);
     }
     public void RemoveDocument(string workspaceId, string documentId)
@@ -25,7 +25,7 @@ public sealed class FakeWorkspaceStore : IWorkspaceStore
         if (Membership.TryGetValue(workspaceId, out var s)) s.Remove(documentId);
     }
     public IReadOnlyList<string> GetDocumentIds(string workspaceId)
-        => Membership.TryGetValue(workspaceId, out var s) ? s.ToList() : new List<string>();
+        => Membership.TryGetValue(workspaceId, out var s) ? s.ToList() : [];
     public IReadOnlyList<string> GetWorkspaceIdsForDocument(string documentId)
     {
         var result = new List<string>();
@@ -48,11 +48,11 @@ public sealed class FakeWorkspaceStore : IWorkspaceStore
         if (i >= 0) All[i] = All[i] with { Name = name, UpdatedAtUnixMs = nowUnixMs };
     }
     public void Delete(string id) { All.RemoveAll(w => w.Id == id); Membership.Remove(id); }
-    public readonly Dictionary<string, List<OpenTabState>> OpenSets = new();
+    public readonly Dictionary<string, List<OpenTabState>> OpenSets = [];
 
     public void SaveOpenTabs(string workspaceId, IReadOnlyList<OpenTabState> tabs)
         => OpenSets[workspaceId] = tabs.OrderBy(t => t.TabOrder).ToList();
 
     public IReadOnlyList<OpenTabState> GetOpenTabs(string workspaceId)
-        => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : new List<OpenTabState>();
+        => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : [];
 }

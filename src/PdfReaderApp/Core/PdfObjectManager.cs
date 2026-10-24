@@ -13,7 +13,7 @@ public class PdfObjectManager
         public Rect Bounds { get; set; }
     }
 
-    private readonly Dictionary<int, List<GhostText>> _pageTextMap = new();
+    private readonly Dictionary<int, List<GhostText>> _pageTextMap = [];
 
     public void MapPage(PdfPage page, int pageIndex)
     {

@@ -18,8 +18,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private readonly RenderEngine _renderEngine = new();
     private readonly PdfObjectManager _objectManager = new();
     private readonly Stack<IUndoCommand> _undoStack = new();
-    private readonly Dictionary<int, SKBitmap> _pageCache = new();
-    private Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>> _imageRectsByPage = new();
+    private readonly Dictionary<int, SKBitmap> _pageCache = [];
+    private Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>> _imageRectsByPage = [];
     private bool _disposed;
 
     // Dark mode: đảo độ sáng (nền tối, chữ sáng) nhưng GIỮ hue — dễ đọc hơn đảo RGB thẳng.
@@ -31,7 +31,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             Contrast = 0f
         });
 
-    private readonly List<Core.PageSlot> _slots = new();
+    private readonly List<Core.PageSlot> _slots = [];
     private PdfObjectManager.GhostText? _activeEditTarget;
 
     public static readonly DependencyProperty DocumentSourceProperty =
@@ -102,7 +102,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     // Per-page cache of match rects for the current query; running iText extraction on every paint
     // would be far too expensive. Cleared when the query or the document changes.
     private string? _matchCacheQuery;
-    private readonly Dictionary<int, List<Models.MatchRect>> _matchCache = new();
+    private readonly Dictionary<int, List<Models.MatchRect>> _matchCache = [];
 
     // DependencyProperty: command nhận NoteSelection khi người dùng bấm "Thêm ghi chú"
     public static readonly DependencyProperty AddNoteFromSelectionCommandProperty =
@@ -160,7 +160,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private int _anchorChar = -1;
     private bool _selecting;
     private string _selectionText = string.Empty;
-    private readonly List<Rect> _selectionRectsPdf = new(); // rect theo PDF points của _selPageIndex
+    private readonly List<Rect> _selectionRectsPdf = []; // rect theo PDF points của _selPageIndex
 
     private IReadOnlyList<Models.MatchRect> GetMatchRects(int pageIndex, string query)
     {
@@ -171,7 +171,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         }
         if (!_matchCache.TryGetValue(pageIndex, out var rects))
         {
-            rects = MatchSource?.FindMatchRects(pageIndex, query) ?? new List<Models.MatchRect>();
+            rects = MatchSource?.FindMatchRects(pageIndex, query) ?? [];
             _matchCache[pageIndex] = rects;
         }
         return rects;
@@ -548,7 +548,9 @@ public partial class PdfViewerControl : UserControl, IDisposable
             _matchCacheQuery = null;
             TotalPages = _currentDocument.PageCount;
             try { _imageRectsByPage = Services.PdfImageLocator.GetNormalizedImageRectsByPage(path); }
-            catch { _imageRectsByPage = new(); }
+#pragma warning disable CA1031 // degrade: không đọc được vùng ảnh thì PDF vẫn mở được, chỉ mất chọn ảnh
+            catch { _imageRectsByPage = []; }
+#pragma warning restore CA1031
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
             CurrentPage = System.Math.Clamp(CurrentPage, 1, _currentDocument.PageCount);
@@ -957,7 +959,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
-            _imageRectsByPage = new();
+            _imageRectsByPage = [];
             _objectManager.Clear();
             _undoStack.Clear();
             _currentDocument.Dispose();

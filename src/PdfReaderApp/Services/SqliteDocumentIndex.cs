@@ -404,12 +404,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
     public List<SearchResult> SearchText(string documentId, string query, int limit = 50)
     {
-        if (string.IsNullOrWhiteSpace(query)) return new List<SearchResult>();
+        if (string.IsNullOrWhiteSpace(query)) return [];
 
         lock (_lock)
         {
             string phrase = SearchNormalizer.Fold(query);
-            if (phrase.Length == 0) return new List<SearchResult>();
+            if (phrase.Length == 0) return [];
 
             var results = new List<SearchResult>();
 
@@ -467,7 +467,7 @@ LIMIT $lim";
             }
             catch (Microsoft.Data.Sqlite.SqliteException)
             {
-                return new List<SearchResult>();
+                return [];
             }
 
             return results;
@@ -477,7 +477,7 @@ LIMIT $lim";
     public List<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5)
     {
         ArgumentNullException.ThrowIfNull(queryVector);
-        if (!_vecAvailable) return new List<Chunk>(); // degrade: caller falls back to per-page context
+        if (!_vecAvailable) return []; // degrade: caller falls back to per-page context
         lock (_lock)
         {
             var results = new List<Chunk>();
@@ -500,7 +500,7 @@ ORDER BY distance";
             }
             catch (Microsoft.Data.Sqlite.SqliteException)
             {
-                return new List<Chunk>(); // degrade: vec0 query error, caller falls back
+                return []; // degrade: vec0 query error, caller falls back
             }
 
             return results;

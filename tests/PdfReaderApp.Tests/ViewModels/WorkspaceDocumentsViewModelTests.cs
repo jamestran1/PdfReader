@@ -7,10 +7,10 @@ namespace PdfReaderApp.Tests.ViewModels;
 public class WorkspaceDocumentsViewModelTests
 {
     private readonly FakeWorkspaceStore _store = new();
-    private readonly List<LibraryItem> _library = new();
-    private readonly List<LibraryItem> _openedTabs = new();
-    private readonly List<string> _closedTabDocumentIds = new();
-    private readonly List<string> _notifications = new();
+    private readonly List<LibraryItem> _library = [];
+    private readonly List<LibraryItem> _openedTabs = [];
+    private readonly List<string> _closedTabDocumentIds = [];
+    private readonly List<string> _notifications = [];
     private int _stateChangedCount;
     private readonly Workspace _workspace;
 

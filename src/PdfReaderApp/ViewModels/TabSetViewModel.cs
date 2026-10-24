@@ -11,7 +11,7 @@ namespace PdfReaderApp.ViewModels;
 public sealed class TabSetViewModel : ObservableObject
 {
     // Danh sách tab theo thứ tự hiển thị (Tab Strip order).
-    public ObservableCollection<OpenTab> Tabs { get; } = new();
+    public ObservableCollection<OpenTab> Tabs { get; } = [];
 
     private OpenTab? _activeTab;
 
@@ -36,7 +36,7 @@ public sealed class TabSetViewModel : ObservableObject
     public event Action<OpenTab?>? ActiveTabChanged;
 
     // Danh sách MRU (most-recently-activated): phần tử đầu = được kích hoạt gần nhất.
-    private readonly List<OpenTab> _mru = new();
+    private readonly List<OpenTab> _mru = [];
 
     /// <summary>
     /// Mở tab cho <paramref name="documentId"/>, hoặc kích hoạt tab đã có.

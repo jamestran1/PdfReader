@@ -9,7 +9,7 @@ public class MainViewModelThemeTests
 {
     private sealed class FakeThemeService : IThemeService
     {
-        public readonly List<AppTheme> Applied = new();
+        public readonly List<AppTheme> Applied = [];
         public AppTheme CurrentTheme { get; private set; } = AppTheme.Light;
         public void Apply(AppTheme theme) { CurrentTheme = theme; Applied.Add(theme); }
     }

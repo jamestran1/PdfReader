@@ -1,5 +1,4 @@
 using System.IO;
-using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -18,10 +17,9 @@ public class SqliteDocumentIndexSnippetTests : IDisposable
             Path.Combine(_dir, "t.db"),
             Path.Combine(AppContext.BaseDirectory, "vec0.dll"));
         _idx.EnsureSchema();
-        _idx.WriteChunks(DocId, null, 1, new List<Chunk>
-        {
+        _idx.WriteChunks(DocId, null, 1, [
             new(DocId, 0, 0, "Hợp đồng bảo hiểm có hiệu lực từ ngày ký kết")
-        });
+        ]);
     }
 
     [Fact]

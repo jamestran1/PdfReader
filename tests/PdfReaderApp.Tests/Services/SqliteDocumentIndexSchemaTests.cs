@@ -60,7 +60,7 @@ public class SqliteDocumentIndexSchemaTests : IDisposable
     public void DeleteDocument_RemovesChunks()
     {
         using var idx = NewIndex();
-        idx.WriteChunks("doc1", null, 1, new List<Chunk> { new("doc1", 0, 0, "x") });
+        idx.WriteChunks("doc1", null, 1, [new("doc1", 0, 0, "x")]);
         idx.DeleteDocument("doc1");
         Assert.Equal(DocumentIndexStatus.None, idx.GetStatus("doc1", "text-embedding-3-small"));
     }

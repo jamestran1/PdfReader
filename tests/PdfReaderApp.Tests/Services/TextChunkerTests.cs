@@ -23,7 +23,7 @@ public class TextChunkerTests
     [Fact]
     public void Chunk_Empty_ReturnsEmpty()
     {
-        var chunks = TextChunker.Chunk("doc", new List<TextBlock>());
+        var chunks = TextChunker.Chunk("doc", []);
         Assert.Empty(chunks);
     }
 
@@ -53,7 +53,7 @@ public class TextChunkerTests
     [Fact]
     public void Chunk_AssignsDocumentId()
     {
-        var chunks = TextChunker.Chunk("mydoc", new List<TextBlock> { B("hi", 0) });
+        var chunks = TextChunker.Chunk("mydoc", [B("hi", 0)]);
         Assert.All(chunks, c => Assert.Equal("mydoc", c.DocumentId));
     }
 
@@ -75,7 +75,7 @@ public class TextChunkerTests
     [Fact]
     public void ChunkPages_Empty_ReturnsEmpty()
     {
-        var chunks = TextChunker.ChunkPages("doc", new List<PageText>());
+        var chunks = TextChunker.ChunkPages("doc", []);
         Assert.Empty(chunks);
     }
 
@@ -121,7 +121,7 @@ public class TextChunkerTests
     [Fact]
     public void ChunkPages_AssignsDocumentId()
     {
-        var chunks = TextChunker.ChunkPages("mydoc", new List<PageText> { P("hi", 0) });
+        var chunks = TextChunker.ChunkPages("mydoc", [P("hi", 0)]);
         Assert.All(chunks, c => Assert.Equal("mydoc", c.DocumentId));
     }
 }
