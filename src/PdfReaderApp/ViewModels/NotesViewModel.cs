@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+﻿﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PdfReaderApp.Models;
@@ -17,6 +17,7 @@ public sealed partial class NotesViewModel : ObservableObject
     private readonly Action<int> _jumpToPageIndex;
     private readonly Func<string?>? _currentDocumentId;
     private readonly Action<string, int?>? _openDocument;
+    private readonly Action<string>? _notifyError;
 
     private readonly List<Note> _all = []; // nguồn đầy đủ; Items là phần đã lọc/sắp
     private string? _ownerKey;
@@ -44,8 +45,10 @@ public sealed partial class NotesViewModel : ObservableObject
     public ObservableCollection<Note> Highlights { get; } = [];
 
     public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex,
-        Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null)
+        Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null,
+        Action<string>? notifyError = null)
     {
+        _notifyError = notifyError;
         _store = store;
         _currentPageIndex = currentPageIndex;
         _jumpToPageIndex = jumpToPageIndex;
