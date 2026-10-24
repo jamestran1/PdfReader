@@ -7,7 +7,7 @@ namespace PdfReaderApp.Services;
 public sealed class SqliteLibraryStore : ILibraryStore
 {
     private readonly string _connectionString;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public SqliteLibraryStore(string dbPath)
     {

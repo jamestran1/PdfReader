@@ -11,6 +11,6 @@ public interface IDocumentIndex : IDisposable
         string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks);
     void WriteEmbeddings(IReadOnlyList<(long ChunkId, float[] Vector)> embeddings);
     void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel);
-    List<SearchResult> SearchText(string documentId, string query, int limit = 50);
-    List<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5);
+    IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50);
+    IReadOnlyList<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5);
 }

@@ -75,8 +75,8 @@ public class DocumentIndexingServiceTests
         public void WriteEmbeddings(IReadOnlyList<(long ChunkId, float[] Vector)> e) => Embeddings.AddRange(e);
         public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel)
         { FinalStatusDoc = documentId; FinalStatus = status; }
-        public List<SearchResult> SearchText(string d, string q, int l = 50) => [];
-        public List<Chunk> RetrieveRelevant(string d, float[] v, int k = 5) => [];
+        public IReadOnlyList<SearchResult> SearchText(string d, string q, int l = 50) => [];
+        public IReadOnlyList<Chunk> RetrieveRelevant(string d, float[] v, int k = 5) => [];
         public void Dispose() { }
     }
 

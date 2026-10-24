@@ -6,7 +6,9 @@ namespace PdfReaderApp.Controls;
 
 public partial class MicroEditor : UserControl
 {
+#pragma warning disable MA0046 // Payload là string, không có EventArgs riêng; giữ chữ ký để không đổi hành vi
     public event EventHandler<string>? EditingFinished;
+#pragma warning restore MA0046
     public event EventHandler? EditingCancelled;
 
     public MicroEditor()
@@ -30,7 +32,7 @@ public partial class MicroEditor : UserControl
 
     private void EditTextBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == 0)
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.None)
         {
             EditingFinished?.Invoke(this, EditTextBox.Text);
         }

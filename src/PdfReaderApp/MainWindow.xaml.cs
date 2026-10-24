@@ -37,7 +37,7 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+        bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.None;
         if (ctrl && e.Key == Key.F)
         {
             SearchBox.Focus();
@@ -82,14 +82,14 @@ public partial class MainWindow : Window
 
         System.Text.StringBuilder sb = new();
         sb.AppendLine("=== PDF READER CRASH LOG ===");
-        sb.AppendLine($"Time: {DateTime.Now}");
+        sb.AppendLine(CultureInfo.CurrentCulture, $"Time: {DateTime.Now}");
         sb.AppendLine();
 
         int depth = 0;
         Exception? current = ex;
         while (current != null)
         {
-            sb.AppendLine($"[Level {depth}] {current.GetType().FullName}");
+            sb.AppendLine(CultureInfo.CurrentCulture, $"[Level {depth}] {current.GetType().FullName}");
             sb.AppendLine($"Message: {current.Message}");
             sb.AppendLine("Stack Trace:");
             sb.AppendLine(current.StackTrace);
@@ -115,7 +115,7 @@ public class RoleToBrushConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 }
 
@@ -129,7 +129,7 @@ public class RoleToAlignConverter : IValueConverter
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        throw new NotImplementedException();
+        throw new NotSupportedException();
     }
 }
 
@@ -163,7 +163,7 @@ public sealed class CountToInverseVisibilityConverter : IValueConverter
 public sealed class UnixToDateConverter : IValueConverter
 {
     public object Convert(object value, Type t, object p, CultureInfo c)
-        => value is long secs ? DateTimeOffset.FromUnixTimeSeconds(secs).LocalDateTime.ToString("dd/MM/yyyy") : "";
+        => value is long secs ? DateTimeOffset.FromUnixTimeSeconds(secs).LocalDateTime.ToString("dd/MM/yyyy", CultureInfo.CurrentCulture) : "";
     public object ConvertBack(object value, Type t, object p, CultureInfo c) => Binding.DoNothing;
 }
 

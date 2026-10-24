@@ -114,7 +114,7 @@ public class AiChatServiceTests
 
         var tokens = await Collect(svc.AskStreamingAsync("hi", "ngữ cảnh"));
 
-        Assert.Equal(new[] { "Xin ", "chào", "!" }, tokens);
+        Assert.Equal(new[] { "Xin ", "chào", "!" }, tokens, StringComparer.Ordinal);
     }
 
     [Fact]

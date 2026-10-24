@@ -39,6 +39,6 @@ public class SearchSnippetBuilderTests
     public void Build_ShortMatchNearStart_NoLeadingEllipsis()
     {
         string snip = SearchSnippetBuilder.Build("bảo hiểm nhân thọ", "bao hiem", contextChars: 40);
-        Assert.False(snip.StartsWith("..."));
+        Assert.False(snip.StartsWith("...", StringComparison.Ordinal));
     }
 }

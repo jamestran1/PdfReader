@@ -12,14 +12,16 @@ namespace PdfReaderApp.Controls;
 
 public partial class PdfViewerControl : UserControl, IDisposable
 {
+#pragma warning disable MA0046 // Sự kiện gắn trực tiếp từ XAML với chữ ký Action<string>, đổi sang EventHandler phải sửa cả XAML và code-behind
     public event System.Action<string>? LoadFailed;
+#pragma warning restore MA0046
 
     private PdfDocument? _currentDocument;
     private readonly RenderEngine _renderEngine = new();
     private readonly PdfObjectManager _objectManager = new();
     private readonly Stack<IUndoCommand> _undoStack = new();
     private readonly Dictionary<int, SKBitmap> _pageCache = [];
-    private Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>> _imageRectsByPage = [];
+    private IReadOnlyDictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>> _imageRectsByPage = new Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>>();
     private bool _disposed;
 
     // Dark mode: đảo độ sáng (nền tối, chữ sáng) nhưng GIỮ hue — dễ đọc hơn đảo RGB thẳng.
@@ -102,7 +104,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     // Per-page cache of match rects for the current query; running iText extraction on every paint
     // would be far too expensive. Cleared when the query or the document changes.
     private string? _matchCacheQuery;
-    private readonly Dictionary<int, List<Models.MatchRect>> _matchCache = [];
+    private readonly Dictionary<int, IReadOnlyList<Models.MatchRect>> _matchCache = [];
 
     // DependencyProperty: command nhận NoteSelection khi người dùng bấm "Thêm ghi chú"
     public static readonly DependencyProperty AddNoteFromSelectionCommandProperty =
@@ -506,7 +508,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             // Trong DataTemplate per-tab, DocumentSource có thể gắn TRƯỚC các binding kia -> LoadDocument
             // sẽ kẹp CurrentPage về 1 (mất trang đích cross-doc) và set TotalPages vào DP chưa-bound
             // (mất tổng trang). Hoãn ở mức Loaded đảm bảo đọc đúng OpenTab.Page/đẩy đúng TotalPages.
-            control.Dispatcher.BeginInvoke(
+            _ = control.Dispatcher.BeginInvoke(
                 new Action(() => { if ((control.DocumentSource as string) == path) control.LoadDocument(path); }),
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
@@ -549,7 +551,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             TotalPages = _currentDocument.PageCount;
             try { _imageRectsByPage = Services.PdfImageLocator.GetNormalizedImageRectsByPage(path); }
 #pragma warning disable CA1031 // degrade: không đọc được vùng ảnh thì PDF vẫn mở được, chỉ mất chọn ảnh
-            catch { _imageRectsByPage = []; }
+            catch { _imageRectsByPage = new Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>>(); }
 #pragma warning restore CA1031
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
@@ -598,7 +600,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         RefreshLayout(keepCache: false);
 
         // The ScrollViewer extent updates on the next layout pass, so restore after it.
-        Dispatcher.BeginInvoke(new Action(() =>
+        _ = Dispatcher.BeginInvoke(new Action(() =>
         {
             if (anchorSlot < 0 || anchorSlot >= _slots.Count) return;
             var ns = _slots[anchorSlot];
@@ -774,7 +776,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         // Mac dinh vang mo; parse #RRGGBB neu co.
         byte rr = 255, gg = 235, bb = 59;
-        if (!string.IsNullOrEmpty(hex) && hex.StartsWith("#") && hex.Length == 7
+        if (!string.IsNullOrEmpty(hex) && hex.StartsWith('#') && hex.Length == 7
             && byte.TryParse(hex.Substring(1, 2), System.Globalization.NumberStyles.HexNumber, null, out var pr)
             && byte.TryParse(hex.Substring(3, 2), System.Globalization.NumberStyles.HexNumber, null, out var pg)
             && byte.TryParse(hex.Substring(5, 2), System.Globalization.NumberStyles.HexNumber, null, out var pb))
@@ -959,7 +961,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
-            _imageRectsByPage = [];
+            _imageRectsByPage = new Dictionary<int, IReadOnlyList<Services.PdfImageLocator.NormalizedRect>>();
             _objectManager.Clear();
             _undoStack.Clear();
             _currentDocument.Dispose();

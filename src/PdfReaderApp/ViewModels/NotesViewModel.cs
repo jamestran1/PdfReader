@@ -37,7 +37,7 @@ public sealed partial class NotesViewModel : ObservableObject
     [ObservableProperty] public partial string? SelectedNoteId { get; set; }
 
     // Từ điển tiêu đề tài liệu: documentId -> tiêu đề hiển thị (dùng cho chip nhãn)
-    public IReadOnlyDictionary<string, string> DocumentTitles { get; private set; } = new Dictionary<string, string>();
+    public IReadOnlyDictionary<string, string> DocumentTitles { get; private set; } = new Dictionary<string, string>(StringComparer.Ordinal);
     private int _pendingPageIndex;
     private const string DefaultHighlightColor = "#FFEB3B";
     private IReadOnlyList<HighlightRect>? _pendingRects;
