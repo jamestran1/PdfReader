@@ -177,10 +177,11 @@ jobs:
           claude_args: |
             --model sonnet
             --max-turns 50
-            --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*),Bash(dotnet build:*),Bash(dotnet test:*),Bash(pwsh scripts/check.ps1:*),Bash(pwsh -NoProfile -File scripts/check.ps1:*),Bash(pwsh -File scripts/check.ps1:*),Bash(gh pr view:*),Bash(gh issue view:*)"
+            --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(dotnet build:*),Bash(dotnet test:*),Bash(pwsh scripts/check.ps1:*),Bash(pwsh -NoProfile -File scripts/check.ps1:*),Bash(pwsh -File scripts/check.ps1:*),Bash(gh pr view:*),Bash(gh issue view:*)"
 
-      # Mỗi lệnh đúng một commit: gộp mọi commit của Claude rồi push lên nhánh PR.
-      - name: Gộp commit và push
+      # Mỗi lệnh đúng một commit: workflow tự commit mọi thay đổi Claude để lại (Claude không commit;
+      # lệnh git ghép như "git add -A && git commit" không khớp allowedTools) rồi push lên nhánh PR.
+      - name: Commit và push
         id: push
         if: steps.command.outputs.act == 'True'
         shell: pwsh
@@ -190,8 +191,10 @@ jobs:
           HEAD_REF: ${{ steps.command.outputs.head }}
           COMMIT: ${{ steps.command.outputs.commit }}
         run: |
-          if ((git rev-parse HEAD) -eq $env:START) { "pushed=false" >> $env:GITHUB_OUTPUT; exit 0 }
           git reset --soft $env:START
+          git add -A
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { "pushed=false" >> $env:GITHUB_OUTPUT; exit 0 }
           # App trithu-ai cố ý không có quyền Workflows (#130): GitHub sẽ từ chối push đụng workflow.
           # Không push, đưa bản vá lên PR để chủ repo tự áp dụng.
           $workflows = @(git diff --cached --name-only | Where-Object { $_ -like '.github/workflows/*' })
