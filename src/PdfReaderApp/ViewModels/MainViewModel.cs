@@ -49,14 +49,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // S2: khoá ghi Open Set trong lúc reset/khôi phục để wiring auto-save không ghi đè state đang dựng.
     private bool _isRestoringOpenSet;
 
-    private List<TextBlock> _documentBlocks = [];
+    private IReadOnlyList<TextBlock> _documentBlocks = [];
     public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
 
     // Exposed so PdfViewerControl can ask iText for exact keyword match rectangles to highlight.
     public IPdfDocumentService PdfService => _documentService;
     private bool _isSending;
 
-    private List<PageText> _pageTexts = [];
+    private IReadOnlyList<PageText> _pageTexts = [];
 
     private string? _documentId;
     private CancellationTokenSource? _indexCts;
@@ -739,7 +739,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // S3: cập nhật ngữ cảnh chip nhãn tài liệu cho NotesViewModel
     private void UpdateNotesDocumentContext()
     {
-        var titles = new Dictionary<string, string>();
+        var titles = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var document in DocumentsSurface.Members) titles[document.DocumentId] = document.Title;
         Notes.SetDocumentContext(titles, showChips: titles.Count > 1);
     }
@@ -1055,7 +1055,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     [RelayCommand]
-    private async Task SendMessage()
+#pragma warning disable MA0051 // Hàm dài đã có từ trước, tách ở đợt dọn độ phức tạp riêng
+    private async Task SendMessageAsync()
+#pragma warning restore MA0051
     {
         if (string.IsNullOrWhiteSpace(ChatInput)) return;
         if (_isSending) return;

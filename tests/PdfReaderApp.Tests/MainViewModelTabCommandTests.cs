@@ -144,8 +144,8 @@ public class MainViewModelTabCommandTests
         vm.ActivateTabCommand.Execute(tabA);
 
         Assert.Equal(0, wsStore.RemoveDocumentCallCount);
-        Assert.Contains("docA", wsStore.GetDocumentIds("ws-cmd"));
-        Assert.Contains("docB", wsStore.GetDocumentIds("ws-cmd"));
+        Assert.Contains("docA", wsStore.GetDocumentIds("ws-cmd"), StringComparer.Ordinal);
+        Assert.Contains("docB", wsStore.GetDocumentIds("ws-cmd"), StringComparer.Ordinal);
     }
 
     // =========================================================
@@ -175,7 +175,7 @@ public class MainViewModelTabCommandTests
         vm.CloseTabCommand.Execute(tabB);
 
         Assert.Equal(0, wsStore.RemoveDocumentCallCount);
-        Assert.Contains("docB", wsStore.GetDocumentIds("ws-cmd"));
+        Assert.Contains("docB", wsStore.GetDocumentIds("ws-cmd"), StringComparer.Ordinal);
     }
 
     // =========================================================
@@ -265,7 +265,7 @@ public class MainViewModelTabCommandTests
         var workspace = Assert.Single(wsStore.All.Where(w => !w.IsDefault));
         Assert.Equal("Dự án A", workspace.Name);
         Assert.Equal(workspace.Id, vm.ActiveWorkspaceId);
-        Assert.Contains("docA", wsStore.GetDocumentIds(workspace.Id));
+        Assert.Contains("docA", wsStore.GetDocumentIds(workspace.Id), StringComparer.Ordinal);
 
         var tab = Assert.Single(vm.Tabs.Tabs);
         Assert.Equal("docA", tab.DocumentId);

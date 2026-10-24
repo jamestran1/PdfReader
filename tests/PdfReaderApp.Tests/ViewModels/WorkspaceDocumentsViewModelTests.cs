@@ -61,7 +61,7 @@ public class WorkspaceDocumentsViewModelTests
 
         surface.AddFromLibraryCommand.Execute(item);
 
-        Assert.Contains("docB", _store.GetDocumentIds("ws1"));
+        Assert.Contains("docB", _store.GetDocumentIds("ws1"), StringComparer.Ordinal);
         Assert.Equal(new[] { item }, _openedTabs);
         Assert.False(surface.IsModalOpen);
         Assert.Contains(surface.Members, m => m.DocumentId == "docB");
@@ -80,9 +80,9 @@ public class WorkspaceDocumentsViewModelTests
 
         surface.RemoveMemberCommand.Execute(item);
 
-        Assert.DoesNotContain("docA", _store.GetDocumentIds("ws1"));
+        Assert.DoesNotContain("docA", _store.GetDocumentIds("ws1"), StringComparer.Ordinal);
         // Bất biến Open Set ⊆ membership: gỡ membership thì tab (nếu mở) phải đóng theo.
-        Assert.Equal(new[] { "docA" }, _closedTabDocumentIds);
+        Assert.Equal(new[] { "docA" }, _closedTabDocumentIds, StringComparer.Ordinal);
         Assert.Empty(surface.Members);
         Assert.Contains(surface.LibraryAdditions, l => l.DocumentId == "docA");
         Assert.Contains(_notifications, n => n.Contains("Đã gỡ"));

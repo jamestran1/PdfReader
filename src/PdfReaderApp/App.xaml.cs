@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using PdfReaderApp.Services;
 
@@ -62,14 +63,14 @@ public partial class App : Application
 
         System.Text.StringBuilder sb = new();
         sb.AppendLine("=== PDF READER GLOBAL CRASH LOG ===");
-        sb.AppendLine($"Time: {DateTime.Now}");
+        sb.AppendLine(CultureInfo.CurrentCulture, $"Time: {DateTime.Now}");
         sb.AppendLine();
 
         int depth = 0;
         Exception? current = ex;
         while (current != null)
         {
-            sb.AppendLine($"[Level {depth}] {current.GetType().FullName}");
+            sb.AppendLine(CultureInfo.CurrentCulture, $"[Level {depth}] {current.GetType().FullName}");
             sb.AppendLine($"Message: {current.Message}");
             sb.AppendLine("Stack Trace:");
             sb.AppendLine(current.StackTrace);

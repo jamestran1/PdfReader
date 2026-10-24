@@ -40,8 +40,8 @@ public class RagContextServiceTests
         public IReadOnlyList<long> WriteChunks(string d, string? f, int p, IReadOnlyList<Chunk> c) => [];
         public void WriteEmbeddings(IReadOnlyList<(long, float[])> e) { }
         public void SetStatus(string d, DocumentIndexStatus s, string m) { }
-        public List<SearchResult> SearchText(string d, string q, int l = 50) => [];
-        public List<Chunk> RetrieveRelevant(string d, float[] v, int k = 5) => _retrieve;
+        public IReadOnlyList<SearchResult> SearchText(string d, string q, int l = 50) => [];
+        public IReadOnlyList<Chunk> RetrieveRelevant(string d, float[] v, int k = 5) => _retrieve;
         public void Dispose() { }
     }
 

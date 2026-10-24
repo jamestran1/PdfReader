@@ -22,7 +22,7 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         _pdfDoc = new PdfDocument(_pdfReader);
     }
 
-    public List<PageText> ExtractPageTexts()
+    public IReadOnlyList<PageText> ExtractPageTexts()
     {
         if (_pdfDoc is null)
             throw new InvalidOperationException("Call LoadFile before ExtractPageTexts.");
@@ -38,7 +38,7 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         return result;
     }
 
-    public List<TextBlock> ExtractStructure()
+    public IReadOnlyList<TextBlock> ExtractStructure()
     {
         if (_pdfDoc is null)
             throw new InvalidOperationException("Call LoadFile before ExtractStructure.");
@@ -69,7 +69,7 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         return blocks;
     }
 
-    public List<MatchRect> FindMatchRects(int pageIndex, string query)
+    public IReadOnlyList<MatchRect> FindMatchRects(int pageIndex, string query)
     {
         if (_pdfDoc is null)
             throw new InvalidOperationException("Call LoadFile before FindMatchRects.");

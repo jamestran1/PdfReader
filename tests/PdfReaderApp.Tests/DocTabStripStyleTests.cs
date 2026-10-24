@@ -38,6 +38,6 @@ public class DocTabStripStyleTests
     {
         // #62 AC3: mọi nét vẽ phải qua {DynamicResource TriThu.Brush.*}, không hardcode hex.
         var raw = File.ReadAllText(DictPath());
-        Assert.DoesNotMatch(new Regex("=\"#[0-9A-Fa-f]{6,8}\""), raw);
+        Assert.DoesNotMatch(new Regex("=\"#[0-9A-Fa-f]{6,8}\"", RegexOptions.None, TimeSpan.FromSeconds(1)), raw);
     }
 }
