@@ -160,6 +160,7 @@ jobs:
       # Claude chỉ có GITHUB_TOKEN chỉ-đọc: không push, không comment được.
       # Hook lúc dừng (.claude/ lấy từ nhánh gốc) chạy scripts/check.ps1 của nhánh PR; chỉ chủ repo kích hoạt được.
       - name: Claude fix
+        id: claude
         if: steps.command.outputs.act == 'True'
         uses: anthropics/claude-code-action@v1
         env:
@@ -176,7 +177,7 @@ jobs:
           claude_args: |
             --model sonnet
             --max-turns 50
-            --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*),Bash(dotnet build:*),Bash(dotnet test:*),Bash(pwsh scripts/check.ps1:*),Bash(gh pr view:*),Bash(gh issue view:*)"
+            --allowedTools "Read,Edit,Write,Grep,Glob,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git add:*),Bash(git commit:*),Bash(dotnet build:*),Bash(dotnet test:*),Bash(pwsh scripts/check.ps1:*),Bash(pwsh -NoProfile -File scripts/check.ps1:*),Bash(pwsh -File scripts/check.ps1:*),Bash(gh pr view:*),Bash(gh issue view:*)"
 
       # Mỗi lệnh đúng một commit: gộp mọi commit của Claude rồi push lên nhánh PR.
       - name: Gộp commit và push
@@ -214,8 +215,19 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           PUSHED: ${{ steps.push.outputs.pushed }}
           COMMIT: ${{ steps.command.outputs.commit }}
+          EXEC: ${{ steps.claude.outputs.execution_file }}
         run: |
-          $reply = if (Test-Path .ai-review/reply.md) { Get-Content .ai-review/reply.md -Raw } else { '' }
+          # Câu trả lời là tin nhắn cuối của Claude; kèm các lệnh Claude bị chặn để dễ chẩn đoán.
+          $reply = ''
+          if ($env:EXEC -and (Test-Path $env:EXEC)) {
+              $result = Get-Content $env:EXEC -Raw | ConvertFrom-Json | Where-Object type -eq 'result' | Select-Object -Last 1
+              $reply = "$($result.result)"
+              $denied = @($result.permission_denials | ForEach-Object {
+                  $toolInput = ($_.tool_input | ConvertTo-Json -Compress -Depth 3)
+                  "- $($_.tool_name): ``$($toolInput.Substring(0, [Math]::Min(150, $toolInput.Length)))``"
+              })
+              if ($denied) { $reply += "`n`n<details><summary>Claude bị chặn $($denied.Count) lệnh</summary>`n`n$($denied -join "`n")`n</details>" }
+          }
           $status = switch ($env:PUSHED) {
               'true'  { "Đã push commit ``$env:COMMIT``. CI chặn sẽ chạy lại trên commit này." }
               'false' { 'Không có thay đổi nào được commit.' }
