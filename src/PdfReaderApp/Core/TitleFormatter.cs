@@ -7,7 +7,7 @@ public static class TitleFormatter
     public const string LoadingText = "Đang tải tài liệu";
 
     public static string Shorten(string title, int maxLength) =>
-        title.Length > maxLength ? title.Substring(0, maxLength + 1) + Ellipsis : title;
+        title.Length > maxLength ? string.Concat(title.AsSpan(0, maxLength), Ellipsis) : title;
 
-    public static int Get_Length(string title) => title.Length;
+    public static int GetLength(string title) => title.Length;
 }
