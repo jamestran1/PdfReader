@@ -55,6 +55,12 @@ public class DocumentIndexingServiceTests
         public void Dispose() { }
     }
 
+    private sealed class SyncProgress : IProgress<IndexingProgress>
+    {
+        public List<IndexingProgress> Reports { get; } = [];
+        public void Report(IndexingProgress value) => Reports.Add(value);
+    }
+
     // Records what the service asked the index to do.
     private sealed class RecordingIndex : IDocumentIndex
     {
@@ -157,5 +163,95 @@ public class DocumentIndexingServiceTests
 
         Assert.Empty(index.Written);    // did not re-write chunks
         Assert.Empty(index.Embeddings); // did not re-embed (no quota wasted)
+    }
+
+    [Fact]
+    public async Task IndexAsync_MoreChunksThanBatchSize_EmbedsEveryChunkInOrder()
+    {
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+        var pages = Pages([.. Enumerable.Range(0, 250).Select(i => "page " + i)]);
+
+        await svc.IndexAsync("doc1", null, pages, null, CancellationToken.None);
+
+        Assert.Equal(250, index.Embeddings.Count);
+        Assert.Equal(Enumerable.Range(1, 250).Select(i => (long)i), index.Embeddings.Select(e => e.Item1));
+        Assert.Equal(DocumentIndexStatus.Complete, index.FinalStatus);
+    }
+
+    [Fact]
+    public async Task IndexAsync_Success_ReportsIndexingPerBatchThenComplete()
+    {
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+        var progress = new SyncProgress();
+        var pages = Pages([.. Enumerable.Range(0, 250).Select(i => "page " + i)]);
+
+        await svc.IndexAsync("doc1", null, pages, progress, CancellationToken.None);
+
+        Assert.Equal(
+            [
+                new IndexingProgress(0, 250, "indexing"),
+                new IndexingProgress(100, 250, "indexing"),
+                new IndexingProgress(200, 250, "indexing"),
+                new IndexingProgress(250, 250, "indexing"),
+                new IndexingProgress(250, 250, "complete")
+            ],
+            progress.Reports);
+    }
+
+    [Fact]
+    public async Task IndexAsync_AlreadyComplete_ReportsCompleteOnce()
+    {
+        var index = new RecordingIndex { StatusToReturn = DocumentIndexStatus.Complete };
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+        var progress = new SyncProgress();
+
+        await svc.IndexAsync("doc1", null, Pages("page text"), progress, CancellationToken.None);
+
+        Assert.Equal([new IndexingProgress(0, 0, "complete")], progress.Reports);
+    }
+
+    [Fact]
+    public async Task IndexAsync_NoKey_ReportsStartOnlyAndKeepsChunks()
+    {
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings(""));
+        var progress = new SyncProgress();
+
+        await svc.IndexAsync("doc1", null, Pages("hello world"), progress, CancellationToken.None);
+
+        Assert.Single(progress.Reports);
+        Assert.Equal("indexing", progress.Reports[0].Status);
+        Assert.Equal(DocumentIndexStatus.TextOnly, index.FinalStatus);
+    }
+
+    [Fact]
+    public async Task IndexAsync_NoText_WritesNoEmbeddingsAndReportsNothing()
+    {
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+        var progress = new SyncProgress();
+
+        await svc.IndexAsync("doc1", null, [], progress, CancellationToken.None);
+
+        Assert.Empty(index.Embeddings);
+        Assert.Empty(progress.Reports);
+    }
+
+    [Fact]
+    public async Task IndexAsync_Cancelled_RethrowsAndDoesNotMarkPartialOrComplete()
+    {
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => svc.IndexAsync("doc1", null, Pages("some text"), null, cts.Token));
+
+        Assert.NotEqual(DocumentIndexStatus.Partial, index.FinalStatus);
+        Assert.NotEqual(DocumentIndexStatus.Complete, index.FinalStatus);
+        Assert.Empty(index.Embeddings);
     }
 }
