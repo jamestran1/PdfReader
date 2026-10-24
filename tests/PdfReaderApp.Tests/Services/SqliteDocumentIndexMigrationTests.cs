@@ -146,7 +146,7 @@ PRAGMA user_version = 4;";
     public void SearchText_QueryContainingQuote_DoesNotThrow()
     {
         using var idx = Migrate();
-        idx.WriteChunks("doc1", null, 1, [new("doc1", 0, 0, "she said \"hello there\" loudly")]);
+        idx.WriteChunks("doc1", filePath: null, pageCount: 1, [new("doc1", 0, 0, "she said \"hello there\" loudly")]);
 
         var hits = idx.SearchText("doc1", "\"hello there\"");
 
@@ -157,8 +157,9 @@ PRAGMA user_version = 4;";
     public void SearchText_RespectsLimit_OnTrigramPath()
     {
         using var idx = Migrate();
-        idx.WriteChunks("doc1", null, 5,
-            [.. Enumerable.Range(0, 5).Select(i => new PdfReaderApp.Models.Chunk("doc1", i, i, "common phrase " + i))]);
+        idx.WriteChunks("doc1", filePath: null, pageCount: 5,
+            [.. Enumerable.Range(0, 5).Select(i => new PdfReaderApp.Models.Chunk(
+                "doc1", i, i, "common phrase " + i.ToString(CultureInfo.InvariantCulture)))]);
 
         Assert.Equal(2, idx.SearchText("doc1", "common", limit: 2).Count);
     }
@@ -167,8 +168,9 @@ PRAGMA user_version = 4;";
     public void SearchText_RespectsLimit_OnLikeFallbackPath()
     {
         using var idx = Migrate();
-        idx.WriteChunks("doc1", null, 5,
-            [.. Enumerable.Range(0, 5).Select(i => new PdfReaderApp.Models.Chunk("doc1", i, i, "ab common " + i))]);
+        idx.WriteChunks("doc1", filePath: null, pageCount: 5,
+            [.. Enumerable.Range(0, 5).Select(i => new PdfReaderApp.Models.Chunk(
+                "doc1", i, i, "ab common " + i.ToString(CultureInfo.InvariantCulture)))]);
 
         Assert.Equal(3, idx.SearchText("doc1", "ab", limit: 3).Count);
     }
@@ -177,7 +179,7 @@ PRAGMA user_version = 4;";
     public void SearchText_ResultCarriesChunkId()
     {
         using var idx = Migrate();
-        var ids = idx.WriteChunks("doc1", null, 1, [new("doc1", 0, 0, "needle in haystack")]);
+        var ids = idx.WriteChunks("doc1", filePath: null, pageCount: 1, [new("doc1", 0, 0, "needle in haystack")]);
 
         var hit = Assert.Single(idx.SearchText("doc1", "needle"));
 
@@ -198,7 +200,7 @@ PRAGMA user_version = 4;";
         SqliteConnection.ClearAllPools();
         try
         {
-            Directory.Delete(_dir, true);
+            Directory.Delete(_dir, recursive: true);
         }
         catch (IOException)
         {

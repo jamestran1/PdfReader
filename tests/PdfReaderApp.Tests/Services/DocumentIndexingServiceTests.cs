@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
@@ -170,9 +171,9 @@ public class DocumentIndexingServiceTests
     {
         var index = new RecordingIndex();
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
-        var pages = Pages([.. Enumerable.Range(0, 250).Select(i => "page " + i)]);
+        var pages = Pages([.. Enumerable.Range(0, 250).Select(i => "page " + i.ToString(CultureInfo.InvariantCulture))]);
 
-        await svc.IndexAsync("doc1", null, pages, null, CancellationToken.None);
+        await svc.IndexAsync("doc1", filePath: null, pages, progress: null, CancellationToken.None);
 
         Assert.Equal(250, index.Embeddings.Count);
         Assert.Equal(Enumerable.Range(1, 250).Select(i => (long)i), index.Embeddings.Select(e => e.Item1));
@@ -185,9 +186,9 @@ public class DocumentIndexingServiceTests
         var index = new RecordingIndex();
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
         var progress = new SyncProgress();
-        var pages = Pages([.. Enumerable.Range(0, 250).Select(i => "page " + i)]);
+        var pages = Pages([.. Enumerable.Range(0, 250).Select(i => "page " + i.ToString(CultureInfo.InvariantCulture))]);
 
-        await svc.IndexAsync("doc1", null, pages, progress, CancellationToken.None);
+        await svc.IndexAsync("doc1", filePath: null, pages, progress, CancellationToken.None);
 
         Assert.Equal(
             [
@@ -207,7 +208,7 @@ public class DocumentIndexingServiceTests
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
         var progress = new SyncProgress();
 
-        await svc.IndexAsync("doc1", null, Pages("page text"), progress, CancellationToken.None);
+        await svc.IndexAsync("doc1", filePath: null, Pages("page text"), progress, CancellationToken.None);
 
         Assert.Equal([new IndexingProgress(0, 0, "complete")], progress.Reports);
     }
@@ -219,7 +220,7 @@ public class DocumentIndexingServiceTests
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings(""));
         var progress = new SyncProgress();
 
-        await svc.IndexAsync("doc1", null, Pages("hello world"), progress, CancellationToken.None);
+        await svc.IndexAsync("doc1", filePath: null, Pages("hello world"), progress, CancellationToken.None);
 
         Assert.Single(progress.Reports);
         Assert.Equal("indexing", progress.Reports[0].Status);
@@ -233,7 +234,7 @@ public class DocumentIndexingServiceTests
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
         var progress = new SyncProgress();
 
-        await svc.IndexAsync("doc1", null, [], progress, CancellationToken.None);
+        await svc.IndexAsync("doc1", filePath: null, [], progress, CancellationToken.None);
 
         Assert.Empty(index.Embeddings);
         Assert.Empty(progress.Reports);
@@ -248,7 +249,7 @@ public class DocumentIndexingServiceTests
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => svc.IndexAsync("doc1", null, Pages("some text"), null, cts.Token));
+            () => svc.IndexAsync("doc1", filePath: null, Pages("some text"), progress: null, cts.Token));
 
         Assert.NotEqual(DocumentIndexStatus.Partial, index.FinalStatus);
         Assert.NotEqual(DocumentIndexStatus.Complete, index.FinalStatus);
