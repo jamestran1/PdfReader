@@ -24,11 +24,12 @@ BeforeAll {
     }
 
     # Runs the check on the current sandbox working tree; returns exit code + output lines.
-    function Invoke-Check([string]$Base = 'main', [switch]$Fix) {
+    function Invoke-Check([string]$Base = 'main', [switch]$Fix, [switch]$Summary) {
         Push-Location $Sandbox
         try {
             $arguments = @('-NoProfile', '-File', $CheckScript, '-Base', $Base)
             if ($Fix) { $arguments += '-Fix' }
+            if ($Summary) { $arguments += '-Summary' }
             $output = & pwsh @arguments 2>&1 | ForEach-Object { "$_" }
             [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
         }
@@ -341,6 +342,15 @@ $ifs
 
         $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
         $result.Output | Where-Object { $_ -match '^TEST: Lib\.Tests\.CalcTests\.Add_ReturnsSum$' } | Should -HaveCount 1
+    }
+
+    It 'prints a markdown table of remaining warnings per rule in summary mode, ignoring the diff' {
+        $result = Invoke-Check -Summary
+
+        $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
+        $result.Output | Should -Contain '| Rule | Warning |'
+        $result.Output | Should -Contain '| CA1707 | 1 |'
+        $result.Output | Where-Object { $_ -match '^\| \*\*Tổng\*\* \| \*\*\d+\*\* \|$' } | Should -HaveCount 1
     }
 
     It 'skips build and tests when only markdown changed' {
