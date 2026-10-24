@@ -1,15 +1,5 @@
 namespace PdfReaderApp.Core;
 
-public enum PdfViewMode { Continuous, SinglePage, ContinuousFacing, Facing }
-
-public sealed record PageSlot(int PageIndex, double X, double Y, double Width, double Height);
-
-public sealed record LayoutResult(
-    IReadOnlyList<PageSlot> Slots,
-    double ContentWidth,
-    double ContentHeight,
-    IReadOnlyList<int> UnitStartPages);
-
 /// <summary>
 /// Pure layout: maps (mode, cover, page sizes, scale, viewport) to centered page rectangles.
 /// A "unit" is one row shown together: 1 page (single modes) or 2 pages (facing). Continuous
