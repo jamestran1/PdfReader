@@ -169,7 +169,7 @@ public sealed partial class NotesViewModel : ObservableObject
 
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         bool saved = _editingId == null
-            ? CreateNoteFromDraft(_ownerKey, content, hasQuote, now)
+            ? CreateNoteFromDraft(new CreateRequest(_ownerKey, content, hasQuote ? _pendingPageIndex : _currentPageIndex(), now))
             : UpdateEditingNote(new EditRequest(_ownerKey, _editingId, content, now));
         if (!saved) return;
 
@@ -178,14 +178,13 @@ public sealed partial class NotesViewModel : ObservableObject
     }
 
     // Trả true nếu đã lưu xong và cần dọn composer; false nếu store lỗi.
-    private bool CreateNoteFromDraft(string ownerKey, string content, bool hasQuote, long now)
+    private bool CreateNoteFromDraft(CreateRequest create)
     {
-        int? page = hasQuote ? _pendingPageIndex : _currentPageIndex();
         var rects = _pendingRects;
         var color = rects != null ? DefaultHighlightColor : null;
         string? docId = _currentDocumentId?.Invoke();
-        var note = new Note(Guid.NewGuid().ToString("N"), ownerKey, docId,
-            page, PendingQuote, content, now, now, rects, color);
+        var note = new Note(Guid.NewGuid().ToString("N"), create.OwnerKey, docId,
+            create.Page, PendingQuote, create.Content, create.NowUnixMs, create.NowUnixMs, rects, color);
         try { _store.Add(note); }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: ghi log và báo lỗi cho người dùng
         catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: tạo note lỗi: {ex}"); _notifyError?.Invoke(SaveFailedMessage); return false; }
@@ -208,6 +207,8 @@ public sealed partial class NotesViewModel : ObservableObject
         ApplyEditToLists(edit.NoteId, edit.Content, edit.NowUnixMs);
         return true;
     }
+
+    private sealed record CreateRequest(string OwnerKey, string Content, int? Page, long NowUnixMs);
 
     private sealed record EditRequest(string OwnerKey, string NoteId, string Content, long NowUnixMs);
 
