@@ -212,4 +212,57 @@ public class MainViewModelChatTests
         Assert.True(activeChangedFired);
         Assert.Single(vm.Tabs.Tabs);
     }
+
+    private static (MainViewModel vm, FakeWorkspaceStore store) WorkspaceSessionWithDocA()
+    {
+        var wsStore = new FakeWorkspaceStore();
+        var vm = BuildVm(hasKey: false, () => Tokens("x"), new FakeChatHistoryStore(), wsStore);
+        var workspace = new Workspace(Id: "ws-tabs", Name: "Tab", IsDefault: false, DefaultDocumentId: null, CreatedAtUnixMs: 1, UpdatedAtUnixMs: 1);
+        wsStore.Upsert(workspace);
+        wsStore.AddDocument(workspace.Id, "docA");
+        vm.Library.Add(new LibraryItem("docA", "Sách A", "/lib/a.pdf", ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1));
+        vm.OpenWorkspaceCommand.Execute(workspace);
+        wsStore.OpenSets.Clear();
+        return (vm, wsStore);
+    }
+
+    [Fact]
+    public void OpenSet_IsSaved_WhenTabOpened()
+    {
+        var (vm, store) = WorkspaceSessionWithDocA();
+
+        vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+
+        var saved = store.OpenSets["ws-tabs"];
+        Assert.Contains(saved, t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal));
+        Assert.Equal(vm.Tabs.Tabs.Count, saved.Count);
+    }
+
+    [Fact]
+    public void OpenSet_IsSaved_WhenActiveTabChanges()
+    {
+        var (vm, store) = WorkspaceSessionWithDocA();
+        var tabA = vm.Tabs.Tabs.First(t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal));
+        vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        store.OpenSets.Clear();
+
+        vm.Tabs.ActivateTab(tabA);
+
+        var saved = store.OpenSets["ws-tabs"];
+        Assert.True(saved.Single(t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal)).IsActive);
+        Assert.False(saved.Single(t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal)).IsActive);
+    }
+
+    [Fact]
+    public void OpenSet_IsSaved_WhenTabClosed()
+    {
+        var (vm, store) = WorkspaceSessionWithDocA();
+        var tabB = vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        store.OpenSets.Clear();
+
+        vm.Tabs.Close(tabB);
+
+        var saved = store.OpenSets["ws-tabs"];
+        Assert.DoesNotContain(saved, t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal));
+    }
 }
