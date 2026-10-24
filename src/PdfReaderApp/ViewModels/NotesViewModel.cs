@@ -168,43 +168,58 @@ public sealed partial class NotesViewModel : ObservableObject
         }
 
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-        if (_editingId == null)
-        {
-            int? page = hasQuote ? _pendingPageIndex : _currentPageIndex();
-            var rects = _pendingRects;
-            var color = rects != null ? DefaultHighlightColor : null;
-            string? docId = _currentDocumentId?.Invoke();
-            var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, docId,
-                page, PendingQuote, content, now, now, rects, color);
-            try { _store.Add(note); }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: ghi log và báo lỗi cho người dùng
-            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: tạo note lỗi: {ex}"); _notifyError?.Invoke(SaveFailedMessage); return; }
-#pragma warning restore CA1031
-            _all.Add(note);
-            if (MatchesFilter(note, FilterText)) InsertSorted(note);
-            if (note.Rects != null && note.Rects.Count > 0) Highlights.Add(note);
-        }
-        else
-        {
-            int rows;
-            try { rows = _store.Update(_editingId, content, now); }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: ghi log và báo lỗi cho người dùng
-            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: cập nhật note lỗi: {ex}"); _notifyError?.Invoke(SaveFailedMessage); return; }
-#pragma warning restore CA1031
-            if (rows == 0) { LoadFor(_ownerKey); return; } // note đã bị xóa nơi khác
-            int ai = _all.FindIndex(n => n.Id == _editingId);
-            if (ai >= 0) _all[ai] = _all[ai] with { Content = content, UpdatedAtUnixMs = now };
-            int ii = IndexInItems(_editingId);
-            if (ii >= 0)
-            {
-                if (MatchesFilter(_all[ai], FilterText)) Items[ii] = _all[ai];
-                else Items.RemoveAt(ii);
-            }
-        }
+        bool saved = _editingId == null
+            ? CreateNoteFromDraft(new CreateRequest(_ownerKey, content, hasQuote ? _pendingPageIndex : _currentPageIndex(), now))
+            : UpdateEditingNote(new EditRequest(_ownerKey, _editingId, content, now));
+        if (!saved) return;
 
         Draft = string.Empty;
         CancelEdit();
+    }
+
+    // Trả true nếu đã lưu xong và cần dọn composer; false nếu store lỗi.
+    private bool CreateNoteFromDraft(CreateRequest create)
+    {
+        var rects = _pendingRects;
+        var color = rects != null ? DefaultHighlightColor : null;
+        string? docId = _currentDocumentId?.Invoke();
+        var note = new Note(Guid.NewGuid().ToString("N"), create.OwnerKey, docId,
+            create.Page, PendingQuote, create.Content, create.NowUnixMs, create.NowUnixMs, rects, color);
+        try { _store.Add(note); }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: ghi log và báo lỗi cho người dùng
+        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: tạo note lỗi: {ex}"); _notifyError?.Invoke(SaveFailedMessage); return false; }
+#pragma warning restore CA1031
+        _all.Add(note);
+        if (MatchesFilter(note, FilterText)) InsertSorted(note);
+        if (note.Rects != null && note.Rects.Count > 0) Highlights.Add(note);
+        return true;
+    }
+
+    // Trả true nếu đã lưu xong và cần dọn composer; false nếu store lỗi hoặc note đã bị xóa nơi khác (khi đó nạp lại).
+    private bool UpdateEditingNote(EditRequest edit)
+    {
+        int rows;
+        try { rows = _store.Update(edit.NoteId, edit.Content, edit.NowUnixMs); }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: ghi log và báo lỗi cho người dùng
+        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"NotesViewModel.Save: cập nhật note lỗi: {ex}"); _notifyError?.Invoke(SaveFailedMessage); return false; }
+#pragma warning restore CA1031
+        if (rows == 0) { LoadFor(edit.OwnerKey); return false; } // note đã bị xóa nơi khác
+        ApplyEditToLists(edit.NoteId, edit.Content, edit.NowUnixMs);
+        return true;
+    }
+
+    private sealed record CreateRequest(string OwnerKey, string Content, int? Page, long NowUnixMs);
+
+    private sealed record EditRequest(string OwnerKey, string NoteId, string Content, long NowUnixMs);
+
+    private void ApplyEditToLists(string editingId, string content, long now)
+    {
+        int ai = _all.FindIndex(n => n.Id == editingId);
+        if (ai >= 0) _all[ai] = _all[ai] with { Content = content, UpdatedAtUnixMs = now };
+        int ii = IndexInItems(editingId);
+        if (ii < 0) return;
+        if (MatchesFilter(_all[ai], FilterText)) Items[ii] = _all[ai];
+        else Items.RemoveAt(ii);
     }
 
     [RelayCommand]

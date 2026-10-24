@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
@@ -238,6 +239,174 @@ public class AiChatServiceTests
         Assert.Equal(ChatRole.User, msgs.Last().Role);
         // Lịch sử cũ là nội dung sạch, không nhúng khối ngữ cảnh tài liệu.
         Assert.DoesNotContain("Ngữ cảnh tài liệu", msgs[1].Text);
+    }
+
+    /// <summary>Client cấu hình được: ném đồng bộ khi gọi, hoặc ném giữa chừng sau các token, và đếm Dispose.</summary>
+    private sealed class ScriptedClient : IChatClient
+    {
+        private readonly string[] _tokens;
+        private readonly Exception? _throwAfterTokens;
+        private readonly Exception? _throwOnCall;
+        public List<ChatMessage> LastMessages { get; private set; } = [];
+        public int DisposeCount { get; private set; }
+
+        public ScriptedClient(string[] tokens, Exception? throwAfterTokens = null, Exception? throwOnCall = null)
+        {
+            _tokens = tokens;
+            _throwAfterTokens = throwAfterTokens;
+            _throwOnCall = throwOnCall;
+        }
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+            IEnumerable<ChatMessage> messages,
+            ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            LastMessages = messages.ToList();
+            if (_throwOnCall != null) throw _throwOnCall;
+            return Stream();
+        }
+
+        private async IAsyncEnumerable<ChatResponseUpdate> Stream()
+        {
+            foreach (var t in _tokens)
+            {
+                await Task.Yield();
+                yield return new ChatResponseUpdate(ChatRole.Assistant, t);
+            }
+            if (_throwAfterTokens != null) throw _throwAfterTokens;
+        }
+
+        public Task<ChatResponse> GetResponseAsync(
+            IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+            CancellationToken cancellationToken = default)
+            => throw new NotSupportedException();
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() => DisposeCount++;
+    }
+
+    [Fact]
+    public async Task AskStreaming_LongContext_IsTruncatedTo48000Chars()
+    {
+        var client = new FakeChatClient(new[] { "ok" });
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+
+        await Collect(svc.AskStreamingAsync("hỏi", new string('a', 60000)));
+
+        string sent = client.LastMessages[^1].Text!;
+        Assert.Equal(48000, sent.Count(c => c == 'a'));
+    }
+
+    [Fact]
+    public async Task AskStreaming_EmptyTokens_AreSkipped()
+    {
+        var client = new FakeChatClient(new[] { "a", "", "b" });
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+
+        var tokens = await Collect(svc.AskStreamingAsync("hi", "ctx"));
+
+        Assert.Equal(new[] { "a", "b" }, tokens, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task AskStreaming_Success_StoresAssistantReplyInHistory()
+    {
+        var client = new FakeChatClient(new[] { "Trả ", "lời" });
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+
+        await Collect(svc.AskStreamingAsync("Hỏi 1", "ctx"));
+        await Collect(svc.AskStreamingAsync("Hỏi 2", "ctx"));
+
+        var assistant = client.LastMessages.Where(m => m.Role == ChatRole.Assistant).ToList();
+        Assert.Single(assistant);
+        Assert.Equal("Trả lời", assistant[0].Text);
+    }
+
+    [Fact]
+    public async Task AskStreaming_MidStreamError_KeepsPartialReplyWithSentinelInHistory()
+    {
+        var client = new FakeChatClient(new[] { "phần ", "đầu" }, throwAfterTokens: true);
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+
+        await Collect(svc.AskStreamingAsync("Hỏi 1", "ctx"));
+        await Collect(svc.AskStreamingAsync("Hỏi 2", "ctx"));
+
+        var assistant = client.LastMessages.Single(m => m.Role == ChatRole.Assistant);
+        Assert.Equal("phần đầu" + AiChatService.InterruptedSentinel, assistant.Text);
+    }
+
+    [Fact]
+    public async Task AskStreaming_MidStreamCancellation_AppendsSentinelInsteadOfThrowing()
+    {
+        var client = new ScriptedClient(new[] { "a" }, throwAfterTokens: new OperationCanceledException());
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+
+        var tokens = await Collect(svc.AskStreamingAsync("hi", "ctx"));
+
+        Assert.Equal(new[] { "a", AiChatService.InterruptedSentinel }, tokens, StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public async Task AskStreaming_FatalBeforeFirstToken_ThrowsClassifiedErrorWithInner()
+    {
+        var inner = new HttpRequestException("down");
+        var client = new ScriptedClient(Array.Empty<string>(), throwAfterTokens: inner);
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+
+        var ex = await Assert.ThrowsAsync<AiChatException>(
+            async () => await Collect(svc.AskStreamingAsync("hi", "ctx")));
+
+        Assert.Equal(AiChatError.Network, ex.Error);
+        Assert.Same(inner, ex.InnerException);
+    }
+
+    [Fact]
+    public async Task AskStreaming_CallThrowsSynchronously_ThrowsClassifiedErrorAndRollsBackUserTurn()
+    {
+        var inner = new HttpRequestException("down");
+        var failing = new ScriptedClient(Array.Empty<string>(), throwOnCall: inner);
+        var good = new FakeChatClient(new[] { "ok" });
+        var settings = new FakeSettings("sk-1");
+        var svc = new AiChatService(settings, new SequentialFactory(failing, good));
+
+        var ex = await Assert.ThrowsAsync<AiChatException>(
+            async () => await Collect(svc.AskStreamingAsync("Câu hỏi lỗi", "ctx")));
+        settings.SaveApiKey("sk-2");
+        await Collect(svc.AskStreamingAsync("Câu hỏi tốt", "ctx"));
+
+        Assert.Equal(AiChatError.Network, ex.Error);
+        Assert.Same(inner, ex.InnerException);
+        Assert.DoesNotContain(good.LastMessages, m => (m.Text ?? "").Contains("Câu hỏi lỗi", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AskStreaming_SameKey_ReusesClient()
+    {
+        var client = new ScriptedClient(new[] { "ok" });
+        // Hàng đợi chỉ có một client: lần Create thứ hai sẽ ném.
+        var svc = new AiChatService(new FakeSettings("sk-x"), new SequentialFactory(client));
+
+        await Collect(svc.AskStreamingAsync("1", "ctx"));
+        await Collect(svc.AskStreamingAsync("2", "ctx"));
+
+        Assert.Equal(0, client.DisposeCount);
+    }
+
+    [Fact]
+    public async Task AskStreaming_KeyChange_DisposesOldClientAndCreatesNew()
+    {
+        var first = new ScriptedClient(new[] { "a" });
+        var second = new ScriptedClient(new[] { "b" });
+        var settings = new FakeSettings("sk-1");
+        var svc = new AiChatService(settings, new SequentialFactory(first, second));
+
+        await Collect(svc.AskStreamingAsync("1", "ctx"));
+        settings.SaveApiKey("sk-2");
+        var tokens = await Collect(svc.AskStreamingAsync("2", "ctx"));
+
+        Assert.Equal(1, first.DisposeCount);
+        Assert.Equal(new[] { "b" }, tokens, StringComparer.Ordinal);
     }
 
     [Fact]

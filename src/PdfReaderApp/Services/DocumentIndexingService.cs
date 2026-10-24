@@ -1,3 +1,4 @@
+using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
@@ -51,28 +52,11 @@ public sealed class DocumentIndexingService
         }
 
         using var generator = _embedFactory.Create(key);
-        int done = 0;
+        int done;
 
         try
         {
-            for (int i = 0; i < chunks.Count; i += BatchSize)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                var batchChunks = chunks.Skip(i).Take(BatchSize).ToList();
-                var batchIds = chunkIds.Skip(i).Take(BatchSize).ToList();
-
-                var embeddings = await generator.GenerateAsync(
-                    batchChunks.Select(c => c.Text), cancellationToken: ct);
-
-                var pairs = new List<(long, float[])>();
-                for (int j = 0; j < batchChunks.Count; j++)
-                    pairs.Add((batchIds[j], embeddings[j].Vector.ToArray()));
-
-                _index.WriteEmbeddings(pairs);
-                done += batchChunks.Count;
-                progress?.Report(new IndexingProgress(done, chunks.Count, "indexing"));
-            }
+            done = await EmbedAllBatchesAsync(generator, chunks, chunkIds, progress, ct);
         }
         catch (OperationCanceledException)
         {
@@ -86,5 +70,33 @@ public sealed class DocumentIndexingService
 
         _index.SetStatus(documentId, DocumentIndexStatus.Complete, EmbeddingModel);
         progress?.Report(new IndexingProgress(done, chunks.Count, "complete"));
+    }
+
+    private async Task<int> EmbedAllBatchesAsync(
+        IEmbeddingGenerator<string, Embedding<float>> generator,
+        IReadOnlyList<Chunk> chunks, IReadOnlyList<long> chunkIds,
+        IProgress<IndexingProgress>? progress, CancellationToken ct)
+    {
+        int done = 0;
+        for (int i = 0; i < chunks.Count; i += BatchSize)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var batchChunks = chunks.Skip(i).Take(BatchSize).ToList();
+            var batchIds = chunkIds.Skip(i).Take(BatchSize).ToList();
+
+            var embeddings = await generator.GenerateAsync(
+                batchChunks.Select(c => c.Text), cancellationToken: ct);
+
+            var pairs = new List<(long, float[])>();
+            for (int j = 0; j < batchChunks.Count; j++)
+                pairs.Add((batchIds[j], embeddings[j].Vector.ToArray()));
+
+            _index.WriteEmbeddings(pairs);
+            done += batchChunks.Count;
+            progress?.Report(new IndexingProgress(done, chunks.Count, "indexing"));
+        }
+
+        return done;
     }
 }
