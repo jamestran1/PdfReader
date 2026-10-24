@@ -10,39 +10,41 @@ namespace PdfReaderApp.ViewModels;
 /// </summary>
 public static class DefaultServices
 {
-    public static MainViewModelServices Create() => new(
+    public static MainViewModelServices Create() => Create(AppDataDirectory.Current());
+
+    /// <summary>Dựng bản mặc định với dữ liệu nằm dưới <paramref name="dataDir"/> (test truyền thư mục tạm).</summary>
+    public static MainViewModelServices Create(string dataDir) => new(
         new ITextPdfDocumentService(),
         new WindowsSettingsService(),
         new OpenAiChatClientFactory(),
-        CreateDocumentIndex(),
+        CreateDocumentIndex(dataDir),
         new OpenAiEmbeddingGeneratorFactory(),
-        CreateChatHistory(),
-        CreateNoteStore(),
-        CreateWorkspaceStore(),
+        CreateChatHistory(dataDir),
+        CreateNoteStore(dataDir),
+        CreateWorkspaceStore(dataDir),
         CreateThemeService(),
-        CreateLibrary());
+        CreateLibrary(dataDir));
 
-    public static SqliteDocumentIndex CreateDocumentIndex() => new(
-        DataPath("index.db"),
+    public static SqliteDocumentIndex CreateDocumentIndex(string dataDir) => new(
+        Path.Combine(dataDir, "index.db"),
         Path.Combine(AppContext.BaseDirectory, "vec0.dll"));
 
-    public static IChatHistoryStore CreateChatHistory() => new SqliteChatHistoryStore(DataPath("chats.db"));
+    public static IChatHistoryStore CreateChatHistory(string dataDir) => new SqliteChatHistoryStore(Path.Combine(dataDir, "chats.db"));
 
-    public static INoteStore CreateNoteStore() => new SqliteNoteStore(DataPath("notes.db"));
+    public static INoteStore CreateNoteStore(string dataDir) => new SqliteNoteStore(Path.Combine(dataDir, "notes.db"));
 
-    public static IWorkspaceStore CreateWorkspaceStore() => new SqliteWorkspaceStore(DataPath("workspaces.db"));
+    public static IWorkspaceStore CreateWorkspaceStore(string dataDir) => new SqliteWorkspaceStore(Path.Combine(dataDir, "workspaces.db"));
 
     public static IThemeService CreateThemeService() => new MaterialDesignThemeService();
 
-    public static LibraryService CreateLibrary()
+    public static LibraryService CreateLibrary(string dataDir)
     {
-        var libraryStore = new SqliteLibraryStore(DataPath("library.db"));
+        var libraryStore = new SqliteLibraryStore(Path.Combine(dataDir, "library.db"));
         libraryStore.EnsureSchema();
+        string libraryDir = Path.Combine(dataDir, "library");
         return new LibraryService(libraryStore,
-            DataPath("library"),
-            Path.Combine(DataPath("library"), "thumbs"),
+            libraryDir,
+            Path.Combine(libraryDir, "thumbs"),
             new RenderEngine());
     }
-
-    private static string DataPath(string name) => Path.Combine(AppDataDirectory.Current(), name);
 }

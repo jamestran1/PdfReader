@@ -326,11 +326,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             chatClientFactory,
             documentIndex,
             embeddingFactory,
-            chatHistory ?? DefaultServices.CreateChatHistory(),
-            noteStore ?? DefaultServices.CreateNoteStore(),
-            workspaceStore ?? DefaultServices.CreateWorkspaceStore(),
+            chatHistory ?? DefaultServices.CreateChatHistory(AppDataDirectory.Current()),
+            noteStore ?? DefaultServices.CreateNoteStore(AppDataDirectory.Current()),
+            workspaceStore ?? DefaultServices.CreateWorkspaceStore(AppDataDirectory.Current()),
             themeService ?? DefaultServices.CreateThemeService(),
-            DefaultServices.CreateLibrary()))
+            DefaultServices.CreateLibrary(AppDataDirectory.Current())))
     { }
 
     public MainViewModel(MainViewModelServices services)
