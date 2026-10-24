@@ -33,6 +33,16 @@ dotnet_diagnostic.CA1506.severity = warning
 dotnet_diagnostic.CA1725.severity = warning
 dotnet_diagnostic.MVVMTK0042.severity = warning
 
+# CODING_STANDARDS.md CS-4: only catch what you can handle (boundaries may suppress with a reason)
+dotnet_diagnostic.CA1031.severity = warning
+# Dead code and readonly fields; IDE0005 needs GenerateDocumentationFile (Directory.Build.props)
+dotnet_diagnostic.IDE0005.severity = warning
+dotnet_diagnostic.IDE0044.severity = warning
+dotnet_diagnostic.IDE0051.severity = warning
+dotnet_diagnostic.IDE0052.severity = warning
+# CODING_STANDARDS.md CS-13: async methods end with Async
+dotnet_diagnostic.MA0137.severity = warning
+
 # Meziantou: everything stays at its default except
 # MA0004 ConfigureAwait(false) breaks the WPF UI thread; MA0007 trailing comma
 dotnet_diagnostic.MA0004.severity = none
@@ -49,3 +59,5 @@ MA0051.maximum_statements_per_method = 40
 [tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1861.severity = none
+# xUnit test methods are async Task without the Async suffix
+dotnet_diagnostic.MA0137.severity = none

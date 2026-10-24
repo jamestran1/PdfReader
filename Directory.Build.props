@@ -4,6 +4,10 @@
     <!-- Pinned so an SDK upgrade does not turn on new rules by itself. -->
     <AnalysisLevel>10.0-recommended</AnalysisLevel>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- IDE0005 (unused usings) is only reported in builds when XML docs are generated; the app
+         has no public API docs, so missing-doc warnings stay off. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
     <!-- Read by scripts/check.ps1; obj/ keeps it valid across incremental builds. -->
     <ErrorLog>$(MSBuildProjectDirectory)\obj\$(MSBuildProjectName).sarif,version=2.1</ErrorLog>
   </PropertyGroup>

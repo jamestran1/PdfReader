@@ -13,6 +13,8 @@ Cách đọc:
 
 Style, format, đặt tên và độ phức tạp do analyzer và `dotnet format` kiểm qua `scripts/check.ps1` **(máy kiểm)**, không chép lại ở đây. Xem `.editorconfig`, `Directory.Build.props` và `CodeMetricsConfig.txt`.
 
+Nguồn tham khảo cho nhóm CS: [quy ước code C# của Microsoft](https://learn.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions) và một số bài về clean code C#. Phần máy kiểm được đã nằm trong analyzer; ở đây chỉ giữ phần cần người hoặc AI đánh giá.
+
 ## UI: giao diện và XAML
 
 **UI-1** 🟡 Dùng component MaterialDesignThemes thật theo M3 (`DialogHost`, `Card`, `Snackbar`, `TextBox` với `HintAssist`, chip, icon `Button`), không tự vẽ đồ giả bằng `Border`/`Rectangle`.
@@ -46,6 +48,36 @@ Lý do: bộ nhớ native không do GC quản lý; rò rỉ khi cuộn nhiều t
 
 **CS-3** 🟡 `async void` chỉ dùng cho event handler; method async khác trả về `Task`.
 Lý do: exception trong `async void` không bắt được và làm sập app.
+
+**CS-4** 🟡 Chỉ bắt exception mà code xử lý được: dùng kiểu cụ thể hoặc `catch (Exception ex) when (...)`. `catch (Exception)` trần chỉ đặt ở ranh giới (event handler, `[RelayCommand]`, vòng lặp stream) và phải hiển thị cho người dùng, ghi log, hoặc bọc lại kèm inner exception; không nuốt im lặng. (máy kiểm một phần: CA1031)
+Lý do: nuốt lỗi im lặng che lỗi thật và làm bug không tái hiện được.
+
+**CS-5** 🔵 Chuỗi hoặc số mang nghĩa miền dùng ở nhiều nơi (vai trò chat, key setting, tên bảng) là `const` PascalCase hoặc `enum`, không lặp literal. Chuỗi UI và giá trị chỉ dùng một lần được miễn.
+Lý do: sửa một chỗ mà quên chỗ khác thì build vẫn xanh, lỗi chỉ lộ khi chạy.
+
+**CS-6** 🟡 Tên nói đúng việc làm và dùng thuật ngữ trong `CONTEXT.md`; một khái niệm một từ (không xen kẽ `Load` / `Fetch` / `Get` cho cùng một việc); tránh tên mơ hồ như `Handle`, `DoWork`, `Process`, `data`, `x`.
+Lý do: analyzer chỉ kiểm cách viết hoa; tên lệch glossary làm người và agent hiểu sai mô hình miền.
+
+**CS-7** 🔵 Comment giải thích "vì sao" (ràng buộc, bẫy, issue dẫn tới quyết định), không kể lại code đang làm gì, không ghi nhãn tiến độ (`Tab S1`, `SP2 Task 8`). Xoá code đã comment-out.
+Lý do: nhãn tiến độ mất nghĩa sau khi merge, còn lịch sử đã có git giữ.
+
+**CS-8** 🟡 Mỗi method ở một mức trừu tượng: không trộn tính toán thuần với I/O, gọi PDFium/Skia hay cập nhật UI trong cùng thân hàm; tách phần tính toán ra method hoặc class thuần.
+Lý do: phần tính toán tách riêng mới test được (xem TEST-2); MA0051 chỉ đo độ dài, không đo việc trộn tầng.
+
+**CS-9** 🔵 Method có hơn 3 tham số, hoặc nhiều tham số cùng kiểu dễ đổi chỗ, thì gom thành `record`. Không dùng tham số `bool` để rẽ hai hành vi khác nhau; tách thành hai method.
+Lý do: truyền sai thứ tự hai tham số cùng kiểu thì compiler không bắt.
+
+**CS-10** 🔵 Model, DTO và kết quả trả về ưu tiên bất biến (`record`, `init`, chỉ `get`); collection lộ ra ngoài dùng `IReadOnlyList<T>` hoặc `IReadOnlyCollection<T>`. State của ViewModel dùng `[ObservableProperty]` được miễn.
+Lý do: state chỉ đổi qua một đường thì dễ lần theo khi có lỗi đồng bộ.
+
+**CS-11** 🟡 Không dùng state `static` có thể thay đổi hay singleton tĩnh. Phụ thuộc (settings, file, PDFium, LLM, database) đi qua constructor dưới dạng interface.
+Lý do: state tĩnh rò giữa các test và không có seam để thay bằng fake.
+
+**CS-12** 🔵 Callback dùng ở một chỗ thì dùng `Func<>` / `Action<>`, và tên biến hoặc tham số nói mục đích. Chữ ký mang nghĩa miền hoặc dùng ở nhiều nơi thì dùng interface hoặc delegate có tên. Lambda dài hơn vài dòng thì tách thành method có tên.
+Lý do: `Func<string, int, bool>` không cho biết tham số nào là gì; lambda dài khó đặt breakpoint và khó test.
+
+**CS-13** 🟡 Tác vụ async chạy lâu do người dùng khởi động (lập chỉ mục, gọi AI, tìm kiếm, render) nhận `CancellationToken` và bị huỷ khi đóng tab, đổi tài liệu hoặc gửi yêu cầu mới. Method async đặt tên có hậu tố `Async` (máy kiểm: MA0137, trừ `tests/`).
+Lý do: tác vụ cũ chạy tiếp sẽ ghi kết quả vào sai tài liệu; CA2016 chỉ kiểm việc chuyển tiếp token, không kiểm có huỷ hay không.
 
 ## TEST: kiểm thử
 
