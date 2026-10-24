@@ -1240,9 +1240,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void SaveAnswerAsNote(ChatMessage? msg)
     {
         if (msg is null || msg.Role != "AI" || string.IsNullOrWhiteSpace(msg.Content)) return;
-        bool saved = Notes.AddNote(msg.Content, null, null);
-        if (saved) NotifySuccess("Đã lưu vào ghi chú");
-        else NotifyError("Hãy mở một tài liệu để lưu ghi chú");
+        // Kiểm trước để AddNote lỗi store (đã tự báo) không bị thông báo "chưa mở tài liệu" ghi đè.
+        if (!Notes.CanAddNote)
+        {
+            NotifyError("Hãy mở một tài liệu để lưu ghi chú");
+            return;
+        }
+        if (Notes.AddNote(msg.Content, null, null)) NotifySuccess("Đã lưu vào ghi chú");
     }
 
     [RelayCommand]
