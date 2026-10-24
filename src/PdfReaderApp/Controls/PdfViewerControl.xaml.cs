@@ -741,7 +741,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             if (obj is not PdfReaderApp.Models.Note note) continue;
             if (note.PageIndex != pageIndex || note.Rects == null) continue;
             if (CurrentDocumentId != null && note.DocumentId != null && note.DocumentId != CurrentDocumentId) continue;
-            var color = ParseHighlightColor(note.Color);
+            var color = HighlightColor.Parse(note.Color);
             using var paint = new SKPaint { Color = color, Style = SKPaintStyle.Fill };
             foreach (var r in note.Rects)
             {
@@ -752,18 +752,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
                     (float)(r.H * scale)), paint);
             }
         }
-    }
-
-    private static SKColor ParseHighlightColor(string? hex)
-    {
-        // Mac dinh vang mo; parse #RRGGBB neu co.
-        byte rr = 255, gg = 235, bb = 59;
-        if (!string.IsNullOrEmpty(hex) && hex.StartsWith('#') && hex.Length == 7
-            && byte.TryParse(hex.AsSpan(1, 2), System.Globalization.NumberStyles.HexNumber, null, out var pr)
-            && byte.TryParse(hex.AsSpan(3, 2), System.Globalization.NumberStyles.HexNumber, null, out var pg)
-            && byte.TryParse(hex.AsSpan(5, 2), System.Globalization.NumberStyles.HexNumber, null, out var pb))
-        { rr = pr; gg = pg; bb = pb; }
-        return new SKColor(rr, gg, bb, 80);
     }
 
     private void DrawSelectionOverlay(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
