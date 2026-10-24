@@ -353,6 +353,26 @@ $ifs
         $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:7: warning CA1707: ' } | Should -HaveCount 1
     }
 
+    It 'still checks its own SARIF when it runs inside a worktree under .claude/worktrees' {
+        # The SubagentStop hook runs check.ps1 inside the subagent's worktree; that checkout must still be checked.
+        Add-Content -LiteralPath (Join-Path $Sandbox '.gitignore') -Value '.claude/'
+        Invoke-SandboxGit commit -q -am 'ignore .claude'
+        $worktree = Join-Path $Sandbox '.claude/worktrees/agent-y'
+        Invoke-SandboxGit worktree add -q -b agent-y $worktree
+        try {
+            Set-Content -LiteralPath (Join-Path $worktree 'src/Lib/Extra.cs') -Value "namespace Lib;`r`n`r`npublic static class Extra`r`n{`r`n    public static int Bad_Name() => 3;`r`n}`r`n"
+            Push-Location $worktree
+            try { $output = & pwsh -NoProfile -File $CheckScript -Base main 2>&1 | ForEach-Object { "$_" }; $exit = $LASTEXITCODE }
+            finally { Pop-Location }
+
+            $exit | Should -Be 1 -Because ($output -join "`n")
+            $output | Where-Object { $_ -match '^src/Lib/Extra\.cs:5: warning CA1707: ' } | Should -HaveCount 1
+        }
+        finally {
+            Invoke-SandboxGit worktree remove --force $worktree
+        }
+    }
+
     It 'blocks a failing test and prints its name' {
         Write-SandboxFile 'tests/Lib.Tests/CalcTests.cs' ($CalcTestsOriginal -replace 'Assert.Equal\(3', 'Assert.Equal(4')
         Invoke-SandboxGit commit -q -am 'break the test'

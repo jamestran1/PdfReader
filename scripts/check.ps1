@@ -158,8 +158,12 @@ function Invoke-FormatStep {
 
 function Get-SarifResults {
     # Worktree của subagent nằm trong .claude/worktrees/ có obj/*.sarif riêng; đó không phải code của checkout này.
+    # So đường dẫn tương đối với $repoRoot: khi chính script chạy trong một worktree như vậy thì vẫn đọc SARIF của nó.
     $sarifFiles = Get-ChildItem -Path $repoRoot -Recurse -File -Filter '*.sarif' |
-        Where-Object { $_.Directory.Name -eq 'obj' -and $_.Name -notlike '*_wpftmp*' -and $_.FullName -notmatch '[\\/]\.claude[\\/]worktrees[\\/]' }
+        Where-Object {
+            $_.Directory.Name -eq 'obj' -and $_.Name -notlike '*_wpftmp*' -and
+            [IO.Path]::GetRelativePath($repoRoot, $_.FullName) -notmatch '^\.claude[\\/]worktrees[\\/]'
+        }
     if (-not $sarifFiles) { Stop-CannotRun 'không tìm thấy file SARIF trong obj/ (thiếu ErrorLog trong Directory.Build.props?)' }
 
     foreach ($sarif in $sarifFiles) {
