@@ -457,7 +457,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             var command = new EditTextCommand(_activeEditTarget.PageIndex, _activeEditTarget.CharIndex, _activeEditTarget.Text, newText);
             command.Execute();
-            _session!.UndoStack.Push(command);
+            _session?.UndoStack.Push(command); // session có thể đã đóng khi người dùng sửa dở lúc đổi tài liệu
 
             _activeEditTarget.Text = newText;
         }
