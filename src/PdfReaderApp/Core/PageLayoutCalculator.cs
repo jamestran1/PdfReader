@@ -32,7 +32,9 @@ public static class PageLayoutCalculator
         bool facing = mode is PdfViewMode.Facing or PdfViewMode.ContinuousFacing;
         bool continuous = mode is PdfViewMode.Continuous or PdfViewMode.ContinuousFacing;
 
+        var metrics = new UnitMetrics(scale, pageGap);
         var units = BuildUnits(pages.Count, facing, showCover);
+        // Clamp (don't throw): the UI may pass a transient out-of-range page during navigation.
         var (firstUnit, lastUnit) = continuous
             ? (0, units.Count - 1)
             : SingleUnitRange(units, Math.Clamp(currentPageIndex, 0, pages.Count - 1));
@@ -42,7 +44,7 @@ public static class PageLayoutCalculator
         double maxUnitWidth = 0;
         for (int u = firstUnit; u <= lastUnit; u++)
         {
-            var (w, h) = MeasureUnit(units[u], pages, scale, pageGap);
+            var (w, h) = MeasureUnit(units[u], pages, metrics);
             measured.Add((units[u], w, h));
             maxUnitWidth = Math.Max(maxUnitWidth, w);
         }
@@ -52,7 +54,7 @@ public static class PageLayoutCalculator
         foreach (var (u, w, h) in measured)
         {
             unitStarts.Add(u[0]);
-            PlaceUnit(slots, u, pages, scale, pageGap, startX: (contentWidth - w) / 2, y, rowHeight: h);
+            PlaceUnit(slots, u, pages, metrics, new RowBox(StartX: (contentWidth - w) / 2, Y: y, Height: h));
             y += h + unitGap;
         }
         double contentHeight = measured.Count > 0 ? y - unitGap : 0;
@@ -80,7 +82,6 @@ public static class PageLayoutCalculator
         return units;
     }
 
-    // Clamp (don't throw): the UI may pass a transient out-of-range page during navigation.
     private static (int First, int Last) SingleUnitRange(List<List<int>> units, int clampedPageIndex)
     {
         int cur = 0;
@@ -90,34 +91,38 @@ public static class PageLayoutCalculator
     }
 
     private static (double Width, double Height) MeasureUnit(
-        List<int> unit, IReadOnlyList<(double WidthPt, double HeightPt)> pages, double scale, double pageGap)
+        List<int> unit, IReadOnlyList<(double WidthPt, double HeightPt)> pages, UnitMetrics metrics)
     {
         double w = 0, h = 0;
         foreach (var pi in unit)
         {
-            w += pages[pi].WidthPt * scale;
-            h = Math.Max(h, pages[pi].HeightPt * scale);
+            w += pages[pi].WidthPt * metrics.Scale;
+            h = Math.Max(h, pages[pi].HeightPt * metrics.Scale);
         }
-        if (unit.Count == 2) w += pageGap;
+        if (unit.Count == 2) w += metrics.PageGap;
         return (w, h);
     }
 
     private static void PlaceUnit(
         List<PageSlot> slots, List<int> unit, IReadOnlyList<(double WidthPt, double HeightPt)> pages,
-        double scale, double pageGap, double startX, double y, double rowHeight)
+        UnitMetrics metrics, RowBox row)
     {
-        double x = startX;
+        double x = row.StartX;
         for (int i = 0; i < unit.Count; i++)
         {
             int pi = unit[i];
-            double pw = pages[pi].WidthPt * scale;
-            double ph = pages[pi].HeightPt * scale;
-            double py = y + (rowHeight - ph) / 2; // vertical-center pages of differing height in the row
+            double pw = pages[pi].WidthPt * metrics.Scale;
+            double ph = pages[pi].HeightPt * metrics.Scale;
+            double py = row.Y + (row.Height - ph) / 2; // vertical-center pages of differing height in the row
             slots.Add(new PageSlot(pi, x, py, pw, ph));
             x += pw;
-            if (i < unit.Count - 1) x += pageGap;
+            if (i < unit.Count - 1) x += metrics.PageGap;
         }
     }
+
+    private sealed record UnitMetrics(double Scale, double PageGap);
+
+    private sealed record RowBox(double StartX, double Y, double Height);
 
     /// <summary>
     /// 0-based first page of the facing unit adjacent (forward/back) to the unit containing
