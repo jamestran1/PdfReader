@@ -191,6 +191,17 @@ jobs:
         run: |
           if ((git rev-parse HEAD) -eq $env:START) { "pushed=false" >> $env:GITHUB_OUTPUT; exit 0 }
           git reset --soft $env:START
+          # App trithu-ai cố ý không có quyền Workflows (#130): GitHub sẽ từ chối push đụng workflow.
+          # Không push, đưa bản vá lên PR để chủ repo tự áp dụng.
+          $workflows = @(git diff --cached --name-only | Where-Object { $_ -like '.github/workflows/*' })
+          if ($workflows) {
+              $patch = (git diff --cached | Select-Object -First 200) -join "`n"
+              Set-Content -LiteralPath .ai-review/blocked.md -Encoding utf8 -Value @(
+                  "AI không được sửa workflow (app ``trithu-ai`` không có quyền Workflows), nên không push gì. File bị đụng: $($workflows -join ', ').",
+                  '', 'Bản vá đề xuất để anh tự áp dụng:', '', '```diff', $patch, '```')
+              "pushed=blocked" >> $env:GITHUB_OUTPUT
+              exit 0
+          }
           git -c user.name='trithu-ai[bot]' -c user.email='347430536+trithu-ai[bot]@users.noreply.github.com' commit -q -m $env:COMMIT
           git push "https://x-access-token:$env:TOKEN@github.com/${{ github.repository }}.git" "HEAD:refs/heads/$env:HEAD_REF"
           if ($LASTEXITCODE -ne 0) { exit 1 }
@@ -208,6 +219,7 @@ jobs:
           $status = switch ($env:PUSHED) {
               'true'  { "Đã push commit ``$env:COMMIT``. CI chặn sẽ chạy lại trên commit này." }
               'false' { 'Không có thay đổi nào được commit.' }
+              'blocked' { Get-Content .ai-review/blocked.md -Raw }
               default { "Lượt sửa lỗi, không push gì. Xem log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" }
           }
           gh pr comment $env:PR --repo "${{ github.repository }}" --body "$status`n`n$reply"
