@@ -7,7 +7,7 @@ namespace PdfReaderApp.Services;
 public sealed class SqliteChatHistoryStore : IChatHistoryStore
 {
     private readonly string _connectionString;
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     public SqliteChatHistoryStore(string dbPath)
     {

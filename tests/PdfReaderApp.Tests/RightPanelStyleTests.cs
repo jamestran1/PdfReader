@@ -36,6 +36,6 @@ public class RightPanelStyleTests
     {
         // #63 AC3: moi net ve qua {DynamicResource TriThu.Brush.*}, khong hardcode hex.
         var raw = File.ReadAllText(DictPath());
-        Assert.DoesNotMatch(new Regex("=\"#[0-9A-Fa-f]{6,8}\""), raw);
+        Assert.DoesNotMatch(new Regex("=\"#[0-9A-Fa-f]{6,8}\"", RegexOptions.None, TimeSpan.FromSeconds(1)), raw);
     }
 }
