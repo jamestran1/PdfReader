@@ -162,7 +162,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private string _selectionText = string.Empty;
     private readonly List<Rect> _selectionRectsPdf = []; // rect theo PDF points của _selPageIndex
 
-    private IReadOnlyList<Models.MatchRect> GetMatchRects(int pageIndex, string query)
+    private List<Models.MatchRect> GetMatchRects(int pageIndex, string query)
     {
         if (_matchCacheQuery != query)
         {
@@ -570,10 +570,12 @@ public partial class PdfViewerControl : UserControl, IDisposable
             ScheduleScrollToCurrentPage();
             System.Diagnostics.Debug.WriteLine($"Successfully loaded PDF via Skia: {path}");
         }
+#pragma warning disable CA1031 // ranh giới UI: nạp PDF lỗi (PDFium/IO/layout) thì báo cho người dùng qua LoadFailed
         catch (Exception ex)
         {
             LoadFailed?.Invoke($"Lỗi khi mở file PDF: {ex.Message}");
         }
+#pragma warning restore CA1031
     }
 
     // Zoom changes every page size, so the absolute scroll offset would point at a different page
@@ -774,10 +776,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         // Mac dinh vang mo; parse #RRGGBB neu co.
         byte rr = 255, gg = 235, bb = 59;
-        if (!string.IsNullOrEmpty(hex) && hex.StartsWith("#") && hex.Length == 7
-            && byte.TryParse(hex.Substring(1, 2), System.Globalization.NumberStyles.HexNumber, null, out var pr)
-            && byte.TryParse(hex.Substring(3, 2), System.Globalization.NumberStyles.HexNumber, null, out var pg)
-            && byte.TryParse(hex.Substring(5, 2), System.Globalization.NumberStyles.HexNumber, null, out var pb))
+        if (!string.IsNullOrEmpty(hex) && hex.StartsWith('#') && hex.Length == 7
+            && byte.TryParse(hex.AsSpan(1, 2), System.Globalization.NumberStyles.HexNumber, null, out var pr)
+            && byte.TryParse(hex.AsSpan(3, 2), System.Globalization.NumberStyles.HexNumber, null, out var pg)
+            && byte.TryParse(hex.AsSpan(5, 2), System.Globalization.NumberStyles.HexNumber, null, out var pb))
         { rr = pr; gg = pg; bb = pb; }
         return new SKColor(rr, gg, bb, 80);
     }
@@ -841,12 +843,12 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     // Trang chờ cuộn tới sau khi nạp tài liệu (cross-doc jump) ở chế độ cuộn liên tục; 0 = không có.
     // Trong khi pending > 0, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
-    private int _pendingScrollPage = 0;
+    private int _pendingScrollPage;
     // Timer "ổn định hoá": sau nạp, extent ảo hoá lớn dần qua nhiều đợt layout và có thể reset offset về 0.
     // Timer re-assert cuộn tới đích mỗi tick, chỉ gỡ guard khi offset đã ĐỨNG YÊN tại đích vài tick liên tiếp.
     private System.Windows.Threading.DispatcherTimer? _scrollSettleTimer;
-    private int _scrollSettleStable = 0;
-    private int _scrollSettleElapsed = 0;
+    private int _scrollSettleStable;
+    private int _scrollSettleElapsed;
 
     // Bật guard pending (chặn đồng bộ scroll->trang) NGAY trước các bước layout của LoadDocument để
     // ScrollChanged trung gian không kéo CurrentPage về trang đầu. Việc cuộn thực sự do timer ổn-định-hoá

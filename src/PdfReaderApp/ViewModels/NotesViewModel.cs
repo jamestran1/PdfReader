@@ -87,7 +87,9 @@ public sealed partial class NotesViewModel : ObservableObject
         if (ownerKey != null)
         {
             try { _all.AddRange(_store.GetForOwner(ownerKey)); }
+#pragma warning disable CA1031 // degrade: lỗi store không làm hỏng UI
             catch { /* lỗi store không làm hỏng UI */ }
+#pragma warning restore CA1031
         }
         RefreshForCurrentDocument();
     }
@@ -139,7 +141,9 @@ public sealed partial class NotesViewModel : ObservableObject
         string? docId = _currentDocumentId?.Invoke();
         var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, docId, pageIndex, quote, text, now, now);
         try { _store.Add(note); }
+#pragma warning disable CA1031 // ranh giới UI: lưu note lỗi thì trả false, không làm gãy UI
         catch { return false; }
+#pragma warning restore CA1031
         _all.Add(note);
         if (MatchesFilter(note, FilterText)) InsertSorted(note);
         return true;
@@ -170,7 +174,9 @@ public sealed partial class NotesViewModel : ObservableObject
             var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, docId,
                 page, PendingQuote, content, now, now, rects, color);
             try { _store.Add(note); }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: lưu note lỗi thì bỏ qua, không làm gãy UI
             catch { return; }
+#pragma warning restore CA1031
             _all.Add(note);
             if (MatchesFilter(note, FilterText)) InsertSorted(note);
             if (note.Rects != null && note.Rects.Count > 0) Highlights.Add(note);
@@ -179,7 +185,9 @@ public sealed partial class NotesViewModel : ObservableObject
         {
             int rows;
             try { rows = _store.Update(_editingId, content, now); }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: cập nhật note lỗi thì bỏ qua, không làm gãy UI
             catch { return; }
+#pragma warning restore CA1031
             if (rows == 0) { LoadFor(_ownerKey); return; } // note đã bị xóa nơi khác
             int ai = _all.FindIndex(n => n.Id == _editingId);
             if (ai >= 0) _all[ai] = _all[ai] with { Content = content, UpdatedAtUnixMs = now };
@@ -220,7 +228,9 @@ public sealed partial class NotesViewModel : ObservableObject
         if (note == null) return;
         if (_editingId == note.Id) CancelEdit();
         try { _store.Delete(note.Id); }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: xoá note lỗi thì bỏ qua, không làm gãy UI
         catch { return; }
+#pragma warning restore CA1031
         _all.RemoveAll(n => n.Id == note.Id);
         int ii = IndexInItems(note.Id);
         if (ii >= 0) Items.RemoveAt(ii);

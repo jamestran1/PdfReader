@@ -20,11 +20,13 @@ public static class PdfMetadataReader
                 Author: Normalize(info.GetAuthor()),
                 Publisher: ReadDublinCorePublisher(document));
         }
+#pragma warning disable CA1031 // degrade: metadata là phụ, file lỗi hoặc iText từ chối không được làm hỏng import
         catch (Exception)
         {
             // Metadata là phụ: file lỗi/iText từ chối KHÔNG được làm hỏng import (giống thumbnail best-effort).
             return new Metadata(null, null, null);
         }
+#pragma warning restore CA1031
     }
 
     // Publisher không có trong Info dictionary chuẩn; nguồn thật duy nhất là XMP dc:publisher (mảng).

@@ -10,6 +10,7 @@ public class RenderEngine : IDisposable
 {
     private bool _disposed;
 
+#pragma warning disable CA1822 // API công khai theo thể hiện: đổi sang static làm vỡ chỗ gọi qua _renderEngine và seam thay thế engine
     public SKBitmap RenderPage(PdfPage page, float scale, int dpi = 96)
     {
         int width = (int)(page.Width * scale);
@@ -21,8 +22,9 @@ public class RenderEngine : IDisposable
         // Convert GDI+ Bitmap to SkiaSharp SKBitmap
         return ToSKBitmap(image);
     }
+#pragma warning restore CA1822
 
-    private SKBitmap ToSKBitmap(Bitmap bitmap)
+    private static SKBitmap ToSKBitmap(Bitmap bitmap)
     {
         var data = bitmap.LockBits(new Rectangle(0, 0, bitmap.Width, bitmap.Height),
                                    System.Drawing.Imaging.ImageLockMode.ReadOnly,
@@ -47,5 +49,6 @@ public class RenderEngine : IDisposable
         {
             _disposed = true;
         }
+        GC.SuppressFinalize(this);
     }
 }

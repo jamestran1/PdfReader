@@ -196,7 +196,9 @@ VALUES ($id, $owner, $doc, $page, $quote, $content, $created, $updated, $rects, 
                 if (!r.IsDBNull(8))
                 {
                     try { rects = System.Text.Json.JsonSerializer.Deserialize<List<HighlightRect>>(r.GetString(8)); }
+#pragma warning disable CA1031 // degrade: JSON vùng highlight hỏng thì bỏ highlight, vẫn hiện note
                     catch { rects = null; }
+#pragma warning restore CA1031
                 }
                 string? color = r.IsDBNull(9) ? null : r.GetString(9);
                 list.Add(new Note(

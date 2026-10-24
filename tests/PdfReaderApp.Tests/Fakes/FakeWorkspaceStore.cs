@@ -10,7 +10,7 @@ public sealed class FakeWorkspaceStore : IWorkspaceStore
     public int RemoveDocumentCallCount { get; private set; }
 
     public void EnsureSchema() { }
-    public void Upsert(Workspace w) { All.RemoveAll(x => x.Id == w.Id); All.Add(w); }
+    public void Upsert(Workspace workspace) { All.RemoveAll(x => x.Id == workspace.Id); All.Add(workspace); }
     public Workspace? Get(string id) => All.FirstOrDefault(w => w.Id == id);
     public IReadOnlyList<Workspace> GetAll(bool includeDefault)
         => All.Where(w => includeDefault || !w.IsDefault).ToList();

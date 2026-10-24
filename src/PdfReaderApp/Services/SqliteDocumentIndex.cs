@@ -26,10 +26,12 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
             _conn.LoadExtension(vec0Path);
             _vecAvailable = true;
         }
+#pragma warning disable CA1031 // degrade: không nạp được vec0 thì chỉ dùng FTS5, RAG lùi về ngữ cảnh theo trang
         catch (Exception)
         {
             _vecAvailable = false; // degrade: FTS5 only, RAG falls back to per-page context
         }
+#pragma warning restore CA1031
     }
 
     public void EnsureSchema()
@@ -153,7 +155,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         using (var cmd = _conn.CreateCommand())
         {
             cmd.CommandText = "PRAGMA user_version";
-            currentVersion = Convert.ToInt32(cmd.ExecuteScalar());
+            currentVersion = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
 
         if (currentVersion >= SchemaVersion) return;
@@ -207,7 +209,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         using (var cmd = _conn.CreateCommand())
         {
             cmd.CommandText = "PRAGMA user_version";
-            currentVersion = Convert.ToInt32(cmd.ExecuteScalar());
+            currentVersion = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
 
         if (currentVersion >= SchemaVersion) return;

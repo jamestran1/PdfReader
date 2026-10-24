@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Windows;
 using PdfReaderApp.Services;
 
@@ -51,7 +52,9 @@ public partial class App : Application
         {
             System.IO.File.WriteAllText("pdf_crash_log.txt", detail);
         }
+#pragma warning disable CA1031 // ghi crash log là best-effort: lỗi ghi file không được che hộp thoại báo lỗi gốc
         catch { }
+#pragma warning restore CA1031
 
         MessageBox.Show(detail, title, MessageBoxButton.OK, MessageBoxImage.Error);
     }
@@ -62,15 +65,15 @@ public partial class App : Application
 
         System.Text.StringBuilder sb = new();
         sb.AppendLine("=== PDF READER GLOBAL CRASH LOG ===");
-        sb.AppendLine($"Time: {DateTime.Now}");
+        sb.AppendLine(CultureInfo.CurrentCulture, $"Time: {DateTime.Now}");
         sb.AppendLine();
 
         int depth = 0;
         Exception? current = ex;
         while (current != null)
         {
-            sb.AppendLine($"[Level {depth}] {current.GetType().FullName}");
-            sb.AppendLine($"Message: {current.Message}");
+            sb.AppendLine(CultureInfo.CurrentCulture, $"[Level {depth}] {current.GetType().FullName}");
+            sb.AppendLine(CultureInfo.CurrentCulture, $"Message: {current.Message}");
             sb.AppendLine("Stack Trace:");
             sb.AppendLine(current.StackTrace);
             sb.AppendLine(new string('-', 40));

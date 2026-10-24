@@ -382,7 +382,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var docs = Library.Select(i => (i.DocumentId, i.Title)).ToList();
         try { Core.WorkspaceMigration.Run(_workspaceStore, _noteStore, docs, now); }
+#pragma warning disable CA1031 // degrade: di trú lỗi thì app vẫn mở, thử lại lần khởi động sau
         catch { /* di trú lỗi: app vẫn mở; thử lại lần khởi động sau */ }
+#pragma warning restore CA1031
 
         ReloadWorkspaces();
         LoadChatHistory();
@@ -485,7 +487,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 tab.Page, tab.Zoom, tab.ScrollNorm, nowUnixMs));
         }
         try { _workspaceStore.SaveOpenTabs(_activeWorkspaceId, states); }
+#pragma warning disable CA1031 // best-effort: lưu tab lỗi không được làm gãy phiên đọc
         catch { /* lưu best-effort: lỗi store không được làm gãy phiên đọc */ }
+#pragma warning restore CA1031
     }
 
     private System.Windows.Threading.DispatcherTimer? _saveOpenSetDebounce;
@@ -591,10 +595,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ReloadLibrary();
             OpenLibraryItem(item);
         }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: import lỗi thì báo cho người dùng
         catch (Exception ex)
         {
             NotifyError($"Không thể import file PDF: {ex.Message}");
         }
+#pragma warning restore CA1031
     }
 
     [RelayCommand]
@@ -824,7 +830,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IsWorkspaceSession = true;
         var tab = Tabs.OpenOrActivate(item.DocumentId, item.Title, item.StoredPath);
         // best-effort: cập nhật thời điểm mở
+#pragma warning disable CA1031 // best-effort: cập nhật thời điểm mở, lỗi không chặn việc mở tài liệu
         try { _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()); } catch { }
+#pragma warning restore CA1031
         ShowWorkspaces = false;
     }
 
@@ -873,8 +881,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         // Dọn note neo trực tiếp tới tài liệu ở mọi nơi
         _noteStore.DeleteForDocument(docId);
+#pragma warning disable CA1031 // best-effort: dọn lịch sử chat và chỉ mục, lỗi không chặn việc xoá tài liệu
         try { _chatHistory.DeleteForDocument(docId); } catch { }
         try { _documentIndex.DeleteDocument(docId); } catch { }
+#pragma warning restore CA1031
         _library.Remove(item);
         Library.Remove(item);
         ReloadWorkspaces();
@@ -916,6 +926,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             SearchResults.Clear();
             StartBackgroundIndexing();
         }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: nạp tài liệu lỗi thì báo cho người dùng
         catch (Exception ex)
         {
             _documentBlocks = [];
@@ -933,6 +944,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             NotifyError($"Không thể mở file PDF: {ex.Message}");
             FilePath = null;
         }
+#pragma warning restore CA1031
     }
 
     // S2: seam quyết định workspace scope khi mở tài liệu.
@@ -961,7 +973,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         System.Collections.Generic.IReadOnlyList<ChatHistoryEntry> entries;
         try { entries = _chatHistory.GetAll(newOwnerId); }
+#pragma warning disable CA1031 // degrade: đọc lịch sử chat lỗi thì coi như chưa có lịch sử
         catch { entries = System.Array.Empty<ChatHistoryEntry>(); }
+#pragma warning restore CA1031
 
         if (entries.Count == 0)
         {
@@ -1039,6 +1053,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             try { await _indexingService.IndexAsync(docId, path, pageTexts, progress, ct); }
             catch (OperationCanceledException) { }
+#pragma warning disable CA1031 // ranh giới tác vụ nền: lập chỉ mục lỗi được phân loại và báo cho người dùng
             catch (Exception ex)
             {
                 string message = AiErrorClassifier.Classify(ex) switch
@@ -1051,6 +1066,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 System.Windows.Application.Current?.Dispatcher.Invoke(() =>
                     IndexingStatusText = message);
             }
+#pragma warning restore CA1031
         }, ct);
     }
 
@@ -1077,7 +1093,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
                     _chatHistory.Append(owner, "User", question, now);
                     _chatHistory.Append(owner, "AI", answer, now);
                 }
+#pragma warning disable CA1031 // best-effort: lưu lịch sử lỗi không được chặn chat
                 catch { /* không chặn chat khi lưu lỗi */ }
+#pragma warning restore CA1031
             }
 
             if (!_chatService.IsConfigured)
@@ -1092,7 +1110,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 string? rag = null;
                 try { rag = await _ragContext.BuildContextAsync(_documentId, question); }
+#pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
                 catch { rag = null; }
+#pragma warning restore CA1031
                 context = rag ?? DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
             }
             else
@@ -1114,10 +1134,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 aiMessage.Content = MapError(ex.Error);
             }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: lỗi chat không lường trước thì hiện thông báo lỗi chung
             catch (Exception)
             {
                 aiMessage.Content = UnknownErrorMessage;
             }
+#pragma warning restore CA1031
             PersistTurn(aiMessage.Content);
         }
         finally
@@ -1147,10 +1169,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
             foreach (var hit in _documentIndex.SearchText(_documentId, SearchQuery))
                 SearchResults.Add(hit);
         }
+#pragma warning disable CA1031 // ranh giới [RelayCommand]: tìm kiếm lỗi thì báo cho người dùng
         catch (Exception ex)
         {
             NotifyError($"Tìm kiếm lỗi: {ex.Message}");
         }
+#pragma warning restore CA1031
     }
 
     [RelayCommand]
@@ -1200,7 +1224,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ReindexDocument()
     {
         if (_documentId is null) return;
+#pragma warning disable CA1031 // best-effort: xoá chỉ mục cũ lỗi không chặn việc lập chỉ mục lại
         try { _documentIndex.DeleteDocument(_documentId); } catch { }
+#pragma warning restore CA1031
         StartBackgroundIndexing();
     }
 
@@ -1236,6 +1262,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _documentIndex.Dispose();
         _documentService.Dispose();
         _chatService.Dispose();
+        GC.SuppressFinalize(this);
     }
 }
 
