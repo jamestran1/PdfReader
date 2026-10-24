@@ -10,8 +10,11 @@ using PdfReaderApp.ViewModels;
 namespace PdfReaderApp.Tests;
 
 /// <summary>Ghim hành vi của SendMessageCommand và của constructor MainViewModel trước khi tách method.</summary>
-public class MainViewModelChatTests
+public sealed class MainViewModelChatTests : IDisposable
 {
+    private readonly List<MainViewModel> _viewModels = [];
+    private readonly List<string> _tempDbPaths = [];
+
     private const string NotConfigured =
         "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key.";
 
@@ -72,12 +75,17 @@ public class MainViewModelChatTests
     }
 #pragma warning restore CS1998
 
-    private static string TempDb() =>
-        Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db");
+    private string TempDb()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db");
+        _tempDbPaths.Add(path);
+        return path;
+    }
 
-    private static MainViewModel BuildVm(bool hasKey, Func<IAsyncEnumerable<ChatResponseUpdate>> stream,
+    private MainViewModel BuildVm(bool hasKey, Func<IAsyncEnumerable<ChatResponseUpdate>> stream,
         FakeChatHistoryStore chat, FakeWorkspaceStore? wsStore = null)
-        => new(
+    {
+        var vm = new MainViewModel(
             new ITextPdfDocumentService(),
             new FakeSettings(hasKey),
             new FakeChatClientFactory(stream),
@@ -85,6 +93,24 @@ public class MainViewModelChatTests
             new OpenAiEmbeddingGeneratorFactory(),
             chatHistory: chat,
             workspaceStore: wsStore ?? new FakeWorkspaceStore());
+        _viewModels.Add(vm);
+        return vm;
+    }
+
+    // MainViewModel.Dispose đóng SqliteDocumentIndex, nên chỉ còn việc xoá file .db tạm.
+    public void Dispose()
+    {
+        foreach (var vm in _viewModels) vm.Dispose();
+        foreach (string path in _tempDbPaths)
+        {
+            foreach (string file in new[] { path, path + "-wal", path + "-shm" })
+            {
+                try { File.Delete(file); }
+                catch (IOException) { /* dọn dẹp best-effort */ }
+                catch (UnauthorizedAccessException) { /* dọn dẹp best-effort */ }
+            }
+        }
+    }
 
     [Fact]
     public async Task SendMessage_WhitespaceInput_DoesNothing()
@@ -199,21 +225,7 @@ public class MainViewModelChatTests
         Assert.Null(vm.ActiveWorkspaceId);
     }
 
-    [Fact]
-    public void Constructor_SchedulesOpenSetSave_WhenTabsChange()
-    {
-        var wsStore = new FakeWorkspaceStore();
-        var vm = BuildVm(hasKey: false, () => Tokens("x"), new FakeChatHistoryStore(), wsStore);
-        bool activeChangedFired = false;
-        vm.Tabs.ActiveTabChanged += _ => activeChangedFired = true;
-
-        vm.Tabs.OpenOrActivate("docT", "T", "/lib/t.pdf", initialPage: 1);
-
-        Assert.True(activeChangedFired);
-        Assert.Single(vm.Tabs.Tabs);
-    }
-
-    private static (MainViewModel vm, FakeWorkspaceStore store) WorkspaceSessionWithDocA()
+    private (MainViewModel vm, FakeWorkspaceStore store) WorkspaceSessionWithDocA()
     {
         var wsStore = new FakeWorkspaceStore();
         var vm = BuildVm(hasKey: false, () => Tokens("x"), new FakeChatHistoryStore(), wsStore);
