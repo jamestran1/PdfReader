@@ -549,7 +549,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             TotalPages = _currentDocument.PageCount;
             try { _imageRectsByPage = Services.PdfImageLocator.GetNormalizedImageRectsByPage(path); }
 #pragma warning disable CA1031 // degrade: không đọc được vùng ảnh thì PDF vẫn mở được, chỉ mất chọn ảnh
-            catch { _imageRectsByPage = []; }
+            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"PdfViewerControl.LoadDocument: không đọc được vùng ảnh: {ex}"); _imageRectsByPage = []; }
 #pragma warning restore CA1031
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.

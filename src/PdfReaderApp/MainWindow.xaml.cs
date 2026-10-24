@@ -25,7 +25,7 @@ public partial class MainWindow : Window
             {
                 System.IO.File.WriteAllText("pdf_crash_log.txt", detail);
             }
-            catch { }
+            catch (Exception inner) { System.Diagnostics.Trace.TraceWarning($"MainWindow: không ghi được crash log: {inner}"); }
 
             MessageBox.Show(detail, "Lỗi Khởi tạo Hệ thống", MessageBoxButton.OK, MessageBoxImage.Error);
             Application.Current.Shutdown();

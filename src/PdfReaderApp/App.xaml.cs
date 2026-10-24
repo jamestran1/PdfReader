@@ -53,7 +53,7 @@ public partial class App : Application
             System.IO.File.WriteAllText("pdf_crash_log.txt", detail);
         }
 #pragma warning disable CA1031 // ghi crash log là best-effort: lỗi ghi file không được che hộp thoại báo lỗi gốc
-        catch { }
+        catch (Exception inner) { System.Diagnostics.Trace.TraceWarning($"App.LogAndShowException: không ghi được crash log: {inner}"); }
 #pragma warning restore CA1031
 
         MessageBox.Show(detail, title, MessageBoxButton.OK, MessageBoxImage.Error);
