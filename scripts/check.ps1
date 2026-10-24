@@ -29,12 +29,17 @@
 
 .PARAMETER Fix
     Rewrite badly formatted files instead of reporting them (for the agent hook). CI runs without it.
+
+.PARAMETER Summary
+    Build only and print a markdown table of all remaining warnings per rule, ignoring the diff
+    (cleanup progress on main, ADR 0007). Exit 0 unless the build cannot run.
 #>
 [CmdletBinding()]
 param(
     [string]$Base = 'origin/main',
     [string]$Target,
-    [switch]$Fix
+    [switch]$Fix,
+    [switch]$Summary
 )
 
 $ErrorActionPreference = 'Stop'
@@ -177,10 +182,15 @@ function Get-CleanRules {
     @(Get-Content -LiteralPath $path | ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ })
 }
 
+# Repo source, not generated code in obj/ or files outside the repo.
+function Test-SourceFile([string]$File) {
+    -not ($File.StartsWith('../') -or $File -match '(^|/)obj/')
+}
+
 function Get-AnalyzerViolations {
     $cleanRules = Get-CleanRules
     Get-SarifResults | Where-Object {
-        $isSource = -not ($_.File.StartsWith('../') -or $_.File -match '(^|/)obj/')
+        $isSource = Test-SourceFile $_.File
         # Suggestions never block, not even for a clean rule.
         if ($_.Level -notin 'warning', 'error') { $false }
         elseif ($_.Rule -in $cleanRules) { $isSource }
@@ -210,6 +220,27 @@ function Get-FailedTests {
     $failed
 }
 
+function Invoke-Build {
+    $buildOutput = & dotnet build $Target -nologo -v:q 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $errors = $buildOutput | Where-Object { $_ -match ': error ' } | Select-Object -Unique
+        if (-not $errors) { $errors = $buildOutput | Select-Object -Last 20 }
+        Stop-CannotRun ("build lỗi`n" + ($errors -join "`n"))
+    }
+}
+
+function Write-WarningSummary {
+    $warnings = @(Get-SarifResults |
+        Where-Object { $_.Level -in 'warning', 'error' -and (Test-SourceFile $_.File) } |
+        Sort-Object File, Line, Rule, Message -Unique)
+    Write-Output '| Rule | Warning |'
+    Write-Output '|---|---|'
+    foreach ($group in $warnings | Group-Object Rule | Sort-Object @{ Expression = 'Count'; Descending = $true }, Name) {
+        Write-Output "| $($group.Name) | $($group.Count) |"
+    }
+    Write-Output "| **Tổng** | **$($warnings.Count)** |"
+}
+
 $repoRoot = (Invoke-Git rev-parse --show-toplevel | Select-Object -First 1).Trim()
 Push-Location $repoRoot
 try {
@@ -217,6 +248,12 @@ try {
         $solutions = @(Get-ChildItem -File -Path $repoRoot | Where-Object Extension -in '.slnx', '.sln')
         if ($solutions.Count -ne 1) { Stop-CannotRun "cần đúng một file .slnx/.sln ở gốc repo, hoặc truyền -Target" }
         $Target = $solutions[0].FullName
+    }
+
+    if ($Summary) {
+        Invoke-Build
+        Write-WarningSummary
+        exit $ExitPass
     }
 
     $mergeBase = (Invoke-Git merge-base $Base HEAD | Select-Object -First 1).Trim()
@@ -228,12 +265,7 @@ try {
     if ($needsBuild) {
         $violations += @(Invoke-FormatStep)
 
-        $buildOutput = & dotnet build $Target -nologo -v:q 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            $errors = $buildOutput | Where-Object { $_ -match ': error ' } | Select-Object -Unique
-            if (-not $errors) { $errors = $buildOutput | Select-Object -Last 20 }
-            Stop-CannotRun ("build lỗi`n" + ($errors -join "`n"))
-        }
+        Invoke-Build
         $violations += @(Get-AnalyzerViolations)
 
         $needsTests = @(Get-ChangedFiles $TestExtensions).Count -gt 0 -or @($changed.Keys | Where-Object { $_ -in $TestFiles }).Count -gt 0
