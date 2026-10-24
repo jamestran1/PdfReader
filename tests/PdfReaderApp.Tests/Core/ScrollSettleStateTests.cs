@@ -16,7 +16,7 @@ public class ScrollSettleStateTests
     {
         var state = new ScrollSettleState();
 
-        var step = state.Tick(hasDocument: true, slotYOfPage: SlotAt(pageIndex: 0, y: 100), scrollableHeight: 1000, verticalOffset: 0);
+        var step = state.Tick(hasDocument: true, slotYOfPage: SlotAt(pageIndex: 0, y: 100), viewport: new ScrollViewport(ScrollableHeight: 1000, VerticalOffset: 0));
 
         Assert.True(step.ShouldStop);
         Assert.Null(step.ReassertOffset);
@@ -28,7 +28,7 @@ public class ScrollSettleStateTests
         var state = new ScrollSettleState();
         state.Begin(3);
 
-        var step = state.Tick(hasDocument: false, slotYOfPage: SlotAt(pageIndex: 2, y: 100), scrollableHeight: 1000, verticalOffset: 0);
+        var step = state.Tick(hasDocument: false, slotYOfPage: SlotAt(pageIndex: 2, y: 100), viewport: new ScrollViewport(ScrollableHeight: 1000, VerticalOffset: 0));
 
         Assert.True(step.ShouldStop);
         Assert.Equal(3, state.PendingPage);
@@ -40,7 +40,7 @@ public class ScrollSettleStateTests
         var state = new ScrollSettleState();
         state.Begin(2);
 
-        var step = state.Tick(hasDocument: true, slotYOfPage: SlotAt(pageIndex: 1, y: 500), scrollableHeight: 2000, verticalOffset: 0);
+        var step = state.Tick(hasDocument: true, slotYOfPage: SlotAt(pageIndex: 1, y: 500), viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 0));
 
         Assert.False(step.ShouldStop);
         Assert.Equal(500, step.ReassertOffset);
@@ -53,7 +53,7 @@ public class ScrollSettleStateTests
         var state = new ScrollSettleState();
         state.Begin(2);
 
-        var step = state.Tick(hasDocument: true, slotYOfPage: SlotAt(pageIndex: 1, y: 5000), scrollableHeight: 800, verticalOffset: 0);
+        var step = state.Tick(hasDocument: true, slotYOfPage: SlotAt(pageIndex: 1, y: 5000), viewport: new ScrollViewport(ScrollableHeight: 800, VerticalOffset: 0));
 
         Assert.Equal(800, step.ReassertOffset);
     }
@@ -65,9 +65,9 @@ public class ScrollSettleStateTests
         state.Begin(2);
         var slot = SlotAt(pageIndex: 1, y: 500);
 
-        var first = state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 500);
-        var second = state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 500.5);
-        var third = state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 500);
+        var first = state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 500));
+        var second = state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 500.5));
+        var third = state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 500));
 
         Assert.False(first.ShouldStop);
         Assert.False(second.ShouldStop);
@@ -83,10 +83,10 @@ public class ScrollSettleStateTests
         state.Begin(2);
         var slot = SlotAt(pageIndex: 1, y: 500);
 
-        state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 500);
-        state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 500);
-        var drift = state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 0);
-        var afterDrift = state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 500);
+        state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 500));
+        state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 500));
+        var drift = state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 0));
+        var afterDrift = state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 500));
 
         Assert.False(drift.ShouldStop);
         Assert.Equal(500, drift.ReassertOffset);
@@ -102,9 +102,9 @@ public class ScrollSettleStateTests
 
         for (int i = 0; i < ScrollSettleState.MaxTicks; i++)
         {
-            Assert.False(state.Tick(hasDocument: true, slotYOfPage: NoSlot, scrollableHeight: 1000, verticalOffset: 0).ShouldStop);
+            Assert.False(state.Tick(hasDocument: true, slotYOfPage: NoSlot, viewport: new ScrollViewport(ScrollableHeight: 1000, VerticalOffset: 0)).ShouldStop);
         }
-        var last = state.Tick(hasDocument: true, slotYOfPage: NoSlot, scrollableHeight: 1000, verticalOffset: 0);
+        var last = state.Tick(hasDocument: true, slotYOfPage: NoSlot, viewport: new ScrollViewport(ScrollableHeight: 1000, VerticalOffset: 0));
 
         Assert.True(last.ShouldStop);
         Assert.False(state.IsPending);
@@ -119,9 +119,9 @@ public class ScrollSettleStateTests
 
         for (int i = 0; i < ScrollSettleState.MaxTicks; i++)
         {
-            Assert.False(state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 0).ShouldStop);
+            Assert.False(state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 0)).ShouldStop);
         }
-        var last = state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 0);
+        var last = state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 0));
 
         Assert.True(last.ShouldStop);
         Assert.Equal(500, last.ReassertOffset);
@@ -134,13 +134,13 @@ public class ScrollSettleStateTests
         var state = new ScrollSettleState();
         state.Begin(2);
         var slot = SlotAt(pageIndex: 1, y: 500);
-        for (int i = 0; i < 70; i++) state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 0);
+        for (int i = 0; i < 70; i++) state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 0));
 
         state.Begin(2);
 
         for (int i = 0; i < 70; i++)
         {
-            Assert.False(state.Tick(hasDocument: true, slotYOfPage: slot, scrollableHeight: 2000, verticalOffset: 0).ShouldStop);
+            Assert.False(state.Tick(hasDocument: true, slotYOfPage: slot, viewport: new ScrollViewport(ScrollableHeight: 2000, VerticalOffset: 0)).ShouldStop);
         }
     }
 

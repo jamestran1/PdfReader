@@ -43,9 +43,8 @@ public sealed class ScrollSettleState
     /// </summary>
     /// <param name="hasDocument">Có tài liệu đang nạp không.</param>
     /// <param name="slotYOfPage">Trả về Y của slot theo chỉ số trang 0-based, hoặc null nếu slot chưa dựng.</param>
-    /// <param name="scrollableHeight">Chiều cao cuộn được hiện tại.</param>
-    /// <param name="verticalOffset">Offset dọc hiện tại.</param>
-    public ScrollSettleStep Tick(bool hasDocument, Func<int, double?> slotYOfPage, double scrollableHeight, double verticalOffset)
+    /// <param name="viewport">Chiều cao cuộn được và offset dọc hiện tại.</param>
+    public ScrollSettleStep Tick(bool hasDocument, Func<int, double?> slotYOfPage, ScrollViewport viewport)
     {
         if (!IsPending || !hasDocument) return new ScrollSettleStep(ShouldStop: true, ReassertOffset: null);
         _elapsedTicks++;
@@ -53,9 +52,9 @@ public sealed class ScrollSettleState
         double? slotY = slotYOfPage(PendingPage - 1);
         if (slotY is null) return WaitForSlot();
 
-        double target = Math.Min(slotY.Value, scrollableHeight);
+        double target = Math.Min(slotY.Value, viewport.ScrollableHeight);
         double? reassert = null;
-        if (Math.Abs(verticalOffset - target) > OffsetTolerance)
+        if (Math.Abs(viewport.VerticalOffset - target) > OffsetTolerance)
         {
             reassert = target;
             _stableTicks = 0;

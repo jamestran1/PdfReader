@@ -869,8 +869,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         var step = _scrollSettle.Tick(
             _currentDocument != null,
             pageIndex => _slots.FirstOrDefault(s => s.PageIndex == pageIndex)?.Y,
-            PagesScrollViewer.ScrollableHeight,
-            PagesScrollViewer.VerticalOffset);
+            new Core.ScrollViewport(PagesScrollViewer.ScrollableHeight, PagesScrollViewer.VerticalOffset));
 
         // Re-assert: layout có thể đã reset offset.
         if (step.ReassertOffset is { } offset) PagesScrollViewer.ScrollToVerticalOffset(offset);
