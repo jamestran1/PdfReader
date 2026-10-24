@@ -237,9 +237,12 @@ FROM open_tab WHERE workspace_id=$w ORDER BY tab_order ASC";
             cmd.Parameters.AddWithValue("$w", workspaceId);
             using var reader = cmd.ExecuteReader();
             while (reader.Read())
+            {
                 result.Add(new OpenTabState(
                     reader.GetString(0), (int)reader.GetInt64(1), reader.GetInt64(2) != 0,
                     (int)reader.GetInt64(3), reader.GetDouble(4), reader.GetDouble(5), reader.GetInt64(6)));
+            }
+
             return result;
         }
     }

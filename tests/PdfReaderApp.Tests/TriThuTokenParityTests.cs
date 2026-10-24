@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Xml.Linq;
-using Xunit;
 
 namespace PdfReaderApp.Tests;
 
@@ -65,10 +61,10 @@ public class TriThuTokenParityTests
     public void LightAndDarkTokens_ExposeTheSameTriThuKeys()
     {
         var lightKeys = AllTriThuKeysOf("TriThuTokens.xaml").OrderBy(k => k, StringComparer.Ordinal).ToList();
-        var darkKeys  = AllTriThuKeysOf("TriThuTokens.Dark.xaml").OrderBy(k => k, StringComparer.Ordinal).ToList();
+        var darkKeys = AllTriThuKeysOf("TriThuTokens.Dark.xaml").OrderBy(k => k, StringComparer.Ordinal).ToList();
 
         var onlyInLight = lightKeys.Except(darkKeys, StringComparer.Ordinal).ToList();
-        var onlyInDark  = darkKeys.Except(lightKeys, StringComparer.Ordinal).ToList();
+        var onlyInDark = darkKeys.Except(lightKeys, StringComparer.Ordinal).ToList();
 
         Assert.True(
             onlyInLight.Count == 0 && onlyInDark.Count == 0,

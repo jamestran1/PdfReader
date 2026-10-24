@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using iText.Kernel.Geom;
 using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
@@ -32,7 +31,7 @@ public static class PdfImageLocator
     {
         private readonly double _pageWidthPt;
         private readonly double _pageHeightPt;
-        public readonly List<NormalizedRect> Rects = new();
+        public readonly List<NormalizedRect> Rects = [];
 
         public ImageRectListener(double pageWidthPt, double pageHeightPt)
         {

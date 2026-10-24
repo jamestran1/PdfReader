@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-
 namespace PdfReaderApp.Models;
 
 /// <summary>Một ghi chú. OwnerKey = phạm vi (v1 = documentId), DocumentId = anchor.

@@ -9,7 +9,7 @@ public static class DocumentChip
         if (string.IsNullOrEmpty(documentId)) return "#9E9E9E";
         // hash ổn định không phụ thuộc môi trường (KHÔNG dùng string.GetHashCode vì có thể đổi giữa các lần chạy)
         int h = 0; foreach (char c in documentId) h = unchecked(h * 31 + c);
-        string[] palette = { "#1E88E5","#43A047","#E53935","#8E24AA","#FB8C00","#00ACC1","#3949AB","#7CB342" };
+        string[] palette = { "#1E88E5", "#43A047", "#E53935", "#8E24AA", "#FB8C00", "#00ACC1", "#3949AB", "#7CB342" };
         int idx = (int)((uint)h % (uint)palette.Length);
         return palette[idx];
     }

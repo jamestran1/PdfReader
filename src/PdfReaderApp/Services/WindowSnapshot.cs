@@ -33,8 +33,23 @@ internal static class WindowSnapshot
             capture.Tick += (_, _) =>
             {
                 capture.Stop();
-                Save(window, request.Path);
-                app.Shutdown();
+                var exitCode = 1;
+                try
+                {
+                    Save(window, request.Path);
+                    exitCode = 0;
+                }
+                // Công cụ dev: lỗi gì cũng phải thoát kèm mã lỗi, không để app đứng ở hộp thoại lỗi.
+#pragma warning disable CA1031 // ranh giới công cụ dev: ghi lỗi ra stderr và thoát với mã 1
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine($"TRITHU_SCREENSHOT: không lưu được ảnh: {ex}");
+                }
+#pragma warning restore CA1031
+                finally
+                {
+                    app.Shutdown(exitCode);
+                }
             };
             capture.Start();
         };

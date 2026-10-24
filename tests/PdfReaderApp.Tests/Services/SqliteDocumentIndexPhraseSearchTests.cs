@@ -1,7 +1,4 @@
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -24,11 +21,10 @@ public class SqliteDocumentIndexPhraseSearchTests : IDisposable
             Path.Combine(_dir, "t.db"),
             Path.Combine(AppContext.BaseDirectory, "vec0.dll"));
         _idx.EnsureSchema();
-        _idx.WriteChunks(DocId, null, 2, new List<Chunk>
-        {
+        _idx.WriteChunks(DocId, null, 2, [
             new(DocId, 0, 0, "Đi kinh hành trong sân thiền"),  // page 0
             new(DocId, 1, 0, "Vua ở trong kinh thành lớn")    // page 1
-        });
+        ]);
     }
 
     [Fact]

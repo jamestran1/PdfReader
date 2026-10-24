@@ -1,5 +1,3 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
 using PdfReaderApp.Core;
 
@@ -8,13 +6,13 @@ namespace PdfReaderApp.Tests.Core;
 public class TextSelectionResolverTests
 {
     // Hàng 1: "AB" ở y=0; hàng 2: "CD" ở y=20. Mỗi ký tự rộng 10, cao 10.
-    private static List<SelChar> Sample() => new()
-    {
+    private static List<SelChar> Sample() =>
+    [
         new SelChar(0, "A", new Rect(0, 0, 10, 10)),
         new SelChar(1, "B", new Rect(10, 0, 10, 10)),
         new SelChar(2, "C", new Rect(0, 20, 10, 10)),
         new SelChar(3, "D", new Rect(10, 20, 10, 10)),
-    };
+    ];
 
     [Fact]
     public void Resolve_ForwardRange_JoinsTextInReadingOrder()
@@ -112,7 +110,7 @@ public class TextSelectionResolverTests
     [Fact]
     public void Resolve_Empty_ReturnsEmpty()
     {
-        var r = TextSelectionResolver.Resolve(new List<SelChar>(), 0, 0);
+        var r = TextSelectionResolver.Resolve([], 0, 0);
         Assert.Equal("", r.Text);
         Assert.Empty(r.LineRects);
     }
@@ -133,6 +131,6 @@ public class TextSelectionResolverTests
     [Fact]
     public void NearestCharIndex_Empty_ReturnsMinusOne()
     {
-        Assert.Equal(-1, TextSelectionResolver.NearestCharIndex(new List<SelChar>(), new Point(0, 0)));
+        Assert.Equal(-1, TextSelectionResolver.NearestCharIndex([], new Point(0, 0)));
     }
 }

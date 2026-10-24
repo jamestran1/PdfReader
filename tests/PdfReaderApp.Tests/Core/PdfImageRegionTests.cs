@@ -10,10 +10,10 @@ public class PdfImageRegionTests
     public void Normalize_BottomLeftQuadrant_ReturnsCorrectNormalized()
     {
         var (left, top, width, height) = PdfImageRegion.Normalize(0, 0, 50, 50, 100, 100);
-        Assert.Equal(0.0,  left,   6);
-        Assert.Equal(0.5,  top,    6);
-        Assert.Equal(0.5,  width,  6);
-        Assert.Equal(0.5,  height, 6);
+        Assert.Equal(0.0, left, 6);
+        Assert.Equal(0.5, top, 6);
+        Assert.Equal(0.5, width, 6);
+        Assert.Equal(0.5, height, 6);
     }
 
     // Ảnh ở góc trên-trái (PDF coords): (0,50,50,50) trên trang 100x100
@@ -22,9 +22,9 @@ public class PdfImageRegionTests
     public void Normalize_TopLeftQuadrant_ReturnsCorrectNormalized()
     {
         var (left, top, width, height) = PdfImageRegion.Normalize(0, 50, 50, 50, 100, 100);
-        Assert.Equal(0.0, left,   6);
-        Assert.Equal(0.0, top,    6);
-        Assert.Equal(0.5, width,  6);
+        Assert.Equal(0.0, left, 6);
+        Assert.Equal(0.0, top, 6);
+        Assert.Equal(0.5, width, 6);
         Assert.Equal(0.5, height, 6);
     }
 
@@ -33,9 +33,9 @@ public class PdfImageRegionTests
     public void Normalize_FullPage_ReturnsUnitRect()
     {
         var (left, top, width, height) = PdfImageRegion.Normalize(0, 0, 100, 100, 100, 100);
-        Assert.Equal(0.0, left,   6);
-        Assert.Equal(0.0, top,    6);
-        Assert.Equal(1.0, width,  6);
+        Assert.Equal(0.0, left, 6);
+        Assert.Equal(0.0, top, 6);
+        Assert.Equal(1.0, width, 6);
         Assert.Equal(1.0, height, 6);
     }
 

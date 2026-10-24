@@ -1,6 +1,4 @@
-using System.Linq;
 using System.Text;
-using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;

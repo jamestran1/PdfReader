@@ -113,7 +113,7 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
 
     private sealed class TextItemListener : IEventListener
     {
-        public List<RawTextItem> Items { get; } = new();
+        public List<RawTextItem> Items { get; } = [];
 
         public void EventOccurred(IEventData data, EventType type)
         {

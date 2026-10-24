@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -23,8 +21,8 @@ public sealed partial class WorkspaceDocumentsViewModel : ObservableObject
     private readonly Action<string> _notify;
     private readonly Action _stateChanged;
 
-    public ObservableCollection<LibraryItem> Members { get; } = new();
-    public ObservableCollection<LibraryItem> LibraryAdditions { get; } = new();
+    public ObservableCollection<LibraryItem> Members { get; } = [];
+    public ObservableCollection<LibraryItem> LibraryAdditions { get; } = [];
 
     [ObservableProperty] private bool _isModalOpen;
     [ObservableProperty] private string _workspaceName = string.Empty;

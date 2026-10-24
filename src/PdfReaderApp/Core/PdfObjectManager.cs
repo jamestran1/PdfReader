@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Windows;
 using PdfiumViewer.Core;
 
@@ -15,7 +13,7 @@ public class PdfObjectManager
         public Rect Bounds { get; set; }
     }
 
-    private Dictionary<int, List<GhostText>> _pageTextMap = new();
+    private readonly Dictionary<int, List<GhostText>> _pageTextMap = [];
 
     public void MapPage(PdfPage page, int pageIndex)
     {

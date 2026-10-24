@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Microsoft.Data.Sqlite;
 using PdfReaderApp.Models;
 
@@ -85,8 +84,11 @@ CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
         cmd.CommandText = $"PRAGMA table_info({table});";
         using var r = cmd.ExecuteReader();
         while (r.Read())
+        {
             if (string.Equals(r.GetString(1), column, System.StringComparison.OrdinalIgnoreCase))
                 return true;
+        }
+
         return false;
     }
 

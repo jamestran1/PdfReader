@@ -1,8 +1,4 @@
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
 using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
@@ -27,7 +23,7 @@ public class AiChatServiceTests
     {
         private readonly string[] _tokens;
         private readonly bool _throwAfterTokens;
-        public List<ChatMessage> LastMessages { get; private set; } = new();
+        public List<ChatMessage> LastMessages { get; private set; } = [];
 
         public FakeChatClient(string[] tokens, bool throwAfterTokens = false)
         {
@@ -77,7 +73,7 @@ public class AiChatServiceTests
     /// <summary>Throws on the first MoveNextAsync — simulates a fatal pre-token error.</summary>
     private sealed class ThrowOnFirstMoveClient : IChatClient
     {
-        public List<ChatMessage> LastMessages { get; private set; } = new();
+        public List<ChatMessage> LastMessages { get; private set; } = [];
 
         public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
             IEnumerable<ChatMessage> messages,
