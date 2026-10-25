@@ -555,6 +555,9 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     {
         DetachInput();
         _pageCache.Clear();
+        // Đánh đổi có chủ đích: đóng session ngay khi Unloaded vì không nơi nào khác gọi Dispose(),
+        // giữ lại sẽ làm rò PDFium khi đóng tab. Hệ quả: nếu Unloaded rồi Loaded lại (hiếm, không xảy ra
+        // trong luồng dùng thường), nạp lại từ đĩa nên chỉnh sửa chưa lưu và lịch sử undo bị mất.
         DisposeCurrentDocument();
     }
 
