@@ -1,3 +1,5 @@
+using System.ClientModel;
+using System.ClientModel.Primitives;
 using Microsoft.Extensions.AI;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
@@ -67,6 +69,18 @@ public sealed class IndexingViewModelTests
         public void Dispose() { }
     }
 
+    private sealed class FakeResponse(int status) : PipelineResponse
+    {
+        public override int Status => status;
+        public override string ReasonPhrase => "fake";
+        public override System.IO.Stream? ContentStream { get; set; }
+        public override BinaryData Content => BinaryData.FromString(string.Empty);
+        protected override PipelineResponseHeaders HeadersCore => throw new NotSupportedException();
+        public override BinaryData BufferContent(CancellationToken cancellationToken = default) => Content;
+        public override ValueTask<BinaryData> BufferContentAsync(CancellationToken cancellationToken = default) => ValueTask.FromResult(Content);
+        public override void Dispose() { }
+    }
+
     private static IndexingTarget Target(string documentId = "doc1")
         => new(documentId, "a.pdf", [new PageText(0, "nội dung trang một")]);
 
@@ -100,6 +114,26 @@ public sealed class IndexingViewModelTests
         string status = await RunUntilStatusAsync(new InvalidOperationException("hỏng"));
 
         Assert.Equal("Lập chỉ mục lỗi: hỏng", status);
+    }
+
+    [Fact]
+    public void FormatError_QuotaExhausted_ShowsQuotaMessage()
+    {
+        var error = new ClientResultException("insufficient_quota", new FakeResponse(429));
+
+        Assert.Equal(
+            "Lập chỉ mục AI bị bỏ qua: tài khoản OpenAI hết credits/quota (tìm kiếm văn bản vẫn dùng được).",
+            IndexingViewModel.FormatError(error));
+    }
+
+    [Fact]
+    public void FormatError_Unauthorized_ShowsInvalidKeyMessage()
+    {
+        var error = new ClientResultException("denied", new FakeResponse(401));
+
+        Assert.Equal(
+            "Lập chỉ mục AI bị bỏ qua: API key không hợp lệ (tìm kiếm văn bản vẫn dùng được).",
+            IndexingViewModel.FormatError(error));
     }
 
     [Theory]
