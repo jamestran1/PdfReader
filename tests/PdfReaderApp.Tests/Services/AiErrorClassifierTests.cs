@@ -1,4 +1,6 @@
+using System.Net;
 using System.Net.Http;
+using Anthropic.Exceptions;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -65,5 +67,62 @@ public class AiErrorClassifierTests
     {
         Assert.Equal(AiChatError.Unauthorized,
             AiErrorClassifier.ClassifyResponse(401, "insufficient_quota")); // non-429 ignores quota text
+    }
+
+    private static HttpRequestException Http(HttpStatusCode status, string message = "boom") =>
+        new(message, null, status);
+
+    [Fact]
+    public void Classify_AnthropicUnauthorized_IsUnauthorized()
+    {
+        var ex = new AnthropicUnauthorizedException(Http(HttpStatusCode.Unauthorized)) { StatusCode = HttpStatusCode.Unauthorized, ResponseBody = "" };
+        Assert.Equal(AiChatError.Unauthorized, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicRateLimit_IsRateLimit()
+    {
+        var ex = new AnthropicRateLimitException(Http(HttpStatusCode.TooManyRequests)) { StatusCode = HttpStatusCode.TooManyRequests, ResponseBody = "" };
+        Assert.Equal(AiChatError.RateLimit, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicBadRequestWithCreditBalanceMessage_IsInsufficientQuota()
+    {
+        const string body = "Your credit balance is too low to access the Anthropic API.";
+        var ex = new AnthropicBadRequestException(Http(HttpStatusCode.BadRequest, body))
+        {
+            StatusCode = HttpStatusCode.BadRequest,
+            ResponseBody = body,
+        };
+        Assert.Equal(AiChatError.InsufficientQuota, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicBadRequestOtherwise_IsUnknown()
+    {
+        var ex = new AnthropicBadRequestException(Http(HttpStatusCode.BadRequest, "max_tokens: field required")) { StatusCode = HttpStatusCode.BadRequest, ResponseBody = "max_tokens: field required" };
+        Assert.Equal(AiChatError.Unknown, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_Anthropic529Overloaded_IsUnknown()
+    {
+        var ex = new Anthropic5xxException(Http((HttpStatusCode)529, "Overloaded")) { StatusCode = (HttpStatusCode)529, ResponseBody = "Overloaded" };
+        Assert.Equal(AiChatError.Unknown, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicIOException_IsNetwork()
+    {
+        var ex = new AnthropicIOException("không kết nối được", new HttpRequestException("dns"));
+        Assert.Equal(AiChatError.Network, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_ExceptionWrappedAroundAnthropicException_IsClassifiedByInner()
+    {
+        var inner = new AnthropicUnauthorizedException(Http(HttpStatusCode.Unauthorized)) { StatusCode = HttpStatusCode.Unauthorized, ResponseBody = "" };
+        Assert.Equal(AiChatError.Unauthorized, AiErrorClassifier.Classify(new InvalidOperationException("wrap", inner)));
     }
 }
