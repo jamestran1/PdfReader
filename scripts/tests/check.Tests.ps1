@@ -37,13 +37,11 @@ BeforeAll {
     }
 
     $script:CalcOriginal = @'
-namespace Lib;
+namespace Sample;
 
 public class Calc
 {
     public static int Add(int a, int b) => a + b;
-
-    public static int Old_Name() => 1;
 }
 '@
 
@@ -92,7 +90,7 @@ public class Calc
 '@
     Write-SandboxFile 'src/Lib/Calc.cs' $CalcOriginal
     $script:CalcTestsOriginal = @'
-namespace Lib.Tests;
+namespace Sample.Tests;
 
 public class CalcTests
 {
@@ -109,7 +107,6 @@ public class CalcTests
 </UserControl>
 '@
     Write-SandboxFile 'src/Lib/Views/Panel.xaml' $XamlOriginal
-    Write-SandboxFile 'analyzers/clean-rules.txt' "# Rules with zero violations; blocked repo-wide (ADR 0007).`n"
 
     Invoke-SandboxGit init -q -b main
     Invoke-SandboxGit config user.email 'check@test'
@@ -134,25 +131,25 @@ Describe 'check.ps1' {
         Invoke-SandboxGit checkout -q -B work main
     }
 
-    It 'passes when nothing changed, even with old warnings in the code' {
+    It 'passes when nothing changed' {
         $result = Invoke-Check
 
         $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
     }
 
     It 'reports a warning on a newly added line with file, line and rule' {
-        Write-SandboxFile 'src/Lib/Calc.cs' ($CalcOriginal -replace '(public static int Old_Name\(\) => 1;)', "`$1`n`n    public static int New_Name() => 2;")
+        Write-SandboxFile 'src/Lib/Calc.cs' ($CalcOriginal -replace '(public static int Add\(int a, int b\) => a \+ b;)', "`$1`n`n    public static int New_Name() => 2;")
         Invoke-SandboxGit commit -q -am 'add New_Name'
 
         $result = Invoke-Check
 
         $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
         $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:\d+: warning CA1707: ' } | Should -HaveCount 1
-        $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:9: warning CA1707: .*New_Name' } | Should -HaveCount 1
+        $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:7: warning CA1707: .*New_Name' } | Should -HaveCount 1
     }
 
     It 'reports warnings in uncommitted and untracked files too' {
-        Write-SandboxFile 'src/Lib/Extra.cs' "namespace Lib;`n`npublic class Extra`n{`n    public static int Bad_Name() => 3;`n}`n"
+        Write-SandboxFile 'src/Lib/Extra.cs' "namespace Sample;`n`npublic class Extra`n{`n    public static int Bad_Name() => 3;`n}`n"
 
         $result = Invoke-Check
 
@@ -160,19 +157,21 @@ Describe 'check.ps1' {
         $result.Output | Where-Object { $_ -match '^src/Lib/Extra\.cs:5: warning CA1707: ' } | Should -HaveCount 1
     }
 
-    It 'ignores an old warning when the branch only changes another line of the same file' {
-        Write-SandboxFile 'src/Lib/Calc.cs' ($CalcOriginal -replace 'a \+ b', 'b + a')
-        Invoke-SandboxGit commit -q -am 'touch Add'
+    It 'blocks an old warning on an unchanged line once the code changes (no diff filter, ADR 0007)' {
+        $withOldWarning = $CalcOriginal -replace '(public static int Add\(int a, int b\) => a \+ b;)', "`$1`n`n    public static int Old_Name() => 1;"
+        Write-SandboxFile 'src/Lib/Calc.cs' $withOldWarning
+        Invoke-SandboxGit commit -q -am 'old warning'
+        Write-SandboxFile 'src/Lib/Calc.cs' ($withOldWarning -replace 'a \+ b', 'b + a')
 
-        $result = Invoke-Check
+        $result = Invoke-Check -Base 'HEAD'
 
-        $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
-        $result.Output | Should -Not -Match 'Old_Name'
+        $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
+        $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:7: warning CA1707: .*Old_Name' } | Should -HaveCount 1
     }
 
     It 'does not block on a suggestion-level rule (MA0003)' {
         Write-SandboxFile 'src/Lib/Flags.cs' @'
-namespace Lib;
+namespace Sample;
 
 public class Flags
 {
@@ -191,7 +190,7 @@ public class Flags
 
     It 'does not report CA1707 for underscored test names under tests/' {
         Write-SandboxFile 'tests/Lib.Tests/MoreTests.cs' @'
-namespace Lib.Tests;
+namespace Sample.Tests;
 
 public class MoreTests
 {
@@ -208,7 +207,7 @@ public class MoreTests
     It 'reports CA1502 at the declaration of a new method with cyclomatic complexity above 15' {
         $ifs = (1..16 | ForEach-Object { "        if (x == $_) { return $_; }" }) -join "`n"
         Write-SandboxFile 'src/Lib/Branchy.cs' @"
-namespace Lib;
+namespace Sample;
 
 public static class Branchy
 {
@@ -227,7 +226,7 @@ $ifs
     }
 
     It 'exits with the could-not-run code and the compiler error when the build fails' {
-        Write-SandboxFile 'src/Lib/Broken.cs' "namespace Lib;`n`npublic class Broken { int x = ; }`n"
+        Write-SandboxFile 'src/Lib/Broken.cs' "namespace Sample;`n`npublic class Broken { int x = ; }`n"
 
         $result = Invoke-Check
 
@@ -244,7 +243,7 @@ $ifs
 
     Context 'format' {
         BeforeEach {
-            $script:BadIndent = "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n}`n"
+            $script:BadIndent = "namespace Sample;`n`npublic static class Indent`n{`n  public static int One() => 1;`n}`n"
             Write-SandboxFile 'src/Lib/Indent.cs' $BadIndent
         }
 
@@ -268,13 +267,13 @@ $ifs
     Context 'format on an existing file' {
         # The badly indented file is committed on the work branch; -Base HEAD then compares only uncommitted edits.
         BeforeEach {
-            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n    public static int Two() => 2;`n}`n"
+            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Sample;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n    public static int Two() => 2;`n}`n"
             Invoke-SandboxGit add -A
             Invoke-SandboxGit commit -q -m 'old bad indentation'
         }
 
         It 'ignores bad indentation on an unchanged line' {
-            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n    public static int Two() => 3;`n}`n"
+            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Sample;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n    public static int Two() => 3;`n}`n"
 
             $result = Invoke-Check -Base 'HEAD'
 
@@ -282,7 +281,7 @@ $ifs
         }
 
         It 'reports bad indentation on a changed line at that line' {
-            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Lib;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n  public static int Two() => 2;`n}`n"
+            Write-SandboxFile 'src/Lib/Indent.cs' "namespace Sample;`n`npublic static class Indent`n{`n  public static int One() => 1;`n`n  public static int Two() => 2;`n}`n"
 
             $result = Invoke-Check -Base 'HEAD'
 
@@ -324,18 +323,9 @@ $ifs
         }
     }
 
-    It 'blocks a clean rule repo-wide, even on an untouched line' {
-        Add-Content -LiteralPath (Join-Path $Sandbox 'analyzers/clean-rules.txt') -Value 'CA1707'
-        Invoke-SandboxGit commit -q -am 'CA1707 is clean'
-
-        $result = Invoke-Check
-
-        $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
-        $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:7: warning CA1707: .*Old_Name' } | Should -HaveCount 1
-    }
-
     It 'ignores SARIF from nested worktrees under .claude/worktrees' {
         # A subagent worktree inside the repo leaves its own obj/*.sarif behind; it is not this checkout's code.
+        Write-SandboxFile 'src/Lib/Extra.cs' "namespace Sample;`n`npublic class Extra`n{`n    public static int Bad_Name() => 3;`n}`n"
         & dotnet build (Join-Path $Sandbox 'Sample.slnx') -nologo -v:q | Out-Null
         $sarif = Get-Content (Join-Path $Sandbox 'src/Lib/obj/Lib.sarif') -Raw
         $worktree = Join-Path $Sandbox '.claude/worktrees/agent-x'
@@ -344,13 +334,11 @@ $ifs
         New-Item -ItemType Directory -Force (Join-Path $worktree 'src/Lib/obj') | Out-Null
         Set-Content -LiteralPath (Join-Path $worktree 'src/Lib/obj/Lib.sarif') -Value $sarif.Replace($sandboxUri, $worktreeUri)
         Add-Content -LiteralPath (Join-Path $Sandbox '.gitignore') -Value '.claude/'
-        Add-Content -LiteralPath (Join-Path $Sandbox 'analyzers/clean-rules.txt') -Value 'CA1707'
-        Invoke-SandboxGit commit -q -am 'CA1707 is clean'
 
         $result = Invoke-Check
 
         $result.Output | Should -Not -Match '\.claude/' -Because ($result.Output -join "`n")
-        $result.Output | Where-Object { $_ -match '^src/Lib/Calc\.cs:7: warning CA1707: ' } | Should -HaveCount 1
+        $result.Output | Where-Object { $_ -match '^src/Lib/Extra\.cs:5: warning CA1707: ' } | Should -HaveCount 1
     }
 
     It 'still checks its own SARIF when it runs inside a worktree under .claude/worktrees' {
@@ -360,7 +348,7 @@ $ifs
         $worktree = Join-Path $Sandbox '.claude/worktrees/agent-y'
         Invoke-SandboxGit worktree add -q -b agent-y $worktree
         try {
-            Set-Content -LiteralPath (Join-Path $worktree 'src/Lib/Extra.cs') -Value "namespace Lib;`r`n`r`npublic static class Extra`r`n{`r`n    public static int Bad_Name() => 3;`r`n}`r`n"
+            Set-Content -LiteralPath (Join-Path $worktree 'src/Lib/Extra.cs') -Value "namespace Sample;`r`n`r`npublic static class Extra`r`n{`r`n    public static int Bad_Name() => 3;`r`n}`r`n"
             Push-Location $worktree
             try { $output = & pwsh -NoProfile -File $CheckScript -Base main 2>&1 | ForEach-Object { "$_" }; $exit = $LASTEXITCODE }
             finally { Pop-Location }
@@ -380,10 +368,12 @@ $ifs
         $result = Invoke-Check
 
         $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
-        $result.Output | Where-Object { $_ -match '^TEST: Lib\.Tests\.CalcTests\.Add_ReturnsSum$' } | Should -HaveCount 1
+        $result.Output | Where-Object { $_ -match '^TEST: Sample\.Tests\.CalcTests\.Add_ReturnsSum$' } | Should -HaveCount 1
     }
 
     It 'prints a markdown table of remaining warnings per rule in summary mode, ignoring the diff' {
+        Write-SandboxFile 'src/Lib/Extra.cs' "namespace Sample;`n`npublic class Extra`n{`n    public static int Bad_Name() => 3;`n}`n"
+
         $result = Invoke-Check -Summary
 
         $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")

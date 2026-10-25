@@ -1,7 +1,7 @@
 #requires -Version 7
 <#
 .SYNOPSIS
-    Shared check for CI and the Claude Code hook: format, build, analyzer warnings on changed lines, forbidden XAML, tests.
+    Shared check for CI and the Claude Code hook: format, build, analyzer warnings repo-wide, forbidden XAML, tests.
 
 .DESCRIPTION
     Compares the working tree (including uncommitted and untracked files) with `git merge-base <Base> HEAD`
@@ -9,7 +9,7 @@
       1. format    whitespace + style on changed .cs files; only issues on changed lines count.
                    -Fix rewrites those files instead and reports them on one line.
       2. build     analyzers write SARIF per project (see Directory.Build.props).
-      3. filter    warnings on changed lines; rules listed in analyzers/clean-rules.txt count everywhere (ADR 0007).
+      3. analyzer  every warning in repo source blocks, changed line or not (ADR 0007: the per-rule ratchet is done).
       4. XAML      PrimaryHueMidBrush / CornerRadius="100" on changed lines (CODING_STANDARDS.md UI-3, UI-5).
       5. test      only when .cs / .xaml / .csproj (or .props / .targets / global.json) files changed.
     When nothing that affects the build changed (e.g. only markdown), build and test are skipped.
@@ -50,12 +50,11 @@ $ExitPass = 0
 $ExitViolations = 1
 $ExitCannotRun = 2
 
-$CleanRulesFile = 'analyzers/clean-rules.txt'
 # Package/SDK changes (.props, .targets, global.json) can break tests too, so they also trigger them.
 $TestExtensions = '.cs', '.xaml', '.csproj', '.props', '.targets'
 $TestFiles = @('global.json')
 $BuildExtensions = $TestExtensions + '.editorconfig', '.slnx', '.sln'
-$BuildFiles = $TestFiles + 'codemetricsconfig.txt', $CleanRulesFile
+$BuildFiles = $TestFiles + 'codemetricsconfig.txt'
 $ForbiddenXaml = @(
     @{ Rule = 'UI-3'; Pattern = 'PrimaryHueMid(Foreground)?Brush'; Message = 'brush chết dưới CustomColorTheme; dùng MaterialDesign.Brush.Primary hoặc TriThu.Brush.*' }
     @{ Rule = 'UI-5'; Pattern = 'CornerRadius\s*=\s*"100"'; Message = 'CornerRadius="100" vẽ thành elip; nút dài dùng CornerRadius="12", cần bo tròn hai đầu thì dùng đúng nửa chiều cao' }
@@ -181,26 +180,14 @@ function Get-SarifResults {
     }
 }
 
-function Get-CleanRules {
-    $path = Join-Path $repoRoot $CleanRulesFile
-    if (-not (Test-Path -LiteralPath $path)) { return @() }
-    @(Get-Content -LiteralPath $path | ForEach-Object { ($_ -replace '#.*$', '').Trim() } | Where-Object { $_ })
-}
-
 # Repo source, not generated code in obj/ or files outside the repo.
 function Test-SourceFile([string]$File) {
     -not ($File.StartsWith('../') -or $File -match '(^|/)obj/')
 }
 
 function Get-AnalyzerViolations {
-    $cleanRules = Get-CleanRules
-    Get-SarifResults | Where-Object {
-        $isSource = Test-SourceFile $_.File
-        # Suggestions never block, not even for a clean rule.
-        if ($_.Level -notin 'warning', 'error') { $false }
-        elseif ($_.Rule -in $cleanRules) { $isSource }
-        else { Test-ChangedLine $_.File $_.Line }
-    }
+    # Suggestions never block; warnings block anywhere in repo source, not only on changed lines.
+    Get-SarifResults | Where-Object { $_.Level -in 'warning', 'error' -and (Test-SourceFile $_.File) }
 }
 
 function Get-XamlViolations {

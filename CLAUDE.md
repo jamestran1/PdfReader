@@ -17,7 +17,7 @@ Hướng dẫn cho Claude Code khi làm việc trong repo này: bản đồ dự
 dotnet build PdfReaderApp.slnx
 dotnet test                          # xUnit, project tests/PdfReaderApp.Tests
 dotnet run --project src/PdfReaderApp # chạy app WPF
-pwsh scripts/check.ps1               # lớp chặn: format, build, warning trên dòng đổi, XAML cấm, test
+pwsh scripts/check.ps1               # lớp chặn: format, build, warning toàn repo, XAML cấm, test
 Invoke-Pester scripts/tests          # test của script kiểm tra và hook (Pester 5+)
 pwsh scripts/snapshot.ps1 -Out x.png # app tự chụp cửa sổ chính (dữ liệu trống, không chụp màn hình)
 pwsh scripts/pr-assets.ps1 -Pr N -Files x.png # đưa ảnh lên nhánh pr-assets, in link để nhúng vào PR

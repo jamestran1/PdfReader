@@ -27,7 +27,7 @@ $MaxBlocks = 3
 $LockWaitSeconds = 300
 # Paths that can change what the check reports; anything else (markdown...) never needs a build.
 $CodePathspecs = '*.cs', '*.xaml', '*.csproj', '*.props', '*.targets', '*.slnx', '*.sln', '.editorconfig', 'global.json',
-    'CodeMetricsConfig.txt', 'analyzers/clean-rules.txt'
+    'CodeMetricsConfig.txt'
 
 # Let the agent stop; the message is shown to the user, not the agent.
 function Exit-Allow([string]$Message) {
