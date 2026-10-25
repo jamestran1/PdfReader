@@ -109,7 +109,7 @@ public sealed class ChatCancellationTests : IDisposable
         try { await Task.Delay(System.Threading.Timeout.Infinite, ct); }
         catch (OperationCanceledException)
         {
-            await Task.Delay(300);
+            await Task.Delay(300, CancellationToken.None);
             throw;
         }
     }

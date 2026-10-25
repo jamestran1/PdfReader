@@ -17,10 +17,6 @@ public sealed class AiChatService : IDisposable
     private readonly IChatClientFactory _factory;
     private readonly List<ChatMessage> _history = [];
 
-    // Tăng mỗi khi hội thoại bị dựng lại; yêu cầu bị huỷ chỉ dọn lượt của mình nếu thế hệ chưa đổi,
-    // tránh xoá nhầm lượt của tài liệu khác đã nạp sau khi đổi tài liệu.
-    private int _conversationGeneration;
-
     private IChatClient? _client;
     private AiClientOptions? _clientOptions;
 
@@ -35,7 +31,6 @@ public sealed class AiChatService : IDisposable
 
     public void ResetConversation()
     {
-        _conversationGeneration++;
         _history.Clear();
         _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
     }
@@ -44,7 +39,6 @@ public sealed class AiChatService : IDisposable
     /// khối ngữ cảnh tài liệu). Dùng khi mở lại một sách để AI nhớ tiếp mạch.</summary>
     public void SeedHistory(IEnumerable<(string role, string content)> turns)
     {
-        _conversationGeneration++;
         _history.Clear();
         _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
         foreach (var (role, content) in turns)
@@ -59,11 +53,13 @@ public sealed class AiChatService : IDisposable
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var client = EnsureClient();
-        int generation = _conversationGeneration;
-        _history.Add(BuildUserTurn(question, documentContext));
+        // Giữ tham chiếu để dọn đúng lượt của yêu cầu này: lượt của yêu cầu khác hoặc của tài liệu
+        // khác có thể đã được thêm sau (continuation của yêu cầu bị huỷ chạy trễ).
+        var userTurn = BuildUserTurn(question, documentContext);
+        _history.Add(userTurn);
 
         var assistant = new StringBuilder();
-        var e = StartStream(client, ct);
+        var e = StartStream(client, userTurn, ct);
 
         try
         {
@@ -74,18 +70,19 @@ public sealed class AiChatService : IDisposable
                 if (step.Cancelled)
                 {
                     // Huỷ: bỏ cả lượt (kể cả câu trả lời dở) khỏi trí nhớ LLM.
-                    if (generation == _conversationGeneration) _history.RemoveAt(_history.Count - 1);
+                    _history.Remove(userTurn);
                     ct.ThrowIfCancellationRequested();
                 }
 
                 if (step.Fatal != null)
                 {
-                    _history.RemoveAt(_history.Count - 1);
+                    _history.Remove(userTurn);
                     throw step.Fatal;
                 }
 
                 if (step.Interrupted)
                 {
+                    ThrowIfCancelled(userTurn, ct);
                     assistant.Append(InterruptedSentinel);
                     _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
                     yield return InterruptedSentinel;
@@ -107,7 +104,16 @@ public sealed class AiChatService : IDisposable
             await e.DisposeAsync();
         }
 
+        ThrowIfCancelled(userTurn, ct);
         _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
+    }
+
+    // Nhà cung cấp có thể kết thúc stream bình thường dù token đã bị huỷ: vẫn coi là huỷ và bỏ lượt.
+    private void ThrowIfCancelled(ChatMessage userTurn, CancellationToken ct)
+    {
+        if (!ct.IsCancellationRequested) return;
+        _history.Remove(userTurn);
+        ct.ThrowIfCancellationRequested();
     }
 
     /// <summary>Kết quả một lần đọc stream. Lỗi đọc được gói lại vì iterator không được yield
@@ -149,7 +155,7 @@ public sealed class AiChatService : IDisposable
         return new ChatMessage(ChatRole.User, $"Ngữ cảnh tài liệu:\n{context}\n\nCâu hỏi: {question}");
     }
 
-    private IAsyncEnumerator<ChatResponseUpdate> StartStream(IChatClient client, CancellationToken ct)
+    private IAsyncEnumerator<ChatResponseUpdate> StartStream(IChatClient client, ChatMessage userTurn, CancellationToken ct)
     {
         try
         {
@@ -159,7 +165,7 @@ public sealed class AiChatService : IDisposable
 #pragma warning disable CA1031 // ranh giới gọi AI: SDK ném nhiều kiểu lỗi, được phân loại (AiErrorClassifier) và bọc lại kèm inner exception
         catch (Exception ex)
         {
-            _history.RemoveAt(_history.Count - 1);
+            _history.Remove(userTurn);
             throw new AiChatException(AiErrorClassifier.Classify(ex), "Lỗi gọi dịch vụ AI.", ex);
         }
 #pragma warning restore CA1031
