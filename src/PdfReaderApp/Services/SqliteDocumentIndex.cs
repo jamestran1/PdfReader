@@ -6,8 +6,11 @@ namespace PdfReaderApp.Services;
 
 public sealed class SqliteDocumentIndex : IDocumentIndex
 {
-    private const string EmbeddingDim = "1536";
-    private const int SchemaVersion = 4;
+    // Hai cổng độc lập: di trú đa model (đổi hình dạng bảng) và re-fold search_text (đổi logic Fold).
+    // Tăng RefoldSchemaVersion khi Fold đổi; không bao giờ tăng MultiModelSchemaVersion cho việc đó.
+    private const int MultiModelSchemaVersion = 5;
+    private const int RefoldSchemaVersion = 6;
+    private const string VecTablePrefix = "vec_chunks_";
     private readonly SqliteConnection _conn;
     private readonly Lock _lock = new();
     private readonly bool _vecAvailable;
@@ -39,10 +42,18 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
     {
         lock (_lock)
         {
+            MigrateToMultiModelIfNeeded();
+            // Bảng đơn vec_chunks cũ còn sót (DB di trú lúc vec0 không nạp được) chỉ DROP được khi vec0 sẵn sàng.
+            if (_vecAvailable) Exec("DROP TABLE IF EXISTS vec_chunks;");
+
             Exec(@"
 CREATE TABLE IF NOT EXISTS documents (
   document_id TEXT PRIMARY KEY, file_path TEXT, page_count INTEGER,
-  chunk_count INTEGER, embedding_model TEXT, status TEXT, indexed_at INTEGER);
+  chunk_count INTEGER, indexed_at INTEGER);
+CREATE TABLE IF NOT EXISTS document_models (
+  document_id TEXT NOT NULL, model_name TEXT NOT NULL,
+  status TEXT NOT NULL, indexed_at INTEGER NOT NULL,
+  PRIMARY KEY (document_id, model_name));
 CREATE TABLE IF NOT EXISTS chunks (
   chunk_id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL,
   page_index INTEGER NOT NULL, ordinal INTEGER NOT NULL, text TEXT NOT NULL,
@@ -50,21 +61,43 @@ CREATE TABLE IF NOT EXISTS chunks (
 CREATE INDEX IF NOT EXISTS idx_chunks_doc ON chunks(document_id);
 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
   search_text, content='chunks', content_rowid='chunk_id', tokenize='trigram');");
-            if (_vecAvailable)
-            {
-                Exec(@"CREATE VIRTUAL TABLE IF NOT EXISTS vec_chunks USING vec0(
-  document_id TEXT partition key, chunk_id INTEGER PRIMARY KEY, embedding FLOAT[" + EmbeddingDim + "]);");
-            }
 
             // Migration: ensure existing DBs have search_text column and trigram FTS
             MigrateToTrigramIfNeeded();
 
             // Re-fold search_text if Fold logic changed (version gate)
             RefoldSearchTextIfStale();
-
-            // v4: phrase-search extraction pipeline changed → wipe stuck v3 indexes and force re-index
-            WipeIfPreV4();
         }
+    }
+
+    private int ReadUserVersion()
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "PRAGMA user_version";
+        return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
+    }
+
+    // v5: vector chuyển sang bảng theo số chiều và theo model, status chuyển sang document_models.
+    // Index cũ gắn với một model duy nhất nên xoá hết để mọi tài liệu lập chỉ mục lại sạch.
+    // Nhận diện DB cũ bằng hình dạng bảng documents (còn cột status/embedding_model), không chỉ bằng số phiên bản.
+    private void MigrateToMultiModelIfNeeded()
+    {
+        if (ReadUserVersion() >= MultiModelSchemaVersion) return;
+
+        using var shape = _conn.CreateCommand();
+        shape.CommandText = "SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name IN ('status','embedding_model')";
+        bool hasLegacyShape = Convert.ToInt32(shape.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
+
+        using var tx = _conn.BeginTransaction();
+        if (hasLegacyShape)
+        {
+            ExecInTransaction(tx, "DROP TABLE IF EXISTS chunks_fts;");
+            ExecInTransaction(tx, "DROP TABLE IF EXISTS chunks;");
+            ExecInTransaction(tx, "DROP TABLE IF EXISTS documents;");
+        }
+
+        ExecInTransaction(tx, $"PRAGMA user_version = {MultiModelSchemaVersion}");
+        tx.Commit();
     }
 
     private void MigrateToTrigramIfNeeded()
@@ -158,7 +191,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             currentVersion = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
 
-        if (currentVersion >= SchemaVersion) return;
+        if (currentVersion >= RefoldSchemaVersion) return;
 
         // Re-fold every chunk's search_text with the current Fold logic,
         // then rebuild the external-content FTS index in one shot.
@@ -196,61 +229,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         using (var ver = _conn.CreateCommand())
         {
             ver.Transaction = tx;
-            ver.CommandText = $"PRAGMA user_version = {SchemaVersion}";
-            ver.ExecuteNonQuery();
-        }
-
-        tx.Commit();
-    }
-
-    private void WipeIfPreV4()
-    {
-        int currentVersion;
-        using (var cmd = _conn.CreateCommand())
-        {
-            cmd.CommandText = "PRAGMA user_version";
-            currentVersion = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
-        }
-
-        if (currentVersion >= SchemaVersion) return;
-
-        // user_version < 4: DB may be a stuck v3 index with garbled extraction data.
-        // Wipe all indexed data so every document re-indexes cleanly on next open.
-        using var tx = _conn.BeginTransaction();
-
-        using (var del = _conn.CreateCommand())
-        {
-            del.Transaction = tx;
-            del.CommandText = "DELETE FROM chunks_fts;";
-            del.ExecuteNonQuery();
-        }
-
-        if (_vecAvailable)
-        {
-            using var del = _conn.CreateCommand();
-            del.Transaction = tx;
-            del.CommandText = "DELETE FROM vec_chunks;";
-            del.ExecuteNonQuery();
-        }
-
-        using (var del = _conn.CreateCommand())
-        {
-            del.Transaction = tx;
-            del.CommandText = "DELETE FROM chunks;";
-            del.ExecuteNonQuery();
-        }
-
-        using (var del = _conn.CreateCommand())
-        {
-            del.Transaction = tx;
-            del.CommandText = "DELETE FROM documents;";
-            del.ExecuteNonQuery();
-        }
-
-        using (var ver = _conn.CreateCommand())
-        {
-            ver.Transaction = tx;
-            ver.CommandText = $"PRAGMA user_version = {SchemaVersion}";
+            ver.CommandText = $"PRAGMA user_version = {RefoldSchemaVersion}";
             ver.ExecuteNonQuery();
         }
 
@@ -262,38 +241,26 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         lock (_lock)
         {
             using var cmd = _conn.CreateCommand();
-            cmd.CommandText = "SELECT status, embedding_model FROM documents WHERE document_id=$id";
+            cmd.CommandText = "SELECT status FROM document_models WHERE document_id=$id AND model_name=$m";
             cmd.Parameters.AddWithValue("$id", documentId);
+            cmd.Parameters.AddWithValue("$m", embeddingModel);
             using var r = cmd.ExecuteReader();
             if (!r.Read()) return DocumentIndexStatus.None;
 
-            string status = r.GetString(0);
-            string model = r.IsDBNull(1) ? "" : r.GetString(1);
-            // Model mismatch on a completed index means it must be rebuilt.
-            if (status == "complete" && model != embeddingModel) return DocumentIndexStatus.None;
-
-            return status switch
-            {
-                "indexing" => DocumentIndexStatus.Indexing,
-                "complete" => DocumentIndexStatus.Complete,
-                "partial" => DocumentIndexStatus.Partial,
-                "text-only" => DocumentIndexStatus.TextOnly,
-                "empty" => DocumentIndexStatus.Empty,
-                _ => DocumentIndexStatus.None
-            };
+            string raw = r.GetString(0);
+            return Enum.GetValues<DocumentIndexStatus>().FirstOrDefault(v => ToDbStatus(v) == raw);
         }
     }
 
     private void DeleteDocumentCore(string documentId)
     {
-        var deletes = new List<string>
-        {
-            "DELETE FROM chunks_fts WHERE rowid IN (SELECT chunk_id FROM chunks WHERE document_id=$id)",
-            "DELETE FROM chunks WHERE document_id=$id",
-            "DELETE FROM documents WHERE document_id=$id"
-        };
+        var deletes = new List<string>();
         if (_vecAvailable)
-            deletes.Insert(1, "DELETE FROM vec_chunks WHERE document_id=$id");
+            deletes.AddRange(ListVecTables().Select(t => $"DELETE FROM {t} WHERE document_id=$id"));
+        deletes.Add("DELETE FROM chunks_fts WHERE rowid IN (SELECT chunk_id FROM chunks WHERE document_id=$id)");
+        deletes.Add("DELETE FROM chunks WHERE document_id=$id");
+        deletes.Add("DELETE FROM document_models WHERE document_id=$id");
+        deletes.Add("DELETE FROM documents WHERE document_id=$id");
 
         using var tx = _conn.BeginTransaction();
         foreach (var sql in deletes)
@@ -325,8 +292,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             {
                 doc.Transaction = tx;
                 doc.CommandText = @"INSERT INTO documents
-                    (document_id, file_path, page_count, chunk_count, embedding_model, status, indexed_at)
-                    VALUES ($id,$path,$pc,$cc,NULL,'indexing',$ts)";
+                    (document_id, file_path, page_count, chunk_count, indexed_at)
+                    VALUES ($id,$path,$pc,$cc,$ts)";
                 doc.Parameters.AddWithValue("$id", documentId);
                 doc.Parameters.AddWithValue("$path", (object?)filePath ?? DBNull.Value);
                 doc.Parameters.AddWithValue("$pc", pageCount);
@@ -367,39 +334,167 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         }
     }
 
-    public void WriteEmbeddings(IReadOnlyList<(long ChunkId, float[] Vector)> embeddings)
+    public IReadOnlyList<StoredChunk> GetChunks(string documentId)
     {
+        lock (_lock)
+        {
+            var result = new List<StoredChunk>();
+            using var cmd = _conn.CreateCommand();
+            cmd.CommandText = "SELECT chunk_id, text FROM chunks WHERE document_id=$id ORDER BY chunk_id";
+            cmd.Parameters.AddWithValue("$id", documentId);
+            using var r = cmd.ExecuteReader();
+            while (r.Read())
+                result.Add(new StoredChunk(r.GetInt64(0), r.GetString(1)));
+
+            return result;
+        }
+    }
+
+    public void WriteEmbeddings(string embeddingModel, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings)
+    {
+        ArgumentNullException.ThrowIfNull(embeddings);
+        if (embeddings.Count == 0) return;
+        int dim = embeddings[0].Vector?.Length ?? 0;
+        if (dim == 0 || embeddings.Any(e => e.Vector is null || e.Vector.Length != dim))
+            throw new ArgumentException("Mọi vector trong một lô phải cùng số chiều và không rỗng.", nameof(embeddings));
         if (!_vecAvailable) return; // degrade: no vector store available
         lock (_lock)
         {
+            EnsureVecTable(dim);
+
             using var tx = _conn.BeginTransaction();
+            DeleteExistingVectors(tx, embeddingModel, embeddings, dim);
             foreach (var (chunkId, vector) in embeddings)
             {
                 using var cmd = _conn.CreateCommand();
                 cmd.Transaction = tx;
-                cmd.CommandText = @"INSERT INTO vec_chunks (document_id, chunk_id, embedding)
-                    VALUES ((SELECT document_id FROM chunks WHERE chunk_id=$id), $id, $vec)";
+                cmd.CommandText = $@"INSERT INTO {VecTableName(dim)} (model_name, document_id, chunk_id, embedding)
+                    VALUES ($m, (SELECT document_id FROM chunks WHERE chunk_id=$id), $id, $vec)";
+                cmd.Parameters.AddWithValue("$m", embeddingModel);
                 cmd.Parameters.AddWithValue("$id", chunkId);
                 cmd.Parameters.AddWithValue("$vec", ToJson(vector));
                 cmd.ExecuteNonQuery();
             }
+
             tx.Commit();
         }
     }
+
+    // chunk_id chỉ là cột metadata nên vec0 không tự chặn trùng; tác vụ lập chỉ mục bị huỷ mà còn chạy
+    // dở có thể ghi lại cùng chunk, nên xoá bản cũ của (model, chunk) trước khi chèn.
+    private void DeleteExistingVectors(
+        SqliteTransaction tx, string embeddingModel, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings, int dim)
+    {
+        var batchIds = embeddings.Select(e => e.ChunkId).ToHashSet();
+        var documentIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (long id in batchIds)
+        {
+            using var doc = _conn.CreateCommand();
+            doc.Transaction = tx;
+            doc.CommandText = "SELECT document_id FROM chunks WHERE chunk_id=$id";
+            doc.Parameters.AddWithValue("$id", id);
+            if (doc.ExecuteScalar() is string documentId) documentIds.Add(documentId);
+        }
+
+        var staleRowIds = new List<long>();
+        foreach (string documentId in documentIds)
+        {
+            using var scan = _conn.CreateCommand();
+            scan.Transaction = tx;
+            scan.CommandText = $"SELECT rowid, chunk_id FROM {VecTableName(dim)} WHERE model_name=$m AND document_id=$d";
+            scan.Parameters.AddWithValue("$m", embeddingModel);
+            scan.Parameters.AddWithValue("$d", documentId);
+            using var r = scan.ExecuteReader();
+            while (r.Read())
+            {
+                if (batchIds.Contains(r.GetInt64(1))) staleRowIds.Add(r.GetInt64(0));
+            }
+        }
+
+        foreach (long rowId in staleRowIds)
+        {
+            using var del = _conn.CreateCommand();
+            del.Transaction = tx;
+            del.CommandText = $"DELETE FROM {VecTableName(dim)} WHERE rowid=$r";
+            del.Parameters.AddWithValue("$r", rowId);
+            del.ExecuteNonQuery();
+        }
+    }
+
+    public void DeleteEmbeddings(string documentId, string embeddingModel)
+    {
+        if (!_vecAvailable) return;
+        lock (_lock)
+        {
+            foreach (string table in ListVecTables())
+            {
+                using var cmd = _conn.CreateCommand();
+                cmd.CommandText = $"DELETE FROM {table} WHERE model_name=$m AND document_id=$id";
+                cmd.Parameters.AddWithValue("$m", embeddingModel);
+                cmd.Parameters.AddWithValue("$id", documentId);
+                cmd.ExecuteNonQuery();
+            }
+        }
+    }
+
+    // Tên bảng chỉ ghép từ int đã định dạng invariant, không bao giờ từ chuỗi người dùng.
+    private static string VecTableName(int dimension) =>
+        VecTablePrefix + dimension.ToString(CultureInfo.InvariantCulture);
+
+    // model_name và document_id là partition key để KNN chỉ quét đúng một model của một tài liệu,
+    // hai model cùng số chiều dùng chung bảng mà không lẫn vector; chunk_id là cột metadata
+    // vì một chunk có thể có vector của nhiều model nên không làm khoá chính được.
+    private void EnsureVecTable(int dimension)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(dimension);
+        Exec($@"CREATE VIRTUAL TABLE IF NOT EXISTS {VecTableName(dimension)} USING vec0(
+  model_name TEXT partition key, document_id TEXT partition key,
+  chunk_id INTEGER, embedding FLOAT[{dimension.ToString(CultureInfo.InvariantCulture)}]);");
+    }
+
+    private bool VecTableExists(int dimension)
+    {
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name=$n";
+        cmd.Parameters.AddWithValue("$n", VecTableName(dimension));
+        return Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
+    }
+
+    // Bảng vec0 là bảng ảo; các bảng phụ (_chunks, _rowids...) có sql 'CREATE TABLE' nên bị loại.
+    private List<string> ListVecTables()
+    {
+        var tables = new List<string>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = @"SELECT name FROM sqlite_master
+            WHERE type='table' AND sql LIKE 'CREATE VIRTUAL TABLE%' AND name GLOB 'vec_chunks_[0-9]*'";
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            string name = r.GetString(0);
+            if (name[VecTablePrefix.Length..].All(char.IsAsciiDigit)) tables.Add(name);
+        }
+
+        return tables;
+    }
+
+    private static string ToDbStatus(DocumentIndexStatus status) => status switch
+    {
+        DocumentIndexStatus.TextOnly => "text-only",
+        _ => status.ToString().ToLowerInvariant()
+    };
 
     public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel)
     {
         lock (_lock)
         {
             using var cmd = _conn.CreateCommand();
-            cmd.CommandText = "UPDATE documents SET status=$s, embedding_model=$m WHERE document_id=$id";
-            cmd.Parameters.AddWithValue("$s", status switch
-            {
-                DocumentIndexStatus.TextOnly => "text-only",
-                _ => status.ToString().ToLowerInvariant()
-            });
+            cmd.CommandText = @"INSERT INTO document_models (document_id, model_name, status, indexed_at)
+                VALUES ($id, $m, $s, $ts)
+                ON CONFLICT(document_id, model_name) DO UPDATE SET status=excluded.status, indexed_at=excluded.indexed_at";
+            cmd.Parameters.AddWithValue("$s", ToDbStatus(status));
             cmd.Parameters.AddWithValue("$m", embeddingModel);
             cmd.Parameters.AddWithValue("$id", documentId);
+            cmd.Parameters.AddWithValue("$ts", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             cmd.ExecuteNonQuery();
         }
     }
@@ -476,20 +571,25 @@ LIMIT $lim";
         return results;
     }
 
-    public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5)
+    public IReadOnlyList<Chunk> RetrieveRelevant(
+        string documentId, string embeddingModel, float[] queryVector, int k = 5)
     {
         ArgumentNullException.ThrowIfNull(queryVector);
-        if (!_vecAvailable) return []; // degrade: caller falls back to per-page context
+        if (!_vecAvailable || queryVector.Length == 0) return []; // degrade: caller falls back to per-page context
         lock (_lock)
         {
+            // Chưa có model nào ghi vector ở số chiều này thì chưa có bảng.
+            if (!VecTableExists(queryVector.Length)) return [];
+
             var results = new List<Chunk>();
             using var cmd = _conn.CreateCommand();
-            cmd.CommandText = @"
+            cmd.CommandText = $@"
 SELECT c.document_id, c.page_index, c.ordinal, c.text
-FROM vec_chunks v
+FROM {VecTableName(queryVector.Length)} v
 JOIN chunks c ON c.chunk_id = v.chunk_id
-WHERE v.document_id = $id AND v.embedding MATCH $vec AND k = $k
+WHERE v.model_name = $m AND v.document_id = $id AND v.embedding MATCH $vec AND k = $k
 ORDER BY distance";
+            cmd.Parameters.AddWithValue("$m", embeddingModel);
             cmd.Parameters.AddWithValue("$id", documentId);
             cmd.Parameters.AddWithValue("$vec", ToJson(queryVector));
             cmd.Parameters.AddWithValue("$k", k);

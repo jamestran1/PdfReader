@@ -36,14 +36,17 @@ public class RagContextServiceTests
         private readonly DocumentIndexStatus _status;
         private readonly List<Chunk> _retrieve;
         public StubIndex(DocumentIndexStatus s, List<Chunk> retrieve) { _status = s; _retrieve = retrieve; }
+        public bool VectorSearchAvailable => true;
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string d, string m) => _status;
         public void DeleteDocument(string d) { }
         public IReadOnlyList<long> WriteChunks(string d, string? f, int p, IReadOnlyList<Chunk> c) => [];
-        public void WriteEmbeddings(IReadOnlyList<(long, float[])> e) { }
+        public IReadOnlyList<StoredChunk> GetChunks(string d) => [];
+        public void DeleteEmbeddings(string d, string m) { }
+        public void WriteEmbeddings(string m, IReadOnlyList<(long, float[])> e) { }
         public void SetStatus(string d, DocumentIndexStatus s, string m) { }
         public IReadOnlyList<SearchResult> SearchText(string d, string q, int l = 50) => [];
-        public IReadOnlyList<Chunk> RetrieveRelevant(string d, float[] v, int k = 5) => _retrieve;
+        public IReadOnlyList<Chunk> RetrieveRelevant(string d, string m, float[] v, int k = 5) => _retrieve;
         public void Dispose() { }
     }
 

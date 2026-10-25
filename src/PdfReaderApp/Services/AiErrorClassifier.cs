@@ -28,8 +28,47 @@ public static class AiErrorClassifier
         return ClassifyStatus(status);
     }
 
+    // Phòng thủ: duyệt InnerException giống nhánh Anthropic phòng khi adapter bọc lỗi SDK.
+    private static Google.GenAI.ApiException? FindGoogleException(Exception ex)
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is Google.GenAI.ApiException google)
+                return google;
+        }
+
+        return null;
+    }
+
+    // ApiException kế thừa HttpRequestException nên phải xét trước nhánh mạng. Gemini trả 400 (không phải 401)
+    // khi API key sai (API_KEY_INVALID). Client của SDK ném ArgumentException khi key rỗng, nhưng các service
+    // đã chặn bằng HasApiKey trước khi dựng client nên không tới được đây.
+    private static AiChatError ClassifyGoogle(Google.GenAI.ApiException ex)
+    {
+        string detail = $"{ex.Status} {ex.Message}";
+        return ex.StatusCode switch
+        {
+            0 or 408 or 504 => AiChatError.Network,
+            401 or 403 => AiChatError.Unauthorized,
+            400 when detail.Contains("API_KEY_INVALID", StringComparison.OrdinalIgnoreCase)
+                || detail.Contains("API key not valid", StringComparison.OrdinalIgnoreCase) => AiChatError.Unauthorized,
+            429 => IsGoogleQuotaExhausted(detail) ? AiChatError.InsufficientQuota : AiChatError.RateLimit,
+            503 => AiChatError.RateLimit,
+            _ => AiChatError.Unknown,
+        };
+    }
+
+    // Thông điệp 429 thật của Gemini hầu như luôn có "Please retry in Ns" kể cả khi hết hạn mức ngày, nên không
+    // dùng nó để phân biệt. Hết hạn mức là metric theo ngày (PerDay) hoặc hạn mức bằng 0 (free tier bị chặn).
+    private static bool IsGoogleQuotaExhausted(string detail) =>
+        detail.Contains("PerDay", StringComparison.OrdinalIgnoreCase)
+        || detail.Contains("limit: 0", StringComparison.OrdinalIgnoreCase);
+
     public static AiChatError Classify(Exception ex)
     {
+        if (FindGoogleException(ex) is { } google)
+            return ClassifyGoogle(google);
+
         // OpenAI SDK surfaces HTTP failures as System.ClientModel.ClientResultException with a Status.
         if (ex is System.ClientModel.ClientResultException cre)
         {
