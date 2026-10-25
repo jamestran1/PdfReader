@@ -1,3 +1,5 @@
+using System.IO;
+using System.Security.Cryptography;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
@@ -27,6 +29,9 @@ public sealed partial class SettingsViewModel : ObservableObject
     [ObservableProperty]
     public partial string EmbeddingModel { get; set; } = string.Empty;
 
+    [ObservableProperty]
+    public partial string ErrorMessage { get; set; } = string.Empty;
+
     public SettingsViewModel(ISettingsService settings)
     {
         _settings = settings;
@@ -43,22 +48,32 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     public string ClaudeKeyHint => HintFor(AiProvider.Claude);
 
-    /// <summary>Ghi key đã nhập (ô trống giữ nguyên key hiện có) và cấu hình model.</summary>
-    public void Save(string openAiKey, string geminiKey, string claudeKey)
+    /// <summary>Ghi key đã nhập (ô trống hoặc thiếu giữ nguyên key hiện có) và cấu hình model.
+    /// Trả về false và đặt <see cref="ErrorMessage"/> khi không ghi được.</summary>
+    public bool TrySave(IReadOnlyDictionary<AiProvider, string> typedKeys)
     {
-        SaveKeyIfTyped(AiProvider.OpenAi, openAiKey);
-        SaveKeyIfTyped(AiProvider.Gemini, geminiKey);
-        SaveKeyIfTyped(AiProvider.Claude, claudeKey);
+        try
+        {
+            foreach (var (provider, typed) in typedKeys)
+                SaveKeyIfTyped(provider, typed);
 
-        _settings.SaveModelSettings(new AiModelSettings(
-            ChatProvider,
-            NameOrDefault(ChatModel, AiModelCatalog.DefaultChatModel(ChatProvider)),
-            EmbeddingProvider,
-            NameOrDefault(EmbeddingModel, AiModelCatalog.DefaultEmbeddingModel(EmbeddingProvider))));
+            _settings.SaveModelSettings(new AiModelSettings(
+                ChatProvider,
+                NameOrDefault(ChatModel, AiModelCatalog.DefaultChatModel(ChatProvider)),
+                EmbeddingProvider,
+                NameOrDefault(EmbeddingModel, AiModelCatalog.DefaultEmbeddingModel(EmbeddingProvider))));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or CryptographicException)
+        {
+            ErrorMessage = "Không lưu được cài đặt. Vui lòng kiểm tra quyền ghi thư mục dữ liệu rồi thử lại.";
+            return false;
+        }
 
+        ErrorMessage = string.Empty;
         OnPropertyChanged(nameof(OpenAiKeyHint));
         OnPropertyChanged(nameof(GeminiKeyHint));
         OnPropertyChanged(nameof(ClaudeKeyHint));
+        return true;
     }
 
     partial void OnChatProviderChanged(AiProvider value)

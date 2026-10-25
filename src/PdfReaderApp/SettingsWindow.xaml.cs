@@ -1,4 +1,5 @@
 using System.Windows;
+using PdfReaderApp.Models;
 using PdfReaderApp.ViewModels;
 
 namespace PdfReaderApp;
@@ -16,7 +17,15 @@ public partial class SettingsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        _viewModel.Save(OpenAiKeyBox.Password, GeminiKeyBox.Password, ClaudeKeyBox.Password);
+        var typedKeys = new Dictionary<AiProvider, string>
+        {
+            [AiProvider.OpenAi] = OpenAiKeyBox.Password,
+            [AiProvider.Gemini] = GeminiKeyBox.Password,
+            [AiProvider.Claude] = ClaudeKeyBox.Password,
+        };
+
+        if (!_viewModel.TrySave(typedKeys)) return;
+
         DialogResult = true;
         Close();
     }

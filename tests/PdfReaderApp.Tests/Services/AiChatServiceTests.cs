@@ -140,6 +140,23 @@ public class AiChatServiceTests
         Assert.True(new AiChatService(new ProviderSettings(models, AiProvider.Claude), new FakeFactory(new FakeChatClient([]))).IsConfigured);
     }
 
+    private sealed class UnsupportedFactory : IChatClientFactory
+    {
+        public IChatClient Create(AiClientOptions options) => throw new NotSupportedException("chưa hỗ trợ");
+    }
+
+    [Fact]
+    public async Task AskStreaming_ProviderNotSupported_ThrowsUnsupportedProviderError()
+    {
+        var models = new AiModelSettings(AiProvider.Claude, "claude-x", AiProvider.OpenAi, "e");
+        var svc = new AiChatService(new ProviderSettings(models, AiProvider.Claude), new UnsupportedFactory());
+
+        var ex = await Assert.ThrowsAsync<AiChatException>(() => Collect(svc.AskStreamingAsync("hi", "ctx")));
+
+        Assert.Equal(AiChatError.UnsupportedProvider, ex.Error);
+        Assert.IsType<NotSupportedException>(ex.InnerException);
+    }
+
     [Fact]
     public async Task AskStreaming_BuildsClientFromChatProviderModelAndKey()
     {

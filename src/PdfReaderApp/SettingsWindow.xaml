@@ -112,7 +112,11 @@
             </StackPanel>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,8,24,20">
+        <DockPanel Grid.Row="2" Margin="24,8,24,20">
+        <TextBlock DockPanel.Dock="Left" Text="{Binding ErrorMessage}" TextWrapping="Wrap" MaxWidth="300"
+                   VerticalAlignment="Center" FontSize="12"
+                   Foreground="{DynamicResource TriThu.Brush.Error}"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="CancelButton" Content="Huỷ" MinWidth="90"
                     Style="{StaticResource MaterialDesignFlatButton}"
                     materialDesign:ButtonAssist.CornerRadius="12"
@@ -122,5 +126,6 @@
                     materialDesign:ButtonAssist.CornerRadius="12"
                     Click="SaveButton_Click"/>
         </StackPanel>
+        </DockPanel>
     </Grid>
 </Window>
