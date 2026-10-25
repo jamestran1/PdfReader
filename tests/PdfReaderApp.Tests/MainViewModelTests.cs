@@ -951,15 +951,15 @@ public class MainViewModelTests
     }
 
     [Fact]
-    public void NotifySuccess_SetsCurrentNotificationAsNonError()
+    public void NotifySuccess_SetsNotificationsCurrentAsNonError()
     {
         var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
 
         vm.NotifySuccess("Đã lưu vào ghi chú");
 
-        Assert.NotNull(vm.CurrentNotification);
-        Assert.Equal("Đã lưu vào ghi chú", vm.CurrentNotification!.Message);
-        Assert.False(vm.CurrentNotification.IsError);
+        Assert.NotNull(vm.Notifications.Current);
+        Assert.Equal("Đã lưu vào ghi chú", vm.Notifications.Current!.Message);
+        Assert.False(vm.Notifications.Current.IsError);
     }
 
     [Fact]
@@ -972,21 +972,21 @@ public class MainViewModelTests
 
         vm.SaveAnswerAsNoteCommand.Execute(new ChatMessage { Role = "AI", Content = "Câu trả lời" });
 
-        Assert.NotNull(vm.CurrentNotification);
-        Assert.True(vm.CurrentNotification!.IsError);
-        Assert.Equal("Không lưu được ghi chú.", vm.CurrentNotification.Message);
+        Assert.NotNull(vm.Notifications.Current);
+        Assert.True(vm.Notifications.Current!.IsError);
+        Assert.Equal("Không lưu được ghi chú.", vm.Notifications.Current.Message);
     }
 
     [Fact]
-    public void NotifyError_SetsCurrentNotificationAsError()
+    public void NotifyError_SetsNotificationsCurrentAsError()
     {
         var vm = VmWithWorkspaceStore(new FakeWorkspaceStore());
 
         vm.NotifyError("Không thể mở file PDF");
 
-        Assert.NotNull(vm.CurrentNotification);
-        Assert.Equal("Không thể mở file PDF", vm.CurrentNotification!.Message);
-        Assert.True(vm.CurrentNotification.IsError);
+        Assert.NotNull(vm.Notifications.Current);
+        Assert.Equal("Không thể mở file PDF", vm.Notifications.Current!.Message);
+        Assert.True(vm.Notifications.Current.IsError);
     }
 
 }

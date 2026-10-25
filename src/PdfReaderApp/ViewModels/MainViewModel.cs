@@ -255,34 +255,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public NotesViewModel Notes { get; }
     public WorkspaceDocumentsViewModel DocumentsSurface { get; }
-    // #67: thông báo snackbar non-blocking, đáy-giữa, tự ẩn. Một surface duy nhất cho cả app.
-    [ObservableProperty]
-    public partial Notification? CurrentNotification { get; set; }
+    public NotificationViewModel Notifications { get; } = new();
 
-    private System.Windows.Threading.DispatcherTimer? _notificationTimer;
-
-    public void NotifySuccess(string message) => ShowNotification(new Notification(message, false));
-    public void NotifyError(string message) => ShowNotification(new Notification(message, true));
-
-    private void ShowNotification(Notification notification)
-    {
-        CurrentNotification = notification;
-        // Unit test (không có Application): bỏ qua timer tự ẩn; chỉ cần CurrentNotification được set.
-        if (System.Windows.Application.Current is null) return;
-        _notificationTimer ??= CreateNotificationTimer();
-        _notificationTimer.Stop();
-        _notificationTimer.Start();
-    }
-
-    private System.Windows.Threading.DispatcherTimer CreateNotificationTimer()
-    {
-        var timer = new System.Windows.Threading.DispatcherTimer
-        {
-            Interval = System.TimeSpan.FromMilliseconds(2200)
-        };
-        timer.Tick += (_, _) => { _notificationTimer!.Stop(); CurrentNotification = null; };
-        return timer;
-    }
+    public void NotifySuccess(string message) => Notifications.ShowSuccess(message);
+    public void NotifyError(string message) => Notifications.ShowError(message);
 
     public MainViewModel()
         : this(DefaultServices.Create())
