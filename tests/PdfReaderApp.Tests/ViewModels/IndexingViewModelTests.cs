@@ -110,28 +110,103 @@ public sealed class IndexingViewModelTests
     {
         string status = await RunUntilStatusAsync(new System.Net.Http.HttpRequestException("down"));
 
-        Assert.Equal("Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).", status);
+        Assert.Equal("Lập chỉ mục AI bị bỏ qua: Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng. Tìm kiếm văn bản vẫn dùng được.", status);
     }
 
-    // Báo tiến độ ("0/1") đi qua Progress<> và bị post bất đồng bộ; nó không được ghi đè thông báo lỗi
-    // đã hiển thị. Lặp nhiều lượt song song để lộ cuộc đua thay vì trông chờ vào may rủi.
-    [Fact]
-    public async Task Start_NetworkError_LateProgressNeverOverwritesErrorMessage()
+    // Giả luồng UI: Post chỉ xếp hàng, test tự xả hàng để dựng đúng thứ tự "báo tiến độ tới muộn".
+    private sealed class QueuedSynchronizationContext : SynchronizationContext
     {
-        const string expected = "Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).";
+        private readonly Queue<(SendOrPostCallback Callback, object? State)> _queue = new();
 
-        string[] statuses = await Task.WhenAll(Enumerable.Range(0, 1000)
-            .Select(_ => Task.Run(() => RunUntilStatusAsync(new System.Net.Http.HttpRequestException("down")))));
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            lock (_queue) _queue.Enqueue((d, state));
+        }
 
-        Assert.All(statuses, status => Assert.Equal(expected, status));
+        public void Drain()
+        {
+            while (true)
+            {
+                (SendOrPostCallback Callback, object? State) item;
+                lock (_queue)
+                {
+                    if (_queue.Count == 0) return;
+                    item = _queue.Dequeue();
+                }
+                item.Callback(item.State);
+            }
+        }
+    }
+
+    // Progress<T> bắt SynchronizationContext lúc khởi tạo; chỉ đặt context giả quanh lệnh Start để phần await
+    // của test không bị post vào hàng đợi không ai xả.
+    private static void StartOn(SynchronizationContext context, IndexingViewModel vm)
+    {
+        SynchronizationContext? original = SynchronizationContext.Current;
+        SynchronizationContext.SetSynchronizationContext(context);
+        try { vm.StartBackgroundIndexing(); }
+        finally { SynchronizationContext.SetSynchronizationContext(original); }
+    }
+
+    // Lượt đầu dùng factory thứ nhất, lượt sau dùng factory thứ hai.
+    private sealed class SequencedEmbeddingFactory(IEmbeddingGeneratorFactory first, IEmbeddingGeneratorFactory second)
+        : IEmbeddingGeneratorFactory
+    {
+        private int _calls;
+
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options)
+            => (Interlocked.Increment(ref _calls) == 1 ? first : second).Create(options);
     }
 
     [Fact]
-    public async Task Start_UnknownError_ShowsErrorMessageWithDetail()
+    public async Task Start_Error_LateProgressDoesNotOverwriteErrorMessage()
     {
-        string status = await RunUntilStatusAsync(new InvalidOperationException("hỏng"));
+        var error = new System.Net.Http.HttpRequestException("down");
+        var ui = new QueuedSynchronizationContext();
+        {
+            IndexingViewModel vm = Build(new RecordingIndex(), new ThrowingEmbeddingFactory(error), () => Target(), action => action());
 
-        Assert.Equal("Lập chỉ mục lỗi: hỏng", status);
+            StartOn(ui, vm);
+            await vm.BackgroundTask!.WaitAsync(Timeout);
+            ui.Drain(); // báo tiến độ "0/1" của chính lượt lỗi tới sau thông báo lỗi
+
+            Assert.Equal(IndexingViewModel.FormatError(error), vm.StatusText);
+        }
+    }
+
+    [Fact]
+    public async Task Start_DocumentSwitched_CancelledRunLateProgressDoesNotOverwriteNewRun()
+    {
+        var error = new System.Net.Http.HttpRequestException("down");
+        var blocking = new BlockingEmbeddingFactory();
+        var ui = new QueuedSynchronizationContext();
+        {
+            string documentId = "A";
+            IndexingViewModel vm = Build(new RecordingIndex(),
+                new SequencedEmbeddingFactory(blocking, new ThrowingEmbeddingFactory(error)),
+                () => Target(documentId), action => action());
+
+            StartOn(ui, vm); // tài liệu A: báo "0/1" rồi treo ở embed
+            Task runA = vm.BackgroundTask!;
+            await blocking.Started.Task.WaitAsync(Timeout);
+
+            documentId = "B"; // đổi tài liệu: huỷ A, B lỗi ngay
+            StartOn(ui, vm);
+            await vm.BackgroundTask!.WaitAsync(Timeout);
+            await runA.WaitAsync(Timeout);
+            ui.Drain(); // báo tiến độ muộn của A
+
+            Assert.Equal(IndexingViewModel.FormatError(error), vm.StatusText);
+        }
+    }
+
+    [Fact]
+    public async Task Start_UnknownError_ShowsVietnameseMessageWithoutRawSdkText()
+    {
+        string status = await RunUntilStatusAsync(new InvalidOperationException("raw sdk detail"));
+
+        Assert.DoesNotContain("raw sdk detail", status);
+        Assert.Equal("Lập chỉ mục AI bị bỏ qua: Đã xảy ra lỗi không xác định khi gọi AI. Tìm kiếm văn bản vẫn dùng được.", status);
     }
 
     [Fact]
@@ -140,7 +215,7 @@ public sealed class IndexingViewModelTests
         var error = new ClientResultException("insufficient_quota", new FakeResponse(429));
 
         Assert.Equal(
-            "Lập chỉ mục AI bị bỏ qua: tài khoản OpenAI hết credits/quota (tìm kiếm văn bản vẫn dùng được).",
+            "Lập chỉ mục AI bị bỏ qua: Tài khoản của nhà cung cấp AI không đủ credits. Hãy kiểm tra thanh toán ở trang của nhà cung cấp. Tìm kiếm văn bản vẫn dùng được.",
             IndexingViewModel.FormatError(error));
     }
 
@@ -150,7 +225,7 @@ public sealed class IndexingViewModelTests
         var error = new ClientResultException("denied", new FakeResponse(401));
 
         Assert.Equal(
-            "Lập chỉ mục AI bị bỏ qua: API key không hợp lệ (tìm kiếm văn bản vẫn dùng được).",
+            "Lập chỉ mục AI bị bỏ qua: API key không hợp lệ, vui lòng kiểm tra lại trong Cài đặt. Tìm kiếm văn bản vẫn dùng được.",
             IndexingViewModel.FormatError(error));
     }
 

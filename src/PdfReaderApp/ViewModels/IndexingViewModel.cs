@@ -15,9 +15,23 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
     private readonly Func<IndexingTarget?> _currentTarget;
     private readonly Action<Action> _runOnUiThread;
     private CancellationTokenSource? _cts;
+    private IndexingRun? _currentRun;
+
+    /// <summary>Danh tính một lượt lập chỉ mục. Progress&lt;T&gt; post báo tiến độ bất đồng bộ nên báo cáo của
+    /// lượt đã bị thay thế (đổi tài liệu) hoặc đã lỗi có thể tới muộn và ghi đè trạng thái mới hơn; mọi lần
+    /// ghi trạng thái phải qua <see cref="IsLive"/>. Chỉ đọc/ghi trên luồng UI nên không cần khoá.</summary>
+    private sealed class IndexingRun
+    {
+        public bool Faulted { get; set; }
+    }
+
+    private bool IsLive(IndexingRun run) => ReferenceEquals(run, _currentRun) && !run.Faulted;
 
     [ObservableProperty]
     public partial string StatusText { get; set; } = string.Empty;
+
+    /// <summary>Tác vụ lập chỉ mục nền gần nhất, null nếu chưa chạy lần nào. Để test chờ xác định thay vì ngủ.</summary>
+    internal Task? BackgroundTask { get; private set; }
 
     /// <param name="documentIndex">Chỉ mục để xoá khi lập chỉ mục lại.</param>
     /// <param name="indexingService">Dịch vụ thực hiện việc lập chỉ mục.</param>
@@ -46,37 +60,19 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
         if (target is null) return;
 
         _cts?.Cancel();
+        _cts?.Dispose();
         _cts = new CancellationTokenSource();
         CancellationToken ct = _cts.Token;
-
         var run = new IndexingRun();
+        _currentRun = run;
 
         // Progress<> bắt SynchronizationContext của luồng UI đang gọi, nên cập nhật trạng thái về đúng luồng UI.
-        var progress = new Progress<IndexingProgress>(p => run.ReportProgress(() => StatusText = FormatProgress(p)));
-
-        _ = Task.Run(() => IndexInBackgroundAsync(target, progress, run, ct), ct);
-    }
-
-    /// <summary>Một lượt lập chỉ mục. Progress&lt;T&gt; post báo tiến độ bất đồng bộ nên một báo cáo cũ có thể tới
-    /// sau khi lỗi đã hiển thị và ghi đè thông báo lỗi; lượt đã lỗi thì bỏ qua mọi báo tiến độ đến muộn.</summary>
-    private sealed class IndexingRun
-    {
-        private readonly Lock _gate = new();
-        private bool _faulted;
-
-        // Kiểm tra và ghi nằm chung trong khoá: sau khi MarkFaulted trả về thì không còn báo tiến độ nào ghi nữa.
-        public void ReportProgress(Action updateStatus)
+        var progress = new Progress<IndexingProgress>(p =>
         {
-            lock (_gate)
-            {
-                if (!_faulted) updateStatus();
-            }
-        }
+            if (IsLive(run)) StatusText = FormatProgress(p);
+        });
 
-        public void MarkFaulted()
-        {
-            lock (_gate) _faulted = true;
-        }
+        BackgroundTask = Task.Run(() => IndexInBackgroundAsync(target, progress, run, ct), ct);
     }
 
     private async Task IndexInBackgroundAsync(
@@ -87,9 +83,14 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
 #pragma warning disable CA1031 // ranh giới tác vụ nền: lập chỉ mục lỗi được phân loại và báo cho người dùng
         catch (Exception ex)
         {
+            System.Diagnostics.Trace.TraceWarning($"IndexingViewModel: lập chỉ mục lỗi: {ex}");
             string message = FormatError(ex);
-            run.MarkFaulted();
-            _runOnUiThread(() => StatusText = message);
+            _runOnUiThread(() =>
+            {
+                if (!ReferenceEquals(run, _currentRun)) return;
+                run.Faulted = true;
+                StatusText = message;
+            });
         }
 #pragma warning restore CA1031
     }
@@ -99,13 +100,15 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
             ? string.Empty
             : string.Create(CultureInfo.InvariantCulture, $"Đang lập chỉ mục: {p.Done}/{p.Total}");
 
-    internal static string FormatError(Exception ex) => AiErrorClassifier.Classify(ex) switch
+    // Không lộ ex.Message thô của SDK: phân loại rồi dùng lời báo tiếng Việt chung với chat.
+    internal static string FormatError(Exception ex)
     {
-        AiChatError.InsufficientQuota => "Lập chỉ mục AI bị bỏ qua: tài khoản OpenAI hết credits/quota (tìm kiếm văn bản vẫn dùng được).",
-        AiChatError.Unauthorized => "Lập chỉ mục AI bị bỏ qua: API key không hợp lệ (tìm kiếm văn bản vẫn dùng được).",
-        AiChatError.Network => "Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).",
-        _ => $"Lập chỉ mục lỗi: {ex.Message}"
-    };
+        AiChatError error = AiErrorClassifier.Classify(ex);
+        string reason = error == AiChatError.UnsupportedProvider
+            ? AiErrorMessages.UnsupportedEmbeddingProvider()
+            : AiErrorMessages.Describe(error);
+        return $"Lập chỉ mục AI bị bỏ qua: {reason} Tìm kiếm văn bản vẫn dùng được.";
+    }
 
     [RelayCommand]
     private void ReindexDocument()

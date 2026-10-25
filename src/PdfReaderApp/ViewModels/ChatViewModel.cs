@@ -11,13 +11,17 @@ namespace PdfReaderApp.ViewModels;
 public sealed partial class ChatViewModel : ObservableObject, IDisposable
 {
     private const int ContextPageWindow = 2;
+    private const string MissingKeySuffix = " (chưa có key)";
 
-    private const string NotConfiguredMessage =
+    // Lời lỗi của các bản cũ vẫn nằm trong lịch sử chat đã lưu; giữ trong bộ lọc để không nạp lại vào trí nhớ LLM.
+    private const string LegacyNotConfiguredMessage =
         "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key.";
-    private const string UnknownErrorMessage = "Đã xảy ra lỗi không xác định khi gọi AI.";
+    private const string LegacyUnsupportedProviderMessage =
+        "Nhà cung cấp AI đã chọn chưa được hỗ trợ. Vui lòng chọn OpenAI hoặc Claude trong Cài đặt.";
+    private const string LegacyUnknownErrorMessage = "Đã xảy ra lỗi khi gọi AI.";
 
-    // Các nội dung AI KHÔNG phải câu trả lời thật (thông báo lỗi). Suy ra từ chính MapError nên
-    // tự cập nhật nếu đổi lời lỗi, cộng 2 hằng số dùng ở các nhánh thoát sớm của SendMessage.
+    // Các nội dung AI KHÔNG phải câu trả lời thật (thông báo lỗi). Suy ra từ chính AiErrorMessages nên
+    // tự cập nhật nếu đổi lời lỗi, cộng thông báo thiếu key theo từng provider.
     private static readonly HashSet<string> NonMemoryAiMessages = BuildNonMemoryAiMessages();
 
     private readonly AiChatService _chatService;
@@ -25,10 +29,18 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     private readonly RagContextService _ragContext;
     private readonly Func<ChatContext> _currentContext;
     private string? _currentChatOwnerId;
-    private bool _isSending;
+    // Yêu cầu chat đang chạy (RAG + stream). Mỗi yêu cầu tự dispose CTS của mình; trường này chỉ để huỷ.
+    private CancellationTokenSource? _requestCts;
+    // Hoàn tất của lượt gửi gần nhất (không bao giờ lỗi): lượt mới chờ nó xong để lịch sử LLM sạch
+    // và không có hai yêu cầu cùng sửa lịch sử.
+    private Task _lastSend = Task.CompletedTask;
 
     [ObservableProperty]
     public partial string Input { get; set; } = string.Empty;
+
+    /// <summary>Provider và model chat đang dùng, hiện ở đầu khung chat (vd "Anthropic Claude · claude-sonnet-5-5"); thêm "(chưa có key)" khi thiếu key.</summary>
+    [ObservableProperty]
+    public partial string ActiveModelLabel { get; set; } = string.Empty;
 
     public ObservableCollection<ChatMessage> Messages { get; } = [];
 
@@ -42,7 +54,13 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         _chatHistory = chatHistory;
         _ragContext = ragContext;
         _currentContext = currentContext;
+        RefreshActiveModel();
     }
+
+    /// <summary>Đọc lại provider và model chat từ Settings; gọi sau khi lưu Settings.</summary>
+    public void RefreshActiveModel() =>
+        ActiveModelLabel = $"{AiModelCatalog.DisplayName(_chatService.ChatProvider)} · {_chatService.ChatModel}"
+            + (_chatService.IsConfigured ? string.Empty : MissingKeySuffix);
 
     /// <summary>Dựng ChatViewModel cùng các dịch vụ chat từ <paramref name="services"/>; ChatViewModel sở hữu chúng.</summary>
     public static ChatViewModel Create(MainViewModelServices services, Func<ChatContext> currentContext)
@@ -63,6 +81,8 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         if (newOwnerId == _currentChatOwnerId && _currentChatOwnerId != null) return;
         _currentChatOwnerId = newOwnerId;
 
+        // Đổi tài liệu: câu trả lời đang chạy thuộc tài liệu cũ, không được ghi sang tài liệu mới.
+        CancelPendingRequest();
         Messages.Clear();
 
         if (newOwnerId is null)
@@ -92,6 +112,10 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         _chatService.SeedHistory(MemoryTurns(entries.Select(e => (e.Role, e.Content))));
     }
 
+    /// <summary>Huỷ yêu cầu chat đang chạy (nếu có): khi đổi tài liệu, đóng tab hoặc gửi câu hỏi mới.
+    /// Yêu cầu bị huỷ không hiện lỗi và không được lưu vào lịch sử.</summary>
+    public void CancelPendingRequest() => _requestCts?.Cancel();
+
     /// <summary>Xoá lịch sử chat của một tài liệu (best-effort: lỗi store không chặn việc xoá tài liệu).</summary>
     public void DeleteHistoryFor(string documentId)
     {
@@ -107,7 +131,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     });
 
     // Lọc các lượt để nạp làm trí nhớ LLM. Giữ mọi lượt User; bỏ lượt AI rỗng, là thông báo
-    // lỗi (suy ra từ MapError + các hằng số trên), hoặc chứa sentinel gián đoạn. Bong bóng UI
+    // lỗi (suy ra từ AiErrorMessages), hoặc chứa sentinel gián đoạn. Bong bóng UI
     // vẫn hiển thị đầy đủ, chỉ trí nhớ LLM được làm sạch để AI không "nhớ nhầm" câu lỗi.
     internal static IEnumerable<(string role, string content)> MemoryTurns(
         IEnumerable<(string role, string content)> turns)
@@ -125,20 +149,34 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     {
         var set = new HashSet<string>(StringComparer.Ordinal)
         {
-            NotConfiguredMessage,
-            UnknownErrorMessage,
+            AiErrorMessages.Unknown,
+            LegacyNotConfiguredMessage,
+            LegacyUnsupportedProviderMessage,
+            LegacyUnknownErrorMessage,
         };
+        foreach (AiProvider p in AiModelCatalog.ChatProviders)
+            set.Add(AiErrorMessages.NotConfigured(p));
         foreach (AiChatError e in Enum.GetValues<AiChatError>())
-            set.Add(MapError(e));
+            set.Add(AiErrorMessages.Describe(e));
         return set;
     }
 
-    [RelayCommand]
+    // Cho chạy đồng thời để nút gửi/Enter vẫn dùng được khi đang trả lời: câu hỏi mới huỷ câu cũ.
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task SendMessageAsync()
     {
         if (string.IsNullOrWhiteSpace(Input)) return;
-        if (_isSending) return;
-        _isSending = true;
+
+        // Câu hỏi mới thay thế yêu cầu đang chạy (CS-13).
+        Task previous = _lastSend;
+        CancelPendingRequest();
+        using var cts = new CancellationTokenSource();
+        _requestCts = cts;
+        var done = new TaskCompletionSource();
+        _lastSend = done.Task;
+        // Chốt chủ sở hữu lịch sử lúc gửi: đổi tài liệu giữa chừng không được đổi nơi lưu.
+        string? owner = _currentContext().OwnerId;
+        ChatMessage? aiMessage = null;
 
         try
         {
@@ -146,30 +184,41 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             Input = string.Empty;
             Messages.Add(new ChatMessage { Role = "User", Content = question });
 
+            // Chờ yêu cầu cũ (đã bị huỷ) dọn xong lượt của nó rồi mới dựng prompt mới.
+            await previous;
+            cts.Token.ThrowIfCancellationRequested();
+
             if (!_chatService.IsConfigured)
             {
-                Messages.Add(new ChatMessage { Role = "AI", Content = NotConfiguredMessage });
-                PersistTurn(question, NotConfiguredMessage);
+                string notConfigured = AiErrorMessages.NotConfigured(_chatService.ChatProvider);
+                Messages.Add(new ChatMessage { Role = "AI", Content = notConfigured });
+                PersistTurn(owner, question, notConfigured);
                 return;
             }
 
-            string context = await BuildChatContextAsync(question);
+            string context = await BuildChatContextAsync(question, cts.Token);
 
-            var aiMessage = new ChatMessage { Role = "AI", Content = string.Empty };
+            aiMessage = new ChatMessage { Role = "AI", Content = string.Empty };
             Messages.Add(aiMessage);
 
-            await StreamAnswerAsync(aiMessage, question, context);
-            PersistTurn(question, aiMessage.Content);
+            await StreamAnswerAsync(aiMessage, question, context, cts.Token);
+            PersistTurn(owner, question, aiMessage.Content);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            // Huỷ có chủ đích: không báo lỗi, không lưu lượt này. Câu trả lời dở (nếu còn hiển thị
+            // vì bị thay bởi câu hỏi mới) giữ nguyên để người dùng thấy, nhưng bong bóng rỗng thì bỏ.
+            if (aiMessage is { Content.Length: 0 }) Messages.Remove(aiMessage);
         }
         finally
         {
-            _isSending = false;
+            if (ReferenceEquals(_requestCts, cts)) _requestCts = null;
+            done.SetResult();
         }
     }
 
-    private void PersistTurn(string question, string answer)
+    private void PersistTurn(string? owner, string question, string answer)
     {
-        string? owner = _currentContext().OwnerId;
         if (owner is null) return;
         try
         {
@@ -182,13 +231,14 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 #pragma warning restore CA1031
     }
 
-    private async Task<string> BuildChatContextAsync(string question)
+    private async Task<string> BuildChatContextAsync(string question, CancellationToken ct)
     {
         ChatContext context = _currentContext();
         string? rag = null;
         if (context.DocumentId is not null)
         {
-            try { rag = await _ragContext.BuildContextAsync(context.DocumentId, question, ct: CancellationToken.None); }
+            try { rag = await _ragContext.BuildContextAsync(context.DocumentId, question, ct: ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
 #pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
             catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: RAG lỗi: {ex}"); rag = null; }
 #pragma warning restore CA1031
@@ -196,37 +246,32 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         return rag ?? DocumentContextBuilder.BuildAround(context.Blocks, context.CurrentPage, ContextPageWindow);
     }
 
-    private async Task StreamAnswerAsync(ChatMessage aiMessage, string question, string context)
+    private async Task StreamAnswerAsync(ChatMessage aiMessage, string question, string context, CancellationToken ct)
     {
         try
         {
-            await foreach (var token in _chatService.AskStreamingAsync(question, context, CancellationToken.None))
+            await foreach (var token in _chatService.AskStreamingAsync(question, context, ct))
             {
                 aiMessage.Content += token;
             }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (AiChatException ex)
         {
-            aiMessage.Content = MapError(ex.Error);
+            aiMessage.Content = AiErrorMessages.Describe(ex.Error);
         }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: lỗi chat không lường trước thì hiện thông báo lỗi chung
         catch (Exception ex)
         {
             System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: lỗi chat không lường trước: {ex}");
-            aiMessage.Content = UnknownErrorMessage;
+            aiMessage.Content = AiErrorMessages.Unknown;
         }
 #pragma warning restore CA1031
     }
 
-    private static string MapError(AiChatError error) => error switch
+    public void Dispose()
     {
-        AiChatError.Unauthorized => "API key không hợp lệ, vui lòng kiểm tra lại trong Cài đặt.",
-        AiChatError.RateLimit => "Đã vượt giới hạn yêu cầu, vui lòng thử lại sau.",
-        AiChatError.InsufficientQuota => "Tài khoản của nhà cung cấp AI không đủ credits. Hãy kiểm tra thanh toán ở trang của nhà cung cấp.",
-        AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
-        AiChatError.UnsupportedProvider => "Nhà cung cấp AI đã chọn chưa được hỗ trợ. Vui lòng chọn OpenAI hoặc Claude trong Cài đặt.",
-        _ => "Đã xảy ra lỗi khi gọi AI."
-    };
-
-    public void Dispose() => _chatService.Dispose();
+        CancelPendingRequest();
+        _chatService.Dispose();
+    }
 }
