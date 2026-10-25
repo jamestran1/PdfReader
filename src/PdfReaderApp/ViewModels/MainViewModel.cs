@@ -64,28 +64,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string IndexingStatusText { get; set; } = string.Empty;
 
-    public ObservableCollection<SearchResult> SearchResults { get; } = [];
-
-    [ObservableProperty]
-    public partial string SearchQuery { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string SelectedSearchQuery { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string ExecutedSearchQuery { get; set; } = string.Empty;
-
-    // Mỗi khi người dùng sửa/xóa ô tìm: tắt highlight trên trang ngay lập tức.
-    // Nếu ô rỗng: xóa luôn danh sách kết quả và query đã chạy.
-    partial void OnSearchQueryChanged(string value)
-    {
-        SelectedSearchQuery = string.Empty;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            SearchResults.Clear();
-            ExecutedSearchQuery = string.Empty;
-        }
-    }
+    public SearchViewModel Search { get; }
 
     [ObservableProperty]
     public partial string WindowTitle { get; set; } = "Trí Thư";
@@ -338,6 +317,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             () => _documentId,
             OpenDocumentForNote,
             NotifyError);
+        Search = new SearchViewModel(_documentIndex, () => _documentId, page => CurrentPage = page, NotifyError);
 
         _workspaceStore = services.WorkspaceStore;
         _workspaceStore.EnsureSchema();
@@ -412,7 +392,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.FilterCurrentDocumentOnly = incoming.FilterCurrentDocumentOnly;
         }
 
-        SearchQuery = string.Empty;
+        Search.Reset();
 
         if (incoming is not null)
             HydrateTab(incoming);
@@ -907,7 +887,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.LoadFor(_activeWorkspaceId);
             UpdateNotesDocumentContext();
             OnPropertyChanged(nameof(ActiveWorkspaceId));
-            SearchResults.Clear();
+            Search.ClearResults();
             StartBackgroundIndexing();
         }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: nạp tài liệu lỗi thì báo cho người dùng
@@ -1146,37 +1126,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
         _ => "Đã xảy ra lỗi khi gọi AI."
     };
-
-    [RelayCommand]
-    private void Search()
-    {
-        SearchResults.Clear();
-        if (_documentId is null || string.IsNullOrWhiteSpace(SearchQuery)) return;
-
-        try
-        {
-            ExecutedSearchQuery = SearchQuery;
-            foreach (var hit in _documentIndex.SearchText(_documentId, SearchQuery))
-                SearchResults.Add(hit);
-        }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: tìm kiếm lỗi thì báo cho người dùng
-        catch (Exception ex)
-        {
-            NotifyError($"Tìm kiếm lỗi: {ex.Message}");
-        }
-#pragma warning restore CA1031
-    }
-
-    [RelayCommand]
-    private void SelectSearchResult(SearchResult? result)
-    {
-        if (result is null) return;
-        CurrentPage = result.PageIndex + 1;
-        SelectedSearchQuery = SearchQuery;
-    }
-
-    [RelayCommand]
-    private void ClearSearch() => SearchQuery = string.Empty;
 
     [RelayCommand]
     private void OpenSettings()
