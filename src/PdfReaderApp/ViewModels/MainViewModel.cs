@@ -876,22 +876,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void OpenSettings()
     {
         AiModelSettings before = _settingsService.GetModelSettings();
+        bool hadEmbeddingKey = _settingsService.HasApiKey(before.EmbeddingProvider);
         var window = new SettingsWindow(new SettingsViewModel(_settingsService))
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (window.ShowDialog() == true) OnSettingsSaved(before);
+        if (window.ShowDialog() == true) OnSettingsSaved(before, hadEmbeddingKey);
     }
 
     // Seam sau khi lưu Settings (test gọi trực tiếp, không cần cửa sổ): cập nhật nhãn provider ở khung chat,
-    // và chỉ khi Embedding Provider hoặc Model đổi mới lập chỉ mục tài liệu đang mở (model đã Complete thì
-    // DocumentIndexingService bỏ qua). Không đổi thì không huỷ lượt lập chỉ mục đang chạy.
-    internal void OnSettingsSaved(AiModelSettings before)
+    // và chỉ khi Embedding Provider hoặc Model đổi, hoặc key embedding vừa từ chưa có thành có (tài liệu mở khi
+    // chưa có key đang ở TextOnly), mới lập chỉ mục tài liệu đang mở (model đã Complete thì DocumentIndexingService
+    // bỏ qua). Không đổi thì không huỷ lượt lập chỉ mục đang chạy.
+    internal void OnSettingsSaved(AiModelSettings before, bool hadEmbeddingKey)
     {
         Chat.RefreshActiveModel();
         AiModelSettings after = _settingsService.GetModelSettings();
-        if (after.EmbeddingProvider != before.EmbeddingProvider || after.EmbeddingModel != before.EmbeddingModel)
+        bool embeddingChanged = after.EmbeddingProvider != before.EmbeddingProvider || after.EmbeddingModel != before.EmbeddingModel;
+        bool embeddingKeyAdded = !hadEmbeddingKey && _settingsService.HasApiKey(after.EmbeddingProvider);
+        if (embeddingChanged || embeddingKeyAdded)
             Indexing.StartBackgroundIndexing();
     }
 
