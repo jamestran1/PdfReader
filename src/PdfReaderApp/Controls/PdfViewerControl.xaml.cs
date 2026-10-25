@@ -2,7 +2,6 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using SkiaSharp;
 using SkiaSharp.Views.Desktop;
 using PdfiumViewer.Core;
 using PdfReaderApp.Core;
@@ -19,6 +18,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private Viewer.PdfDocumentSession? _session;
     private readonly RenderEngine _renderEngine = new();
     private readonly Viewer.PageBitmapCache _pageCache = new();
+    private readonly Viewer.ViewerFrameComposer _frameComposer;
     private bool _disposed;
 
     private PdfDocument? _currentDocument => _session?.Document;
@@ -90,11 +90,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
         set => SetValue(MatchSourceProperty, value);
     }
 
-    // Per-page cache of match rects for the current query; running iText extraction on every paint
-    // would be far too expensive. Cleared when the query or the document changes.
-    private string? _matchCacheQuery;
-    private readonly Dictionary<int, IReadOnlyList<Models.MatchRect>> _matchCache = [];
-
     // DependencyProperty: command nhận NoteSelection khi người dùng bấm "Thêm ghi chú"
     public static readonly DependencyProperty AddNoteFromSelectionCommandProperty =
         DependencyProperty.Register(nameof(AddNoteFromSelectionCommand), typeof(System.Windows.Input.ICommand),
@@ -149,21 +144,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
     // Trạng thái chọn text
     private readonly Viewer.TextSelectionController _selection;
 
-    private IReadOnlyList<Models.MatchRect> GetMatchRects(int pageIndex, string query)
-    {
-        if (_matchCacheQuery != query)
-        {
-            _matchCache.Clear();
-            _matchCacheQuery = query;
-        }
-        if (!_matchCache.TryGetValue(pageIndex, out var rects))
-        {
-            rects = MatchSource?.FindMatchRects(pageIndex, query) ?? [];
-            _matchCache[pageIndex] = rects;
-        }
-        return rects;
-    }
-
     public static readonly DependencyProperty ViewModeProperty =
         DependencyProperty.Register(nameof(ViewMode), typeof(Core.PdfViewMode), typeof(PdfViewerControl),
             new PropertyMetadata(Core.PdfViewMode.Continuous, OnViewOptionChanged));
@@ -201,6 +181,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     public PdfViewerControl()
     {
+        _frameComposer = new Viewer.ViewerFrameComposer(_pageCache, _renderEngine);
         _selection = new Viewer.TextSelectionController(pageIndex => _session!.ObjectManager.GetPageTexts(pageIndex));
         InitializeComponent();
         this.Unloaded += PdfViewerControl_Unloaded;
@@ -463,8 +444,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             if (!File.Exists(path)) return;
 
             _session = Viewer.PdfDocumentSession.Open(path);
-            _matchCache.Clear();
-            _matchCacheQuery = null;
+            _frameComposer.ResetMatches();
             TotalPages = _session.PageCount;
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
@@ -560,51 +540,18 @@ public partial class PdfViewerControl : UserControl, IDisposable
             PagesScrollViewer.ScrollToVerticalOffset(slot.Y);
     }
 
-    private SKColor ResolveGutterColor()
-    {
-        if (TryFindResource("TriThu.Brush.SurfaceTonalLow") is System.Windows.Media.SolidColorBrush brush)
-        {
-            System.Windows.Media.Color c = brush.Color;
-            return new SKColor(c.R, c.G, c.B, c.A);
-        }
-        return SKColors.DimGray;
-    }
-
     private void OnPaintCanvas(object sender, SKPaintSurfaceEventArgs e)
     {
-        if (_session == null || e.Surface == null) return;
+        if (_session == null) return;
 
-        Viewer.PdfPagePainter.Paint(e.Surface.Canvas, BuildPaintFrame(_session, e.Info));
+        _frameComposer.Paint(_session, CaptureFrameState(), e);
     }
 
-    private Viewer.PaintFrame BuildPaintFrame(Viewer.PdfDocumentSession session, SKImageInfo info)
-    {
-        float dpiX = skiaCanvas.ActualWidth > 0 ? (float)(info.Width / skiaCanvas.ActualWidth) : 1f;
-        float dpiY = skiaCanvas.ActualHeight > 0 ? (float)(info.Height / skiaCanvas.ActualHeight) : 1f;
-        float scale = (float)ZoomLevel;
-
-        var overlays = new Viewer.OverlayData(
-            _selection.PageIndex, _selection.LineRects, HighlightQuery, Highlights, CurrentDocumentId);
-        var sources = new Viewer.PageSources(
-            pageIndex => GetPageBitmap(session, pageIndex, scale * dpiX),
-            session.ImageRectsByPage,
-            MatchSource == null ? null : GetMatchRects,
-            pageIndex => session.GetPageSize(pageIndex).Height);
-
-        return new Viewer.PaintFrame(
-            _slots, scale, (dpiX, dpiY),
-            (PagesScrollViewer.HorizontalOffset, PagesScrollViewer.VerticalOffset), PagesScrollViewer.ViewportHeight,
-            ResolveGutterColor(), Services.MaterialDesignThemeService.Current == Models.AppTheme.Dark,
-            overlays, sources);
-    }
-
-    // Render ở độ phân giải thiết bị (zoom * DPI) để trang vẫn nét khi canvas scale theo DPI.
-    private SKBitmap GetPageBitmap(Viewer.PdfDocumentSession session, int pageIndex, float renderScale)
-    {
-        var page = session.Document.Pages[pageIndex];
-        session.ObjectManager.MapPage(page, pageIndex);
-        return _pageCache.GetOrRender(pageIndex, () => _renderEngine.RenderPage(page, renderScale));
-    }
+    private Viewer.ViewerFrameState CaptureFrameState() => new(
+        _slots, ZoomLevel, (skiaCanvas.ActualWidth, skiaCanvas.ActualHeight),
+        (PagesScrollViewer.HorizontalOffset, PagesScrollViewer.VerticalOffset), PagesScrollViewer.ViewportHeight,
+        TryFindResource("TriThu.Brush.SurfaceTonalLow"),
+        _selection.PageIndex, _selection.LineRects, HighlightQuery, Highlights, CurrentDocumentId, MatchSource);
 
     // Trong khi pending, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
     // Timer ổn định hoá re-assert cuộn tới trang đích sau nạp (xem ScrollSettleTimer).
