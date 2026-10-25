@@ -28,6 +28,20 @@ _Avoid_: Annotation, comment.
 Một luồng hội thoại AI cho mỗi **Workspace**, RAG xuyên mọi Document thành viên; Document active là neo trích dẫn mặc định. Đổi Tab KHÔNG đổi luồng chat (ADR 0004). Lịch sử bền + RAG thật: #26.
 _Avoid_: Chat per-tab, per-document chat.
 
+## AI
+
+**AI Provider**:
+Nhà cung cấp mô hình AI: OpenAI, Gemini hoặc Claude (`AiProvider`). Mỗi provider một API key riêng. Claude chỉ dùng cho Chat (ADR 0008).
+_Avoid_: Vendor, backend.
+
+**Chat Model** / **Embedding Model**:
+Tên model cụ thể người dùng chọn trong Settings cho Chat và cho lập chỉ mục RAG, mỗi cái đi kèm một AI Provider.
+_Avoid_: Engine, LLM (khi nói về một model cụ thể).
+
+**Vector Index**:
+Tập vector của các chunk của một Document theo **một** Embedding Model, kèm trạng thái lập chỉ mục riêng. Một Document có thể có nhiều Vector Index; đổi Embedding Model không xoá index cũ (ADR 0008).
+_Avoid_: Embedding table, index (trơn, dễ lẫn với chỉ mục FTS tìm kiếm).
+
 ## Tab đa tài liệu (multi-document tabs)
 
 **Tab**:
