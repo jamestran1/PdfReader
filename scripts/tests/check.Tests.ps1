@@ -157,11 +157,10 @@ Describe 'check.ps1' {
         $result.Output | Where-Object { $_ -match '^src/Lib/Extra\.cs:5: warning CA1707: ' } | Should -HaveCount 1
     }
 
-    It 'blocks an old warning on an unchanged line once the code changes (no diff filter, ADR 0007)' {
-        $withOldWarning = $CalcOriginal -replace '(public static int Add\(int a, int b\) => a \+ b;)', "`$1`n`n    public static int Old_Name() => 1;"
-        Write-SandboxFile 'src/Lib/Calc.cs' $withOldWarning
+    It 'blocks an old warning in an untouched file once other code changes (no diff filter, ADR 0007)' {
+        Write-SandboxFile 'src/Lib/Calc.cs' ($CalcOriginal -replace '(public static int Add\(int a, int b\) => a \+ b;)', "`$1`n`n    public static int Old_Name() => 1;")
         Invoke-SandboxGit commit -q -am 'old warning'
-        Write-SandboxFile 'src/Lib/Calc.cs' ($withOldWarning -replace 'a \+ b', 'b + a')
+        Write-SandboxFile 'src/Lib/Clean.cs' "namespace Sample;`n`npublic static class Clean`n{`n    public static int One() => 1;`n}`n"
 
         $result = Invoke-Check -Base 'HEAD'
 
