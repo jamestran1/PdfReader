@@ -59,6 +59,31 @@ public sealed class ViewerPointerInputTests : IDisposable
         public string? EditorText { get; private set; }
         public Point? AddNoteButtonAt { get; private set; }
 
+        public bool HasDocument => true;
+        public PdfViewMode ViewMode => PdfViewMode.Continuous;
+        public bool ShowCover => true;
+        public int CurrentPage => 1;
+        public int TotalPages => 1;
+        public double ScrollHorizontalOffset => 0;
+        public double ScrollVerticalOffset => 0;
+        public double ScrollableHeight => 0;
+
+        public void RequestZoom(double zoom)
+        {
+        }
+
+        public void RequestPage(int page)
+        {
+        }
+
+        public void RequestScroll(double horizontalOffset, double verticalOffset)
+        {
+        }
+
+        public void RequestScrollToTop()
+        {
+        }
+
         public void RequestRepaint() => Repaints++;
 
         public void ShowEditor(Point topLeft, Size size, string text)
