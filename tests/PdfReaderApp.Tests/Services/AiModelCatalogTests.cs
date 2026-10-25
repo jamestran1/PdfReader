@@ -18,6 +18,13 @@ public class AiModelCatalogTests
     public void DefaultEmbeddingModel_ReturnsModelOfProvider(AiProvider provider, string expected) =>
         Assert.Equal(expected, AiModelCatalog.DefaultEmbeddingModel(provider));
 
+    [Theory]
+    [InlineData(AiProvider.OpenAi, "OpenAI")]
+    [InlineData(AiProvider.Gemini, "Google Gemini")]
+    [InlineData(AiProvider.Claude, "Anthropic Claude")]
+    public void DisplayName_ReturnsReadableName(AiProvider provider, string expected) =>
+        Assert.Equal(expected, AiModelCatalog.DisplayName(provider));
+
     [Fact]
     public void DefaultEmbeddingModel_Throws_ForClaude() =>
         Assert.Throws<ArgumentOutOfRangeException>(() => AiModelCatalog.DefaultEmbeddingModel(AiProvider.Claude));

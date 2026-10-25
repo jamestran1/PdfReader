@@ -111,7 +111,16 @@ public sealed class AiChatService : IDisposable
         if (_client is null || _clientOptions != options)
         {
             _client?.Dispose();
-            _client = _factory.Create(options);
+            _client = null;
+            try
+            {
+                _client = _factory.Create(options);
+            }
+            catch (NotSupportedException ex)
+            {
+                throw new AiChatException(AiChatError.UnsupportedProvider, "Nhà cung cấp AI chưa được hỗ trợ.", ex);
+            }
+
             _clientOptions = options;
         }
 

@@ -12,6 +12,14 @@ public static class AiModelCatalog
     public static IReadOnlyList<AiProvider> EmbeddingProviders { get; } =
         [AiProvider.OpenAi, AiProvider.Gemini];
 
+    public static string DisplayName(AiProvider provider) => provider switch
+    {
+        AiProvider.OpenAi => "OpenAI",
+        AiProvider.Gemini => "Google Gemini",
+        AiProvider.Claude => "Anthropic Claude",
+        _ => throw new ArgumentOutOfRangeException(nameof(provider), provider, "Provider không được hỗ trợ."),
+    };
+
     public static string DefaultChatModel(AiProvider provider) => provider switch
     {
         AiProvider.OpenAi => "gpt-4o-mini",

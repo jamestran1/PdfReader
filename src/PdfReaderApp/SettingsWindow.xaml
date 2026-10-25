@@ -4,7 +4,7 @@
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:local="clr-namespace:PdfReaderApp"
-        Title="Cài đặt AI" Height="640" Width="560"
+        Title="Cài đặt AI" SizeToContent="Height" Width="560"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         TextElement.Foreground="{DynamicResource MaterialDesignBody}"
         Background="{DynamicResource MaterialDesignPaper}"
@@ -49,15 +49,15 @@
                                    Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
                         <TextBlock Text="Key được mã hoá và lưu cục bộ (DPAPI)." FontSize="12" Margin="0,4,0,12"
                                    Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
-                        <PasswordBox x:Name="OpenAiKeyBox" Margin="0,0,0,12"
+                        <PasswordBox x:Name="OpenAiKeyBox" Margin="0,0,0,28"
                                      Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
                                      materialDesign:HintAssist.Hint="OpenAI"
                                      materialDesign:HintAssist.HelperText="{Binding OpenAiKeyHint}"/>
-                        <PasswordBox x:Name="GeminiKeyBox" Margin="0,0,0,12"
+                        <PasswordBox x:Name="GeminiKeyBox" Margin="0,0,0,28"
                                      Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
                                      materialDesign:HintAssist.Hint="Google Gemini"
                                      materialDesign:HintAssist.HelperText="{Binding GeminiKeyHint}"/>
-                        <PasswordBox x:Name="ClaudeKeyBox"
+                        <PasswordBox x:Name="ClaudeKeyBox" Margin="0,0,0,16"
                                      Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
                                      materialDesign:HintAssist.Hint="Anthropic Claude"
                                      materialDesign:HintAssist.HelperText="{Binding ClaudeKeyHint}"/>
@@ -112,7 +112,11 @@
             </StackPanel>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,8,24,20">
+        <DockPanel Grid.Row="2" Margin="24,8,24,20">
+        <TextBlock DockPanel.Dock="Left" Text="{Binding ErrorMessage}" TextWrapping="Wrap" MaxWidth="300"
+                   VerticalAlignment="Center" FontSize="12"
+                   Foreground="{DynamicResource TriThu.Brush.Error}"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
             <Button x:Name="CancelButton" Content="Huỷ" MinWidth="90"
                     Style="{StaticResource MaterialDesignFlatButton}"
                     materialDesign:ButtonAssist.CornerRadius="12"
@@ -122,5 +126,6 @@
                     materialDesign:ButtonAssist.CornerRadius="12"
                     Click="SaveButton_Click"/>
         </StackPanel>
+        </DockPanel>
     </Grid>
 </Window>

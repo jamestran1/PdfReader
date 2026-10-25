@@ -58,7 +58,6 @@ public sealed class DocumentIndexingService
             return;
         }
 
-        using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key));
         int done;
 
         // Xoá vector dở dang của chính model này (Partial) trước khi nhúng lại; vector model khác giữ nguyên.
@@ -67,6 +66,7 @@ public sealed class DocumentIndexingService
 
         try
         {
+            using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key));
             done = await EmbedAllBatchesAsync(generator, embeddingModel, stored, progress, ct);
         }
         catch (OperationCanceledException)

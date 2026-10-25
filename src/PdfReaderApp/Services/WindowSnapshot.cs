@@ -29,10 +29,12 @@ internal static class WindowSnapshot
             }
 
             timer.Stop();
-            // Cảnh chụp: mở tài liệu, chờ render, rồi đặt trang / zoom / tab panel, chờ tiếp rồi mới chụp.
+            // Cảnh chụp: mở tài liệu, chờ render, rồi đặt trang / zoom / tab panel (hoặc mở hộp thoại),
+            // chờ tiếp rồi mới chụp cửa sổ trên cùng.
+            Window target = window;
             Step(app, () => OpenDocument(window, request), request.Delay,
-                () => Step(app, () => ApplyView(window, request), request.Delay,
-                    () => Step(app, () => Save(window, request.Path), TimeSpan.Zero, () => app.Shutdown(0))));
+                () => Step(app, () => target = ApplyView(window, request), request.Delay,
+                    () => Step(app, () => Save(target, request.Path), TimeSpan.Zero, () => app.Shutdown(0))));
         };
         timer.Start();
     }
@@ -94,11 +96,11 @@ internal static class WindowSnapshot
         }
     }
 
-    private static void ApplyView(Window window, SnapshotRequest request)
+    private static Window ApplyView(Window window, SnapshotRequest request)
     {
         if (window.DataContext is not ViewModels.MainViewModel vm)
         {
-            return;
+            return window;
         }
 
         if (request.Zoom is { } zoom)
@@ -110,6 +112,16 @@ internal static class WindowSnapshot
         {
             vm.Notes.RightTabIndex = tab;
         }
+
+        return request.Dialog is SnapshotDialog.Settings ? ShowSettings(window) : window;
+    }
+
+    // Mở không modal: ShowDialog chặn dispatcher nên bước chụp phía sau không chạy được.
+    private static SettingsWindow ShowSettings(Window owner)
+    {
+        var dialog = new SettingsWindow(new ViewModels.SettingsViewModel(new WindowsSettingsService())) { Owner = owner };
+        dialog.Show();
+        return dialog;
     }
 
     private static void Save(Window window, string path)
@@ -122,6 +134,14 @@ internal static class WindowSnapshot
             dpi.PixelsPerInchX,
             dpi.PixelsPerInchY,
             PixelFormats.Pbgra32);
+        // Nền của Window không thuộc Content: thiếu bước này thì ảnh trong suốt và chế độ tối trông như nền trắng.
+        var background = new DrawingVisual();
+        using (var context = background.RenderOpen())
+        {
+            context.DrawRectangle(window.Background, null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
+        }
+
+        bitmap.Render(background);
         bitmap.Render(content);
 
         var encoder = new PngBitmapEncoder();
