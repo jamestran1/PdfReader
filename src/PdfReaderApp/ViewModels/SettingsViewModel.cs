@@ -8,7 +8,7 @@ namespace PdfReaderApp.ViewModels;
 
 /// <summary>Logic của cửa sổ Cài đặt AI: nạp provider/model từ <see cref="ISettingsService"/>, đặt lại model
 /// mặc định khi đổi provider, và ghi key cùng model khi lưu. PasswordBox không bind được nên
-/// code-behind chỉ chuyển nội dung ô nhập vào <see cref="Save"/>.</summary>
+/// code-behind chỉ chuyển nội dung ô nhập vào <see cref="TrySave"/>.</summary>
 public sealed partial class SettingsViewModel : ObservableObject
 {
     private const string EmptyKeyHint = "Dán API key";
