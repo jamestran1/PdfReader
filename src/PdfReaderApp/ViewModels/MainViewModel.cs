@@ -305,19 +305,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return timer;
     }
 
-    private static string AppDir() => Core.AppDataDirectory.Current();
-
-    private static string IndexDbPath() => System.IO.Path.Combine(AppDir(), "index.db");
-
     public MainViewModel()
-        : this(new ITextPdfDocumentService(),
-               new WindowsSettingsService(),
-               new OpenAiChatClientFactory(),
-               new SqliteDocumentIndex(IndexDbPath(),
-                   System.IO.Path.Combine(AppContext.BaseDirectory, "vec0.dll")),
-               new OpenAiEmbeddingGeneratorFactory())
+        : this(DefaultServices.Create())
     { }
 
+    // Giữ chữ ký nhiều tham số cho test; tham số tuỳ chọn null thì lấy bản mặc định từ DefaultServices.
     public MainViewModel(
         IPdfDocumentService documentService,
         ISettingsService settingsService,
@@ -328,27 +320,41 @@ public partial class MainViewModel : ObservableObject, IDisposable
         INoteStore? noteStore = null,
         IWorkspaceStore? workspaceStore = null,
         IThemeService? themeService = null)
+        : this(new MainViewModelServices(
+            documentService,
+            settingsService,
+            chatClientFactory,
+            documentIndex,
+            embeddingFactory,
+            chatHistory ?? DefaultServices.CreateChatHistory(AppDataDirectory.Current()),
+            noteStore ?? DefaultServices.CreateNoteStore(AppDataDirectory.Current()),
+            workspaceStore ?? DefaultServices.CreateWorkspaceStore(AppDataDirectory.Current()),
+            themeService ?? DefaultServices.CreateThemeService(),
+            DefaultServices.CreateLibrary(AppDataDirectory.Current())))
+    { }
+
+    public MainViewModel(MainViewModelServices services)
     {
         Tabs = new TabSetViewModel();
-        _documentService = documentService;
-        _settingsService = settingsService;
-        _themeService = themeService ?? new MaterialDesignThemeService();
-        IsDarkMode = settingsService.GetThemePreference() == AppTheme.Dark;
+        _documentService = services.DocumentService;
+        _settingsService = services.Settings;
+        _themeService = services.ThemeService;
+        IsDarkMode = _settingsService.GetThemePreference() == AppTheme.Dark;
         _analyzer = new PdfStructureAnalyzer(_documentService);
-        _chatService = new AiChatService(settingsService, chatClientFactory);
+        _chatService = new AiChatService(_settingsService, services.ChatClientFactory);
 
-        _documentIndex = documentIndex;
+        _documentIndex = services.DocumentIndex;
         _documentIndex.EnsureSchema();
-        _indexingService = new DocumentIndexingService(_documentIndex, embeddingFactory, settingsService);
-        _ragContext = new RagContextService(_documentIndex, embeddingFactory, settingsService);
+        _indexingService = new DocumentIndexingService(_documentIndex, services.EmbeddingFactory, _settingsService);
+        _ragContext = new RagContextService(_documentIndex, services.EmbeddingFactory, _settingsService);
 
-        _library = CreateLibraryService();
+        _library = services.Library;
         ReloadLibrary();
 
-        _chatHistory = chatHistory ?? new SqliteChatHistoryStore(System.IO.Path.Combine(AppDir(), "chats.db"));
+        _chatHistory = services.ChatHistory;
         _chatHistory.EnsureSchema();
 
-        _noteStore = noteStore ?? new SqliteNoteStore(System.IO.Path.Combine(AppDir(), "notes.db"));
+        _noteStore = services.NoteStore;
         _noteStore.EnsureSchema();
         Notes = new NotesViewModel(_noteStore,
             () => _documentId is null ? (int?)null : CurrentPage - 1,
@@ -357,8 +363,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OpenDocumentForNote,
             NotifyError);
 
-        // Workspace store: real db in AppDir hoac inject (test)
-        _workspaceStore = workspaceStore ?? new SqliteWorkspaceStore(System.IO.Path.Combine(AppDir(), "workspaces.db"));
+        _workspaceStore = services.WorkspaceStore;
         _workspaceStore.EnsureSchema();
 
         MigrateLegacyNotesToDefaultWorkspace();
@@ -369,16 +374,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         DocumentsSurface = CreateDocumentsSurface();
 
         WireTabEvents();
-    }
-
-    private static LibraryService CreateLibraryService()
-    {
-        var libraryStore = new SqliteLibraryStore(System.IO.Path.Combine(AppDir(), "library.db"));
-        libraryStore.EnsureSchema();
-        return new LibraryService(libraryStore,
-            System.IO.Path.Combine(AppDir(), "library"),
-            System.IO.Path.Combine(AppDir(), "library", "thumbs"),
-            new PdfReaderApp.Core.RenderEngine());
     }
 
     private void MigrateLegacyNotesToDefaultWorkspace()
