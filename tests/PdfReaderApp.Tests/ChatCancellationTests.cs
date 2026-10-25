@@ -126,6 +126,18 @@ public sealed class ChatCancellationTests : IDisposable
         await release;
     }
 
+    // Huỷ làm kết nối đóng và SDK ném lỗi khác OCE trước khi có token nào: giả lập lỗi đọc HTTP.
+    private static async IAsyncEnumerable<ChatResponseUpdate> FailsAfterReleaseStream(
+        TaskCompletionSource started, Task release)
+    {
+        started.TrySetResult();
+        await release;
+        throw new IOException("kết nối bị đóng");
+#pragma warning disable CS0162 // cần một yield để trình biên dịch coi đây là iterator
+        yield break;
+#pragma warning restore CS0162
+    }
+
     private static async IAsyncEnumerable<ChatResponseUpdate> ShortStream(string text)
     {
         await Task.Yield();
@@ -279,6 +291,25 @@ public sealed class ChatCancellationTests : IDisposable
         var secondCall = _sentMessages[1];
         Assert.DoesNotContain(secondCall, m => m.Text.Contains("Đáp cũ", StringComparison.Ordinal));
         Assert.DoesNotContain(secondCall, m => m.Text.Contains("Câu một", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task CancelledRequest_WhoseStreamFailsWithNonCancellationError_ShowsNoErrorAndIsNotPersisted()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var (vm, chat) = BuildVm(_ => FailsAfterReleaseStream(started, release.Task));
+        OpenDocument(vm, "docA");
+        vm.Chat.Input = "Câu một";
+        var send = vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
+        await started.Task.WaitAsync(Timeout);
+
+        vm.Chat.CancelPendingRequest();
+        release.SetResult();
+        await send.WaitAsync(Timeout);
+
+        Assert.Empty(chat.Appended);
+        Assert.DoesNotContain(vm.Chat.Messages, m => m.Content.Contains("lỗi", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
