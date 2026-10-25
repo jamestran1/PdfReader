@@ -9,12 +9,14 @@
     Không chụp màn hình nên không lộ cửa sổ khác trên desktop.
 
     Cảnh chụp tuỳ chọn: -Open mở một file PDF (-Open sample dùng scripts/assets/snapshot-sample.pdf),
-    -Page, -Zoom, -Panel chat|notes. Mỗi lần chạy chụp một ảnh.
+    -Page, -Zoom, -Panel chat|notes, -Theme light|dark. Mỗi lần chạy chụp một ảnh.
 
 .EXAMPLE
     pwsh scripts/snapshot.ps1 -Out artifacts/main.png
 .EXAMPLE
     pwsh scripts/snapshot.ps1 -Out artifacts/notes.png -Open sample -Page 2 -Zoom 1.2 -Panel notes
+.EXAMPLE
+    pwsh scripts/snapshot.ps1 -Out artifacts/dark.png -Open sample -Page 2 -Zoom 1.2 -Theme dark
 #>
 param(
     [Parameter(Mandatory)][string]$Out,
@@ -23,7 +25,8 @@ param(
     [string]$Open,
     [int]$Page,
     [double]$Zoom,
-    [ValidateSet('', 'chat', 'notes')][string]$Panel = ''
+    [ValidateSet('', 'chat', 'notes')][string]$Panel = '',
+    [ValidateSet('light', 'dark')][string]$Theme = 'light'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,12 +40,16 @@ $Out = [IO.Path]::GetFullPath($Out)
 Remove-Item -LiteralPath $Out -ErrorAction SilentlyContinue
 
 $profile = Join-Path ([IO.Path]::GetTempPath()) "trithu-snap-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
-New-Item -ItemType Directory -Force -Path $profile | Out-Null
+$dataDir = Join-Path $profile 'Data'
+New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
+# App chỉ có lựa chọn theme trong UI; ghi sẵn file mà WindowsSettingsService đọc lúc khởi động.
+$themeValue = if ($Theme -eq 'dark') { 'Dark' } else { 'Light' }
+Set-Content -LiteralPath (Join-Path $dataDir 'theme.pref') -Value $themeValue -NoNewline
 try {
     $info = [Diagnostics.ProcessStartInfo]::new($Exe)
     $info.UseShellExecute = $false
     $info.WorkingDirectory = $profile
-    $info.Environment['TRITHU_DATA_DIR'] = Join-Path $profile 'Data'
+    $info.Environment['TRITHU_DATA_DIR'] = $dataDir
     $info.Environment['TRITHU_SCREENSHOT'] = $Out
     $info.Environment['TRITHU_SCREENSHOT_DELAY'] = "$DelaySeconds"
     if ($Open) {

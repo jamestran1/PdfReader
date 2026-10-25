@@ -262,7 +262,7 @@ public class MainViewModelTabCommandTests
         vm.PromoteToWorkspaceCommand.Execute("Dự án A");
 
         Assert.True(vm.IsWorkspaceSession);
-        var workspace = Assert.Single(wsStore.All.Where(w => !w.IsDefault));
+        var workspace = Assert.Single(wsStore.All, w => !w.IsDefault);
         Assert.Equal("Dự án A", workspace.Name);
         Assert.Equal(workspace.Id, vm.ActiveWorkspaceId);
         Assert.Contains("docA", wsStore.GetDocumentIds(workspace.Id), StringComparer.Ordinal);
@@ -283,7 +283,7 @@ public class MainViewModelTabCommandTests
         vm.PromoteToWorkspaceCommand.Execute("   ");
 
         Assert.False(vm.IsWorkspaceSession);
-        Assert.Empty(wsStore.All.Where(w => !w.IsDefault));
+        Assert.DoesNotContain(wsStore.All, w => !w.IsDefault);
         Assert.False(string.IsNullOrEmpty(vm.WorkspaceNameError));
     }
 
