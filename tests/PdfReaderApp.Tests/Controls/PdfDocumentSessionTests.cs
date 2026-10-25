@@ -52,6 +52,27 @@ public class PdfDocumentSessionTests
     }
 
     [Fact]
+    public void Dispose_ReleasesBackingStream()
+    {
+        var session = PdfDocumentSession.Open(SamplePath());
+        var stream = session.Stream;
+
+        session.Dispose();
+
+        Assert.False(stream.CanRead);
+    }
+
+    [Fact]
+    public void Open_InvalidPdf_ReleasesStream()
+    {
+        var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("không phải PDF"));
+
+        Assert.ThrowsAny<Exception>(() => PdfDocumentSession.Open(stream, "khong-ton-tai.pdf"));
+
+        Assert.False(stream.CanRead);
+    }
+
+    [Fact]
     public void ResetEditState_ClearsUndoStack()
     {
         using var session = PdfDocumentSession.Open(SamplePath());

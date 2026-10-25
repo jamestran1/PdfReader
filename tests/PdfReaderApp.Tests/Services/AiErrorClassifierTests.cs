@@ -150,5 +150,52 @@ public class AiErrorClassifierTests
         var ex = new AnthropicIOException("không kết nối được", new HttpRequestException("dns"));
         Assert.Equal(AiChatError.Network, AiErrorClassifier.Classify(ex));
     }
+
+    private const string GeminiPerDayMessage =
+        "You exceeded your current quota, please check your plan and billing details. Quota exceeded for metric: "
+        + "generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 50, "
+        + "quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier. Please retry in 12s.";
+
+    private const string GeminiPerMinuteMessage =
+        "You exceeded your current quota. Quota exceeded for metric: "
+        + "generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 10, "
+        + "quotaId: GenerateRequestsPerMinutePerProjectPerModel-FreeTier. Please retry in 12s.";
+
+    private static Google.GenAI.ApiException GoogleError(int status, string code, string message) =>
+        status >= 500
+            ? new Google.GenAI.ServerError(message, status, code, new HttpRequestException(message))
+            : new Google.GenAI.ClientError(message, status, code, new HttpRequestException(message));
+
+    [Theory]
+    [InlineData(400, "INVALID_ARGUMENT", "API key not valid. Please pass a valid API key. API_KEY_INVALID", AiChatError.Unauthorized)]
+    [InlineData(401, "UNAUTHENTICATED", "Request had invalid authentication credentials.", AiChatError.Unauthorized)]
+    [InlineData(403, "PERMISSION_DENIED", "API key not valid or permission denied.", AiChatError.Unauthorized)]
+    [InlineData(400, "INVALID_ARGUMENT", "Request contains an invalid argument.", AiChatError.Unknown)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", GeminiPerMinuteMessage, AiChatError.RateLimit)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", GeminiPerDayMessage, AiChatError.InsufficientQuota)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", "Quota exceeded for metric: generate_content_free_tier_requests, limit: 0", AiChatError.InsufficientQuota)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", "Resource has been exhausted (e.g. check quota).", AiChatError.RateLimit)]
+    [InlineData(503, "UNAVAILABLE", "The model is overloaded. Please try again later.", AiChatError.RateLimit)]
+    [InlineData(408, "DEADLINE_EXCEEDED", "Request timed out.", AiChatError.Network)]
+    [InlineData(504, "DEADLINE_EXCEEDED", "The service is unable to finish in time.", AiChatError.Network)]
+    [InlineData(500, "INTERNAL", "An internal error has occurred.", AiChatError.Unknown)]
+    public void Classify_GoogleApiException_MapsStatusAndMessage(int status, string code, string message, AiChatError expected) =>
+        Assert.Equal(expected, AiErrorClassifier.Classify(GoogleError(status, code, message)));
+
+    [Fact]
+    public void Classify_GoogleApiException_WithoutStatus_IsNetwork()
+    {
+        var ex = new Google.GenAI.ApiException("connection reset", new HttpRequestException("boom"));
+
+        Assert.Equal(AiChatError.Network, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_GoogleApiException_WrappedInInnerException_IsFound()
+    {
+        var ex = new InvalidOperationException("wrapped", GoogleError(401, "UNAUTHENTICATED", "bad key"));
+
+        Assert.Equal(AiChatError.Unauthorized, AiErrorClassifier.Classify(ex));
+    }
 }
 
