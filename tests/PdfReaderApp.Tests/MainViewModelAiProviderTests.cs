@@ -19,8 +19,9 @@ public sealed class MainViewModelAiProviderTests : IDisposable
     private sealed class MutableSettings(AiModelSettings initial, bool hasKey) : ISettingsService
     {
         public bool HasKey { get; set; } = hasKey;
+        public string Key { get; set; } = "key";
         public AiModelSettings Models { get; set; } = initial;
-        public string? GetApiKey(AiProvider provider) => HasKey ? "key" : null;
+        public string? GetApiKey(AiProvider provider) => HasKey ? Key : null;
         public void SaveApiKey(AiProvider provider, string apiKey) { }
         public bool HasApiKey(AiProvider provider) => HasKey;
         public AppTheme GetThemePreference() => AppTheme.Light;
@@ -145,7 +146,7 @@ public sealed class MainViewModelAiProviderTests : IDisposable
         AiModelSettings before = settings.Models;
 
         settings.Models = new AiModelSettings(AiProvider.Gemini, "gemini-2.5-flash", AiProvider.Gemini, "gemini-embedding-001");
-        vm.OnSettingsSaved(before, hadEmbeddingKey: true);
+        vm.OnSettingsSaved(before, embeddingKeyBefore: "key");
 
         Assert.Equal("Google Gemini · gemini-2.5-flash", vm.Chat.ActiveModelLabel);
     }
@@ -177,7 +178,7 @@ public sealed class MainViewModelAiProviderTests : IDisposable
         AiModelSettings before = settings.Models;
 
         settings.Models = GeminiEmbedding;
-        vm.OnSettingsSaved(before, hadEmbeddingKey: true);
+        vm.OnSettingsSaved(before, embeddingKeyBefore: "key");
         await vm.Indexing.BackgroundTask!.WaitAsync(Timeout);
 
         Assert.True(index.Probed("gemini-embedding-001"));
@@ -195,7 +196,7 @@ public sealed class MainViewModelAiProviderTests : IDisposable
 
         // Chỉ đổi chat model: embedding giữ nguyên.
         settings.Models = before with { ChatModel = "gpt-4o" };
-        vm.OnSettingsSaved(before, hadEmbeddingKey: true);
+        vm.OnSettingsSaved(before, embeddingKeyBefore: "key");
 
         Assert.Same(running, vm.Indexing.BackgroundTask);
     }
@@ -211,10 +212,42 @@ public sealed class MainViewModelAiProviderTests : IDisposable
         AiModelSettings before = settings.Models;
 
         settings.HasKey = true; // người dùng vừa nhập key, embedding giữ nguyên
-        vm.OnSettingsSaved(before, hadEmbeddingKey: false);
+        vm.OnSettingsSaved(before, embeddingKeyBefore: null);
 
         Assert.NotSame(first, vm.Indexing.BackgroundTask);
         await vm.Indexing.BackgroundTask!.WaitAsync(Timeout);
+    }
+
+    [Fact]
+    public async Task OnSettingsSaved_EmbeddingKeyReplaced_StartsIndexing()
+    {
+        var settings = new MutableSettings(AiModelSettings.Default, hasKey: true);
+        var vm = BuildVm(settings, new StatusProbeIndex());
+        OpenFakeDocument(vm);
+        Task first = vm.Indexing.BackgroundTask!;
+        await first.WaitAsync(Timeout);
+        AiModelSettings before = settings.Models;
+
+        settings.Key = "key-moi"; // thay key sai bằng key đúng, provider và model giữ nguyên
+        vm.OnSettingsSaved(before, embeddingKeyBefore: "key");
+
+        Assert.NotSame(first, vm.Indexing.BackgroundTask);
+        await vm.Indexing.BackgroundTask!.WaitAsync(Timeout);
+    }
+
+    [Fact]
+    public async Task OnSettingsSaved_EmbeddingKeyUnchanged_DoesNotRestartIndexing()
+    {
+        var settings = new MutableSettings(AiModelSettings.Default, hasKey: true);
+        var vm = BuildVm(settings, new StatusProbeIndex());
+        OpenFakeDocument(vm);
+        Task running = vm.Indexing.BackgroundTask!;
+        await running.WaitAsync(Timeout);
+        AiModelSettings before = settings.Models;
+
+        vm.OnSettingsSaved(before, embeddingKeyBefore: "key");
+
+        Assert.Same(running, vm.Indexing.BackgroundTask);
     }
 
     [Fact]
@@ -230,7 +263,7 @@ public sealed class MainViewModelAiProviderTests : IDisposable
         AiModelSettings before = settings.Models;
 
         settings.Models = GeminiEmbedding;
-        vm.OnSettingsSaved(before, hadEmbeddingKey: true);
+        vm.OnSettingsSaved(before, embeddingKeyBefore: "key");
         await vm.Indexing.BackgroundTask!.WaitAsync(Timeout);
 
         Assert.True(index.Probed("gemini-embedding-001"));
@@ -247,7 +280,7 @@ public sealed class MainViewModelAiProviderTests : IDisposable
         AiModelSettings before = settings.Models;
 
         settings.Models = GeminiEmbedding;
-        vm.OnSettingsSaved(before, hadEmbeddingKey: true);
+        vm.OnSettingsSaved(before, embeddingKeyBefore: "key");
 
         Assert.False(index.Probed("gemini-embedding-001"));
     }

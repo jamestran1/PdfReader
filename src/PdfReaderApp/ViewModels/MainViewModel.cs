@@ -879,26 +879,28 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void OpenSettings()
     {
         AiModelSettings before = _settingsService.GetModelSettings();
-        bool hadEmbeddingKey = _settingsService.HasApiKey(before.EmbeddingProvider);
+        string? embeddingKeyBefore = _settingsService.GetApiKey(before.EmbeddingProvider); // chỉ giữ trong biến cục bộ, không log
         var window = new SettingsWindow(new SettingsViewModel(_settingsService))
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (window.ShowDialog() == true) OnSettingsSaved(before, hadEmbeddingKey);
+        if (window.ShowDialog() == true) OnSettingsSaved(before, embeddingKeyBefore);
     }
 
     // Seam sau khi lưu Settings (test gọi trực tiếp, không cần cửa sổ): cập nhật nhãn provider ở khung chat,
-    // và chỉ khi Embedding Provider hoặc Model đổi, hoặc key embedding vừa từ chưa có thành có (tài liệu mở khi
-    // chưa có key đang ở TextOnly), mới lập chỉ mục tài liệu đang mở (model đã Complete thì DocumentIndexingService
-    // bỏ qua). Không đổi thì không huỷ lượt lập chỉ mục đang chạy.
-    internal void OnSettingsSaved(AiModelSettings before, bool hadEmbeddingKey)
+    // và chỉ khi Embedding Provider hoặc Model đổi, hoặc key embedding được thêm hay thay (tài liệu mở khi key
+    // thiếu hoặc sai đang ở TextOnly hay lỗi), mới lập chỉ mục tài liệu đang mở (model đã Complete thì
+    // DocumentIndexingService bỏ qua). Không đổi thì không huỷ lượt lập chỉ mục đang chạy.
+    internal void OnSettingsSaved(AiModelSettings before, string? embeddingKeyBefore)
     {
         Chat.RefreshActiveModel();
         AiModelSettings after = _settingsService.GetModelSettings();
         bool embeddingChanged = after.EmbeddingProvider != before.EmbeddingProvider || after.EmbeddingModel != before.EmbeddingModel;
-        bool embeddingKeyAdded = !hadEmbeddingKey && _settingsService.HasApiKey(after.EmbeddingProvider);
-        if (embeddingChanged || embeddingKeyAdded)
+        string? embeddingKeyAfter = _settingsService.GetApiKey(after.EmbeddingProvider);
+        bool embeddingKeyChanged = !string.IsNullOrEmpty(embeddingKeyAfter)
+            && !string.Equals(embeddingKeyBefore, embeddingKeyAfter, StringComparison.Ordinal);
+        if (embeddingChanged || embeddingKeyChanged)
             Indexing.StartBackgroundIndexing();
     }
 
