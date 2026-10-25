@@ -17,6 +17,7 @@ public sealed class ChatCancellationTests : IDisposable
 
     private readonly List<MainViewModel> _viewModels = [];
     private readonly List<string> _tempFiles = [];
+    private readonly List<List<AiMessage>> _sentMessages = [];
 
     private sealed class FakeSettings : ISettingsService
     {
@@ -29,12 +30,12 @@ public sealed class ChatCancellationTests : IDisposable
         public void SaveModelSettings(AiModelSettings settings) { }
     }
 
-    private sealed class FakeChatClientFactory(Func<CancellationToken, IAsyncEnumerable<ChatResponseUpdate>> stream) : IChatClientFactory
+    private sealed class FakeChatClientFactory(Func<CancellationToken, IAsyncEnumerable<ChatResponseUpdate>> stream, List<List<AiMessage>> sentMessages) : IChatClientFactory
     {
-        public IChatClient Create(AiClientOptions options) => new FakeChatClient(stream);
+        public IChatClient Create(AiClientOptions options) => new FakeChatClient(stream, sentMessages);
     }
 
-    private sealed class FakeChatClient(Func<CancellationToken, IAsyncEnumerable<ChatResponseUpdate>> stream) : IChatClient
+    private sealed class FakeChatClient(Func<CancellationToken, IAsyncEnumerable<ChatResponseUpdate>> stream, List<List<AiMessage>> sentMessages) : IChatClient
     {
         public Task<ChatResponse> GetResponseAsync(IEnumerable<AiMessage> messages,
             ChatOptions? options = null, CancellationToken cancellationToken = default)
@@ -43,7 +44,10 @@ public sealed class ChatCancellationTests : IDisposable
         public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
             IEnumerable<AiMessage> messages, ChatOptions? options = null,
             CancellationToken cancellationToken = default)
-            => stream(cancellationToken);
+        {
+            sentMessages.Add([.. messages]); // chụp lại: _history của service còn bị sửa tiếp
+            return stream(cancellationToken);
+        }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
         public void Dispose() { }
@@ -96,6 +100,29 @@ public sealed class ChatCancellationTests : IDisposable
         await Task.Delay(System.Threading.Timeout.Infinite, ct);
     }
 
+    // Phản ứng huỷ chậm: giả lập continuation của yêu cầu cũ chạy trễ sau khi yêu cầu mới đã thêm lượt của nó.
+    private static async IAsyncEnumerable<ChatResponseUpdate> SlowToCancelStream(
+        TaskCompletionSource started, [EnumeratorCancellation] CancellationToken ct)
+    {
+        yield return new ChatResponseUpdate(ChatRole.Assistant, "Đáp cũ");
+        started.TrySetResult();
+        try { await Task.Delay(System.Threading.Timeout.Infinite, ct); }
+        catch (OperationCanceledException)
+        {
+            await Task.Delay(300);
+            throw;
+        }
+    }
+
+    // Nhà cung cấp không tôn trọng token: sau khi bị huỷ vẫn kết thúc stream bình thường.
+    private static async IAsyncEnumerable<ChatResponseUpdate> TokenIgnoringStream(
+        TaskCompletionSource started, Task release)
+    {
+        yield return new ChatResponseUpdate(ChatRole.Assistant, "Đáp cũ");
+        started.TrySetResult();
+        await release;
+    }
+
     private static async IAsyncEnumerable<ChatResponseUpdate> ShortStream(string text)
     {
         await Task.Yield();
@@ -109,7 +136,7 @@ public sealed class ChatCancellationTests : IDisposable
         var vm = new MainViewModel(
             new FakeDocumentService(),
             new FakeSettings(),
-            new FakeChatClientFactory(stream),
+            new FakeChatClientFactory(stream, _sentMessages),
             new FakeDocumentIndex(),
             new ThrowingEmbeddingFactory(),
             chatHistory: chat,
@@ -200,5 +227,52 @@ public sealed class ChatCancellationTests : IDisposable
         Assert.True(tokens[0].IsCancellationRequested);
         Assert.Equal([(docA, "User", "Câu hai"), (docA, "AI", "Đáp mới")], chat.Appended);
         Assert.DoesNotContain(vm.Chat.Messages, m => m.Content.Contains("lỗi", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task SendingNewQuestion_WhileOldOneIsStillCancelling_KeepsNewUserTurnInLlmHistory()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int calls = 0;
+        var (vm, _) = BuildVm(ct => ++calls == 1 ? SlowToCancelStream(started, ct) : ShortStream("Đáp mới"));
+        OpenDocument(vm, "docA");
+        vm.Chat.Input = "Câu một";
+        var first = vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
+        await started.Task.WaitAsync(Timeout);
+        vm.Chat.Input = "Câu hai";
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null).WaitAsync(Timeout);
+        await first.WaitAsync(Timeout);
+        vm.Chat.Input = "Câu ba";
+
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null).WaitAsync(Timeout);
+
+        var thirdCall = _sentMessages[2];
+        Assert.Contains(thirdCall, m => m.Role == ChatRole.User && m.Text.Contains("Câu hai", StringComparison.Ordinal));
+        Assert.DoesNotContain(thirdCall, m => m.Text.Contains("Câu một", StringComparison.Ordinal));
+        Assert.DoesNotContain(thirdCall, m => m.Text.Contains("Đáp cũ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task CancelledRequest_WhoseStreamEndsNormally_IsNotPersistedNorRemembered()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int calls = 0;
+        var (vm, chat) = BuildVm(ct => ++calls == 1 ? TokenIgnoringStream(started, release.Task) : ShortStream("Đáp mới"));
+        string docA = OpenDocument(vm, "docA");
+        vm.Chat.Input = "Câu một";
+        var send = vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
+        await started.Task.WaitAsync(Timeout);
+        vm.Chat.CancelPendingRequest();
+        release.SetResult();
+        await send.WaitAsync(Timeout);
+        vm.Chat.Input = "Câu hai";
+
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null).WaitAsync(Timeout);
+
+        Assert.Equal([(docA, "User", "Câu hai"), (docA, "AI", "Đáp mới")], chat.Appended);
+        var secondCall = _sentMessages[1];
+        Assert.DoesNotContain(secondCall, m => m.Text.Contains("Đáp cũ", StringComparison.Ordinal));
+        Assert.DoesNotContain(secondCall, m => m.Text.Contains("Câu một", StringComparison.Ordinal));
     }
 }
