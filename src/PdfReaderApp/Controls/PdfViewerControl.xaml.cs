@@ -5,11 +5,10 @@ using System.Windows.Input;
 using SkiaSharp.Views.Desktop;
 using PdfiumViewer.Core;
 using PdfReaderApp.Core;
-using PdfReaderApp.Core.Commands;
 
 namespace PdfReaderApp.Controls;
 
-public partial class PdfViewerControl : UserControl, IDisposable
+public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewerHost
 {
 #pragma warning disable MA0046 // Sự kiện gắn trực tiếp từ XAML với chữ ký Action<string>, đổi sang EventHandler phải sửa cả XAML và code-behind
     public event System.Action<string>? LoadFailed;
@@ -23,7 +22,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private PdfDocument? _currentDocument => _session?.Document;
     private readonly List<Core.PageSlot> _slots = [];
-    private PdfObjectManager.GhostText? _activeEditTarget;
 
     public static readonly DependencyProperty DocumentSourceProperty =
         DependencyProperty.Register("DocumentSource", typeof(string), typeof(PdfViewerControl),
@@ -141,8 +139,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void RepaintOverlay() => skiaCanvas.InvalidateVisual();
 
-    // Trạng thái chọn text
-    private readonly Viewer.TextSelectionController _selection;
+    // Chuột, phím, chọn text và sửa text tại chỗ
+    private readonly Viewer.ViewerPointerInput _pointerInput;
 
     public static readonly DependencyProperty ViewModeProperty =
         DependencyProperty.Register(nameof(ViewMode), typeof(Core.PdfViewMode), typeof(PdfViewerControl),
@@ -182,19 +180,14 @@ public partial class PdfViewerControl : UserControl, IDisposable
     public PdfViewerControl()
     {
         _frameComposer = new Viewer.ViewerFrameComposer(_pageCache, _renderEngine);
-        _selection = new Viewer.TextSelectionController(pageIndex => _session!.ObjectManager.GetPageTexts(pageIndex));
+        _pointerInput = new Viewer.ViewerPointerInput(this);
         InitializeComponent();
         this.Unloaded += PdfViewerControl_Unloaded;
-        InteractionCanvas.MouseDown += OnCanvasMouseDown;
-        InteractionCanvas.MouseMove += InteractionCanvas_MouseMove;
-        InteractionCanvas.MouseLeftButtonUp += InteractionCanvas_MouseLeftButtonUp;
-        this.PreviewKeyDown += PdfViewerControl_PreviewKeyDown;
+        _pointerInput.Attach(InteractionCanvas, this, TextEditor);
 
         this.SizeChanged += PdfViewerControl_SizeChanged;
         this.PreviewMouseWheel += PdfViewerControl_PreviewMouseWheel;
 
-        TextEditor.EditingFinished += TextEditor_EditingFinished;
-        TextEditor.EditingCancelled += TextEditor_EditingCancelled;
         PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged += OnThemeChanged;
     }
 
@@ -260,146 +253,51 @@ public partial class PdfViewerControl : UserControl, IDisposable
         if (decision.ScrollToTop) PagesScrollViewer.ScrollToVerticalOffset(0);
     }
 
-    private void OnCanvasMouseDown(object sender, MouseButtonEventArgs e)
+    private void AddNoteButton_Click(object sender, RoutedEventArgs e) => _pointerInput.AddNoteFromSelection();
+
+    // IViewerHost: ViewerPointerInput chỉ YÊU CẦU; control là nơi duy nhất vẽ lại và đổi giao diện.
+    Viewer.PdfDocumentSession? Viewer.IViewerHost.Session => _session;
+
+    IReadOnlyList<Core.PageSlot> Viewer.IViewerHost.Slots => _slots;
+
+    double Viewer.IViewerHost.ZoomLevel => ZoomLevel;
+
+    System.Windows.Input.ICommand? Viewer.IViewerHost.AddNoteFromSelectionCommand => AddNoteFromSelectionCommand;
+
+    bool Viewer.IViewerHost.IsEditorVisible => TextEditor.Visibility == Visibility.Visible;
+
+    void Viewer.IViewerHost.RequestRepaint() => skiaCanvas.InvalidateVisual();
+
+    void Viewer.IViewerHost.ShowEditor(Point topLeft, Size size, string text)
     {
-        if (TextEditor.Visibility == Visibility.Visible)
-        {
-            HideEditor();
-        }
-
-        if (e.ClickCount == 2)
-        {
-            HandleDoubleClick(e);
-            return;
-        }
-
-        // Bắt đầu chọn text khi single left-down
-        if (e.ChangedButton == MouseButton.Left && e.ClickCount == 1 && _currentDocument != null)
-        {
-            ClearSelection();
-            var sp = e.GetPosition(InteractionCanvas);
-            if (TryPageHit(sp, out var slot, out var pdf))
-            {
-                _session!.ObjectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
-                if (_selection.Begin(slot.PageIndex, pdf))
-                    InteractionCanvas.CaptureMouse();
-            }
-        }
+        Canvas.SetLeft(TextEditor, topLeft.X);
+        Canvas.SetTop(TextEditor, topLeft.Y);
+        TextEditor.Visibility = Visibility.Visible;
+        TextEditor.StartEditing(text, new Rect(0, 0, size.Width, size.Height));
     }
 
-    private bool TryPageHit(Point screenPoint, out Core.PageSlot slot, out Point pdfPoint)
+    void Viewer.IViewerHost.HideEditor()
     {
-        if (Core.SlotHitTester.AtPoint(_slots, screenPoint) is { } hit)
-        {
-            slot = hit;
-            pdfPoint = Core.SlotHitTester.ToPdfPoint(hit, screenPoint, ZoomLevel);
-            return true;
-        }
-        slot = default!;
-        pdfPoint = default;
-        return false;
+        TextEditor.Visibility = Visibility.Collapsed;
+        skiaCanvas.Focus();
     }
 
-    private void InteractionCanvas_MouseMove(object sender, MouseEventArgs e)
+    void Viewer.IViewerHost.ShowAddNoteButton(Point topLeft)
     {
-        if (!_selection.IsSelecting) return;
-        var sp = e.GetPosition(InteractionCanvas);
-        if (!TryPageHit(sp, out var slot, out var pdf)) return;
-        if (!_selection.Extend(slot.PageIndex, pdf)) return;
-        AddNoteButton.Visibility = Visibility.Collapsed;
-        skiaCanvas.InvalidateVisual();
-    }
-
-    private void InteractionCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-    {
-        if (!_selection.IsSelecting) return;
-        bool hasSelection = _selection.Finish();
-        InteractionCanvas.ReleaseMouseCapture();
-        if (!hasSelection) return;
-        // Đặt nút nổi gần cuối vùng chọn (đổi PDF -> screen của trang đang chọn)
-        var slot = _slots.FirstOrDefault(s => s.PageIndex == _selection.PageIndex);
-        if (slot == null) return;
-        float scale = (float)ZoomLevel;
-        var last = _selection.LastLineRect;
-        Canvas.SetLeft(AddNoteButton, slot.X + last.Right * scale);
-        Canvas.SetTop(AddNoteButton, slot.Y + last.Bottom * scale + 2);
+        Canvas.SetLeft(AddNoteButton, topLeft.X);
+        Canvas.SetTop(AddNoteButton, topLeft.Y);
         AddNoteButton.Visibility = Visibility.Visible;
     }
 
-    private void AddNoteButton_Click(object sender, RoutedEventArgs e)
+    void Viewer.IViewerHost.HideAddNoteButton()
     {
-        var sel = _selection.ToNoteSelection();
-        if (sel != null && AddNoteFromSelectionCommand?.CanExecute(sel) == true)
-            AddNoteFromSelectionCommand.Execute(sel);
-        ClearSelection();
-    }
-
-    private void ClearSelection()
-    {
-        _selection.Clear();
         if (AddNoteButton != null)
             AddNoteButton.Visibility = Visibility.Collapsed;
-        skiaCanvas.InvalidateVisual();
     }
 
-    private void PdfViewerControl_PreviewKeyDown(object sender, KeyEventArgs e)
-    {
-        if (e.Key == Key.Escape)
-            ClearSelection();
-    }
+    void Viewer.IViewerHost.CapturePointer() => InteractionCanvas.CaptureMouse();
 
-    private void HandleDoubleClick(MouseButtonEventArgs e)
-    {
-        if (_currentDocument == null) return;
-
-        var screenPoint = e.GetPosition(InteractionCanvas);
-        float scale = (float)ZoomLevel;
-
-        if (Core.SlotHitTester.AtPoint(_slots, screenPoint) is not { } slot) return;
-
-        var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
-        var hit = _session!.ObjectManager.HitTest(slot.PageIndex, Core.SlotHitTester.ToPdfPoint(slot, screenPoint, scale));
-        if (hit != null)
-        {
-            ShowEditor(hit, rect, scale);
-        }
-    }
-
-    private void ShowEditor(PdfObjectManager.GhostText hit, Rect pageRect, float scale)
-    {
-        _activeEditTarget = hit;
-
-        Canvas.SetLeft(TextEditor, pageRect.Left + hit.Bounds.Left * scale - 5);
-        Canvas.SetTop(TextEditor, pageRect.Top + hit.Bounds.Top * scale - 3);
-
-        TextEditor.Visibility = Visibility.Visible;
-        TextEditor.StartEditing(hit.Text, new Rect(0, 0, hit.Bounds.Width * scale, hit.Bounds.Height * scale));
-    }
-
-    private void TextEditor_EditingFinished(object? sender, string newText)
-    {
-        if (_activeEditTarget != null && _activeEditTarget.Text != newText)
-        {
-            var command = new EditTextCommand(_activeEditTarget.PageIndex, _activeEditTarget.CharIndex, _activeEditTarget.Text, newText);
-            command.Execute();
-            _session?.UndoStack.Push(command); // session có thể đã đóng khi người dùng sửa dở lúc đổi tài liệu
-
-            _activeEditTarget.Text = newText;
-        }
-        HideEditor();
-    }
-
-    private void TextEditor_EditingCancelled(object? sender, EventArgs e)
-    {
-        HideEditor();
-    }
-
-    private void HideEditor()
-    {
-        TextEditor.Visibility = Visibility.Collapsed;
-        _activeEditTarget = null;
-        skiaCanvas.Focus();
-    }
+    void Viewer.IViewerHost.ReleasePointer() => InteractionCanvas.ReleaseMouseCapture();
 
     private static void OnDocumentSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -551,7 +449,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         _slots, ZoomLevel, (skiaCanvas.ActualWidth, skiaCanvas.ActualHeight),
         (PagesScrollViewer.HorizontalOffset, PagesScrollViewer.VerticalOffset), PagesScrollViewer.ViewportHeight,
         TryFindResource("TriThu.Brush.SurfaceTonalLow"),
-        _selection.PageIndex, _selection.LineRects, HighlightQuery, Highlights, CurrentDocumentId, MatchSource);
+        _pointerInput.SelectionPageIndex, _pointerInput.SelectionRects, HighlightQuery, Highlights, CurrentDocumentId, MatchSource);
 
     // Trong khi pending, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
     // Timer ổn định hoá re-assert cuộn tới trang đích sau nạp (xem ScrollSettleTimer).
@@ -601,7 +499,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
         // Xóa vùng chọn khi cuộn (tránh overlay bị lệch vị trí)
         if (e.VerticalChange != 0 || e.HorizontalChange != 0)
-            ClearSelection();
+            _pointerInput.ClearSelection();
 
         skiaCanvas.InvalidateVisual();
 
@@ -640,15 +538,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
         {
             if (disposing)
             {
-                InteractionCanvas.MouseDown -= OnCanvasMouseDown;
-                InteractionCanvas.MouseMove -= InteractionCanvas_MouseMove;
-                InteractionCanvas.MouseLeftButtonUp -= InteractionCanvas_MouseLeftButtonUp;
-                this.PreviewKeyDown -= PdfViewerControl_PreviewKeyDown;
+                _pointerInput.Detach();
                 this.SizeChanged -= PdfViewerControl_SizeChanged;
                 this.PreviewMouseWheel -= PdfViewerControl_PreviewMouseWheel;
 
-                TextEditor.EditingFinished -= TextEditor_EditingFinished;
-                TextEditor.EditingCancelled -= TextEditor_EditingCancelled;
                 PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged -= OnThemeChanged;
 
                 _pageCache.Dispose();
