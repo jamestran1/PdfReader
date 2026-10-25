@@ -18,17 +18,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private Viewer.PdfDocumentSession? _session;
     private readonly RenderEngine _renderEngine = new();
-    private readonly Dictionary<int, SKBitmap> _pageCache = [];
+    private readonly Viewer.PageBitmapCache _pageCache = new();
     private bool _disposed;
-
-    // Dark mode: đảo độ sáng (nền tối, chữ sáng) nhưng GIỮ hue — dễ đọc hơn đảo RGB thẳng.
-    private static readonly SKColorFilter DarkPageColorFilter =
-        SKColorFilter.CreateHighContrast(new SKHighContrastConfig
-        {
-            Grayscale = false,
-            InvertStyle = SKHighContrastConfigInvertStyle.InvertLightness,
-            Contrast = 0f
-        });
 
     private PdfDocument? _currentDocument => _session?.Document;
     private readonly List<Core.PageSlot> _slots = [];
@@ -525,10 +516,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
         _slots.Clear();
         if (!keepCache)
-        {
-            _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
-        }
 
         var sizes = _session!.GetPageSizes();
 
@@ -584,143 +572,38 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void OnPaintCanvas(object sender, SKPaintSurfaceEventArgs e)
     {
-        if (_currentDocument == null || e.Surface == null) return;
+        if (_session == null || e.Surface == null) return;
 
-        var canvas = e.Surface.Canvas;
-        canvas.Clear(ResolveGutterColor());
+        Viewer.PdfPagePainter.Paint(e.Surface.Canvas, BuildPaintFrame(_session, e.Info));
+    }
 
-        // The Skia surface is in DEVICE PIXELS (ActualWidth * DPI scale), but all layout/scroll
-        // coordinates below are in DIPs. On a >100% display this mismatch pushed the page into the
-        // top-left and shrank it. Scale the canvas so DIP coordinates map onto the full pixel surface.
-        float dpiX = skiaCanvas.ActualWidth > 0 ? (float)(e.Info.Width / skiaCanvas.ActualWidth) : 1f;
-        float dpiY = skiaCanvas.ActualHeight > 0 ? (float)(e.Info.Height / skiaCanvas.ActualHeight) : 1f;
-        canvas.Scale(dpiX, dpiY);
-
+    private Viewer.PaintFrame BuildPaintFrame(Viewer.PdfDocumentSession session, SKImageInfo info)
+    {
+        float dpiX = skiaCanvas.ActualWidth > 0 ? (float)(info.Width / skiaCanvas.ActualWidth) : 1f;
+        float dpiY = skiaCanvas.ActualHeight > 0 ? (float)(info.Height / skiaCanvas.ActualHeight) : 1f;
         float scale = (float)ZoomLevel;
 
-        double viewTop = PagesScrollViewer.VerticalOffset;
-        double viewBottom = viewTop + PagesScrollViewer.ViewportHeight;
+        var overlays = new Viewer.OverlayData(
+            _selection.PageIndex, _selection.LineRects, HighlightQuery, Highlights, CurrentDocumentId);
+        var sources = new Viewer.PageSources(
+            pageIndex => GetPageBitmap(session, pageIndex, scale * dpiX),
+            session.ImageRectsByPage,
+            MatchSource == null ? null : GetMatchRects,
+            pageIndex => session.GetPageSize(pageIndex).Height);
 
-        // Translate canvas for BOTH X and Y scrolling
-        canvas.Translate((float)-PagesScrollViewer.HorizontalOffset, (float)-viewTop);
-
-        foreach (var slot in _slots)
-        {
-            var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
-            if (rect.Bottom < viewTop || rect.Top > viewBottom) continue;
-
-            DrawPageSlot(canvas, slot, rect, scale, dpiX);
-            DrawHighlights(canvas, slot.PageIndex, rect, scale);
-            DrawSelectionOverlay(canvas, slot.PageIndex, rect, scale);
-            DrawSavedHighlights(canvas, slot.PageIndex, rect, scale);
-        }
+        return new Viewer.PaintFrame(
+            _slots, scale, (dpiX, dpiY),
+            (PagesScrollViewer.HorizontalOffset, PagesScrollViewer.VerticalOffset), PagesScrollViewer.ViewportHeight,
+            ResolveGutterColor(), Services.MaterialDesignThemeService.Current == Models.AppTheme.Dark,
+            overlays, sources);
     }
 
-    private void DrawPageSlot(SKCanvas canvas, Core.PageSlot slot, System.Windows.Rect rect, float scale, float dpiX)
+    // Render ở độ phân giải thiết bị (zoom * DPI) để trang vẫn nét khi canvas scale theo DPI.
+    private SKBitmap GetPageBitmap(Viewer.PdfDocumentSession session, int pageIndex, float renderScale)
     {
-        _session!.ObjectManager.MapPage(_currentDocument!.Pages[slot.PageIndex], slot.PageIndex);
-
-        // Render at device-pixel resolution (zoom * DPI) so the page stays crisp when the
-        // canvas is scaled by DPI; draw into the DIP dest rect so it maps 1:1 in pixels.
-        if (!_pageCache.ContainsKey(slot.PageIndex))
-            _pageCache[slot.PageIndex] = _renderEngine.RenderPage(_currentDocument.Pages[slot.PageIndex], scale * dpiX);
-
-        var bitmap = _pageCache[slot.PageIndex];
-        var dest = SKRect.Create((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height);
-        if (Services.MaterialDesignThemeService.Current == Models.AppTheme.Dark)
-        {
-            using var invertPaint = new SKPaint { ColorFilter = DarkPageColorFilter };
-            canvas.DrawBitmap(bitmap, dest, invertPaint);
-            DrawOriginalImages(canvas, slot.PageIndex, bitmap, rect);
-        }
-        else
-        {
-            canvas.DrawBitmap(bitmap, dest);
-        }
-
-        using var paint = new SKPaint { Color = SKColors.Black, IsStroke = true, StrokeWidth = 1 };
-        canvas.DrawRect((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height, paint);
-    }
-
-    // Vẽ lại vùng ảnh bằng pixel gốc (không đảo màu) đè lên trang đã đảo màu.
-    private void DrawOriginalImages(SKCanvas canvas, int pageIndex, SKBitmap bitmap, System.Windows.Rect rect)
-    {
-        if (!_session!.ImageRectsByPage.TryGetValue(pageIndex, out var imageRects)) return;
-
-        var pageRect = new Core.RectF((float)rect.Left, (float)rect.Top, (float)rect.Width, (float)rect.Height);
-        foreach (var img in imageRects)
-        {
-            var (src, dst) = Core.DarkPageImageOverlay.Map(img, bitmap.Width, bitmap.Height, pageRect);
-            canvas.DrawBitmap(bitmap,
-                SKRect.Create(src.Left, src.Top, src.Width, src.Height),
-                SKRect.Create(dst.Left, dst.Top, dst.Width, dst.Height));
-        }
-    }
-
-    // Ve lai highlight da luu - toa do top-origin (PDF), khong lat Y
-    private void DrawSavedHighlights(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
-    {
-        if (Highlights == null) return;
-        foreach (var obj in Highlights)
-        {
-            if (obj is not PdfReaderApp.Models.Note note) continue;
-            if (note.PageIndex != pageIndex || note.Rects == null) continue;
-            if (CurrentDocumentId != null && note.DocumentId != null && note.DocumentId != CurrentDocumentId) continue;
-            var color = HighlightColor.Parse(note.Color);
-            using var paint = new SKPaint { Color = color, Style = SKPaintStyle.Fill };
-            var page = ToRectF(pageRect);
-            foreach (var r in note.Rects)
-                canvas.DrawRect(ToSkRect(Core.OverlayGeometry.TopOrigin(r.X, r.Y, r.W, r.H, scale, page)), paint);
-        }
-    }
-
-    private static Core.RectF ToRectF(System.Windows.Rect r)
-        => new((float)r.Left, (float)r.Top, (float)r.Width, (float)r.Height);
-
-    private static SKRect ToSkRect(Core.RectF r) => SKRect.Create(r.Left, r.Top, r.Width, r.Height);
-
-    private void DrawSelectionOverlay(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
-    {
-        if (_selection.PageIndex != pageIndex || _selection.LineRects.Count == 0 || _currentDocument == null) return;
-
-        // GhostText.Bounds là top-origin (Y hướng xuống) - cùng hệ với double-click/ShowEditor
-        // (đặt tại pageRect.Top + Bounds.Top*scale). KHÔNG lật Y như DrawHighlights (vốn dùng
-        // MatchRect bottom-origin của iText). Chỉ cần nhân scale + cộng offset của trang.
-        using var paint = new SKPaint { Color = new SKColor(33, 150, 243, 90), Style = SKPaintStyle.Fill };
-        var page = ToRectF(pageRect);
-        foreach (var r in _selection.LineRects)
-            canvas.DrawRect(ToSkRect(Core.OverlayGeometry.TopOrigin(r.Left, r.Top, r.Width, r.Height, scale, page)), paint);
-    }
-
-    private void DrawHighlights(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
-    {
-        if (_currentDocument == null) return;
-
-        string query = HighlightQuery;
-        if (string.IsNullOrWhiteSpace(query) || MatchSource == null) return;
-
-        // iText computes the exact keyword rectangles (PDF user-space) from the real glyph layout.
-        var rects = GetMatchRects(pageIndex, query);
-        if (rects.Count == 0) return;
-
-        // The page is laid out on the canvas at pageSize * scale (PageLayoutCalculator scales slots by scale),
-        // i.e. 1 PDF point = `scale` pixels. The highlight mapper must use the SAME pixels-per-point,
-        // which means dpi=72 (ppp = scale * 72/72 = scale). Using 96 over-scales by 1.333x and the
-        // rects drift away from the text (worse further from the origin).
-        var pageSize = _session!.GetPageSize(pageIndex);
-        float pageHeightPt = (float)pageSize.Height;
-        var page = ToRectF(pageRect);
-
-        using var highlightPaint = new SKPaint
-        {
-            Color = new SKColor(255, 235, 59, 110),
-            IsStroke = false
-        };
-
-        foreach (var m in rects)
-        {
-            canvas.DrawRect(ToSkRect(Core.OverlayGeometry.SearchMatch(m, pageHeightPt, scale, page)), highlightPaint);
-        }
+        var page = session.Document.Pages[pageIndex];
+        session.ObjectManager.MapPage(page, pageIndex);
+        return _pageCache.GetOrRender(pageIndex, () => _renderEngine.RenderPage(page, renderScale));
     }
 
     // Trong khi pending, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
@@ -787,7 +670,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (_session != null)
         {
-            _pageCache.Values.ToList().ForEach(b => b.Dispose());
             _pageCache.Clear();
             _session.Dispose();
             _session = null;
@@ -822,6 +704,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
                 TextEditor.EditingCancelled -= TextEditor_EditingCancelled;
                 PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged -= OnThemeChanged;
 
+                _pageCache.Dispose();
                 DisposeCurrentDocument();
                 _renderEngine.Dispose();
             }
