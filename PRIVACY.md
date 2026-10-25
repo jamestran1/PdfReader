@@ -17,7 +17,7 @@ Các tính năng AI (chat về tài liệu, tìm kiếm theo ngữ nghĩa) dùng
 - **Khi chưa nhập API key:** không có dữ liệu nào được gửi đi. Đọc, chú thích, tìm kiếm văn bản vẫn dùng được.
 - **Khi đã nhập API key:**
   - Lúc mở một tài liệu, văn bản của tài liệu được chia đoạn và gửi tới OpenAI để tạo embedding (lập chỉ mục cho tìm kiếm ngữ nghĩa và chat).
-  - Lúc bạn chat, câu hỏi của bạn cùng các đoạn văn bản liên quan trong tài liệu được gửi tới OpenAI để tạo câu trả lời.
+  - Lúc bạn chat, câu hỏi của bạn, các đoạn văn bản liên quan trong tài liệu và các lượt hội thoại trước đó về tài liệu này (kể cả lịch sử chat đã lưu từ lần mở trước) được gửi tới OpenAI để tạo câu trả lời.
 
 Dữ liệu gửi tới OpenAI chịu [chính sách quyền riêng tư](https://openai.com/policies/privacy-policy) và [điều khoản API](https://openai.com/policies/business-terms) của OpenAI. Muốn không gửi tài liệu nào đi, hãy không nhập API key.
 
