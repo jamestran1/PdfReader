@@ -13,12 +13,19 @@ public class AiClientFactoryTests
         Assert.NotNull(client);
     }
 
-    [Theory]
-    [InlineData(AiProvider.Gemini)]
-    [InlineData(AiProvider.Claude)]
-    public void ChatFactory_Throws_ForProvidersNotYetSupported(AiProvider provider) =>
+    [Fact]
+    public void ChatFactory_CreatesClient_ForClaude_WithoutNetwork()
+    {
+        using var client = new AiChatClientFactory()
+            .Create(new AiClientOptions(AiProvider.Claude, "claude-sonnet-5-5", "sk-ant-test"));
+
+        Assert.NotNull(client);
+    }
+
+    [Fact]
+    public void ChatFactory_Throws_ForGeminiNotYetSupported() =>
         Assert.Throws<NotSupportedException>(() =>
-            new AiChatClientFactory().Create(new AiClientOptions(provider, "m", "k")));
+            new AiChatClientFactory().Create(new AiClientOptions(AiProvider.Gemini, "m", "k")));
 
     [Fact]
     public void EmbeddingFactory_CreatesGenerator_ForOpenAi()
