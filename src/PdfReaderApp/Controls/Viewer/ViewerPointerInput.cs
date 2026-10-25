@@ -204,7 +204,9 @@ internal sealed class ViewerPointerInput
 
     private void HideEditor()
     {
-        _host.HideEditor();
+        // Gán null TRƯỚC khi host ẩn editor và trả focus: LostFocus bắn đồng bộ sẽ gọi lại EditingFinished,
+        // lúc đó không còn target thì không ghi chữ đã sửa khi người dùng bấm Escape.
         _activeEditTarget = null;
+        _host.HideEditor();
     }
 }

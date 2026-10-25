@@ -67,7 +67,13 @@ public sealed class ViewerPointerInputTests : IDisposable
             EditorText = text;
         }
 
-        public void HideEditor() => IsEditorVisible = false;
+        public Action? OnHideEditor { get; set; }
+
+        public void HideEditor()
+        {
+            IsEditorVisible = false;
+            OnHideEditor?.Invoke();
+        }
 
         public void ShowAddNoteButton(Point topLeft) => AddNoteButtonAt = topLeft;
 
@@ -264,6 +270,21 @@ public sealed class ViewerPointerInputTests : IDisposable
 
         Assert.Equal("#", glyph.Text);
         Assert.False(_host.IsEditorVisible);
+    }
+
+    [Fact]
+    public void EditingCancelled_WhenHideEditorRaisesLostFocus_DoesNotCommitEditedText()
+    {
+        var glyph = FirstGlyph();
+        string original = glyph.Text;
+        _input.HandleMouseDown(Center(glyph), MouseButton.Left, 2);
+        // Giả lập LostFocus bắn đồng bộ khi host ẩn editor và trả focus.
+        _host.OnHideEditor = () => _input.HandleEditingFinished("#");
+
+        _input.HandleEditingCancelled();
+
+        Assert.Empty(_session.UndoStack);
+        Assert.Equal(original, glyph.Text);
     }
 
     [Fact]
