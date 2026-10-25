@@ -717,16 +717,16 @@ public partial class PdfViewerControl : UserControl, IDisposable
             if (CurrentDocumentId != null && note.DocumentId != null && note.DocumentId != CurrentDocumentId) continue;
             var color = HighlightColor.Parse(note.Color);
             using var paint = new SKPaint { Color = color, Style = SKPaintStyle.Fill };
+            var page = ToRectF(pageRect);
             foreach (var r in note.Rects)
-            {
-                canvas.DrawRect(SKRect.Create(
-                    (float)(pageRect.Left + r.X * scale),
-                    (float)(pageRect.Top + r.Y * scale),
-                    (float)(r.W * scale),
-                    (float)(r.H * scale)), paint);
-            }
+                canvas.DrawRect(ToSkRect(Core.OverlayGeometry.TopOrigin(r.X, r.Y, r.W, r.H, scale, page)), paint);
         }
     }
+
+    private static Core.RectF ToRectF(System.Windows.Rect r)
+        => new((float)r.Left, (float)r.Top, (float)r.Width, (float)r.Height);
+
+    private static SKRect ToSkRect(Core.RectF r) => SKRect.Create(r.Left, r.Top, r.Width, r.Height);
 
     private void DrawSelectionOverlay(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
     {
@@ -736,14 +736,9 @@ public partial class PdfViewerControl : UserControl, IDisposable
         // (đặt tại pageRect.Top + Bounds.Top*scale). KHÔNG lật Y như DrawHighlights (vốn dùng
         // MatchRect bottom-origin của iText). Chỉ cần nhân scale + cộng offset của trang.
         using var paint = new SKPaint { Color = new SKColor(33, 150, 243, 90), Style = SKPaintStyle.Fill };
+        var page = ToRectF(pageRect);
         foreach (var r in _selectionRectsPdf)
-        {
-            canvas.DrawRect(SKRect.Create(
-                (float)(pageRect.Left + r.Left * scale),
-                (float)(pageRect.Top + r.Top * scale),
-                (float)(r.Width * scale),
-                (float)(r.Height * scale)), paint);
-        }
+            canvas.DrawRect(ToSkRect(Core.OverlayGeometry.TopOrigin(r.Left, r.Top, r.Width, r.Height, scale, page)), paint);
     }
 
     private void DrawHighlights(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
@@ -763,7 +758,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         // rects drift away from the text (worse further from the origin).
         var pageSize = _currentDocument.Pages[pageIndex].Size;
         float pageHeightPt = (float)pageSize.Height;
-        var mapper = new PdfCoordinateMapper(pageHeightPt, scale, 72);
+        var page = ToRectF(pageRect);
 
         using var highlightPaint = new SKPaint
         {
@@ -773,15 +768,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
         foreach (var m in rects)
         {
-            // MatchRect (PdfX, PdfY) is the bottom-left; top = PdfY + Height (PDF Y grows upward).
-            var (rx, ry) = mapper.PdfPointToRender(m.PdfX, m.PdfY + m.Height);
-            var highlightRect = SKRect.Create(
-                (float)pageRect.Left + rx,
-                (float)pageRect.Top + ry,
-                m.Width * scale,
-                m.Height * scale);
-
-            canvas.DrawRect(highlightRect, highlightPaint);
+            canvas.DrawRect(ToSkRect(Core.OverlayGeometry.SearchMatch(m, pageHeightPt, scale, page)), highlightPaint);
         }
     }
 
