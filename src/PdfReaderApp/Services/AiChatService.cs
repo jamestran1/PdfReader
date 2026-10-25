@@ -76,6 +76,8 @@ public sealed class AiChatService : IDisposable
 
                 if (step.Fatal != null)
                 {
+                    // Huỷ có thể làm SDK ném lỗi khác OCE (kết nối bị đóng): vẫn coi là huỷ, không báo lỗi.
+                    ThrowIfCancelled(userTurn, ct);
                     _history.Remove(userTurn);
                     throw step.Fatal;
                 }
