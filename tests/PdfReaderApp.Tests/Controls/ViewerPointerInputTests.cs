@@ -72,7 +72,10 @@ public sealed class ViewerPointerInputTests : IDisposable
         public void HideEditor()
         {
             IsEditorVisible = false;
-            OnHideEditor?.Invoke();
+            // Chỉ bắn một lần: LostFocus thật cũng không lặp vì editor đã ẩn.
+            var callback = OnHideEditor;
+            OnHideEditor = null;
+            callback?.Invoke();
         }
 
         public void ShowAddNoteButton(Point topLeft) => AddNoteButtonAt = topLeft;
