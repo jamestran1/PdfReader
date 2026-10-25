@@ -10,13 +10,10 @@ namespace PdfReaderApp.ViewModels;
 
 public partial class MainViewModel : ObservableObject, IDisposable
 {
-    private const int ContextPageWindow = 2;
-
     private readonly IPdfDocumentService _documentService;
     private readonly ISettingsService _settingsService;
     private readonly IThemeService _themeService;
     private readonly PdfStructureAnalyzer _analyzer;
-    private readonly AiChatService _chatService;
 
     // Tab S1: Open Set
     public TabSetViewModel Tabs { get; }
@@ -39,7 +36,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // SP2 Task 8: index, indexing service, RAG context
     private readonly IDocumentIndex _documentIndex;
-    private readonly RagContextService _ragContext;
 
     // Workspace
     private readonly IWorkspaceStore _workspaceStore;
@@ -53,7 +49,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Exposed so PdfViewerControl can ask iText for exact keyword match rectangles to highlight.
     public IPdfDocumentService PdfService => _documentService;
-    private bool _isSending;
 
     private IReadOnlyList<PageText> _pageTexts = [];
 
@@ -233,7 +228,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<LibraryItem> Library { get; } = [];
 
     private readonly LibraryService _library;
-    private readonly IChatHistoryStore _chatHistory;
 
     // Đặt chế độ xem (radio-style): bấm nút luôn set mode, không bao giờ bỏ chọn mode hiện tại.
     [RelayCommand]
@@ -242,14 +236,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (Enum.TryParse<PdfViewMode>(mode, out var m)) ViewMode = m;
     }
 
-    [ObservableProperty]
-    public partial string ChatInput { get; set; } = string.Empty;
-
-    public ObservableCollection<ChatMessage> ChatMessages { get; } = [];
-
     public NotesViewModel Notes { get; }
 
     public IndexingViewModel Indexing { get; }
+    public ChatViewModel Chat { get; }
     public WorkspaceDocumentsViewModel DocumentsSurface { get; }
     public NotificationViewModel Notifications { get; } = new();
 
@@ -292,7 +282,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _themeService = services.ThemeService;
         IsDarkMode = _settingsService.GetThemePreference() == AppTheme.Dark;
         _analyzer = new PdfStructureAnalyzer(_documentService);
-        _chatService = new AiChatService(_settingsService, services.ChatClientFactory);
 
         _documentIndex = services.DocumentIndex;
         _documentIndex.EnsureSchema();
@@ -300,13 +289,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
             _documentIndex,
             new DocumentIndexingService(_documentIndex, services.EmbeddingFactory, _settingsService),
             () => _documentId is null ? null : new IndexingTarget(_documentId, FilePath, _pageTexts));
-        _ragContext = new RagContextService(_documentIndex, services.EmbeddingFactory, _settingsService);
 
         _library = services.Library;
         ReloadLibrary();
 
-        _chatHistory = services.ChatHistory;
-        _chatHistory.EnsureSchema();
+        Chat = ChatViewModel.Create(services, GetChatContext);
 
         _noteStore = services.NoteStore;
         _noteStore.EnsureSchema();
@@ -324,7 +311,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         MigrateLegacyNotesToDefaultWorkspace();
 
         ReloadWorkspaces();
-        LoadChatHistory();
+        Chat.LoadHistory();
 
         DocumentsSurface = CreateDocumentsSurface();
 
@@ -844,8 +831,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         // Dọn note neo trực tiếp tới tài liệu ở mọi nơi
         _noteStore.DeleteForDocument(docId);
-#pragma warning disable CA1031 // best-effort: dọn lịch sử chat và chỉ mục, lỗi không chặn việc xoá tài liệu
-        try { _chatHistory.DeleteForDocument(docId); } catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.RemoveLibraryItem: xoá lịch sử chat lỗi: {ex}"); }
+        Chat.DeleteHistoryFor(docId);
+#pragma warning disable CA1031 // best-effort: dọn chỉ mục, lỗi không chặn việc xoá tài liệu
         try { _documentIndex.DeleteDocument(docId); } catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.RemoveLibraryItem: xoá chỉ mục lỗi: {ex}"); }
 #pragma warning restore CA1031
         _library.Remove(item);
@@ -882,7 +869,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string title = System.IO.Path.GetFileNameWithoutExtension(path);
             _activeWorkspaceId = ResolveWorkspaceScope(workspaceScopeId, _documentId, title, nowMs);
-            LoadChatHistory();
+            Chat.LoadHistory();
             Notes.LoadFor(_activeWorkspaceId);
             UpdateNotesDocumentContext();
             OnPropertyChanged(nameof(ActiveWorkspaceId));
@@ -901,7 +888,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(CurrentDocumentId));
             OnPropertyChanged(nameof(HasDocument));
             OnPropertyChanged(nameof(CanPromoteToWorkspace));
-            LoadChatHistory();
+            Chat.LoadHistory();
             Notes.LoadFor(null);
             UpdateNotesDocumentContext();
             NotifyError($"Không thể mở file PDF: {ex.Message}");
@@ -915,179 +902,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     internal string ResolveWorkspaceScope(string? explicitWorkspaceId, string documentId, string title, long nowUnixMs)
         => explicitWorkspaceId ?? _workspaceStore.GetOrCreateDefaultForDocument(documentId, title, nowUnixMs).Id;
 
-    // Nạp lại khung chat theo sách đang mở: hiện bong bóng cũ và dựng lại bộ nhớ LLM.
-    // Sách chưa có lịch sử (hoặc chưa mở sách nào) -> hiện 1 bong bóng chào, reset LLM.
-    private string? _currentChatOwnerId;
-
-    private void LoadChatHistory()
-    {
-        string? newOwnerId = IsWorkspaceSession ? _activeWorkspaceId : _documentId;
-        if (newOwnerId == _currentChatOwnerId && _currentChatOwnerId != null) return;
-        _currentChatOwnerId = newOwnerId;
-
-        ChatMessages.Clear();
-
-        if (newOwnerId is null)
-        {
-            ShowGreeting();
-            _chatService.ResetConversation();
-            return;
-        }
-
-        System.Collections.Generic.IReadOnlyList<ChatHistoryEntry> entries;
-        try { entries = _chatHistory.GetAll(newOwnerId); }
-#pragma warning disable CA1031 // degrade: đọc lịch sử chat lỗi thì coi như chưa có lịch sử
-        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.LoadChatHistory: đọc lịch sử chat lỗi: {ex}"); entries = System.Array.Empty<ChatHistoryEntry>(); }
-#pragma warning restore CA1031
-
-        if (entries.Count == 0)
-        {
-            ShowGreeting();
-            _chatService.ResetConversation();
-            return;
-        }
-
-        // Hiển thị TẤT CẢ bong bóng để transcript trung thực, nhưng chỉ nạp các lượt
-        // "dùng được" làm trí nhớ LLM (bỏ AI rỗng / báo lỗi / bị gián đoạn).
-        foreach (var e in entries)
-            ChatMessages.Add(new ChatMessage { Role = e.Role, Content = e.Content });
-        _chatService.SeedHistory(MemoryTurns(entries.Select(e => (e.Role, e.Content))));
-    }
-
-    private void ShowGreeting() => ChatMessages.Add(new ChatMessage
-    {
-        Role = "AI",
-        Content = "Xin chào! Tôi có thể giúp gì cho bạn về tài liệu này?"
-    });
-
-    // Lọc các lượt để nạp làm trí nhớ LLM. Giữ mọi lượt User; bỏ lượt AI rỗng, là thông báo
-    // lỗi (suy ra từ MapError + các hằng số dưới), hoặc chứa sentinel gián đoạn. Bong bóng UI
-    // vẫn hiển thị đầy đủ, chỉ trí nhớ LLM được làm sạch để AI không "nhớ nhầm" câu lỗi.
-    internal static IEnumerable<(string role, string content)> MemoryTurns(
-        IEnumerable<(string role, string content)> turns)
-        => turns.Where(t => IsMemoryUsable(t.role, t.content));
-
-    internal static bool IsMemoryUsable(string role, string content)
-    {
-        if (role != "AI") return true;
-        if (string.IsNullOrEmpty(content)) return false;
-        if (content.Contains(AiChatService.InterruptedSentinel, StringComparison.Ordinal)) return false;
-        return !NonMemoryAiMessages.Contains(content);
-    }
-
-    // Các nội dung AI KHÔNG phải câu trả lời thật (thông báo lỗi). Suy ra từ chính MapError nên
-    // tự cập nhật nếu đổi lời lỗi, cộng 2 hằng số dùng ở các nhánh thoát sớm của SendMessage.
-    private static readonly System.Collections.Generic.HashSet<string> NonMemoryAiMessages
-        = BuildNonMemoryAiMessages();
-
-    private static System.Collections.Generic.HashSet<string> BuildNonMemoryAiMessages()
-    {
-        var set = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal)
-        {
-            NotConfiguredMessage,
-            UnknownErrorMessage,
-        };
-        foreach (AiChatError e in Enum.GetValues<AiChatError>())
-            set.Add(MapError(e));
-        return set;
-    }
-
-    private const string NotConfiguredMessage =
-        "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key.";
-    private const string UnknownErrorMessage = "Đã xảy ra lỗi không xác định khi gọi AI.";
-
-    [RelayCommand]
-    private async Task SendMessageAsync()
-    {
-        if (string.IsNullOrWhiteSpace(ChatInput)) return;
-        if (_isSending) return;
-        _isSending = true;
-
-        try
-        {
-            string question = ChatInput;
-            ChatInput = string.Empty;
-            ChatMessages.Add(new ChatMessage { Role = "User", Content = question });
-
-            if (!_chatService.IsConfigured)
-            {
-                ChatMessages.Add(new ChatMessage { Role = "AI", Content = NotConfiguredMessage });
-                PersistTurn(question, NotConfiguredMessage);
-                return;
-            }
-
-            string context = await BuildChatContextAsync(question);
-
-            var aiMessage = new ChatMessage { Role = "AI", Content = string.Empty };
-            ChatMessages.Add(aiMessage);
-
-            await StreamAnswerAsync(aiMessage, question, context);
-            PersistTurn(question, aiMessage.Content);
-        }
-        finally
-        {
-            _isSending = false;
-        }
-    }
-
-    private void PersistTurn(string question, string answer)
-    {
-        string? owner = IsWorkspaceSession ? _activeWorkspaceId : _documentId;
-        if (owner is null) return;
-        try
-        {
-            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            _chatHistory.Append(owner, "User", question, now);
-            _chatHistory.Append(owner, "AI", answer, now);
-        }
-#pragma warning disable CA1031 // best-effort: lưu lịch sử lỗi không được chặn chat
-        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.PersistTurn: lưu lịch sử chat lỗi: {ex}"); /* không chặn chat khi lưu lỗi */ }
-#pragma warning restore CA1031
-    }
-
-    private async Task<string> BuildChatContextAsync(string question)
-    {
-        string? rag = null;
-        if (_documentId is not null)
-        {
-            try { rag = await _ragContext.BuildContextAsync(_documentId, question, ct: CancellationToken.None); }
-#pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
-            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.SendMessage: RAG lỗi: {ex}"); rag = null; }
-#pragma warning restore CA1031
-        }
-        return rag ?? DocumentContextBuilder.BuildAround(_documentBlocks, CurrentPage, ContextPageWindow);
-    }
-
-    private async Task StreamAnswerAsync(ChatMessage aiMessage, string question, string context)
-    {
-        try
-        {
-            await foreach (var token in _chatService.AskStreamingAsync(question, context, CancellationToken.None))
-            {
-                aiMessage.Content += token;
-            }
-        }
-        catch (AiChatException ex)
-        {
-            aiMessage.Content = MapError(ex.Error);
-        }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: lỗi chat không lường trước thì hiện thông báo lỗi chung
-        catch (Exception ex)
-        {
-            System.Diagnostics.Trace.TraceWarning($"MainViewModel.SendMessage: lỗi chat không lường trước: {ex}");
-            aiMessage.Content = UnknownErrorMessage;
-        }
-#pragma warning restore CA1031
-    }
-
-    private static string MapError(AiChatError error) => error switch
-    {
-        AiChatError.Unauthorized => "API key không hợp lệ, vui lòng kiểm tra lại trong Cài đặt.",
-        AiChatError.RateLimit => "Đã vượt giới hạn yêu cầu, vui lòng thử lại sau.",
-        AiChatError.InsufficientQuota => "Tài khoản OpenAI không đủ credits/quota. Vui lòng nạp credits và kiểm tra Billing tại platform.openai.com.",
-        AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
-        _ => "Đã xảy ra lỗi khi gọi AI."
-    };
+    private ChatContext GetChatContext() => new(
+        _documentId,
+        IsWorkspaceSession ? _activeWorkspaceId : _documentId,
+        _documentBlocks,
+        CurrentPage);
 
     [RelayCommand]
     private void OpenSettings()
@@ -1156,7 +975,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Indexing.Dispose();
         _documentIndex.Dispose();
         _documentService.Dispose();
-        _chatService.Dispose();
+        Chat.Dispose();
         GC.SuppressFinalize(this);
     }
 }

@@ -862,7 +862,7 @@
                         </Grid.RowDefinitions>
 
                         <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
-                            <ItemsControl ItemsSource="{Binding ChatMessages}" Margin="16">
+                            <ItemsControl ItemsSource="{Binding Chat.Messages}" Margin="16">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <materialDesign:Card Background="{Binding Role, Converter={StaticResource RoleToBrushConverter}}"
@@ -907,18 +907,18 @@
                             </Grid.ColumnDefinitions>
                             <TextBox Style="{StaticResource MaterialDesignOutlinedTextBox}"
                                      materialDesign:HintAssist.Hint="Ask a question..."
-                                     Text="{Binding ChatInput, UpdateSourceTrigger=PropertyChanged}"
+                                     Text="{Binding Chat.Input, UpdateSourceTrigger=PropertyChanged}"
                                      TextWrapping="Wrap"
                                      AcceptsReturn="True"
                                      VerticalScrollBarVisibility="Auto"
                                      Height="80">
                                 <TextBox.InputBindings>
-                                    <KeyBinding Key="Enter" Command="{Binding SendMessageCommand}" />
+                                    <KeyBinding Key="Enter" Command="{Binding Chat.SendMessageCommand}" />
                                 </TextBox.InputBindings>
                             </TextBox>
                             <Button Grid.Column="1"
                                     Style="{StaticResource MaterialDesignFloatingActionMiniButton}"
-                                    Command="{Binding SendMessageCommand}"
+                                    Command="{Binding Chat.SendMessageCommand}"
                                     Margin="8,0,0,0"
                                     VerticalAlignment="Bottom">
                                 <materialDesign:PackIcon Kind="Send" />
