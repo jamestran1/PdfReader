@@ -6,7 +6,10 @@ namespace PdfReaderApp.Services;
 
 public sealed class SqliteDocumentIndex : IDocumentIndex
 {
-    private const int SchemaVersion = 5;
+    // Hai cổng độc lập: di trú đa model (đổi hình dạng bảng) và re-fold search_text (đổi logic Fold).
+    // Tăng RefoldSchemaVersion khi Fold đổi; không bao giờ tăng MultiModelSchemaVersion cho việc đó.
+    private const int MultiModelSchemaVersion = 5;
+    private const int RefoldSchemaVersion = 6;
     private const string VecTablePrefix = "vec_chunks_";
     private readonly SqliteConnection _conn;
     private readonly Lock _lock = new();
@@ -76,24 +79,24 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
     // v5: vector chuyển sang bảng theo số chiều và theo model, status chuyển sang document_models.
     // Index cũ gắn với một model duy nhất nên xoá hết để mọi tài liệu lập chỉ mục lại sạch.
+    // Nhận diện DB cũ bằng hình dạng bảng documents (còn cột status/embedding_model), không chỉ bằng số phiên bản.
     private void MigrateToMultiModelIfNeeded()
     {
-        if (ReadUserVersion() >= SchemaVersion) return;
+        if (ReadUserVersion() >= MultiModelSchemaVersion) return;
 
-        using var exists = _conn.CreateCommand();
-        exists.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='documents'";
-        bool hasLegacyData = Convert.ToInt32(exists.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
+        using var shape = _conn.CreateCommand();
+        shape.CommandText = "SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name IN ('status','embedding_model')";
+        bool hasLegacyShape = Convert.ToInt32(shape.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
 
-        // Tự đóng dấu phiên bản để không phụ thuộc bước di trú khác; DB mới chỉ cần đóng dấu.
         using var tx = _conn.BeginTransaction();
-        if (hasLegacyData)
+        if (hasLegacyShape)
         {
             ExecInTransaction(tx, "DROP TABLE IF EXISTS chunks_fts;");
             ExecInTransaction(tx, "DROP TABLE IF EXISTS chunks;");
             ExecInTransaction(tx, "DROP TABLE IF EXISTS documents;");
         }
 
-        ExecInTransaction(tx, $"PRAGMA user_version = {SchemaVersion}");
+        ExecInTransaction(tx, $"PRAGMA user_version = {MultiModelSchemaVersion}");
         tx.Commit();
     }
 
@@ -188,7 +191,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             currentVersion = Convert.ToInt32(cmd.ExecuteScalar(), CultureInfo.InvariantCulture);
         }
 
-        if (currentVersion >= SchemaVersion) return;
+        if (currentVersion >= RefoldSchemaVersion) return;
 
         // Re-fold every chunk's search_text with the current Fold logic,
         // then rebuild the external-content FTS index in one shot.
@@ -226,7 +229,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         using (var ver = _conn.CreateCommand())
         {
             ver.Transaction = tx;
-            ver.CommandText = $"PRAGMA user_version = {SchemaVersion}";
+            ver.CommandText = $"PRAGMA user_version = {RefoldSchemaVersion}";
             ver.ExecuteNonQuery();
         }
 
