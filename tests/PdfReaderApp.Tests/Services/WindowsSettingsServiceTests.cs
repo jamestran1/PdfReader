@@ -148,6 +148,31 @@ public class WindowsSettingsServiceTests : IDisposable
         Assert.Equal(AiModelSettings.Default, svc.GetModelSettings());
     }
 
+    [Theory]
+    [InlineData(AiProvider.OpenAi, "settings.dat")]
+    [InlineData(AiProvider.Gemini, "settings.gemini.dat")]
+    [InlineData(AiProvider.Claude, "settings.claude.dat")]
+    public void StoredFile_DoesNotContainPlaintextKey_ForEveryProvider(AiProvider provider, string fileName)
+    {
+        var svc = new WindowsSettingsService(_dir);
+        svc.SaveApiKey(provider, "sk-secret-PLAINTEXT");
+
+        string asText = Encoding.UTF8.GetString(File.ReadAllBytes(Path.Combine(_dir, fileName)));
+
+        Assert.DoesNotContain("sk-secret-PLAINTEXT", asText);
+        Assert.Equal("sk-secret-PLAINTEXT", svc.GetApiKey(provider));
+    }
+
+    [Fact]
+    public void GetModelSettings_ReturnsDefault_WhenEmbeddingProviderIsClaude()
+    {
+        File.WriteAllText(Path.Combine(_dir, "ai-models.json"),
+            """{"ChatProvider":"Claude","ChatModel":"claude-sonnet-5-5","EmbeddingProvider":"Claude","EmbeddingModel":"x"}""");
+        var svc = new WindowsSettingsService(_dir);
+
+        Assert.Equal(AiModelSettings.Default, svc.GetModelSettings());
+    }
+
     [Fact]
     public void GetModelSettings_ReturnsDefault_WhenModelNameIsMissing()
     {

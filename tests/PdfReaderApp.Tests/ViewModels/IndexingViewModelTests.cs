@@ -110,15 +110,16 @@ public sealed class IndexingViewModelTests
     {
         string status = await RunUntilStatusAsync(new System.Net.Http.HttpRequestException("down"));
 
-        Assert.Equal("Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).", status);
+        Assert.Equal("Lập chỉ mục AI bị bỏ qua: Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng. Tìm kiếm văn bản vẫn dùng được.", status);
     }
 
     [Fact]
-    public async Task Start_UnknownError_ShowsErrorMessageWithDetail()
+    public async Task Start_UnknownError_ShowsVietnameseMessageWithoutRawSdkText()
     {
-        string status = await RunUntilStatusAsync(new InvalidOperationException("hỏng"));
+        string status = await RunUntilStatusAsync(new InvalidOperationException("raw sdk detail"));
 
-        Assert.Equal("Lập chỉ mục lỗi: hỏng", status);
+        Assert.DoesNotContain("raw sdk detail", status);
+        Assert.Equal("Lập chỉ mục AI bị bỏ qua: Đã xảy ra lỗi không xác định khi gọi AI. Tìm kiếm văn bản vẫn dùng được.", status);
     }
 
     [Fact]
@@ -127,7 +128,7 @@ public sealed class IndexingViewModelTests
         var error = new ClientResultException("insufficient_quota", new FakeResponse(429));
 
         Assert.Equal(
-            "Lập chỉ mục AI bị bỏ qua: tài khoản OpenAI hết credits/quota (tìm kiếm văn bản vẫn dùng được).",
+            "Lập chỉ mục AI bị bỏ qua: Tài khoản của nhà cung cấp AI không đủ credits. Hãy kiểm tra thanh toán ở trang của nhà cung cấp. Tìm kiếm văn bản vẫn dùng được.",
             IndexingViewModel.FormatError(error));
     }
 
@@ -137,7 +138,7 @@ public sealed class IndexingViewModelTests
         var error = new ClientResultException("denied", new FakeResponse(401));
 
         Assert.Equal(
-            "Lập chỉ mục AI bị bỏ qua: API key không hợp lệ (tìm kiếm văn bản vẫn dùng được).",
+            "Lập chỉ mục AI bị bỏ qua: API key không hợp lệ, vui lòng kiểm tra lại trong Cài đặt. Tìm kiếm văn bản vẫn dùng được.",
             IndexingViewModel.FormatError(error));
     }
 

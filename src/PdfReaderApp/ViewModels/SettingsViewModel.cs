@@ -52,6 +52,15 @@ public sealed partial class SettingsViewModel : ObservableObject
     /// Trả về false và đặt <see cref="ErrorMessage"/> khi không ghi được.</summary>
     public bool TrySave(IReadOnlyDictionary<AiProvider, string> typedKeys)
     {
+        // Kiểm trước khi ghi bất cứ thứ gì để key sai không lọt vào một phần.
+        foreach (var (provider, typed) in typedKeys)
+        {
+            string? invalid = ApiKeyFormat.Validate(provider, typed);
+            if (invalid is null) continue;
+            ErrorMessage = invalid;
+            return false;
+        }
+
         try
         {
             foreach (var (provider, typed) in typedKeys)

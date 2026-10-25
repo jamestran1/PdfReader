@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.AI;
+using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
 
@@ -26,6 +27,10 @@ public sealed class AiChatService : IDisposable
         _factory = chatClientFactory;
         _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
     }
+
+    public AiProvider ChatProvider => _settings.GetModelSettings().ChatProvider;
+
+    public string ChatModel => _settings.GetModelSettings().ChatModel;
 
     public bool IsConfigured => _settings.HasApiKey(_settings.GetModelSettings().ChatProvider);
 
