@@ -41,8 +41,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IWorkspaceStore _workspaceStore;
     private readonly INoteStore _noteStore;
     private string? _activeWorkspaceId;
-    // S2: khoá ghi Open Set trong lúc reset/khôi phục để wiring auto-save không ghi đè state đang dựng.
-    private bool _isRestoringOpenSet;
+    private OpenSetPersistence _openSet = null!;   // dựng trong WireTabEvents (cần Tabs và _workspaceStore)
 
     private IReadOnlyList<TextBlock> _documentBlocks = [];
     public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
@@ -349,9 +348,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Khi ActiveTab thay đổi -> lưu view-state của tab cũ, hydrate tab mới.
         Tabs.ActiveTabChanged += OnActiveTabChanged;
 
-        // Lập lịch lưu Open Set khi danh sách tab thay đổi hoặc tab active đổi.
-        Tabs.Tabs.CollectionChanged += (_, _) => ScheduleSaveOpenSet();
-        Tabs.ActiveTabChanged += _ => ScheduleSaveOpenSet();
+        // Dựng sau khi đăng ký OnActiveTabChanged để thứ tự xử lý ActiveTabChanged không đổi.
+        _openSet = new OpenSetPersistence(
+            _workspaceStore, Tabs, () => _activeWorkspaceId, () => IsWorkspaceSession);
     }
 
     // OpenTab đang được theo dõi PropertyChanged để re-raise toolbar bindings.
@@ -382,7 +381,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         if (incoming is not null)
             HydrateTab(incoming);
-        else if (!_isRestoringOpenSet)
+        else if (!_openSet.IsRestoring)
             RefreshWorkspaceDocumentsSurface();   // đóng tab cuối -> surface inline cần dữ liệu mới
 
         // Tab active đổi -> toolbar phải đọc lại view-state của tab mới.
@@ -413,45 +412,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             case nameof(OpenTab.Zoom): OnPropertyChanged(nameof(ZoomLevel)); break;
             case nameof(OpenTab.TotalPages): OnPropertyChanged(nameof(TotalPages)); break;
         }
-        ScheduleSaveOpenSet();
+        _openSet.Schedule();
     }
 
-    // S2: thu thập Open Set hiện tại và lưu (thay thế) cho workspace đang hoạt động.
-    internal void SaveOpenSetNow()
-    {
-        if (_activeWorkspaceId is null || !IsWorkspaceSession) return;
-        long nowUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var activeTab = Tabs.ActiveTab;
-        var states = new List<OpenTabState>(Tabs.Tabs.Count);
-        for (int order = 0; order < Tabs.Tabs.Count; order++)
-        {
-            var tab = Tabs.Tabs[order];
-            states.Add(new OpenTabState(
-                tab.DocumentId, order, ReferenceEquals(tab, activeTab),
-                tab.Page, tab.Zoom, tab.ScrollNorm, nowUnixMs));
-        }
-        try { _workspaceStore.SaveOpenTabs(_activeWorkspaceId, states); }
-#pragma warning disable CA1031 // best-effort: lưu tab lỗi không được làm gãy phiên đọc
-        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.SaveOpenSet: lưu tab lỗi: {ex}"); /* lưu best-effort: lỗi store không được làm gãy phiên đọc */ }
-#pragma warning restore CA1031
-    }
-
-    private System.Windows.Threading.DispatcherTimer? _saveOpenSetDebounce;
-
-    // Gộp nhiều thay đổi liên tiếp (cuộn/zoom) thành một lần ghi. Môi trường không có Dispatcher
-    // (test/headless) -> lưu ngay để hành vi tất định.
-    private void ScheduleSaveOpenSet()
-    {
-        if (_isRestoringOpenSet) return;
-        if (_activeWorkspaceId is null || !IsWorkspaceSession) return;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null) { SaveOpenSetNow(); return; }
-        _saveOpenSetDebounce ??= new System.Windows.Threading.DispatcherTimer(
-            TimeSpan.FromMilliseconds(400), System.Windows.Threading.DispatcherPriority.Background,
-            (_, _) => { _saveOpenSetDebounce!.Stop(); SaveOpenSetNow(); }, dispatcher);
-        _saveOpenSetDebounce.Stop();
-        _saveOpenSetDebounce.Start();
-    }
+    internal void SaveOpenSetNow() => _openSet.SaveNow();
 
     // Đổi giữa chế độ workspace (proxy theo tab) và đọc lẻ (backing field) -> toolbar đọc lại nguồn.
     partial void OnIsWorkspaceSessionChanged(bool value)
@@ -631,7 +595,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Đọc state đã lưu TRƯỚC khi reset (tránh wiring auto-save ghi đè khi xoá Open Set cũ).
         var savedTabs = _workspaceStore.GetOpenTabs(workspaceId);
 
-        _isRestoringOpenSet = true;
+        _openSet.IsRestoring = true;
         try
         {
             Tabs.Reset();   // bắt đầu từ Open Set rỗng -> không tích lũy / không trùng tab (#bug 2,3)
@@ -673,7 +637,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            _isRestoringOpenSet = false;
+            _openSet.IsRestoring = false;
             SaveOpenSetNow();   // ghi lại Open Set mới (đặc biệt khi seed tạo tab mới)
         }
     }
