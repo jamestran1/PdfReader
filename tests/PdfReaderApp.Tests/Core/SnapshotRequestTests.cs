@@ -83,11 +83,22 @@ public class SnapshotRequestTests
             ("TRITHU_SCREENSHOT", "x.png"),
             ("TRITHU_SCREENSHOT_PAGE", "0"),
             ("TRITHU_SCREENSHOT_ZOOM", "abc"),
-            ("TRITHU_SCREENSHOT_PANEL", "sidebar")))!;
+            ("TRITHU_SCREENSHOT_PANEL", "sidebar"),
+            ("TRITHU_SCREENSHOT_DIALOG", "about")))!;
 
         Assert.Null(request.Page);
         Assert.Null(request.Zoom);
         Assert.Null(request.RightTabIndex);
+        Assert.Null(request.Dialog);
+    }
+
+    [Fact]
+    public void Request_ReadsSettingsDialog()
+    {
+        var request = SnapshotRequest.FromEnvironment(Env(
+            ("TRITHU_SCREENSHOT", "x.png"), ("TRITHU_SCREENSHOT_DIALOG", " Settings ")))!;
+
+        Assert.Equal(SnapshotDialog.Settings, request.Dialog);
     }
 
     [Fact]

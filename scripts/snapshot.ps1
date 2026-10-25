@@ -9,7 +9,8 @@
     Không chụp màn hình nên không lộ cửa sổ khác trên desktop.
 
     Cảnh chụp tuỳ chọn: -Open mở một file PDF (-Open sample dùng scripts/assets/snapshot-sample.pdf),
-    -Page, -Zoom, -Panel chat|notes, -Theme light|dark. Mỗi lần chạy chụp một ảnh.
+    -Page, -Zoom, -Panel chat|notes, -Dialog settings (chụp hộp thoại Cài đặt), -Theme light|dark.
+    Mỗi lần chạy chụp một ảnh.
 
 .EXAMPLE
     pwsh scripts/snapshot.ps1 -Out artifacts/main.png
@@ -26,6 +27,7 @@ param(
     [int]$Page,
     [double]$Zoom,
     [ValidateSet('', 'chat', 'notes')][string]$Panel = '',
+    [ValidateSet('', 'settings')][string]$Dialog = '',
     [ValidateSet('light', 'dark')][string]$Theme = 'light'
 )
 
@@ -59,6 +61,7 @@ try {
     if ($Page -gt 0) { $info.Environment['TRITHU_SCREENSHOT_PAGE'] = "$Page" }
     if ($Zoom -gt 0) { $info.Environment['TRITHU_SCREENSHOT_ZOOM'] = $Zoom.ToString([Globalization.CultureInfo]::InvariantCulture) }
     if ($Panel) { $info.Environment['TRITHU_SCREENSHOT_PANEL'] = $Panel }
+    if ($Dialog) { $info.Environment['TRITHU_SCREENSHOT_DIALOG'] = $Dialog }
     # App là WinExe, không có console: phải redirect thì mới đọc được lỗi nó ghi ra stderr.
     $info.RedirectStandardError = $true
     $info.StandardErrorEncoding = [Text.Encoding]::UTF8
