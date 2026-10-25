@@ -21,16 +21,18 @@ public sealed class MainViewModelChatTests : IDisposable
 
     private sealed class FakeSettings(bool hasKey) : ISettingsService
     {
-        public string? GetApiKey() => hasKey ? "key" : null;
-        public void SaveApiKey(string apiKey) { }
-        public bool HasApiKey() => hasKey;
+        public string? GetApiKey(AiProvider provider) => hasKey ? "key" : null;
+        public void SaveApiKey(AiProvider provider, string apiKey) { }
+        public bool HasApiKey(AiProvider provider) => hasKey;
         public AppTheme GetThemePreference() => AppTheme.Light;
         public void SaveThemePreference(AppTheme theme) { }
+        public AiModelSettings GetModelSettings() => AiModelSettings.Default;
+        public void SaveModelSettings(AiModelSettings settings) { }
     }
 
     private sealed class FakeChatClientFactory(Func<IAsyncEnumerable<ChatResponseUpdate>> stream) : IChatClientFactory
     {
-        public IChatClient Create(string apiKey) => new FakeChatClient(stream);
+        public IChatClient Create(AiClientOptions options) => new FakeChatClient(stream);
     }
 
     private sealed class FakeChatClient(Func<IAsyncEnumerable<ChatResponseUpdate>> stream) : IChatClient
@@ -83,7 +85,7 @@ public sealed class MainViewModelChatTests : IDisposable
 
     private sealed class ThrowingEmbeddingFactory : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey)
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options)
             => throw new InvalidOperationException("embedding không khả dụng");
     }
 
@@ -120,7 +122,7 @@ public sealed class MainViewModelChatTests : IDisposable
             new FakeSettings(hasKey),
             new FakeChatClientFactory(stream),
             new SqliteDocumentIndex(TempDb(), Path.Combine(AppContext.BaseDirectory, "vec0.dll")),
-            new OpenAiEmbeddingGeneratorFactory(),
+            new AiEmbeddingGeneratorFactory(),
             chatHistory: chat,
             workspaceStore: wsStore ?? new FakeWorkspaceStore());
         _viewModels.Add(vm);

@@ -18,11 +18,11 @@ public class MainViewModelTabCommandTests
             : base(
                 new ITextPdfDocumentService(),
                 new WindowsSettingsService(),
-                new OpenAiChatClientFactory(),
+                new AiChatClientFactory(),
                 new PdfReaderApp.Services.SqliteDocumentIndex(
                     System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
                     System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-                new OpenAiEmbeddingGeneratorFactory(),
+                new AiEmbeddingGeneratorFactory(),
                 workspaceStore: wsStore)
         { }
 

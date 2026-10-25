@@ -17,6 +17,6 @@ Trí Thư hỗ trợ OpenAI, Google Gemini và Anthropic Claude cho Chat; OpenAI
 ## Consequences
 
 - Đổi Embedding Model rồi đổi lại không tốn tiền lập chỉ mục lại; đổi lại, `index.db` lớn dần theo số model đã dùng.
-- Thêm provider mới là thêm một nhánh `switch` và một nhánh trong `AiErrorClassifier`, không đụng ViewModel.
+- Thêm provider mới là thêm một nhánh `switch` trong factory, một nhánh trong `AiErrorClassifier`, một mục trong `AiModelCatalog` và một ô key trong cửa sổ Cài đặt; ViewModel gọi AI (Chat, lập chỉ mục) không phải sửa.
 - Gemini embedding được gọi với số chiều đầu ra 768 để vừa bảng `vec_chunks_768` và giữ index nhỏ.
 - PRD #92 gọi quyết định này là "ADR 0005" và đề xuất `Anthropic.SDK` với adapter tự viết; số 0005 đã dùng cho phát hành MSIX, và gói Anthropic chính thức đã có adapter `Microsoft.Extensions.AI`, nên ADR này thay thế hai điểm đó.

@@ -224,6 +224,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         AiChatError.RateLimit => "Đã vượt giới hạn yêu cầu, vui lòng thử lại sau.",
         AiChatError.InsufficientQuota => "Tài khoản OpenAI không đủ credits/quota. Vui lòng nạp credits và kiểm tra Billing tại platform.openai.com.",
         AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
+        AiChatError.UnsupportedProvider => "Nhà cung cấp AI đã chọn chưa được hỗ trợ. Vui lòng chọn OpenAI trong Cài đặt.",
         _ => "Đã xảy ra lỗi khi gọi AI."
     };
 
