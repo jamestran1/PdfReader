@@ -5,6 +5,12 @@ namespace PdfReaderApp.Services;
 /// <summary>Danh mục provider và model mặc định. Thuần, bất biến.</summary>
 public static class AiModelCatalog
 {
+    /// <summary>
+    /// Số chiều Gemini được yêu cầu trả về (gemini-embedding-001 mặc định 3072) để vector vào
+    /// <c>vec_chunks_768</c>, cùng bảng với các model 768 chiều khác (ADR 0008).
+    /// </summary>
+    public const int GeminiEmbeddingDimensions = 768;
+
     public static IReadOnlyList<AiProvider> ChatProviders { get; } =
         [AiProvider.OpenAi, AiProvider.Gemini, AiProvider.Claude];
 
