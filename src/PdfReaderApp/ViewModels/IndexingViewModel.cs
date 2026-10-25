@@ -67,6 +67,7 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
 #pragma warning disable CA1031 // ranh giới tác vụ nền: lập chỉ mục lỗi được phân loại và báo cho người dùng
         catch (Exception ex)
         {
+            System.Diagnostics.Trace.TraceWarning($"IndexingViewModel: lập chỉ mục lỗi: {ex}");
             string message = FormatError(ex);
             _runOnUiThread(() => StatusText = message);
         }
