@@ -53,11 +53,11 @@ public sealed class DocumentIndexingService
             return;
         }
 
-        using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key));
         int done;
 
         try
         {
+            using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key));
             done = await EmbedAllBatchesAsync(generator, chunks, chunkIds, progress, ct);
         }
         catch (OperationCanceledException)

@@ -140,6 +140,24 @@ public class AiChatServiceTests
         Assert.True(new AiChatService(new ProviderSettings(models, AiProvider.Claude), new FakeFactory(new FakeChatClient([]))).IsConfigured);
     }
 
+    private sealed class UnsupportedFactory : IChatClientFactory
+    {
+        public IChatClient Create(AiClientOptions options) => throw new NotSupportedException("chưa hỗ trợ");
+    }
+
+    [Fact]
+    public async Task AskStreaming_ProviderNotSupported_ThrowsUnsupportedProviderError()
+    {
+        // Claude đã được hỗ trợ (#104); hiện chỉ Gemini còn chưa có client chat (#105).
+        var models = new AiModelSettings(AiProvider.Gemini, "gemini-x", AiProvider.OpenAi, "e");
+        var svc = new AiChatService(new ProviderSettings(models, AiProvider.Gemini), new UnsupportedFactory());
+
+        var ex = await Assert.ThrowsAsync<AiChatException>(() => Collect(svc.AskStreamingAsync("hi", "ctx")));
+
+        Assert.Equal(AiChatError.UnsupportedProvider, ex.Error);
+        Assert.IsType<NotSupportedException>(ex.InnerException);
+    }
+
     [Fact]
     public async Task AskStreaming_BuildsClientFromChatProviderModelAndKey()
     {

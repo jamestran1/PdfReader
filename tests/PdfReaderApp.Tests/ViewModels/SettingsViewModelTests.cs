@@ -1,3 +1,4 @@
+using System.IO;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 using PdfReaderApp.ViewModels;
@@ -24,6 +25,70 @@ public class SettingsViewModelTests
         public void SaveModelSettings(AiModelSettings settings) => Models = settings;
         public AppTheme GetThemePreference() => AppTheme.Light;
         public void SaveThemePreference(AppTheme theme) { }
+    }
+
+    private sealed class ThrowingSettings(Exception error) : ISettingsService
+    {
+        public string? GetApiKey(AiProvider provider) => null;
+        public void SaveApiKey(AiProvider provider, string apiKey) => throw error;
+        public bool HasApiKey(AiProvider provider) => false;
+        public AiModelSettings GetModelSettings() => AiModelSettings.Default;
+        public void SaveModelSettings(AiModelSettings settings) => throw error;
+        public AppTheme GetThemePreference() => AppTheme.Light;
+        public void SaveThemePreference(AppTheme theme) { }
+    }
+
+    private static Dictionary<AiProvider, string> Typed(string openAi, string gemini, string claude) => new()
+    {
+        [AiProvider.OpenAi] = openAi,
+        [AiProvider.Gemini] = gemini,
+        [AiProvider.Claude] = claude,
+    };
+
+    [Fact]
+    public void TrySave_ReturnsFalseAndSetsErrorMessage_WhenSavingKeyFailsWithIoError()
+    {
+        var vm = new SettingsViewModel(new ThrowingSettings(new IOException("đĩa đầy")));
+
+        bool ok = vm.TrySave(Typed("sk-1", "", ""));
+
+        Assert.False(ok);
+        Assert.False(string.IsNullOrEmpty(vm.ErrorMessage));
+    }
+
+    [Fact]
+    public void TrySave_ReturnsFalse_WhenSavingModelsFailsWithUnauthorizedAccess()
+    {
+        var vm = new SettingsViewModel(new ThrowingSettings(new UnauthorizedAccessException()));
+
+        Assert.False(vm.TrySave(Typed("", "", "")));
+        Assert.False(string.IsNullOrEmpty(vm.ErrorMessage));
+    }
+
+    [Fact]
+    public void TrySave_ReturnsFalse_WhenCryptoFails()
+    {
+        var vm = new SettingsViewModel(new ThrowingSettings(new System.Security.Cryptography.CryptographicException()));
+
+        Assert.False(vm.TrySave(Typed("sk-1", "", "")));
+    }
+
+    [Fact]
+    public void TrySave_DoesNotSwallowUnexpectedExceptions()
+    {
+        var vm = new SettingsViewModel(new ThrowingSettings(new InvalidOperationException()));
+
+        Assert.Throws<InvalidOperationException>(() => vm.TrySave(Typed("sk-1", "", "")));
+    }
+
+    [Fact]
+    public void TrySave_ClearsPreviousErrorMessage_OnSuccess()
+    {
+        var vm = new SettingsViewModel(new InMemorySettings()) { ErrorMessage = "lỗi cũ" };
+
+        Assert.True(vm.TrySave(Typed("", "", "")));
+
+        Assert.Equal(string.Empty, vm.ErrorMessage);
     }
 
     [Fact]
@@ -92,7 +157,7 @@ public class SettingsViewModelTests
         settings.Keys[AiProvider.OpenAi] = "sk-old";
         var vm = new SettingsViewModel(settings);
 
-        vm.Save(openAiKey: "", geminiKey: "gm-new", claudeKey: "  ");
+        Assert.True(vm.TrySave(Typed("", "gm-new", "  ")));
 
         Assert.Equal("sk-old", settings.Keys[AiProvider.OpenAi]);
         Assert.Equal("gm-new", settings.Keys[AiProvider.Gemini]);
@@ -105,7 +170,7 @@ public class SettingsViewModelTests
         var settings = new InMemorySettings();
         var vm = new SettingsViewModel(settings);
 
-        vm.Save(openAiKey: "  sk-1  ", geminiKey: "", claudeKey: "");
+        Assert.True(vm.TrySave(Typed("  sk-1  ", "", "")));
 
         Assert.Equal("sk-1", settings.Keys[AiProvider.OpenAi]);
     }
@@ -122,7 +187,7 @@ public class SettingsViewModelTests
         vm.ChatModel = "claude-custom";
         vm.EmbeddingModel = "gem-custom";
 
-        vm.Save("", "", "");
+        Assert.True(vm.TrySave(Typed("", "", "")));
 
         Assert.Equal(
             new AiModelSettings(AiProvider.Claude, "claude-custom", AiProvider.Gemini, "gem-custom"),
@@ -135,7 +200,7 @@ public class SettingsViewModelTests
         var settings = new InMemorySettings();
         var vm = new SettingsViewModel(settings) { ChatModel = "   ", EmbeddingModel = "" };
 
-        vm.Save("", "", "");
+        Assert.True(vm.TrySave(Typed("", "", "")));
 
         Assert.Equal(AiModelCatalog.DefaultChatModel(AiProvider.OpenAi), settings.Models.ChatModel);
         Assert.Equal(AiModelCatalog.DefaultEmbeddingModel(AiProvider.OpenAi), settings.Models.EmbeddingModel);
@@ -147,7 +212,7 @@ public class SettingsViewModelTests
         var settings = new InMemorySettings();
         var vm = new SettingsViewModel(settings) { ChatModel = "  gpt-x  " };
 
-        vm.Save("", "", "");
+        Assert.True(vm.TrySave(Typed("", "", "")));
 
         Assert.Equal("gpt-x", settings.Models.ChatModel);
     }
@@ -169,7 +234,7 @@ public class SettingsViewModelTests
     {
         var vm = new SettingsViewModel(new InMemorySettings());
 
-        vm.Save("sk-1", "", "");
+        Assert.True(vm.TrySave(Typed("sk-1", "", "")));
 
         Assert.Equal("Đã lưu (để trống nếu giữ key hiện tại)", vm.OpenAiKeyHint);
     }

@@ -156,6 +156,24 @@ public class DocumentIndexingServiceTests
         Assert.Equal(DocumentIndexStatus.Partial, index.FinalStatus);
     }
 
+    private sealed class FactoryThatThrows : IEmbeddingGeneratorFactory
+    {
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) =>
+            throw new NotSupportedException("provider chưa hỗ trợ");
+    }
+
+    [Fact]
+    public async Task IndexAsync_FactoryThrows_SetsPartialAndRethrows()
+    {
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new FactoryThatThrows(), new FakeSettings("sk-x"));
+
+        await Assert.ThrowsAsync<NotSupportedException>(
+            () => svc.IndexAsync("doc1", "a.pdf", Pages("some text"), null, CancellationToken.None));
+
+        Assert.Equal(DocumentIndexStatus.Partial, index.FinalStatus);
+    }
+
     [Fact]
     public async Task IndexAsync_AlreadyComplete_SkipsReindexing()
     {
