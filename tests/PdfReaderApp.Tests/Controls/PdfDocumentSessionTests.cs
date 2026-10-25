@@ -52,6 +52,17 @@ public class PdfDocumentSessionTests
     }
 
     [Fact]
+    public void Dispose_ReleasesBackingStream()
+    {
+        var session = PdfDocumentSession.Open(SamplePath());
+        var stream = session.Stream;
+
+        session.Dispose();
+
+        Assert.False(stream.CanRead);
+    }
+
+    [Fact]
     public void ResetEditState_ClearsUndoStack()
     {
         using var session = PdfDocumentSession.Open(SamplePath());
