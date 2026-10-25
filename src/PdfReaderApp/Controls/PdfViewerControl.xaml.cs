@@ -18,7 +18,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     private readonly RenderEngine _renderEngine = new();
     private readonly Viewer.PageBitmapCache _pageCache = new();
     private readonly Viewer.ViewerFrameComposer _frameComposer;
-    private bool _disposed;
+    private readonly Viewer.ViewerLifecycle _lifecycle = new();
 
     private PdfDocument? _currentDocument => _session?.Document;
     private readonly List<Core.PageSlot> _slots = [];
@@ -182,13 +182,28 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         _frameComposer = new Viewer.ViewerFrameComposer(_pageCache, _renderEngine);
         _pointerInput = new Viewer.ViewerPointerInput(this);
         InitializeComponent();
+        this.Loaded += PdfViewerControl_Loaded;
         this.Unloaded += PdfViewerControl_Unloaded;
+        AttachInput();
+    }
+
+    private void AttachInput()
+    {
         _pointerInput.Attach(InteractionCanvas, this, TextEditor);
 
         this.SizeChanged += PdfViewerControl_SizeChanged;
         this.PreviewMouseWheel += PdfViewerControl_PreviewMouseWheel;
 
         PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged += OnThemeChanged;
+    }
+
+    private void DetachInput()
+    {
+        _pointerInput.Detach();
+        this.SizeChanged -= PdfViewerControl_SizeChanged;
+        this.PreviewMouseWheel -= PdfViewerControl_PreviewMouseWheel;
+
+        PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged -= OnThemeChanged;
     }
 
     private void OnThemeChanged(object? sender, EventArgs e)
@@ -521,9 +536,26 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         }
     }
 
+    // WPF có thể bắn Unloaded rồi Loaded lần nữa mà control không bị huỷ (gắn lại cây giao diện).
+    // Unloaded chỉ nhả tài nguyên và gỡ event; Loaded dựng lại và nạp lại DocumentSource (#193).
     private void PdfViewerControl_Unloaded(object sender, RoutedEventArgs e)
     {
-        Dispose();
+        if (_lifecycle.OnUnloaded()) ReleaseResources();
+    }
+
+    private void PdfViewerControl_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (!_lifecycle.OnLoaded()) return;
+
+        AttachInput();
+        if (!string.IsNullOrEmpty(DocumentSource)) LoadDocument(DocumentSource);
+    }
+
+    private void ReleaseResources()
+    {
+        DetachInput();
+        _pageCache.Clear();
+        DisposeCurrentDocument();
     }
 
     public void Dispose()
@@ -534,21 +566,15 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
 
     protected virtual void Dispose(bool disposing)
     {
-        if (!_disposed)
+        if (!disposing) return;
+
+        // Đã Unloaded thì tài nguyên đã được nhả, không nhả lại lần hai.
+        bool needRelease = _lifecycle.IsAttached;
+        if (_lifecycle.OnDispose())
         {
-            if (disposing)
-            {
-                _pointerInput.Detach();
-                this.SizeChanged -= PdfViewerControl_SizeChanged;
-                this.PreviewMouseWheel -= PdfViewerControl_PreviewMouseWheel;
-
-                PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged -= OnThemeChanged;
-
-                _pageCache.Dispose();
-                DisposeCurrentDocument();
-                _renderEngine.Dispose();
-            }
-            _disposed = true;
+            if (needRelease) ReleaseResources();
+            _pageCache.Dispose();
+            _renderEngine.Dispose();
         }
     }
 }
