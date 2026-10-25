@@ -857,11 +857,19 @@
                 <TabItem Header="Chat">
                     <Grid>
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+                        <TextBlock Grid.Row="0" Margin="16,8,16,0"
+                                   Style="{StaticResource MaterialDesignCaptionTextBlock}"
+                                   Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
+                                   Text="{Binding Chat.ActiveModelLabel}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding Chat.ActiveModelLabel}"/>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding Chat.Messages}" Margin="16">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -900,7 +908,7 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Grid Grid.Row="1" Margin="16">
+                        <Grid Grid.Row="2" Margin="16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>

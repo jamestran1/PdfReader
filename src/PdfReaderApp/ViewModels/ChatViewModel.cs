@@ -11,13 +11,17 @@ namespace PdfReaderApp.ViewModels;
 public sealed partial class ChatViewModel : ObservableObject, IDisposable
 {
     private const int ContextPageWindow = 2;
+    private const string MissingKeySuffix = " (chưa có key)";
 
-    private const string NotConfiguredMessage =
+    // Lời lỗi của các bản cũ vẫn nằm trong lịch sử chat đã lưu; giữ trong bộ lọc để không nạp lại vào trí nhớ LLM.
+    private const string LegacyNotConfiguredMessage =
         "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key.";
-    private const string UnknownErrorMessage = "Đã xảy ra lỗi không xác định khi gọi AI.";
+    private const string LegacyUnsupportedProviderMessage =
+        "Nhà cung cấp AI đã chọn chưa được hỗ trợ. Vui lòng chọn OpenAI hoặc Claude trong Cài đặt.";
+    private const string LegacyUnknownErrorMessage = "Đã xảy ra lỗi khi gọi AI.";
 
-    // Các nội dung AI KHÔNG phải câu trả lời thật (thông báo lỗi). Suy ra từ chính MapError nên
-    // tự cập nhật nếu đổi lời lỗi, cộng 2 hằng số dùng ở các nhánh thoát sớm của SendMessage.
+    // Các nội dung AI KHÔNG phải câu trả lời thật (thông báo lỗi). Suy ra từ chính AiErrorMessages nên
+    // tự cập nhật nếu đổi lời lỗi, cộng thông báo thiếu key theo từng provider.
     private static readonly HashSet<string> NonMemoryAiMessages = BuildNonMemoryAiMessages();
 
     private readonly AiChatService _chatService;
@@ -34,6 +38,10 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string Input { get; set; } = string.Empty;
 
+    /// <summary>Provider và model chat đang dùng, hiện ở đầu khung chat (vd "Anthropic Claude · claude-sonnet-5-5"); thêm "(chưa có key)" khi thiếu key.</summary>
+    [ObservableProperty]
+    public partial string ActiveModelLabel { get; set; } = string.Empty;
+
     public ObservableCollection<ChatMessage> Messages { get; } = [];
 
     public ChatViewModel(
@@ -46,7 +54,13 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         _chatHistory = chatHistory;
         _ragContext = ragContext;
         _currentContext = currentContext;
+        RefreshActiveModel();
     }
+
+    /// <summary>Đọc lại provider và model chat từ Settings; gọi sau khi lưu Settings.</summary>
+    public void RefreshActiveModel() =>
+        ActiveModelLabel = $"{AiModelCatalog.DisplayName(_chatService.ChatProvider)} · {_chatService.ChatModel}"
+            + (_chatService.IsConfigured ? string.Empty : MissingKeySuffix);
 
     /// <summary>Dựng ChatViewModel cùng các dịch vụ chat từ <paramref name="services"/>; ChatViewModel sở hữu chúng.</summary>
     public static ChatViewModel Create(MainViewModelServices services, Func<ChatContext> currentContext)
@@ -117,7 +131,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     });
 
     // Lọc các lượt để nạp làm trí nhớ LLM. Giữ mọi lượt User; bỏ lượt AI rỗng, là thông báo
-    // lỗi (suy ra từ MapError + các hằng số trên), hoặc chứa sentinel gián đoạn. Bong bóng UI
+    // lỗi (suy ra từ AiErrorMessages), hoặc chứa sentinel gián đoạn. Bong bóng UI
     // vẫn hiển thị đầy đủ, chỉ trí nhớ LLM được làm sạch để AI không "nhớ nhầm" câu lỗi.
     internal static IEnumerable<(string role, string content)> MemoryTurns(
         IEnumerable<(string role, string content)> turns)
@@ -135,11 +149,15 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     {
         var set = new HashSet<string>(StringComparer.Ordinal)
         {
-            NotConfiguredMessage,
-            UnknownErrorMessage,
+            AiErrorMessages.Unknown,
+            LegacyNotConfiguredMessage,
+            LegacyUnsupportedProviderMessage,
+            LegacyUnknownErrorMessage,
         };
+        foreach (AiProvider p in AiModelCatalog.ChatProviders)
+            set.Add(AiErrorMessages.NotConfigured(p));
         foreach (AiChatError e in Enum.GetValues<AiChatError>())
-            set.Add(MapError(e));
+            set.Add(AiErrorMessages.Describe(e));
         return set;
     }
 
@@ -172,8 +190,9 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
             if (!_chatService.IsConfigured)
             {
-                Messages.Add(new ChatMessage { Role = "AI", Content = NotConfiguredMessage });
-                PersistTurn(owner, question, NotConfiguredMessage);
+                string notConfigured = AiErrorMessages.NotConfigured(_chatService.ChatProvider);
+                Messages.Add(new ChatMessage { Role = "AI", Content = notConfigured });
+                PersistTurn(owner, question, notConfigured);
                 return;
             }
 
@@ -239,26 +258,16 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (AiChatException ex)
         {
-            aiMessage.Content = MapError(ex.Error);
+            aiMessage.Content = AiErrorMessages.Describe(ex.Error);
         }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: lỗi chat không lường trước thì hiện thông báo lỗi chung
         catch (Exception ex)
         {
             System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: lỗi chat không lường trước: {ex}");
-            aiMessage.Content = UnknownErrorMessage;
+            aiMessage.Content = AiErrorMessages.Unknown;
         }
 #pragma warning restore CA1031
     }
-
-    private static string MapError(AiChatError error) => error switch
-    {
-        AiChatError.Unauthorized => "API key không hợp lệ, vui lòng kiểm tra lại trong Cài đặt.",
-        AiChatError.RateLimit => "Đã vượt giới hạn yêu cầu, vui lòng thử lại sau.",
-        AiChatError.InsufficientQuota => "Tài khoản của nhà cung cấp AI không đủ credits. Hãy kiểm tra thanh toán ở trang của nhà cung cấp.",
-        AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
-        AiChatError.UnsupportedProvider => "Nhà cung cấp AI đã chọn chưa được hỗ trợ. Vui lòng chọn OpenAI hoặc Claude trong Cài đặt.",
-        _ => "Đã xảy ra lỗi khi gọi AI."
-    };
 
     public void Dispose()
     {

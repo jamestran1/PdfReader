@@ -878,12 +878,30 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenSettings()
     {
+        AiModelSettings before = _settingsService.GetModelSettings();
+        string? embeddingKeyBefore = _settingsService.GetApiKey(before.EmbeddingProvider); // chỉ giữ trong biến cục bộ, không log
         var window = new SettingsWindow(new SettingsViewModel(_settingsService))
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        window.ShowDialog();
+        if (window.ShowDialog() == true) OnSettingsSaved(before, embeddingKeyBefore);
+    }
+
+    // Seam sau khi lưu Settings (test gọi trực tiếp, không cần cửa sổ): cập nhật nhãn provider ở khung chat,
+    // và chỉ khi Embedding Provider hoặc Model đổi, hoặc key embedding được thêm hay thay (tài liệu mở khi key
+    // thiếu hoặc sai đang ở TextOnly hay lỗi), mới lập chỉ mục tài liệu đang mở (model đã Complete thì
+    // DocumentIndexingService bỏ qua). Không đổi thì không huỷ lượt lập chỉ mục đang chạy.
+    internal void OnSettingsSaved(AiModelSettings before, string? embeddingKeyBefore)
+    {
+        Chat.RefreshActiveModel();
+        AiModelSettings after = _settingsService.GetModelSettings();
+        bool embeddingChanged = after.EmbeddingProvider != before.EmbeddingProvider || after.EmbeddingModel != before.EmbeddingModel;
+        string? embeddingKeyAfter = _settingsService.GetApiKey(after.EmbeddingProvider);
+        bool embeddingKeyChanged = !string.IsNullOrEmpty(embeddingKeyAfter)
+            && !string.Equals(embeddingKeyBefore, embeddingKeyAfter, StringComparison.Ordinal);
+        if (embeddingChanged || embeddingKeyChanged)
+            Indexing.StartBackgroundIndexing();
     }
 
     [RelayCommand]

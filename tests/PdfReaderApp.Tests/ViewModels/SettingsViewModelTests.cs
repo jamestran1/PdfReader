@@ -46,6 +46,30 @@ public class SettingsViewModelTests
     };
 
     [Fact]
+    public void TrySave_ClaudeSubscriptionToken_IsRejectedAndNothingSaved()
+    {
+        var settings = new InMemorySettings();
+        var vm = new SettingsViewModel(settings);
+
+        bool ok = vm.TrySave(Typed("sk-openai", "", "sk-ant-oat01-abc"));
+
+        Assert.False(ok);
+        Assert.Equal(ApiKeyFormat.ClaudeSubscriptionTokenMessage, vm.ErrorMessage);
+        Assert.DoesNotContain("sk-ant-oat01-abc", vm.ErrorMessage, StringComparison.Ordinal);
+        Assert.Empty(settings.Keys);
+    }
+
+    [Fact]
+    public void TrySave_ClaudeApiKey_IsAccepted()
+    {
+        var settings = new InMemorySettings();
+        var vm = new SettingsViewModel(settings);
+
+        Assert.True(vm.TrySave(Typed("", "", "sk-ant-api03-abc")));
+        Assert.Equal("sk-ant-api03-abc", settings.Keys[AiProvider.Claude]);
+    }
+
+    [Fact]
     public void TrySave_ReturnsFalseAndSetsErrorMessage_WhenSavingKeyFailsWithIoError()
     {
         var vm = new SettingsViewModel(new ThrowingSettings(new IOException("đĩa đầy")));
