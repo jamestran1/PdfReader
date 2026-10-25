@@ -214,7 +214,7 @@ public class MainViewModelTests
             ("User", "Câu hỏi 3"),
         };
 
-        var kept = MainViewModel.MemoryTurns(turns).ToList();
+        var kept = ChatViewModel.MemoryTurns(turns).ToList();
 
         // Giữ: mọi lượt User + lượt AI là câu trả lời thật.
         Assert.Contains(kept, t => t.content == "Câu hỏi 1");

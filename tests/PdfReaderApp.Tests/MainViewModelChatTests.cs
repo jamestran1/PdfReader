@@ -54,7 +54,8 @@ public sealed class MainViewModelChatTests : IDisposable
         public void EnsureSchema() { }
         public void Append(string documentId, string role, string content, long createdAtUnix)
             => Appended.Add((documentId, role, content));
-        public IReadOnlyList<ChatHistoryEntry> GetAll(string documentId) => [];
+        public List<ChatHistoryEntry> Stored { get; } = [];
+        public IReadOnlyList<ChatHistoryEntry> GetAll(string documentId) => Stored.ToList();
         public void DeleteForDocument(string documentId) { }
     }
 
@@ -146,65 +147,65 @@ public sealed class MainViewModelChatTests : IDisposable
     public async Task SendMessage_WhitespaceInput_DoesNothing()
     {
         var vm = BuildVm(hasKey: true, () => Tokens("x"), new FakeChatHistoryStore());
-        vm.ChatInput = "   ";
+        vm.Chat.Input = "   ";
 
-        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
 
-        Assert.Single(vm.ChatMessages); // chỉ còn lời chào
-        Assert.Equal("   ", vm.ChatInput);
+        Assert.Single(vm.Chat.Messages); // chỉ còn lời chào
+        Assert.Equal("   ", vm.Chat.Input);
     }
 
     [Fact]
     public async Task SendMessage_NotConfigured_AddsUserAndNotConfiguredAiMessage_AndClearsInput()
     {
         var vm = BuildVm(hasKey: false, () => Tokens("x"), new FakeChatHistoryStore());
-        vm.ChatInput = "Xin chào";
+        vm.Chat.Input = "Xin chào";
 
-        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
 
-        Assert.Equal(string.Empty, vm.ChatInput);
-        Assert.Equal(3, vm.ChatMessages.Count);
-        Assert.Equal("User", vm.ChatMessages[1].Role);
-        Assert.Equal("Xin chào", vm.ChatMessages[1].Content);
-        Assert.Equal("AI", vm.ChatMessages[2].Role);
-        Assert.Equal(NotConfigured, vm.ChatMessages[2].Content);
+        Assert.Equal(string.Empty, vm.Chat.Input);
+        Assert.Equal(3, vm.Chat.Messages.Count);
+        Assert.Equal("User", vm.Chat.Messages[1].Role);
+        Assert.Equal("Xin chào", vm.Chat.Messages[1].Content);
+        Assert.Equal("AI", vm.Chat.Messages[2].Role);
+        Assert.Equal(NotConfigured, vm.Chat.Messages[2].Content);
     }
 
     [Fact]
     public async Task SendMessage_Configured_StreamsTokensIntoAiMessage()
     {
         var vm = BuildVm(hasKey: true, () => Tokens("Xin ", "chào"), new FakeChatHistoryStore());
-        vm.ChatInput = "Hỏi";
+        vm.Chat.Input = "Hỏi";
 
-        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
 
-        Assert.Equal(3, vm.ChatMessages.Count);
-        Assert.Equal("AI", vm.ChatMessages[2].Role);
-        Assert.Equal("Xin chào", vm.ChatMessages[2].Content);
+        Assert.Equal(3, vm.Chat.Messages.Count);
+        Assert.Equal("AI", vm.Chat.Messages[2].Role);
+        Assert.Equal("Xin chào", vm.Chat.Messages[2].Content);
     }
 
     [Fact]
     public async Task SendMessage_NetworkFailure_ShowsMappedNetworkError()
     {
         var vm = BuildVm(hasKey: true, () => Throwing(new System.Net.Http.HttpRequestException("down")), new FakeChatHistoryStore());
-        vm.ChatInput = "Hỏi";
+        vm.Chat.Input = "Hỏi";
 
-        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
 
-        Assert.Equal("Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.", vm.ChatMessages[2].Content);
+        Assert.Equal("Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.", vm.Chat.Messages[2].Content);
     }
 
     [Fact]
     public async Task SendMessage_CanBeSentAgainAfterFailure()
     {
         var vm = BuildVm(hasKey: true, () => Throwing(new System.Net.Http.HttpRequestException("down")), new FakeChatHistoryStore());
-        vm.ChatInput = "Một";
-        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
-        vm.ChatInput = "Hai";
+        vm.Chat.Input = "Một";
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
+        vm.Chat.Input = "Hai";
 
-        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
 
-        Assert.Equal(5, vm.ChatMessages.Count);
+        Assert.Equal(5, vm.Chat.Messages.Count);
     }
 
     [Fact]
@@ -212,9 +213,9 @@ public sealed class MainViewModelChatTests : IDisposable
     {
         var chat = new FakeChatHistoryStore();
         var vm = BuildVm(hasKey: true, () => Tokens("Đáp"), chat);
-        vm.ChatInput = "Hỏi";
+        vm.Chat.Input = "Hỏi";
 
-        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
 
         Assert.Empty(chat.Appended);
     }
@@ -231,9 +232,9 @@ public sealed class MainViewModelChatTests : IDisposable
         vm.Library.Add(new LibraryItem("docA", "Sách A", "/lib/a.pdf", ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1));
         vm.OpenWorkspaceCommand.Execute(workspace);
         chat.Appended.Clear();
-        vm.ChatInput = "Hỏi";
+        vm.Chat.Input = "Hỏi";
 
-        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
 
         Assert.Equal(
             [("ws-chat", "User", "Hỏi"), ("ws-chat", "AI", "Đáp án")],
@@ -250,8 +251,8 @@ public sealed class MainViewModelChatTests : IDisposable
         Assert.NotNull(vm.Notes);
         Assert.NotNull(vm.DocumentsSurface);
         Assert.False(vm.IsDarkMode);
-        Assert.Single(vm.ChatMessages); // lời chào
-        Assert.Equal("AI", vm.ChatMessages[0].Role);
+        Assert.Single(vm.Chat.Messages); // lời chào
+        Assert.Equal("AI", vm.Chat.Messages[0].Role);
         Assert.Null(vm.ActiveWorkspaceId);
     }
 
@@ -309,9 +310,10 @@ public sealed class MainViewModelChatTests : IDisposable
     }
 
     // Mở một tài liệu thật (file tạm) qua dịch vụ PDF giả để _documentId khác null.
-    private (MainViewModel vm, FakeChatHistoryStore chat) OpenedDocumentVm(DocumentIndexStatus indexStatus)
+    private (MainViewModel vm, FakeChatHistoryStore chat) OpenedDocumentVm(
+        DocumentIndexStatus indexStatus, FakeChatHistoryStore? seeded = null)
     {
-        var chat = new FakeChatHistoryStore();
+        var chat = seeded ?? new FakeChatHistoryStore();
         var vm = new MainViewModel(
             new FakeDocumentService(),
             new FakeSettings(hasKey: true),
@@ -339,13 +341,25 @@ public sealed class MainViewModelChatTests : IDisposable
         var (vm, chat) = OpenedDocumentVm(indexStatus);
         string? documentId = vm.CurrentDocumentId;
         Assert.NotNull(documentId);
-        vm.ChatInput = "Hỏi";
+        vm.Chat.Input = "Hỏi";
 
-        await vm.SendMessageCommand.ExecuteAsync(parameter: null);
+        await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
 
-        Assert.Equal("Đáp án", vm.ChatMessages[^1].Content);
+        Assert.Equal("Đáp án", vm.Chat.Messages[^1].Content);
         Assert.Equal(
             [(documentId, "User", "Hỏi"), (documentId, "AI", "Đáp án")],
             chat.Appended);
+    }
+
+    [Fact]
+    public void OpenDocument_WithStoredHistory_ShowsStoredMessagesInsteadOfGreeting()
+    {
+        var seeded = new FakeChatHistoryStore();
+        seeded.Stored.Add(new ChatHistoryEntry("docOpen", "User", "Câu hỏi cũ", 1));
+        seeded.Stored.Add(new ChatHistoryEntry("docOpen", "AI", "Trả lời cũ", 1));
+
+        var (vm, _) = OpenedDocumentVm(DocumentIndexStatus.None, seeded);
+
+        Assert.Equal(["Câu hỏi cũ", "Trả lời cũ"], vm.Chat.Messages.Select(m => m.Content), StringComparer.Ordinal);
     }
 }
