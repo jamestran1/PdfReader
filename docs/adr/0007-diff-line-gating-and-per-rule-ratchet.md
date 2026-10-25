@@ -1,8 +1,10 @@
 ---
-status: accepted
+status: accepted (đã hoàn tất siết dần, #145)
 ---
 
 # Chặn warning theo dòng trong diff, siết dần theo từng rule
+
+> **Trạng thái 2026-10-25 (#145):** đợt siết dần đã xong. Mọi rule ở mức warning về 0 trên toàn repo (#133 và các sub-issue; CA1506 nhờ tách `MainViewModel` #176 và `PdfViewerControl` #177). `scripts/check.ps1` không còn lọc warning analyzer theo dòng trong diff: mọi warning trong code nguồn chặn trên toàn repo, và `analyzers/clean-rules.txt` đã bị xoá. Hai bước vẫn chỉ xét dòng thêm/sửa: format (`dotnet format`) và XAML cấm (UI-3, UI-5), vì chúng không phải warning analyzer và file cũ không cần định dạng lại cả loạt. Phần dưới giữ làm lịch sử quyết định.
 
 Bật analyzer (SDK `10.0-recommended` + Meziantou) trên code hiện tại cho ra khoảng 700 vi phạm và khoảng 12 method quá phức tạp. Bật chặn một lần thì mọi PR đỏ; không chặn thì chuẩn không bao giờ được áp. Quyết định:
 

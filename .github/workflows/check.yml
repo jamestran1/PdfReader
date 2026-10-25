@@ -38,7 +38,7 @@ jobs:
         run: Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force -SkipPublisherCheck
 
       # Mỗi vi phạm thành annotation tại dòng trong tab "Files changed"; không comment lên PR.
-      - name: Check (format, build, warning trên dòng đổi, XAML cấm, test)
+      - name: Check (format, build, warning toàn repo, XAML cấm, test)
         if: github.event_name == 'pull_request'
         shell: pwsh
         env:
