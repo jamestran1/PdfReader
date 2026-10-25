@@ -93,30 +93,125 @@ public sealed class IndexingViewModelTests
         RecordingIndex index, IEmbeddingGeneratorFactory factory, Func<IndexingTarget?> target, Action<Action> runOnUi)
         => new(index, new DocumentIndexingService(index, factory, new FakeSettings()), target, runOnUi);
 
-    private static async Task<string> RunUntilStatusAsync(Exception error)
+    // Chạy lượt lập chỉ mục tới lúc lỗi rồi xả hàng đợi UI, nên báo tiến độ tới muộn cũng được tính vào kết quả.
+    private static async Task<string> RunToErrorAsync(Exception error)
     {
-        var posted = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
-        IndexingViewModel vm = null!;
-        vm = Build(new RecordingIndex(), new ThrowingEmbeddingFactory(error), () => Target(),
-            action => { action(); posted.TrySetResult(vm.StatusText); });
+        var ui = new FakeUi();
+        IndexingViewModel vm = Build(new RecordingIndex(), new ThrowingEmbeddingFactory(error), () => Target(), ui.RunOnUi);
 
-        vm.StartBackgroundIndexing();
+        ui.Start(vm);
+        await vm.BackgroundTask!.WaitAsync(Timeout);
+        ui.Drain();
 
-        return await posted.Task.WaitAsync(Timeout);
+        return vm.StatusText;
     }
 
     [Fact]
     public async Task Start_NetworkError_ShowsSkippedMessage()
     {
-        string status = await RunUntilStatusAsync(new System.Net.Http.HttpRequestException("down"));
+        string status = await RunToErrorAsync(new System.Net.Http.HttpRequestException("down"));
 
         Assert.Equal("Lập chỉ mục AI bị bỏ qua: Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng. Tìm kiếm văn bản vẫn dùng được.", status);
+    }
+
+    // Giả luồng UI đơn luồng của WPF. Post (Progress<T>, ưu tiên Normal) chỉ xếp hàng; RunOnUi mô phỏng
+    // Dispatcher.Invoke (ưu tiên Send) nên chạy trước mọi Post đang chờ. Test tự gọi Drain trên một luồng,
+    // dựng đúng thứ tự "báo tiến độ tới sau lỗi" mà không phụ thuộc lịch luồng.
+    private sealed class FakeUi : SynchronizationContext
+    {
+        private readonly Queue<(SendOrPostCallback Callback, object? State)> _normal = new();
+        private readonly Queue<Action> _urgent = new();
+
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            lock (_normal) _normal.Enqueue((d, state));
+        }
+
+        public void RunOnUi(Action action)
+        {
+            lock (_normal) _urgent.Enqueue(action);
+        }
+
+        public void Drain()
+        {
+            while (true)
+            {
+                Action? urgent = null;
+                (SendOrPostCallback Callback, object? State)? normal = null;
+                lock (_normal)
+                {
+                    if (_urgent.Count > 0) urgent = _urgent.Dequeue();
+                    else if (_normal.Count > 0) normal = _normal.Dequeue();
+                    else return;
+                }
+                if (urgent is not null) urgent();
+                else if (normal is { } next) next.Callback(next.State);
+            }
+        }
+
+        // Progress<T> bắt SynchronizationContext lúc khởi tạo; chỉ đặt context giả quanh lệnh Start để phần
+        // await của test không bị post vào hàng đợi không ai xả.
+        public void Start(IndexingViewModel vm)
+        {
+            SynchronizationContext? original = Current;
+            SetSynchronizationContext(this);
+            try { vm.StartBackgroundIndexing(); }
+            finally { SetSynchronizationContext(original); }
+        }
+    }
+
+    // Lượt đầu dùng factory thứ nhất, lượt sau dùng factory thứ hai.
+    private sealed class SequencedEmbeddingFactory(IEmbeddingGeneratorFactory first, IEmbeddingGeneratorFactory second)
+        : IEmbeddingGeneratorFactory
+    {
+        private int _calls;
+
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options)
+            => (Interlocked.Increment(ref _calls) == 1 ? first : second).Create(options);
+    }
+
+    [Fact]
+    public async Task Start_Error_LateProgressDoesNotOverwriteErrorMessage()
+    {
+        var error = new System.Net.Http.HttpRequestException("down");
+        var ui = new FakeUi();
+        IndexingViewModel vm = Build(new RecordingIndex(), new ThrowingEmbeddingFactory(error), () => Target(), ui.RunOnUi);
+
+        ui.Start(vm);
+        await vm.BackgroundTask!.WaitAsync(Timeout);
+        ui.Drain(); // báo tiến độ "0/1" của chính lượt lỗi tới sau thông báo lỗi
+
+        Assert.Equal(IndexingViewModel.FormatError(error), vm.StatusText);
+    }
+
+    [Fact]
+    public async Task Start_DocumentSwitched_CancelledRunLateProgressDoesNotOverwriteNewRun()
+    {
+        var error = new System.Net.Http.HttpRequestException("down");
+        var blocking = new BlockingEmbeddingFactory();
+        var ui = new FakeUi();
+        string documentId = "A";
+        IndexingViewModel vm = Build(new RecordingIndex(),
+            new SequencedEmbeddingFactory(blocking, new ThrowingEmbeddingFactory(error)),
+            () => Target(documentId), ui.RunOnUi);
+
+        ui.Start(vm); // tài liệu A: báo "0/1" rồi treo ở embed
+        Task runA = vm.BackgroundTask!;
+        await blocking.Started.Task.WaitAsync(Timeout);
+
+        documentId = "B"; // đổi tài liệu: huỷ A, B lỗi ngay
+        ui.Start(vm);
+        await vm.BackgroundTask!.WaitAsync(Timeout);
+        await runA.WaitAsync(Timeout);
+        ui.Drain(); // báo tiến độ muộn của A
+
+        Assert.Equal(IndexingViewModel.FormatError(error), vm.StatusText);
     }
 
     [Fact]
     public async Task Start_UnknownError_ShowsVietnameseMessageWithoutRawSdkText()
     {
-        string status = await RunUntilStatusAsync(new InvalidOperationException("raw sdk detail"));
+        string status = await RunToErrorAsync(new InvalidOperationException("raw sdk detail"));
 
         Assert.DoesNotContain("raw sdk detail", status);
         Assert.Equal("Lập chỉ mục AI bị bỏ qua: Đã xảy ra lỗi không xác định khi gọi AI. Tìm kiếm văn bản vẫn dùng được.", status);
