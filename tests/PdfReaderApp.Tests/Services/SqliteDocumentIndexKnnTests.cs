@@ -27,7 +27,7 @@ public class SqliteDocumentIndexKnnTests : IDisposable
             new("doc1", 1, 1, "chunk hot-1"),
             new("doc1", 2, 2, "chunk hot-2")
         ]);
-        _idx.WriteEmbeddings(new List<(long, float[])>
+        _idx.WriteEmbeddings("m", new List<(long, float[])>
         {
             (ids[0], Hot(0)), (ids[1], Hot(1)), (ids[2], Hot(2))
         });
@@ -37,7 +37,7 @@ public class SqliteDocumentIndexKnnTests : IDisposable
     public void RetrieveRelevant_ReturnsNearestFirst()
     {
         // query closest to dimension 1 -> chunk "hot-1" should rank first
-        var results = _idx.RetrieveRelevant("doc1", Hot(1), k: 3);
+        var results = _idx.RetrieveRelevant("doc1", "m", Hot(1), k: 3);
 
         Assert.NotEmpty(results);
         Assert.Contains("hot-1", results[0].Text);
@@ -46,7 +46,7 @@ public class SqliteDocumentIndexKnnTests : IDisposable
     [Fact]
     public void RetrieveRelevant_RespectsK()
     {
-        var results = _idx.RetrieveRelevant("doc1", Hot(0), k: 2);
+        var results = _idx.RetrieveRelevant("doc1", "m", Hot(0), k: 2);
         Assert.InRange(results.Count, 1, 2);
     }
 

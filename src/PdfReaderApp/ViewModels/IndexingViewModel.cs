@@ -87,6 +87,7 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
     {
         IndexingTarget? target = _currentTarget();
         if (target is null) return;
+        // Xoá vector của mọi model: trích lại text sinh chunk id mới nên vector của model nào cũng không còn khớp.
 #pragma warning disable CA1031 // best-effort: xoá chỉ mục cũ lỗi không chặn việc lập chỉ mục lại
         try { _documentIndex.DeleteDocument(target.DocumentId); } catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"IndexingViewModel.Reindex: xoá chỉ mục cũ lỗi: {ex}"); }
 #pragma warning restore CA1031
