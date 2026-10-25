@@ -4,13 +4,16 @@ namespace PdfReaderApp.Services;
 
 public interface IDocumentIndex : IDisposable
 {
+    bool VectorSearchAvailable { get; }
     void EnsureSchema();
     DocumentIndexStatus GetStatus(string documentId, string embeddingModel);
     void DeleteDocument(string documentId);
     IReadOnlyList<long> WriteChunks(
         string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks);
-    void WriteEmbeddings(IReadOnlyList<(long ChunkId, float[] Vector)> embeddings);
+    IReadOnlyList<StoredChunk> GetChunks(string documentId);
+    void WriteEmbeddings(string embeddingModel, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings);
+    void DeleteEmbeddings(string documentId, string embeddingModel);
     void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel);
     IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50);
-    IReadOnlyList<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5);
+    IReadOnlyList<Chunk> RetrieveRelevant(string documentId, string embeddingModel, float[] queryVector, int k = 5);
 }
