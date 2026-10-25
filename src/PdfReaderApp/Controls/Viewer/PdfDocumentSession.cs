@@ -17,6 +17,7 @@ internal sealed class PdfDocumentSession : IDisposable
         new Dictionary<int, IReadOnlyList<PdfImageLocator.NormalizedRect>>();
 
     private readonly PdfDocument _document;
+    // Không dispose riêng ở Dispose(): PdfDocument.Dispose đóng stream nó được nạp từ đó (có test ghim).
     internal MemoryStream Stream { get; }
     private bool _disposed;
 
@@ -41,10 +42,20 @@ internal sealed class PdfDocumentSession : IDisposable
     public static PdfDocumentSession Open(string path)
     {
         byte[] fileBytes = File.ReadAllBytes(path);
-        // Stream giữ trong session nhưng chưa dispose: giữ nguyên hành vi cũ, #192 sẽ thêm Dispose.
         var stream = new MemoryStream(fileBytes);
-        var document = PdfDocument.Load(stream);
-        return new PdfDocumentSession(stream, document, ReadImageRects(path));
+        bool loaded = false;
+        try
+        {
+            var document = PdfDocument.Load(stream);
+            var session = new PdfDocumentSession(stream, document, ReadImageRects(path));
+            loaded = true;
+            return session;
+        }
+        finally
+        {
+            // Load lỗi thì chưa có document nào sở hữu stream, nên tự đóng ở đây.
+            if (!loaded) stream.Dispose();
+        }
     }
 
     public Size GetPageSize(int pageIndex) => _document.Pages[pageIndex].Size;
