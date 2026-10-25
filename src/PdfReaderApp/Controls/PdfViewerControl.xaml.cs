@@ -335,16 +335,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private bool TryPageHit(Point screenPoint, out Core.PageSlot slot, out Point pdfPoint)
     {
-        float scale = (float)ZoomLevel;
-        foreach (var s in _slots)
+        if (Core.SlotHitTester.AtPoint(_slots, screenPoint) is { } hit)
         {
-            var rect = new System.Windows.Rect(s.X, s.Y, s.Width, s.Height);
-            if (rect.Contains(screenPoint))
-            {
-                slot = s;
-                pdfPoint = new Point((screenPoint.X - rect.Left) / scale, (screenPoint.Y - rect.Top) / scale);
-                return true;
-            }
+            slot = hit;
+            pdfPoint = Core.SlotHitTester.ToPdfPoint(hit, screenPoint, ZoomLevel);
+            return true;
         }
         slot = default!;
         pdfPoint = default;
@@ -422,21 +417,13 @@ public partial class PdfViewerControl : UserControl, IDisposable
         var screenPoint = e.GetPosition(InteractionCanvas);
         float scale = (float)ZoomLevel;
 
-        foreach (var slot in _slots)
-        {
-            var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
-            if (rect.Contains(screenPoint))
-            {
-                double pdfX = (screenPoint.X - rect.Left) / scale;
-                double pdfY = (screenPoint.Y - rect.Top) / scale;
+        if (Core.SlotHitTester.AtPoint(_slots, screenPoint) is not { } slot) return;
 
-                var hit = _session!.ObjectManager.HitTest(slot.PageIndex, new Point(pdfX, pdfY));
-                if (hit != null)
-                {
-                    ShowEditor(hit, rect, scale);
-                }
-                break;
-            }
+        var rect = new System.Windows.Rect(slot.X, slot.Y, slot.Width, slot.Height);
+        var hit = _session!.ObjectManager.HitTest(slot.PageIndex, Core.SlotHitTester.ToPdfPoint(slot, screenPoint, scale));
+        if (hit != null)
+        {
+            ShowEditor(hit, rect, scale);
         }
     }
 
@@ -553,28 +540,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
     // capture page + fraction before relayout, then restore the same point afterwards.
     private void RefreshLayoutPreservingAnchor()
     {
-        int anchorSlot = 0;
-        double anchorFrac = 0;
         double centerY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
-        for (int i = 0; i < _slots.Count; i++)
-        {
-            var s = _slots[i];
-            if (centerY < s.Y + s.Height || i == _slots.Count - 1)
-            {
-                anchorSlot = i;
-                anchorFrac = s.Height > 0 ? Math.Clamp((centerY - s.Y) / s.Height, 0, 1) : 0;
-                break;
-            }
-        }
+        int anchorSlot = Core.SlotHitTester.CaptureAnchor(_slots, centerY, out double anchorFrac);
 
         RefreshLayout(keepCache: false);
 
         // The ScrollViewer extent updates on the next layout pass, so restore after it.
         _ = Dispatcher.BeginInvoke(new Action(() =>
         {
-            if (anchorSlot < 0 || anchorSlot >= _slots.Count) return;
-            var ns = _slots[anchorSlot];
-            double newCenterY = ns.Y + anchorFrac * ns.Height;
+            if (!Core.SlotHitTester.TryRestoreCenterY(_slots, anchorSlot, anchorFrac, out double newCenterY)) return;
             PagesScrollViewer.ScrollToVerticalOffset(newCenterY - PagesScrollViewer.ViewportHeight / 2);
         }), System.Windows.Threading.DispatcherPriority.Loaded);
     }
@@ -726,7 +700,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
             if (obj is not PdfReaderApp.Models.Note note) continue;
             if (note.PageIndex != pageIndex || note.Rects == null) continue;
             if (CurrentDocumentId != null && note.DocumentId != null && note.DocumentId != CurrentDocumentId) continue;
-            var color = ParseHighlightColor(note.Color);
+            var color = HighlightColor.Parse(note.Color);
             using var paint = new SKPaint { Color = color, Style = SKPaintStyle.Fill };
             foreach (var r in note.Rects)
             {
@@ -737,18 +711,6 @@ public partial class PdfViewerControl : UserControl, IDisposable
                     (float)(r.H * scale)), paint);
             }
         }
-    }
-
-    private static SKColor ParseHighlightColor(string? hex)
-    {
-        // Mac dinh vang mo; parse #RRGGBB neu co.
-        byte rr = 255, gg = 235, bb = 59;
-        if (!string.IsNullOrEmpty(hex) && hex.StartsWith('#') && hex.Length == 7
-            && byte.TryParse(hex.AsSpan(1, 2), System.Globalization.NumberStyles.HexNumber, null, out var pr)
-            && byte.TryParse(hex.AsSpan(3, 2), System.Globalization.NumberStyles.HexNumber, null, out var pg)
-            && byte.TryParse(hex.AsSpan(5, 2), System.Globalization.NumberStyles.HexNumber, null, out var pb))
-        { rr = pr; gg = pg; bb = pb; }
-        return new SKColor(rr, gg, bb, 80);
     }
 
     private void DrawSelectionOverlay(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
@@ -810,20 +772,18 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     // Trang chờ cuộn tới sau khi nạp tài liệu (cross-doc jump) ở chế độ cuộn liên tục; 0 = không có.
     // Trong khi pending > 0, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
-    private int _pendingScrollPage;
+    private readonly Core.ScrollSettleState _scrollSettle = new();
     // Timer "ổn định hoá": sau nạp, extent ảo hoá lớn dần qua nhiều đợt layout và có thể reset offset về 0.
     // Timer re-assert cuộn tới đích mỗi tick, chỉ gỡ guard khi offset đã ĐỨNG YÊN tại đích vài tick liên tiếp.
     private System.Windows.Threading.DispatcherTimer? _scrollSettleTimer;
-    private int _scrollSettleStable;
-    private int _scrollSettleElapsed;
 
     // Bật guard pending (chặn đồng bộ scroll->trang) NGAY trước các bước layout của LoadDocument để
     // ScrollChanged trung gian không kéo CurrentPage về trang đầu. Việc cuộn thực sự do timer ổn-định-hoá
     // (ScheduleScrollToCurrentPage) lo SAU khi layout xong.
     private void ArmPendingScrollGuard()
     {
-        _pendingScrollPage = (CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing)
-            ? CurrentPage : 0;
+        _scrollSettle.Arm((CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing)
+            ? CurrentPage : 0);
     }
 
     // Cuộn tới CurrentPage ở chế độ cuộn liên tục sau khi nạp tài liệu. Vì extent ảo hoá lớn dần qua nhiều
@@ -834,13 +794,11 @@ public partial class PdfViewerControl : UserControl, IDisposable
     {
         if (!(CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing))
         {
-            _pendingScrollPage = 0;
+            _scrollSettle.Clear();
             StopScrollSettleTimer();
             return;
         }
-        _pendingScrollPage = CurrentPage;   // guard ON suốt quá trình ổn định
-        _scrollSettleStable = 0;
-        _scrollSettleElapsed = 0;
+        _scrollSettle.Begin(CurrentPage);   // guard ON suốt quá trình ổn định
         if (_scrollSettleTimer == null)
         {
             _scrollSettleTimer = new System.Windows.Threading.DispatcherTimer
@@ -854,37 +812,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void OnScrollSettleTick(object? sender, EventArgs e)
     {
-        if (_pendingScrollPage <= 0 || _currentDocument == null) { StopScrollSettleTimer(); return; }
-        _scrollSettleElapsed++;
+        // Slot chưa dựng (đang chờ layout) trả null; state machine bỏ cuộc sau trần tick để khỏi kẹt guard.
+        var step = _scrollSettle.Tick(
+            _currentDocument != null,
+            pageIndex => _slots.FirstOrDefault(s => s.PageIndex == pageIndex)?.Y,
+            new Core.ScrollViewport(PagesScrollViewer.ScrollableHeight, PagesScrollViewer.VerticalOffset));
 
-        var slot = _slots.FirstOrDefault(s => s.PageIndex == _pendingScrollPage - 1);
-        if (slot == null)
-        {
-            // slot chưa dựng (đang chờ layout). Bỏ cuộc sau trần thời gian để khỏi kẹt guard.
-            if (_scrollSettleElapsed > 80) { _pendingScrollPage = 0; StopScrollSettleTimer(); }
-            return;
-        }
-
-        double sh = PagesScrollViewer.ScrollableHeight;
-        double target = System.Math.Min(slot.Y, sh);
-        double vOff = PagesScrollViewer.VerticalOffset;
-
-        if (System.Math.Abs(vOff - target) > 1)
-        {
-            PagesScrollViewer.ScrollToVerticalOffset(target);   // re-assert: layout có thể đã reset offset
-            _scrollSettleStable = 0;
-        }
-        else
-        {
-            _scrollSettleStable++;   // offset đang đứng yên tại đích
-        }
-
-        // Gỡ guard khi đã đứng yên tại đích đủ lâu (offset thực sự dính), hoặc hết trần thời gian (~2.4s).
-        if (_scrollSettleStable >= 3 || _scrollSettleElapsed > 80)
-        {
-            _pendingScrollPage = 0;
-            StopScrollSettleTimer();
-        }
+        // Re-assert: layout có thể đã reset offset.
+        if (step.ReassertOffset is { } offset) PagesScrollViewer.ScrollToVerticalOffset(offset);
+        if (step.ShouldStop) StopScrollSettleTimer();
     }
 
     private void PagesScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -898,7 +834,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
         // Đang chờ cuộn tới trang đích (sau khi nạp): KHÔNG đồng bộ scroll->trang để khỏi bị kéo về cover.
         // Guard được gỡ bởi timer ổn-định-hoá (OnScrollSettleTick) khi offset đã dính tại đích.
-        if (_pendingScrollPage > 0)
+        if (_scrollSettle.IsPending)
         {
             skiaCanvas.InvalidateVisual();
             return;
@@ -911,14 +847,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
         skiaCanvas.InvalidateVisual();
 
         double middleY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
-        foreach (var slot in _slots)
+        if (Core.SlotHitTester.AtOffset(_slots, middleY) is { } slot)
         {
-            if (middleY >= slot.Y && middleY <= slot.Y + slot.Height)
-            {
-                int newPage = slot.PageIndex + 1;
-                if (CurrentPage != newPage) CurrentPage = newPage;
-                break;
-            }
+            int newPage = slot.PageIndex + 1;
+            if (CurrentPage != newPage) CurrentPage = newPage;
         }
     }
 
