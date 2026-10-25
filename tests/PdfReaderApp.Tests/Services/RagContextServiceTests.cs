@@ -10,11 +10,13 @@ public class RagContextServiceTests
     {
         private readonly string? _k;
         public FakeSettings(string? k) => _k = k;
-        public string? GetApiKey() => _k;
-        public void SaveApiKey(string a) { }
-        public bool HasApiKey() => !string.IsNullOrEmpty(_k);
+        public string? GetApiKey(AiProvider provider) => _k;
+        public void SaveApiKey(AiProvider provider, string a) { }
+        public bool HasApiKey(AiProvider provider) => !string.IsNullOrEmpty(_k);
         public AppTheme GetThemePreference() => AppTheme.Light;
         public void SaveThemePreference(AppTheme theme) { }
+        public AiModelSettings GetModelSettings() => AiModelSettings.Default;
+        public void SaveModelSettings(AiModelSettings settings) { }
     }
     private sealed class FakeGen : IEmbeddingGenerator<string, Embedding<float>>
     {
@@ -27,7 +29,7 @@ public class RagContextServiceTests
     }
     private sealed class FakeFactory : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey) => new FakeGen();
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new FakeGen();
     }
     private sealed class StubIndex : IDocumentIndex
     {

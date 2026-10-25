@@ -3,11 +3,18 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
-        Title="Cài đặt AI" Height="240" Width="460"
+        xmlns:local="clr-namespace:PdfReaderApp"
+        Title="Cài đặt AI" Height="640" Width="560"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         TextElement.Foreground="{DynamicResource MaterialDesignBody}"
         Background="{DynamicResource MaterialDesignPaper}"
         FontFamily="{materialDesign:MaterialDesignFont}">
+    <Window.Resources>
+        <local:AiProviderToNameConverter x:Key="AiProviderToNameConverter"/>
+        <DataTemplate x:Key="ProviderItemTemplate">
+            <TextBlock Text="{Binding Converter={StaticResource AiProviderToNameConverter}}"/>
+        </DataTemplate>
+    </Window.Resources>
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="40" ResizeBorderThickness="0" CornerRadius="0" GlassFrameThickness="0"/>
     </shell:WindowChrome.WindowChrome>
@@ -15,6 +22,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Title bar tùy biến (WindowChrome): tiêu đề + nút đóng -->
@@ -30,19 +38,89 @@
             </DockPanel>
         </Border>
 
-        <StackPanel Grid.Row="1" Margin="24,16,24,20">
-            <TextBlock Text="OpenAI API Key" FontWeight="Bold" Margin="0,0,0,8"/>
-            <PasswordBox x:Name="ApiKeyBox"
-                         materialDesign:HintAssist.Hint="Dán API key (để trống nếu giữ key hiện tại)"
-                         Style="{StaticResource MaterialDesignFloatingHintPasswordBox}"/>
-            <TextBlock Text="Key được mã hóa và lưu cục bộ (DPAPI)."
-                       Opacity="0.6" FontSize="11" Margin="0,8,0,0"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,24,0,0">
-                <Button x:Name="CancelButton" Content="HỦY" Width="90"
-                        Style="{StaticResource MaterialDesignFlatButton}" Click="CancelButton_Click"/>
-                <Button x:Name="SaveButton" Content="LƯU" Width="90" Margin="8,0,0,0"
-                        Style="{StaticResource MaterialDesignRaisedButton}" Click="SaveButton_Click"/>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24,16,24,8">
+                <!-- Card 1: Khoá API -->
+                <materialDesign:Card Padding="20" UniformCornerRadius="12"
+                                     materialDesign:ElevationAssist.Elevation="Dp1"
+                                     Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}">
+                    <StackPanel>
+                        <TextBlock Text="Khoá API" FontSize="16" FontWeight="Bold"
+                                   Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
+                        <TextBlock Text="Key được mã hoá và lưu cục bộ (DPAPI)." FontSize="12" Margin="0,4,0,12"
+                                   Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+                        <PasswordBox x:Name="OpenAiKeyBox" Margin="0,0,0,12"
+                                     Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
+                                     materialDesign:HintAssist.Hint="OpenAI"
+                                     materialDesign:HintAssist.HelperText="{Binding OpenAiKeyHint}"/>
+                        <PasswordBox x:Name="GeminiKeyBox" Margin="0,0,0,12"
+                                     Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
+                                     materialDesign:HintAssist.Hint="Google Gemini"
+                                     materialDesign:HintAssist.HelperText="{Binding GeminiKeyHint}"/>
+                        <PasswordBox x:Name="ClaudeKeyBox"
+                                     Style="{StaticResource MaterialDesignOutlinedPasswordBox}"
+                                     materialDesign:HintAssist.Hint="Anthropic Claude"
+                                     materialDesign:HintAssist.HelperText="{Binding ClaudeKeyHint}"/>
+                    </StackPanel>
+                </materialDesign:Card>
+
+                <!-- Card 2: Cấu hình model -->
+                <materialDesign:Card Padding="20" Margin="0,16,0,0" UniformCornerRadius="12"
+                                     materialDesign:ElevationAssist.Elevation="Dp1"
+                                     Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}">
+                    <StackPanel>
+                        <TextBlock Text="Cấu hình model" FontSize="16" FontWeight="Bold"
+                                   Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
+
+                        <TextBlock Text="Chat" FontWeight="Bold" Margin="0,12,0,8"
+                                   Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0" Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                      materialDesign:HintAssist.Hint="Nhà cung cấp"
+                                      ItemsSource="{Binding ChatProviders}"
+                                      ItemTemplate="{StaticResource ProviderItemTemplate}"
+                                      SelectedItem="{Binding ChatProvider}"/>
+                            <TextBox Grid.Column="2" Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="Tên model"
+                                     Text="{Binding ChatModel, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+
+                        <TextBlock Text="RAG / Embedding" FontWeight="Bold" Margin="0,16,0,8"
+                                   Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="12"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0" Style="{StaticResource MaterialDesignOutlinedComboBox}"
+                                      materialDesign:HintAssist.Hint="Nhà cung cấp"
+                                      ItemsSource="{Binding EmbeddingProviders}"
+                                      ItemTemplate="{StaticResource ProviderItemTemplate}"
+                                      SelectedItem="{Binding EmbeddingProvider}"/>
+                            <TextBox Grid.Column="2" Style="{StaticResource MaterialDesignOutlinedTextBox}"
+                                     materialDesign:HintAssist.Hint="Tên model"
+                                     Text="{Binding EmbeddingModel, UpdateSourceTrigger=PropertyChanged}"/>
+                        </Grid>
+                    </StackPanel>
+                </materialDesign:Card>
             </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="24,8,24,20">
+            <Button x:Name="CancelButton" Content="Huỷ" MinWidth="90"
+                    Style="{StaticResource MaterialDesignFlatButton}"
+                    materialDesign:ButtonAssist.CornerRadius="12"
+                    Click="CancelButton_Click"/>
+            <Button x:Name="SaveButton" Content="Lưu" MinWidth="90" Margin="8,0,0,0"
+                    Style="{StaticResource MaterialDesignRaisedButton}"
+                    materialDesign:ButtonAssist.CornerRadius="12"
+                    Click="SaveButton_Click"/>
         </StackPanel>
     </Grid>
 </Window>

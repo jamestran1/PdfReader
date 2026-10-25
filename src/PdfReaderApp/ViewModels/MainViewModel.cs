@@ -875,15 +875,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenSettings()
     {
-        var window = new SettingsWindow
+        var window = new SettingsWindow(new SettingsViewModel(_settingsService))
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (window.ShowDialog() == true && !string.IsNullOrWhiteSpace(window.ApiKey))
-        {
-            _settingsService.SaveApiKey(window.ApiKey.Trim());
-        }
+        window.ShowDialog();
     }
 
     [RelayCommand]

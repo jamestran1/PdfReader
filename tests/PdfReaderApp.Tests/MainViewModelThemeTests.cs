@@ -21,10 +21,10 @@ public class MainViewModelThemeTests
         => new MainViewModel(
             new ITextPdfDocumentService(),
             settings,
-            new OpenAiChatClientFactory(),
+            new AiChatClientFactory(),
             new SqliteDocumentIndex(TempDb(),
                 Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-            new OpenAiEmbeddingGeneratorFactory(),
+            new AiEmbeddingGeneratorFactory(),
             themeService: themeService);
 
     private static WindowsSettingsService FreshSettings()

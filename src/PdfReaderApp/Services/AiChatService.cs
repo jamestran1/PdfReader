@@ -18,7 +18,7 @@ public sealed class AiChatService : IDisposable
     private readonly List<ChatMessage> _history = [];
 
     private IChatClient? _client;
-    private string? _clientKey;
+    private AiClientOptions? _clientOptions;
 
     public AiChatService(ISettingsService settings, IChatClientFactory chatClientFactory)
     {
@@ -27,7 +27,7 @@ public sealed class AiChatService : IDisposable
         _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
     }
 
-    public bool IsConfigured => _settings.HasApiKey();
+    public bool IsConfigured => _settings.HasApiKey(_settings.GetModelSettings().ChatProvider);
 
     public void ResetConversation()
     {
@@ -102,15 +102,17 @@ public sealed class AiChatService : IDisposable
 
     private IChatClient EnsureClient()
     {
-        string? key = _settings.GetApiKey();
+        var models = _settings.GetModelSettings();
+        string? key = _settings.GetApiKey(models.ChatProvider);
         if (string.IsNullOrEmpty(key))
             throw new AiChatException(AiChatError.Unauthorized, "Chưa cấu hình API key.");
 
-        if (_client is null || !string.Equals(_clientKey, key, StringComparison.Ordinal))
+        var options = new AiClientOptions(models.ChatProvider, models.ChatModel, key);
+        if (_client is null || _clientOptions != options)
         {
             _client?.Dispose();
-            _client = _factory.Create(key);
-            _clientKey = key;
+            _client = _factory.Create(options);
+            _clientOptions = options;
         }
 
         return _client;

@@ -11,21 +11,23 @@ public class DocumentIndexingServiceTests
     {
         private readonly string? _k;
         public FakeSettings(string? k) => _k = k;
-        public string? GetApiKey() => _k;
-        public void SaveApiKey(string apiKey) { }
-        public bool HasApiKey() => !string.IsNullOrEmpty(_k);
+        public string? GetApiKey(AiProvider provider) => _k;
+        public void SaveApiKey(AiProvider provider, string apiKey) { }
+        public bool HasApiKey(AiProvider provider) => !string.IsNullOrEmpty(_k);
         public AppTheme GetThemePreference() => AppTheme.Light;
         public void SaveThemePreference(AppTheme theme) { }
+        public AiModelSettings GetModelSettings() => AiModelSettings.Default;
+        public void SaveModelSettings(AiModelSettings settings) { }
     }
 
     private sealed class FakeEmbedFactory : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey) => new FakeGen();
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new FakeGen();
     }
 
     private sealed class ThrowingEmbedFactory : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey) => new ThrowingGen();
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new ThrowingGen();
     }
 
     private sealed class ThrowingGen : IEmbeddingGenerator<string, Embedding<float>>

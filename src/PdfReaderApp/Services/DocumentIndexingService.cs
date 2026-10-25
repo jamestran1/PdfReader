@@ -5,7 +5,6 @@ namespace PdfReaderApp.Services;
 
 public sealed class DocumentIndexingService
 {
-    public const string EmbeddingModel = "text-embedding-3-small";
     private const int BatchSize = 100;
 
     private readonly IDocumentIndex _index;
@@ -24,8 +23,11 @@ public sealed class DocumentIndexingService
         string documentId, string? filePath, IReadOnlyList<PageText> pages,
         IProgress<IndexingProgress>? progress, CancellationToken ct)
     {
+        var models = _settings.GetModelSettings();
+        string embeddingModel = models.EmbeddingModel;
+
         // Already fully indexed with the current embedding model → reuse, skip re-embedding.
-        if (_index.GetStatus(documentId, EmbeddingModel) == DocumentIndexStatus.Complete)
+        if (_index.GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Complete)
         {
             progress?.Report(new IndexingProgress(0, 0, "complete"));
             return;
@@ -37,21 +39,21 @@ public sealed class DocumentIndexingService
         if (chunks.Count == 0)
         {
             _index.WriteChunks(documentId, filePath, pageCount, chunks);
-            _index.SetStatus(documentId, DocumentIndexStatus.Empty, EmbeddingModel);
+            _index.SetStatus(documentId, DocumentIndexStatus.Empty, embeddingModel);
             return;
         }
 
         var chunkIds = _index.WriteChunks(documentId, filePath, pageCount, chunks);
         progress?.Report(new IndexingProgress(0, chunks.Count, "indexing"));
 
-        string? key = _settings.GetApiKey();
+        string? key = _settings.GetApiKey(models.EmbeddingProvider);
         if (string.IsNullOrEmpty(key))
         {
-            _index.SetStatus(documentId, DocumentIndexStatus.TextOnly, EmbeddingModel);
+            _index.SetStatus(documentId, DocumentIndexStatus.TextOnly, embeddingModel);
             return;
         }
 
-        using var generator = _embedFactory.Create(key);
+        using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key));
         int done;
 
         try
@@ -64,11 +66,11 @@ public sealed class DocumentIndexingService
         }
         catch (Exception)
         {
-            _index.SetStatus(documentId, DocumentIndexStatus.Partial, EmbeddingModel);
+            _index.SetStatus(documentId, DocumentIndexStatus.Partial, embeddingModel);
             throw;
         }
 
-        _index.SetStatus(documentId, DocumentIndexStatus.Complete, EmbeddingModel);
+        _index.SetStatus(documentId, DocumentIndexStatus.Complete, embeddingModel);
         progress?.Report(new IndexingProgress(done, chunks.Count, "complete"));
     }
 
