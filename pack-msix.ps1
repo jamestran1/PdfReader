@@ -33,7 +33,8 @@ Write-Host "Packaging MSIX..."
 # Cert dev chỉ để cài local khi smoke test; bản Store được Microsoft re-sign nên cert này không theo package (ADR 0005).
 if (-not (Test-Path "devcert.pfx")) {
     Write-Host "Generating devcert.pfx for testing..."
-    winapp cert generate --output devcert.pfx --password password --publisher "CN=Placeholder"
+    # Publisher của cert phải khớp manifest, nên đọc từ manifest thay vì hardcode (Package Identity thật thay Placeholder ở #99).
+    winapp cert generate --output devcert.pfx --password password --manifest Package.appxmanifest
 }
 
 winapp package publish/win-x64 --output "PdfReaderApp_$Version.msix" --cert devcert.pfx --cert-password password

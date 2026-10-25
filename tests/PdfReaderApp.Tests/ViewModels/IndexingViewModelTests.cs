@@ -13,11 +13,13 @@ public sealed class IndexingViewModelTests
 
     private sealed class FakeSettings : ISettingsService
     {
-        public string? GetApiKey() => "key";
-        public void SaveApiKey(string apiKey) { }
-        public bool HasApiKey() => true;
+        public string? GetApiKey(AiProvider provider) => "key";
+        public void SaveApiKey(AiProvider provider, string apiKey) { }
+        public bool HasApiKey(AiProvider provider) => true;
         public AppTheme GetThemePreference() => AppTheme.Light;
         public void SaveThemePreference(AppTheme theme) { }
+        public AiModelSettings GetModelSettings() => AiModelSettings.Default;
+        public void SaveModelSettings(AiModelSettings settings) { }
     }
 
     private sealed class RecordingIndex : IDocumentIndex
@@ -37,7 +39,7 @@ public sealed class IndexingViewModelTests
 
     private sealed class ThrowingEmbeddingFactory(Exception error) : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey) => throw error;
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => throw error;
     }
 
     // Generator treo đến khi bị huỷ, để quan sát việc Dispose huỷ tác vụ nền.
@@ -46,7 +48,7 @@ public sealed class IndexingViewModelTests
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey) => new BlockingGenerator(this);
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new BlockingGenerator(this);
     }
 
     private sealed class BlockingGenerator(BlockingEmbeddingFactory owner) : IEmbeddingGenerator<string, Embedding<float>>

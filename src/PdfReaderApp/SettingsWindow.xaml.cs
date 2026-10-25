@@ -1,26 +1,37 @@
 using System.Windows;
+using PdfReaderApp.Models;
+using PdfReaderApp.ViewModels;
 
 namespace PdfReaderApp;
 
 public partial class SettingsWindow : Window
 {
-    public string? ApiKey { get; private set; }
+    private readonly SettingsViewModel _viewModel;
 
-    public SettingsWindow()
+    public SettingsWindow(SettingsViewModel viewModel)
     {
+        _viewModel = viewModel;
+        DataContext = viewModel;
         InitializeComponent();
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        ApiKey = ApiKeyBox.Password;
+        var typedKeys = new Dictionary<AiProvider, string>
+        {
+            [AiProvider.OpenAi] = OpenAiKeyBox.Password,
+            [AiProvider.Gemini] = GeminiKeyBox.Password,
+            [AiProvider.Claude] = ClaudeKeyBox.Password,
+        };
+
+        if (!_viewModel.TrySave(typedKeys)) return;
+
         DialogResult = true;
         Close();
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
     {
-        ApiKey = null;
         DialogResult = false;
         Close();
     }

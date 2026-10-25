@@ -121,30 +121,30 @@ public class MainViewModelTests
         => new MainViewModel(
             new PdfReaderApp.Services.ITextPdfDocumentService(),
             new PdfReaderApp.Services.WindowsSettingsService(),
-            new PdfReaderApp.Services.OpenAiChatClientFactory(),
+            new PdfReaderApp.Services.AiChatClientFactory(),
             new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
                 System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            new PdfReaderApp.Services.AiEmbeddingGeneratorFactory(),
             store);
 
     private static MainViewModel VmWithWorkspaceStore(FakeWorkspaceStore wsStore)
         => new MainViewModel(
             new PdfReaderApp.Services.ITextPdfDocumentService(),
             new PdfReaderApp.Services.WindowsSettingsService(),
-            new PdfReaderApp.Services.OpenAiChatClientFactory(),
+            new PdfReaderApp.Services.AiChatClientFactory(),
             new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
                 System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            new PdfReaderApp.Services.AiEmbeddingGeneratorFactory(),
             workspaceStore: wsStore);
 
     private static MainViewModel VmWith(FakeWorkspaceStore wsStore, FakeNoteStore notes)
         => new MainViewModel(
             new PdfReaderApp.Services.ITextPdfDocumentService(),
             new PdfReaderApp.Services.WindowsSettingsService(),
-            new PdfReaderApp.Services.OpenAiChatClientFactory(),
+            new PdfReaderApp.Services.AiChatClientFactory(),
             new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
                 System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            new PdfReaderApp.Services.AiEmbeddingGeneratorFactory(),
             noteStore: notes,
             workspaceStore: wsStore);
 
@@ -812,10 +812,10 @@ public class MainViewModelTests
         var vm = new MainViewModel(
             new PdfReaderApp.Services.ITextPdfDocumentService(),
             new PdfReaderApp.Services.WindowsSettingsService(),
-            new PdfReaderApp.Services.OpenAiChatClientFactory(),
+            new PdfReaderApp.Services.AiChatClientFactory(),
             new PdfReaderApp.Services.SqliteDocumentIndex(TempDb(),
                 System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-            new PdfReaderApp.Services.OpenAiEmbeddingGeneratorFactory(),
+            new PdfReaderApp.Services.AiEmbeddingGeneratorFactory(),
             chatHistory: chat,
             noteStore: notes,
             workspaceStore: wsStore);

@@ -15,16 +15,18 @@ public sealed class MainViewModelIndexingTests : IDisposable
 
     private sealed class FakeSettings : ISettingsService
     {
-        public string? GetApiKey() => "key";
-        public void SaveApiKey(string apiKey) { }
-        public bool HasApiKey() => true;
+        public string? GetApiKey(AiProvider provider) => "key";
+        public void SaveApiKey(AiProvider provider, string apiKey) { }
+        public bool HasApiKey(AiProvider provider) => true;
         public AppTheme GetThemePreference() => AppTheme.Light;
         public void SaveThemePreference(AppTheme theme) { }
+        public AiModelSettings GetModelSettings() => AiModelSettings.Default;
+        public void SaveModelSettings(AiModelSettings settings) { }
     }
 
     private sealed class FakeChatClientFactory : IChatClientFactory
     {
-        public IChatClient Create(string apiKey) => throw new InvalidOperationException("không dùng chat");
+        public IChatClient Create(AiClientOptions options) => throw new InvalidOperationException("không dùng chat");
     }
 
     private sealed class FakeDocumentService : IPdfDocumentService
@@ -38,7 +40,7 @@ public sealed class MainViewModelIndexingTests : IDisposable
 
     private sealed class ThrowingEmbeddingFactory : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(string apiKey)
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options)
             => throw new InvalidOperationException("embedding không khả dụng");
     }
 

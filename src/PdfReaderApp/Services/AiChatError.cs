@@ -6,5 +6,6 @@ public enum AiChatError
     RateLimit,
     InsufficientQuota,
     Network,
+    UnsupportedProvider,
     Unknown
 }
