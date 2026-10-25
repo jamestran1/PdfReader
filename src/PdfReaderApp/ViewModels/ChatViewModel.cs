@@ -222,9 +222,9 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     {
         AiChatError.Unauthorized => "API key không hợp lệ, vui lòng kiểm tra lại trong Cài đặt.",
         AiChatError.RateLimit => "Đã vượt giới hạn yêu cầu, vui lòng thử lại sau.",
-        AiChatError.InsufficientQuota => "Tài khoản OpenAI không đủ credits/quota. Vui lòng nạp credits và kiểm tra Billing tại platform.openai.com.",
+        AiChatError.InsufficientQuota => "Tài khoản của nhà cung cấp AI không đủ credits. Hãy kiểm tra thanh toán ở trang của nhà cung cấp.",
         AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
-        AiChatError.UnsupportedProvider => "Nhà cung cấp AI đã chọn chưa được hỗ trợ. Vui lòng chọn OpenAI trong Cài đặt.",
+        AiChatError.UnsupportedProvider => "Nhà cung cấp AI đã chọn chưa được hỗ trợ. Vui lòng chọn OpenAI hoặc Claude trong Cài đặt.",
         _ => "Đã xảy ra lỗi khi gọi AI."
     };
 
