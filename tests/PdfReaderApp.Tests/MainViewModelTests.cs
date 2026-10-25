@@ -342,6 +342,22 @@ public class MainViewModelTests
     }
 
     [Fact]
+    public void ActiveTabChange_ClearsSearchQueryAndHighlight()
+    {
+        var vm = new MainViewModel();
+        vm.SearchQuery = "abc";
+        vm.SelectedSearchQuery = "abc";
+        vm.ExecutedSearchQuery = "abc";
+
+        vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+
+        Assert.Equal(string.Empty, vm.SearchQuery);
+        Assert.Equal(string.Empty, vm.SelectedSearchQuery);
+        Assert.Equal(string.Empty, vm.ExecutedSearchQuery);
+        Assert.Empty(vm.SearchResults);
+    }
+
+    [Fact]
     public void ViewMode_DefaultsToContinuous()
     {
         Assert.Equal(PdfViewMode.Continuous, new MainViewModel().ViewMode);
