@@ -134,6 +134,14 @@ internal static class WindowSnapshot
             dpi.PixelsPerInchX,
             dpi.PixelsPerInchY,
             PixelFormats.Pbgra32);
+        // Nền của Window không thuộc Content: thiếu bước này thì ảnh trong suốt và chế độ tối trông như nền trắng.
+        var background = new DrawingVisual();
+        using (var context = background.RenderOpen())
+        {
+            context.DrawRectangle(window.Background, null, new Rect(0, 0, content.ActualWidth, content.ActualHeight));
+        }
+
+        bitmap.Render(background);
         bitmap.Render(content);
 
         var encoder = new PngBitmapEncoder();
