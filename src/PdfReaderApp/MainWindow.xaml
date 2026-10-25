@@ -356,19 +356,19 @@
                                          Foreground="{DynamicResource MaterialDesignBody}"
                                          materialDesign:HintAssist.Hint="Tìm trong tài liệu"
                                          materialDesign:TextFieldAssist.DecorationVisibility="Collapsed"
-                                         Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}">
+                                         Text="{Binding Search.Query, UpdateSourceTrigger=PropertyChanged}">
                                     <TextBox.InputBindings>
-                                        <KeyBinding Key="Enter" Command="{Binding SearchCommand}" />
+                                        <KeyBinding Key="Enter" Command="{Binding Search.SearchCommand}" />
                                     </TextBox.InputBindings>
                                 </TextBox>
                                 <Button Grid.Column="2" Style="{StaticResource TriThu.TopBar.IconButton}" Width="30" Height="30"
-                                        ToolTip="Xoá tìm kiếm" Command="{Binding ClearSearchCommand}">
+                                        ToolTip="Xoá tìm kiếm" Command="{Binding Search.ClearCommand}">
                                     <materialDesign:PackIcon Kind="Close" Width="16" Height="16"/>
                                 </Button>
                             </Grid>
                         </Border>
 
-                        <Popup IsOpen="{Binding SearchResults.Count, Converter={StaticResource CountToBoolConverter}, Mode=OneWay}"
+                        <Popup IsOpen="{Binding Search.Results.Count, Converter={StaticResource CountToBoolConverter}, Mode=OneWay}"
                                PlacementTarget="{Binding ElementName=SearchBox}" Placement="Bottom"
                                StaysOpen="False" MaxHeight="430" Width="380" VerticalOffset="8">
                             <Border Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}"
@@ -383,21 +383,21 @@
                                                Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}">
                                         <TextBlock.Text>
                                             <MultiBinding StringFormat="{}{0} kết quả cho &quot;{1}&quot;">
-                                                <Binding Path="SearchResults.Count"/>
-                                                <Binding Path="ExecutedSearchQuery"/>
+                                                <Binding Path="Search.Results.Count"/>
+                                                <Binding Path="Search.ExecutedQuery"/>
                                             </MultiBinding>
                                         </TextBlock.Text>
                                     </TextBlock>
                                     <Border Grid.Row="0" Height="1" VerticalAlignment="Bottom"
                                             Background="{DynamicResource TriThu.Brush.OutlineVariant}"/>
                                     <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="380" Padding="6">
-                                        <ItemsControl ItemsSource="{Binding SearchResults}">
+                                        <ItemsControl ItemsSource="{Binding Search.Results}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Background="Transparent" Padding="12,11" CornerRadius="10" Cursor="Hand">
                                                         <Border.InputBindings>
                                                             <MouseBinding MouseAction="LeftClick"
-                                                                          Command="{Binding DataContext.SelectSearchResultCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                          Command="{Binding DataContext.Search.SelectResultCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                           CommandParameter="{Binding}"/>
                                                         </Border.InputBindings>
                                                         <StackPanel>
@@ -407,7 +407,7 @@
                                                             <TextBlock TextWrapping="Wrap" FontSize="14" Margin="0,4,0,0"
                                                                        Foreground="{DynamicResource MaterialDesignBody}"
                                                                        local:SearchSnippetHighlighter.Text="{Binding Snippet}"
-                                                                       local:SearchSnippetHighlighter.Query="{Binding DataContext.ExecutedSearchQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+                                                                       local:SearchSnippetHighlighter.Query="{Binding DataContext.Search.ExecutedQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
                                                         </StackPanel>
                                                     </Border>
                                                 </DataTemplate>
@@ -501,7 +501,7 @@
                                        CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
                                        TotalPages="{Binding TotalPages, Mode=TwoWay}"
                                        ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
-                                       HighlightQuery="{Binding SelectedSearchQuery}"
+                                       HighlightQuery="{Binding Search.SelectedQuery}"
                                        MatchSource="{Binding PdfService}"
                                        ViewMode="{Binding ViewMode}"
                                        ShowCover="{Binding ShowCoverSeparately}"
@@ -551,7 +551,7 @@
                                     TotalPages="{Binding TotalPages, Mode=OneWayToSource}"
                                     ZoomLevel="{Binding Zoom, Mode=TwoWay}"
                                     CurrentDocumentId="{Binding DocumentId}"
-                                    HighlightQuery="{Binding DataContext.SelectedSearchQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    HighlightQuery="{Binding DataContext.Search.SelectedQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     MatchSource="{Binding DataContext.PdfService, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     ViewMode="{Binding DataContext.ViewMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     ShowCover="{Binding DataContext.ShowCoverSeparately, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
