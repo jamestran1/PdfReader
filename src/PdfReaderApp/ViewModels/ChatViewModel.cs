@@ -11,6 +11,14 @@ namespace PdfReaderApp.ViewModels;
 public sealed partial class ChatViewModel : ObservableObject, IDisposable
 {
     private const int ContextPageWindow = 2;
+    private const string MissingKeySuffix = " (chưa có key)";
+
+    // Lời lỗi của các bản cũ vẫn nằm trong lịch sử chat đã lưu; giữ trong bộ lọc để không nạp lại vào trí nhớ LLM.
+    private const string LegacyNotConfiguredMessage =
+        "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key.";
+    private const string LegacyUnsupportedProviderMessage =
+        "Nhà cung cấp AI đã chọn chưa được hỗ trợ. Vui lòng chọn OpenAI hoặc Claude trong Cài đặt.";
+    private const string LegacyUnknownErrorMessage = "Đã xảy ra lỗi khi gọi AI.";
 
     // Các nội dung AI KHÔNG phải câu trả lời thật (thông báo lỗi). Suy ra từ chính AiErrorMessages nên
     // tự cập nhật nếu đổi lời lỗi, cộng thông báo thiếu key theo từng provider.
@@ -26,7 +34,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string Input { get; set; } = string.Empty;
 
-    /// <summary>Provider và model chat đang dùng, hiện ở đầu khung chat (vd "Anthropic Claude · claude-sonnet-5-5").</summary>
+    /// <summary>Provider và model chat đang dùng, hiện ở đầu khung chat (vd "Anthropic Claude · claude-sonnet-5-5"); thêm "(chưa có key)" khi thiếu key.</summary>
     [ObservableProperty]
     public partial string ActiveModelLabel { get; set; } = string.Empty;
 
@@ -47,7 +55,8 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
     /// <summary>Đọc lại provider và model chat từ Settings; gọi sau khi lưu Settings.</summary>
     public void RefreshActiveModel() =>
-        ActiveModelLabel = $"{AiModelCatalog.DisplayName(_chatService.ChatProvider)} · {_chatService.ChatModel}";
+        ActiveModelLabel = $"{AiModelCatalog.DisplayName(_chatService.ChatProvider)} · {_chatService.ChatModel}"
+            + (_chatService.IsConfigured ? string.Empty : MissingKeySuffix);
 
     /// <summary>Dựng ChatViewModel cùng các dịch vụ chat từ <paramref name="services"/>; ChatViewModel sở hữu chúng.</summary>
     public static ChatViewModel Create(MainViewModelServices services, Func<ChatContext> currentContext)
@@ -128,7 +137,13 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
     private static HashSet<string> BuildNonMemoryAiMessages()
     {
-        var set = new HashSet<string>(StringComparer.Ordinal) { AiErrorMessages.Unknown };
+        var set = new HashSet<string>(StringComparer.Ordinal)
+        {
+            AiErrorMessages.Unknown,
+            LegacyNotConfiguredMessage,
+            LegacyUnsupportedProviderMessage,
+            LegacyUnknownErrorMessage,
+        };
         foreach (AiProvider p in AiModelCatalog.ChatProviders)
             set.Add(AiErrorMessages.NotConfigured(p));
         foreach (AiChatError e in Enum.GetValues<AiChatError>())

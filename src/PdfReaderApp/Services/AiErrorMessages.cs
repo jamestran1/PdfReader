@@ -11,6 +11,10 @@ public static class AiErrorMessages
     public static string NotConfigured(AiProvider provider) =>
         $"Chưa có API key cho {AiModelCatalog.DisplayName(provider)}. Mở Cài đặt AI để nhập key.";
 
+    /// <summary>Lỗi provider không hỗ trợ khi lập chỉ mục: nêu các provider có API embedding.</summary>
+    public static string UnsupportedEmbeddingProvider() =>
+        $"Embedding chỉ hỗ trợ {string.Join(" và ", AiModelCatalog.EmbeddingProviders.Select(AiModelCatalog.DisplayName))}. Chọn lại trong Cài đặt AI.";
+
     public static string Describe(AiChatError error) => error switch
     {
         AiChatError.Unauthorized => "API key không hợp lệ, vui lòng kiểm tra lại trong Cài đặt.",
@@ -18,6 +22,6 @@ public static class AiErrorMessages
         AiChatError.InsufficientQuota => "Tài khoản của nhà cung cấp AI không đủ credits. Hãy kiểm tra thanh toán ở trang của nhà cung cấp.",
         AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
         AiChatError.UnsupportedProvider => "Nhà cung cấp AI đã chọn chưa được hỗ trợ. Vui lòng chọn nhà cung cấp khác trong Cài đặt.",
-        _ => "Đã xảy ra lỗi khi gọi AI."
+        _ => Unknown
     };
 }

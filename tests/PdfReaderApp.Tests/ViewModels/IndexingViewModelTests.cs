@@ -119,7 +119,7 @@ public sealed class IndexingViewModelTests
         string status = await RunUntilStatusAsync(new InvalidOperationException("raw sdk detail"));
 
         Assert.DoesNotContain("raw sdk detail", status);
-        Assert.Equal("Lập chỉ mục AI bị bỏ qua: Đã xảy ra lỗi khi gọi AI. Tìm kiếm văn bản vẫn dùng được.", status);
+        Assert.Equal("Lập chỉ mục AI bị bỏ qua: Đã xảy ra lỗi không xác định khi gọi AI. Tìm kiếm văn bản vẫn dùng được.", status);
     }
 
     [Fact]

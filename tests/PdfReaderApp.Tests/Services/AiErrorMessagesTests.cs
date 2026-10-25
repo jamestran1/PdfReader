@@ -25,4 +25,18 @@ public sealed class AiErrorMessagesTests
             Assert.DoesNotContain("Gemini", message, StringComparison.Ordinal);
         }
     }
+
+    [Fact]
+    public void Describe_Unknown_IsTheSameMessageAsUnknownConstant()
+    {
+        Assert.Equal(AiErrorMessages.Unknown, AiErrorMessages.Describe(AiChatError.Unknown));
+    }
+
+    [Fact]
+    public void UnsupportedEmbeddingProvider_NamesEmbeddingCapableProviders()
+    {
+        Assert.Equal(
+            "Embedding chỉ hỗ trợ OpenAI và Google Gemini. Chọn lại trong Cài đặt AI.",
+            AiErrorMessages.UnsupportedEmbeddingProvider());
+    }
 }

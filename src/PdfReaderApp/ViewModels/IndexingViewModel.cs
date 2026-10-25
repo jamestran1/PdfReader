@@ -19,6 +19,9 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string StatusText { get; set; } = string.Empty;
 
+    /// <summary>Tác vụ lập chỉ mục nền gần nhất, null nếu chưa chạy lần nào. Để test chờ xác định thay vì ngủ.</summary>
+    internal Task? BackgroundTask { get; private set; }
+
     /// <param name="documentIndex">Chỉ mục để xoá khi lập chỉ mục lại.</param>
     /// <param name="indexingService">Dịch vụ thực hiện việc lập chỉ mục.</param>
     /// <param name="currentTarget">Trả về tài liệu đang mở, hoặc null khi chưa mở tài liệu nào.</param>
@@ -46,13 +49,14 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
         if (target is null) return;
 
         _cts?.Cancel();
+        _cts?.Dispose();
         _cts = new CancellationTokenSource();
         CancellationToken ct = _cts.Token;
 
         // Progress<> bắt SynchronizationContext của luồng UI đang gọi, nên cập nhật trạng thái về đúng luồng UI.
         var progress = new Progress<IndexingProgress>(p => StatusText = FormatProgress(p));
 
-        _ = Task.Run(() => IndexInBackgroundAsync(target, progress, ct), ct);
+        BackgroundTask = Task.Run(() => IndexInBackgroundAsync(target, progress, ct), ct);
     }
 
     private async Task IndexInBackgroundAsync(
@@ -76,7 +80,13 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
 
     // Không lộ ex.Message thô của SDK: phân loại rồi dùng lời báo tiếng Việt chung với chat.
     internal static string FormatError(Exception ex)
-        => $"Lập chỉ mục AI bị bỏ qua: {AiErrorMessages.Describe(AiErrorClassifier.Classify(ex))} Tìm kiếm văn bản vẫn dùng được.";
+    {
+        AiChatError error = AiErrorClassifier.Classify(ex);
+        string reason = error == AiChatError.UnsupportedProvider
+            ? AiErrorMessages.UnsupportedEmbeddingProvider()
+            : AiErrorMessages.Describe(error);
+        return $"Lập chỉ mục AI bị bỏ qua: {reason} Tìm kiếm văn bản vẫn dùng được.";
+    }
 
     [RelayCommand]
     private void ReindexDocument()

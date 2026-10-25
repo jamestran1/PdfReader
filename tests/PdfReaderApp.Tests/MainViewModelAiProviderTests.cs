@@ -66,7 +66,12 @@ public sealed class MainViewModelAiProviderTests : IDisposable
         }
         public void DeleteDocument(string documentId) { }
         public IReadOnlyList<long> WriteChunks(string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks) => [];
-        public IReadOnlyList<StoredChunk> GetChunks(string documentId) => [];
+        public int ChunkReads;
+        public IReadOnlyList<StoredChunk> GetChunks(string documentId)
+        {
+            Interlocked.Increment(ref ChunkReads);
+            return [];
+        }
         public void DeleteEmbeddings(string documentId, string embeddingModel) { }
         public void WriteEmbeddings(string embeddingModel, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings) { }
         public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel) { }
@@ -98,16 +103,6 @@ public sealed class MainViewModelAiProviderTests : IDisposable
             new LibraryItem("docProv", "Sách provider", path, ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1));
     }
 
-    private static async Task WaitUntilAsync(Func<bool> condition)
-    {
-        DateTime deadline = DateTime.UtcNow + Timeout;
-        while (!condition())
-        {
-            if (DateTime.UtcNow > deadline) throw new TimeoutException("Điều kiện không đạt trong thời hạn.");
-            await Task.Delay(20);
-        }
-    }
-
     public void Dispose()
     {
         foreach (var vm in _viewModels) vm.Dispose();
@@ -131,14 +126,25 @@ public sealed class MainViewModelAiProviderTests : IDisposable
     }
 
     [Fact]
+    public void ActiveModelLabel_WithoutKey_AppendsMissingKeyHint()
+    {
+        var settings = new MutableSettings(AiModelSettings.Default, hasKey: false);
+
+        var vm = BuildVm(settings);
+
+        Assert.Equal("OpenAI · gpt-4o-mini (chưa có key)", vm.Chat.ActiveModelLabel);
+    }
+
+    [Fact]
     public void OnSettingsSaved_RefreshesActiveModelLabel()
     {
         var settings = new MutableSettings(AiModelSettings.Default, hasKey: true);
         var vm = BuildVm(settings);
         Assert.Equal("OpenAI · gpt-4o-mini", vm.Chat.ActiveModelLabel);
+        AiModelSettings before = settings.Models;
 
         settings.Models = new AiModelSettings(AiProvider.Gemini, "gemini-2.5-flash", AiProvider.Gemini, "gemini-embedding-001");
-        vm.OnSettingsSaved();
+        vm.OnSettingsSaved(before);
 
         Assert.Equal("Google Gemini · gemini-2.5-flash", vm.Chat.ActiveModelLabel);
     }
@@ -156,48 +162,75 @@ public sealed class MainViewModelAiProviderTests : IDisposable
         Assert.Equal("Chưa có API key cho Anthropic Claude. Mở Cài đặt AI để nhập key.", vm.Chat.Messages[^1].Content);
     }
 
+    private static readonly AiModelSettings GeminiEmbedding =
+        new(AiProvider.OpenAi, "gpt-4o-mini", AiProvider.Gemini, "gemini-embedding-001");
+
     [Fact]
-    public async Task OnSettingsSaved_WithOpenDocument_IndexesWithNewEmbeddingModel()
+    public async Task OnSettingsSaved_EmbeddingModelChanged_IndexesWithNewEmbeddingModel()
     {
         var settings = new MutableSettings(AiModelSettings.Default, hasKey: true);
         var index = new StatusProbeIndex();
         var vm = BuildVm(settings, index);
         OpenFakeDocument(vm);
-        await WaitUntilAsync(() => index.Probed("text-embedding-3-small"));
+        await vm.Indexing.BackgroundTask!.WaitAsync(Timeout);
+        AiModelSettings before = settings.Models;
 
-        settings.Models = new AiModelSettings(AiProvider.OpenAi, "gpt-4o-mini", AiProvider.Gemini, "gemini-embedding-001");
-        vm.OnSettingsSaved();
+        settings.Models = GeminiEmbedding;
+        vm.OnSettingsSaved(before);
+        await vm.Indexing.BackgroundTask!.WaitAsync(Timeout);
 
-        await WaitUntilAsync(() => index.Probed("gemini-embedding-001"));
+        Assert.True(index.Probed("gemini-embedding-001"));
     }
 
     [Fact]
-    public async Task OnSettingsSaved_ModelAlreadyComplete_DoesNotCallEmbeddingApi()
+    public async Task OnSettingsSaved_EmbeddingUnchanged_DoesNotRestartIndexing()
+    {
+        var settings = new MutableSettings(AiModelSettings.Default, hasKey: true);
+        var vm = BuildVm(settings, new StatusProbeIndex());
+        OpenFakeDocument(vm);
+        Task running = vm.Indexing.BackgroundTask!;
+        await running.WaitAsync(Timeout);
+        AiModelSettings before = settings.Models;
+
+        // Chỉ đổi chat model: embedding giữ nguyên.
+        settings.Models = before with { ChatModel = "gpt-4o" };
+        vm.OnSettingsSaved(before);
+
+        Assert.Same(running, vm.Indexing.BackgroundTask);
+    }
+
+    [Fact]
+    public async Task OnSettingsSaved_ModelAlreadyComplete_DoesNotReadChunksOrCallEmbeddingApi()
     {
         var settings = new MutableSettings(AiModelSettings.Default, hasKey: true);
         var index = new StatusProbeIndex("gemini-embedding-001");
         var embeddings = new CountingEmbeddingFactory();
         var vm = BuildVm(settings, index, embeddings);
         OpenFakeDocument(vm);
-        await WaitUntilAsync(() => index.Probed("text-embedding-3-small"));
-        int createdBefore = embeddings.Created;
+        await vm.Indexing.BackgroundTask!.WaitAsync(Timeout);
+        int chunkReadsBefore = index.ChunkReads;
+        AiModelSettings before = settings.Models;
 
-        settings.Models = new AiModelSettings(AiProvider.OpenAi, "gpt-4o-mini", AiProvider.Gemini, "gemini-embedding-001");
-        vm.OnSettingsSaved();
-        await WaitUntilAsync(() => index.Probed("gemini-embedding-001"));
-        await Task.Delay(100);
+        settings.Models = GeminiEmbedding;
+        vm.OnSettingsSaved(before);
+        await vm.Indexing.BackgroundTask!.WaitAsync(Timeout);
 
-        Assert.Equal(createdBefore, embeddings.Created);
+        Assert.True(index.Probed("gemini-embedding-001"));
+        Assert.Equal(chunkReadsBefore, index.ChunkReads); // Complete: thoát trước khi đụng chunk
+        Assert.Equal(0, embeddings.Created);
     }
 
     [Fact]
     public void OnSettingsSaved_WithoutDocument_DoesNotThrowOrIndex()
     {
         var index = new StatusProbeIndex();
-        var vm = BuildVm(new MutableSettings(AiModelSettings.Default, hasKey: true), index);
+        var settings = new MutableSettings(AiModelSettings.Default, hasKey: true);
+        var vm = BuildVm(settings, index);
+        AiModelSettings before = settings.Models;
 
-        vm.OnSettingsSaved();
+        settings.Models = GeminiEmbedding;
+        vm.OnSettingsSaved(before);
 
-        Assert.False(index.Probed("text-embedding-3-small"));
+        Assert.False(index.Probed("gemini-embedding-001"));
     }
 }

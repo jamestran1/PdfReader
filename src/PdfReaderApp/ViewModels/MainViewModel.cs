@@ -875,20 +875,24 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenSettings()
     {
+        AiModelSettings before = _settingsService.GetModelSettings();
         var window = new SettingsWindow(new SettingsViewModel(_settingsService))
         {
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        if (window.ShowDialog() == true) OnSettingsSaved();
+        if (window.ShowDialog() == true) OnSettingsSaved(before);
     }
 
-    // Seam sau khi lưu Settings (test gọi trực tiếp, không cần cửa sổ): cập nhật nhãn provider ở khung chat
-    // và lập chỉ mục tài liệu đang mở theo Embedding Model mới; model đã Complete thì DocumentIndexingService bỏ qua.
-    internal void OnSettingsSaved()
+    // Seam sau khi lưu Settings (test gọi trực tiếp, không cần cửa sổ): cập nhật nhãn provider ở khung chat,
+    // và chỉ khi Embedding Provider hoặc Model đổi mới lập chỉ mục tài liệu đang mở (model đã Complete thì
+    // DocumentIndexingService bỏ qua). Không đổi thì không huỷ lượt lập chỉ mục đang chạy.
+    internal void OnSettingsSaved(AiModelSettings before)
     {
         Chat.RefreshActiveModel();
-        Indexing.StartBackgroundIndexing();
+        AiModelSettings after = _settingsService.GetModelSettings();
+        if (after.EmbeddingProvider != before.EmbeddingProvider || after.EmbeddingModel != before.EmbeddingModel)
+            Indexing.StartBackgroundIndexing();
     }
 
     [RelayCommand]
