@@ -66,4 +66,30 @@ public class AiErrorClassifierTests
         Assert.Equal(AiChatError.Unauthorized,
             AiErrorClassifier.ClassifyResponse(401, "insufficient_quota")); // non-429 ignores quota text
     }
+
+    [Theory]
+    [InlineData(400, "INVALID_ARGUMENT", "API key not valid. Please pass a valid API key. API_KEY_INVALID", AiChatError.Unauthorized)]
+    [InlineData(401, "UNAUTHENTICATED", "Request had invalid authentication credentials.", AiChatError.Unauthorized)]
+    [InlineData(403, "PERMISSION_DENIED", "API key not valid or permission denied.", AiChatError.Unauthorized)]
+    [InlineData(400, "INVALID_ARGUMENT", "Request contains an invalid argument.", AiChatError.Unknown)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", "Quota exceeded for metric generate_content_requests_per_minute PerMinute, retry in 20s", AiChatError.RateLimit)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", "You exceeded your current quota, please check your plan and billing details.", AiChatError.InsufficientQuota)]
+    [InlineData(503, "UNAVAILABLE", "The model is overloaded. Please try again later.", AiChatError.RateLimit)]
+    [InlineData(500, "INTERNAL", "An internal error has occurred.", AiChatError.Unknown)]
+    public void Classify_GoogleApiException_MapsStatusAndMessage(int status, string code, string message, AiChatError expected)
+    {
+        Google.GenAI.ApiException ex = status >= 500
+            ? new Google.GenAI.ServerError(message, status, code, null!)
+            : new Google.GenAI.ClientError(message, status, code, null!);
+
+        Assert.Equal(expected, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_GoogleApiException_WithoutStatus_IsNetwork()
+    {
+        var ex = new Google.GenAI.ApiException("connection reset", new HttpRequestException("boom"));
+
+        Assert.Equal(AiChatError.Network, AiErrorClassifier.Classify(ex));
+    }
 }
