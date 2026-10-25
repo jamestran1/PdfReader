@@ -53,25 +53,38 @@ public sealed class AiChatService : IDisposable
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var client = EnsureClient();
-        _history.Add(BuildUserTurn(question, documentContext));
+        // Giữ tham chiếu để dọn đúng lượt của yêu cầu này: lượt của yêu cầu khác hoặc của tài liệu
+        // khác có thể đã được thêm sau (continuation của yêu cầu bị huỷ chạy trễ).
+        var userTurn = BuildUserTurn(question, documentContext);
+        _history.Add(userTurn);
 
         var assistant = new StringBuilder();
-        var e = StartStream(client, ct);
+        var e = StartStream(client, userTurn, ct);
 
         try
         {
             while (true)
             {
-                var step = await ReadNextAsync(e, hasPartialReply: assistant.Length > 0);
+                var step = await ReadNextAsync(e, hasPartialReply: assistant.Length > 0, ct);
+
+                if (step.Cancelled)
+                {
+                    // Huỷ: bỏ cả lượt (kể cả câu trả lời dở) khỏi trí nhớ LLM.
+                    _history.Remove(userTurn);
+                    ct.ThrowIfCancellationRequested();
+                }
 
                 if (step.Fatal != null)
                 {
-                    _history.RemoveAt(_history.Count - 1);
+                    // Huỷ có thể làm SDK ném lỗi khác OCE (kết nối bị đóng): vẫn coi là huỷ, không báo lỗi.
+                    ThrowIfCancelled(userTurn, ct);
+                    _history.Remove(userTurn);
                     throw step.Fatal;
                 }
 
                 if (step.Interrupted)
                 {
+                    ThrowIfCancelled(userTurn, ct);
                     assistant.Append(InterruptedSentinel);
                     _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
                     yield return InterruptedSentinel;
@@ -93,12 +106,21 @@ public sealed class AiChatService : IDisposable
             await e.DisposeAsync();
         }
 
+        ThrowIfCancelled(userTurn, ct);
         _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
+    }
+
+    // Nhà cung cấp có thể kết thúc stream bình thường dù token đã bị huỷ: vẫn coi là huỷ và bỏ lượt.
+    private void ThrowIfCancelled(ChatMessage userTurn, CancellationToken ct)
+    {
+        if (!ct.IsCancellationRequested) return;
+        _history.Remove(userTurn);
+        ct.ThrowIfCancellationRequested();
     }
 
     /// <summary>Kết quả một lần đọc stream. Lỗi đọc được gói lại vì iterator không được yield
     /// bên trong khối try/catch; vòng lặp xử lý sau khi thoát khối catch.</summary>
-    private readonly record struct StreamStep(bool HasNext, string? Text, bool Interrupted, AiChatException? Fatal);
+    private readonly record struct StreamStep(bool HasNext, string? Text, bool Interrupted, AiChatException? Fatal, bool Cancelled = false);
 
     private IChatClient EnsureClient()
     {
@@ -135,7 +157,7 @@ public sealed class AiChatService : IDisposable
         return new ChatMessage(ChatRole.User, $"Ngữ cảnh tài liệu:\n{context}\n\nCâu hỏi: {question}");
     }
 
-    private IAsyncEnumerator<ChatResponseUpdate> StartStream(IChatClient client, CancellationToken ct)
+    private IAsyncEnumerator<ChatResponseUpdate> StartStream(IChatClient client, ChatMessage userTurn, CancellationToken ct)
     {
         try
         {
@@ -145,19 +167,23 @@ public sealed class AiChatService : IDisposable
 #pragma warning disable CA1031 // ranh giới gọi AI: SDK ném nhiều kiểu lỗi, được phân loại (AiErrorClassifier) và bọc lại kèm inner exception
         catch (Exception ex)
         {
-            _history.RemoveAt(_history.Count - 1);
+            _history.Remove(userTurn);
             throw new AiChatException(AiErrorClassifier.Classify(ex), "Lỗi gọi dịch vụ AI.", ex);
         }
 #pragma warning restore CA1031
     }
 
     private static async Task<StreamStep> ReadNextAsync(
-        IAsyncEnumerator<ChatResponseUpdate> e, bool hasPartialReply)
+        IAsyncEnumerator<ChatResponseUpdate> e, bool hasPartialReply, CancellationToken ct)
     {
         try
         {
             bool hasNext = await e.MoveNextAsync();
             return new StreamStep(hasNext, hasNext ? e.Current.Text : null, Interrupted: false, Fatal: null);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return new StreamStep(HasNext: false, Text: null, Interrupted: false, Fatal: null, Cancelled: true);
         }
 #pragma warning disable CA1031 // ranh giới stream AI: SDK ném nhiều kiểu lỗi, được phân loại (AiErrorClassifier) và bọc lại kèm inner exception
         catch (Exception ex)
