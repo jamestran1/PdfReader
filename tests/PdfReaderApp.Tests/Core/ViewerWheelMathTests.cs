@@ -86,4 +86,43 @@ public class ViewerWheelMathTests
         var d = ViewerWheelMath.ResolvePageChange(Ctx(120, atTop: true, page: 5, facing: true));
         Assert.Equal(new WheelPageDecision(Handled: true, NewPage: 3, ScrollToTop: false), d);
     }
+
+    // Characterization (#209): ghim hành vi con lăn mà PdfViewerControl đang dựa vào trước khi tách ViewerWheelInput.
+
+    [Fact]
+    public void NextZoom_ZeroDelta_ZoomsOut()
+        => Assert.Equal(0.9, ViewerWheelMath.NextZoom(1.0, 0)!.Value, 6);
+
+    [Fact]
+    public void NextZoom_NearMinLimit_ClampsToMin()
+        => Assert.Equal(0.1, ViewerWheelMath.NextZoom(0.15, -120)!.Value, 6);
+
+    [Fact]
+    public void AnchoredOffsets_ZoomOut_KeepsPointUnderCursorStill()
+    {
+        var anchor = new WheelZoomAnchor(HorizontalOffset: 250, VerticalOffset: 460, MouseX: 50, MouseY: 60);
+        var (h, v) = ViewerWheelMath.AnchoredOffsets(anchor, oldZoom: 2.0, newZoom: 1.0);
+        Assert.Equal(100, h, 6);
+        Assert.Equal(200, v, 6);
+    }
+
+    [Fact]
+    public void ResolvePageChange_FacingDownAtBottomOnLastPage_NotHandled()
+        => Assert.False(ViewerWheelMath.ResolvePageChange(Ctx(-120, atBottom: true, page: 10, facing: true)).Handled);
+
+    [Fact]
+    public void ResolvePageChange_UpAtBottomOnly_NotHandled()
+        => Assert.False(ViewerWheelMath.ResolvePageChange(Ctx(120, atBottom: true)).Handled);
+
+    [Fact]
+    public void ResolvePageChange_DownAtTopOnly_NotHandled()
+        => Assert.False(ViewerWheelMath.ResolvePageChange(Ctx(-120, atTop: true)).Handled);
+
+    [Fact]
+    public void ResolvePageChange_PageShorterThanViewport_DownAdvancesAndUpGoesBack()
+    {
+        // Trang thấp hơn khung: vừa ở đỉnh vừa ở đáy, mỗi nấc lăn đổi trang ngay.
+        Assert.Equal(6, ViewerWheelMath.ResolvePageChange(Ctx(-120, atTop: true, atBottom: true)).NewPage);
+        Assert.Equal(4, ViewerWheelMath.ResolvePageChange(Ctx(120, atTop: true, atBottom: true)).NewPage);
+    }
 }
