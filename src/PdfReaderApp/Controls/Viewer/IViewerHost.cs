@@ -25,6 +25,34 @@ internal interface IViewerHost
     /// <summary>Trình sửa text tại chỗ đang hiện.</summary>
     bool IsEditorVisible { get; }
 
+    /// <summary>Đã nạp tài liệu vào viewer.</summary>
+    bool HasDocument { get; }
+
+    Core.PdfViewMode ViewMode { get; }
+
+    bool ShowCover { get; }
+
+    /// <summary>Trang hiện tại (1-based).</summary>
+    int CurrentPage { get; }
+
+    int TotalPages { get; }
+
+    double ScrollHorizontalOffset { get; }
+
+    double ScrollVerticalOffset { get; }
+
+    double ScrollableHeight { get; }
+
+    /// <summary>Yêu cầu đổi zoom rồi dựng lại layout ngay, để offset cuộn tính tiếp theo đúng với kích thước canvas mới.</summary>
+    void RequestZoom(double zoom);
+
+    /// <summary>Yêu cầu chuyển tới trang (1-based).</summary>
+    void RequestPage(int page);
+
+    void RequestScroll(double horizontalOffset, double verticalOffset);
+
+    void RequestScrollToTop();
+
     /// <summary>Yêu cầu vẽ lại lớp Skia.</summary>
     void RequestRepaint();
 

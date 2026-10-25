@@ -1,7 +1,6 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using SkiaSharp.Views.Desktop;
 using PdfiumViewer.Core;
 using PdfReaderApp.Core;
@@ -139,8 +138,9 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
 
     private void RepaintOverlay() => skiaCanvas.InvalidateVisual();
 
-    // Chuột, phím, chọn text và sửa text tại chỗ
+    // Chuột, phím, chọn text, sửa text tại chỗ và con lăn
     private readonly Viewer.ViewerPointerInput _pointerInput;
+    private readonly Viewer.ViewerWheelInput _wheelInput;
 
     public static readonly DependencyProperty ViewModeProperty =
         DependencyProperty.Register(nameof(ViewMode), typeof(Core.PdfViewMode), typeof(PdfViewerControl),
@@ -181,12 +181,13 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     {
         _frameComposer = new Viewer.ViewerFrameComposer(_pageCache, _renderEngine);
         _pointerInput = new Viewer.ViewerPointerInput(this);
+        _wheelInput = new Viewer.ViewerWheelInput(this);
         InitializeComponent();
         this.Unloaded += PdfViewerControl_Unloaded;
         _pointerInput.Attach(InteractionCanvas, this, TextEditor);
 
         this.SizeChanged += PdfViewerControl_SizeChanged;
-        this.PreviewMouseWheel += PdfViewerControl_PreviewMouseWheel;
+        _wheelInput.Attach(this, PagesScrollViewer);
 
         PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged += OnThemeChanged;
     }
@@ -202,65 +203,48 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         }
     }
 
-    private void PdfViewerControl_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
-        {
-            e.Handled = true;
-            ZoomAtCursor(e);
-        }
-        else if (ViewMode is Core.PdfViewMode.SinglePage or Core.PdfViewMode.Facing && _currentDocument != null)
-        {
-            NavigatePageByWheel(e);
-        }
-    }
-
-    private void ZoomAtCursor(MouseWheelEventArgs e)
-    {
-        if (_currentDocument == null) return;
-
-        Point mousePos = e.GetPosition(PagesScrollViewer);
-        var anchor = new Core.WheelZoomAnchor(
-            PagesScrollViewer.HorizontalOffset, PagesScrollViewer.VerticalOffset, mousePos.X, mousePos.Y);
-        double oldZoom = ZoomLevel;
-
-        if (Core.ViewerWheelMath.NextZoom(oldZoom, e.Delta) is not double newZoom) return;
-
-        // This updates DependencyProperty and triggers RefreshLayout via OnZoomLevelChanged
-        ZoomLevel = newZoom;
-
-        // Force layout update so ScrollViewer knows about new InteractionCanvas size
-        this.UpdateLayout();
-
-        var (newHOffset, newVOffset) = Core.ViewerWheelMath.AnchoredOffsets(anchor, oldZoom, newZoom);
-        PagesScrollViewer.ScrollToHorizontalOffset(newHOffset);
-        PagesScrollViewer.ScrollToVerticalOffset(newVOffset);
-    }
-
-    private void NavigatePageByWheel(MouseWheelEventArgs e)
-    {
-        // The current unit fills the view. If it is taller than the viewport, let the wheel scroll
-        // within it first; only advance to the next/prev unit when already at the boundary.
-        var decision = Core.ViewerWheelMath.ResolvePageChange(new Core.WheelPageContext(
-            e.Delta,
-            AtTop: PagesScrollViewer.VerticalOffset <= 0.5,
-            AtBottom: PagesScrollViewer.VerticalOffset >= PagesScrollViewer.ScrollableHeight - 0.5,
-            CurrentPage, TotalPages, ViewMode == Core.PdfViewMode.Facing, ShowCover));
-        if (!decision.Handled) return;
-
-        e.Handled = true;
-        if (decision.NewPage is int page) CurrentPage = page;
-        if (decision.ScrollToTop) PagesScrollViewer.ScrollToVerticalOffset(0);
-    }
-
     private void AddNoteButton_Click(object sender, RoutedEventArgs e) => _pointerInput.AddNoteFromSelection();
 
-    // IViewerHost: ViewerPointerInput chỉ YÊU CẦU; control là nơi duy nhất vẽ lại và đổi giao diện.
+    // IViewerHost: ViewerPointerInput và ViewerWheelInput chỉ YÊU CẦU; control là nơi duy nhất vẽ lại và đổi giao diện.
     Viewer.PdfDocumentSession? Viewer.IViewerHost.Session => _session;
 
     IReadOnlyList<Core.PageSlot> Viewer.IViewerHost.Slots => _slots;
 
     double Viewer.IViewerHost.ZoomLevel => ZoomLevel;
+
+    bool Viewer.IViewerHost.HasDocument => _currentDocument != null;
+
+    Core.PdfViewMode Viewer.IViewerHost.ViewMode => ViewMode;
+
+    bool Viewer.IViewerHost.ShowCover => ShowCover;
+
+    int Viewer.IViewerHost.CurrentPage => CurrentPage;
+
+    int Viewer.IViewerHost.TotalPages => TotalPages;
+
+    double Viewer.IViewerHost.ScrollHorizontalOffset => PagesScrollViewer.HorizontalOffset;
+
+    double Viewer.IViewerHost.ScrollVerticalOffset => PagesScrollViewer.VerticalOffset;
+
+    double Viewer.IViewerHost.ScrollableHeight => PagesScrollViewer.ScrollableHeight;
+
+    void Viewer.IViewerHost.RequestZoom(double zoom)
+    {
+        // Ghi DependencyProperty kéo theo RefreshLayout qua OnZoomLevelChanged.
+        ZoomLevel = zoom;
+        // Dựng layout ngay để ScrollViewer biết kích thước mới của InteractionCanvas.
+        UpdateLayout();
+    }
+
+    void Viewer.IViewerHost.RequestPage(int page) => CurrentPage = page;
+
+    void Viewer.IViewerHost.RequestScroll(double horizontalOffset, double verticalOffset)
+    {
+        PagesScrollViewer.ScrollToHorizontalOffset(horizontalOffset);
+        PagesScrollViewer.ScrollToVerticalOffset(verticalOffset);
+    }
+
+    void Viewer.IViewerHost.RequestScrollToTop() => PagesScrollViewer.ScrollToVerticalOffset(0);
 
     System.Windows.Input.ICommand? Viewer.IViewerHost.AddNoteFromSelectionCommand => AddNoteFromSelectionCommand;
 
@@ -540,7 +524,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             {
                 _pointerInput.Detach();
                 this.SizeChanged -= PdfViewerControl_SizeChanged;
-                this.PreviewMouseWheel -= PdfViewerControl_PreviewMouseWheel;
+                _wheelInput.Detach();
 
                 PdfReaderApp.Services.MaterialDesignThemeService.ThemeChanged -= OnThemeChanged;
 
