@@ -15,6 +15,17 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
     private readonly Func<IndexingTarget?> _currentTarget;
     private readonly Action<Action> _runOnUiThread;
     private CancellationTokenSource? _cts;
+    private IndexingRun? _currentRun;
+
+    /// <summary>Danh tính một lượt lập chỉ mục. Progress&lt;T&gt; post báo tiến độ bất đồng bộ nên báo cáo của
+    /// lượt đã bị thay thế (đổi tài liệu) hoặc đã lỗi có thể tới muộn và ghi đè trạng thái mới hơn; mọi lần
+    /// ghi trạng thái phải qua <see cref="IsLive"/>. Chỉ đọc/ghi trên luồng UI nên không cần khoá.</summary>
+    private sealed class IndexingRun
+    {
+        public bool Faulted { get; set; }
+    }
+
+    private bool IsLive(IndexingRun run) => ReferenceEquals(run, _currentRun) && !run.Faulted;
 
     [ObservableProperty]
     public partial string StatusText { get; set; } = string.Empty;
@@ -52,15 +63,20 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
         _cts?.Dispose();
         _cts = new CancellationTokenSource();
         CancellationToken ct = _cts.Token;
+        var run = new IndexingRun();
+        _currentRun = run;
 
         // Progress<> bắt SynchronizationContext của luồng UI đang gọi, nên cập nhật trạng thái về đúng luồng UI.
-        var progress = new Progress<IndexingProgress>(p => StatusText = FormatProgress(p));
+        var progress = new Progress<IndexingProgress>(p =>
+        {
+            if (IsLive(run)) StatusText = FormatProgress(p);
+        });
 
-        BackgroundTask = Task.Run(() => IndexInBackgroundAsync(target, progress, ct), ct);
+        BackgroundTask = Task.Run(() => IndexInBackgroundAsync(target, progress, run, ct), ct);
     }
 
     private async Task IndexInBackgroundAsync(
-        IndexingTarget target, IProgress<IndexingProgress> progress, CancellationToken ct)
+        IndexingTarget target, IProgress<IndexingProgress> progress, IndexingRun run, CancellationToken ct)
     {
         try { await _indexingService.IndexAsync(target.DocumentId, target.FilePath, target.PageTexts, progress, ct); }
         catch (OperationCanceledException) { }
@@ -69,7 +85,12 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
         {
             System.Diagnostics.Trace.TraceWarning($"IndexingViewModel: lập chỉ mục lỗi: {ex}");
             string message = FormatError(ex);
-            _runOnUiThread(() => StatusText = message);
+            _runOnUiThread(() =>
+            {
+                if (!ReferenceEquals(run, _currentRun)) return;
+                run.Faulted = true;
+                StatusText = message;
+            });
         }
 #pragma warning restore CA1031
     }
