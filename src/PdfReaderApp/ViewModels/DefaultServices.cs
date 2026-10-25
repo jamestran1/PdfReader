@@ -13,17 +13,22 @@ public static class DefaultServices
     public static MainViewModelServices Create() => Create(AppDataDirectory.Current());
 
     /// <summary>Dựng bản mặc định với dữ liệu nằm dưới <paramref name="dataDir"/> (test truyền thư mục tạm).</summary>
-    public static MainViewModelServices Create(string dataDir) => new(
-        new ITextPdfDocumentService(),
-        new WindowsSettingsService(),
-        new OpenAiChatClientFactory(),
-        CreateDocumentIndex(dataDir),
-        new OpenAiEmbeddingGeneratorFactory(),
-        CreateChatHistory(dataDir),
-        CreateNoteStore(dataDir),
-        CreateWorkspaceStore(dataDir),
-        CreateThemeService(),
-        CreateLibrary(dataDir));
+    public static MainViewModelServices Create(string dataDir)
+    {
+        // Giống AppDataDirectory.Current(): thư mục phải tồn tại trước khi mở các cơ sở dữ liệu.
+        Directory.CreateDirectory(dataDir);
+        return new MainViewModelServices(
+            new ITextPdfDocumentService(),
+            new WindowsSettingsService(),
+            new OpenAiChatClientFactory(),
+            CreateDocumentIndex(dataDir),
+            new OpenAiEmbeddingGeneratorFactory(),
+            CreateChatHistory(dataDir),
+            CreateNoteStore(dataDir),
+            CreateWorkspaceStore(dataDir),
+            CreateThemeService(),
+            CreateLibrary(dataDir));
+    }
 
     public static SqliteDocumentIndex CreateDocumentIndex(string dataDir) => new(
         Path.Combine(dataDir, "index.db"),

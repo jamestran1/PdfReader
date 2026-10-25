@@ -36,7 +36,7 @@ public sealed class MainViewModelDefaultServicesTests : IDisposable
     [Fact]
     public void Create_WithDataDir_PlacesAllDatabasesUnderThatDir()
     {
-        Directory.CreateDirectory(_dataDir);
+        Assert.False(Directory.Exists(_dataDir));
 
         var services = DefaultServices.Create(_dataDir);
         try
