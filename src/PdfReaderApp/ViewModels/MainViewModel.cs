@@ -39,7 +39,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // SP2 Task 8: index, indexing service, RAG context
     private readonly IDocumentIndex _documentIndex;
-    private readonly DocumentIndexingService _indexingService;
     private readonly RagContextService _ragContext;
 
     // Workspace
@@ -59,11 +58,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private IReadOnlyList<PageText> _pageTexts = [];
 
     private string? _documentId;
-    private CancellationTokenSource? _indexCts;
-
-    [ObservableProperty]
-    public partial string IndexingStatusText { get; set; } = string.Empty;
-
     public ObservableCollection<SearchResult> SearchResults { get; } = [];
 
     [ObservableProperty]
@@ -275,6 +269,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public ObservableCollection<ChatMessage> ChatMessages { get; } = [];
 
     public NotesViewModel Notes { get; }
+
+    public IndexingViewModel Indexing { get; }
     public WorkspaceDocumentsViewModel DocumentsSurface { get; }
     // #67: thông báo snackbar non-blocking, đáy-giữa, tự ẩn. Một surface duy nhất cho cả app.
     [ObservableProperty]
@@ -345,7 +341,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         _documentIndex = services.DocumentIndex;
         _documentIndex.EnsureSchema();
-        _indexingService = new DocumentIndexingService(_documentIndex, services.EmbeddingFactory, _settingsService);
+        Indexing = new IndexingViewModel(
+            _documentIndex,
+            new DocumentIndexingService(_documentIndex, services.EmbeddingFactory, _settingsService),
+            () => _documentId is null ? null : new IndexingTarget(_documentId, FilePath, _pageTexts));
         _ragContext = new RagContextService(_documentIndex, services.EmbeddingFactory, _settingsService);
 
         _library = services.Library;
@@ -932,7 +931,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             UpdateNotesDocumentContext();
             OnPropertyChanged(nameof(ActiveWorkspaceId));
             SearchResults.Clear();
-            StartBackgroundIndexing();
+            Indexing.StartBackgroundIndexing();
         }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: nạp tài liệu lỗi thì báo cho người dùng
         catch (Exception ex)
@@ -1040,43 +1039,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private const string NotConfiguredMessage =
         "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key.";
     private const string UnknownErrorMessage = "Đã xảy ra lỗi không xác định khi gọi AI.";
-
-    private void StartBackgroundIndexing()
-    {
-        if (_documentId is null) return;
-
-        _indexCts?.Cancel();
-        _indexCts = new CancellationTokenSource();
-        var ct = _indexCts.Token;
-        string docId = _documentId;
-        string? path = FilePath;
-        IReadOnlyList<PageText> pageTexts = _pageTexts;
-
-        var progress = new Progress<IndexingProgress>(p =>
-            IndexingStatusText = p.Status == "complete"
-                ? string.Empty
-                : $"Đang lập chỉ mục: {p.Done}/{p.Total}");
-
-        _ = Task.Run(async () =>
-        {
-            try { await _indexingService.IndexAsync(docId, path, pageTexts, progress, ct); }
-            catch (OperationCanceledException) { }
-#pragma warning disable CA1031 // ranh giới tác vụ nền: lập chỉ mục lỗi được phân loại và báo cho người dùng
-            catch (Exception ex)
-            {
-                string message = AiErrorClassifier.Classify(ex) switch
-                {
-                    AiChatError.InsufficientQuota => "Lập chỉ mục AI bị bỏ qua: tài khoản OpenAI hết credits/quota (tìm kiếm văn bản vẫn dùng được).",
-                    AiChatError.Unauthorized => "Lập chỉ mục AI bị bỏ qua: API key không hợp lệ (tìm kiếm văn bản vẫn dùng được).",
-                    AiChatError.Network => "Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).",
-                    _ => $"Lập chỉ mục lỗi: {ex.Message}"
-                };
-                System.Windows.Application.Current?.Dispatcher.Invoke(() =>
-                    IndexingStatusText = message);
-            }
-#pragma warning restore CA1031
-        }, ct);
-    }
 
     [RelayCommand]
     private async Task SendMessageAsync()
@@ -1235,16 +1197,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void LastPage() => CurrentPage = TotalPages;
 
     [RelayCommand]
-    private void ReindexDocument()
-    {
-        if (_documentId is null) return;
-#pragma warning disable CA1031 // best-effort: xoá chỉ mục cũ lỗi không chặn việc lập chỉ mục lại
-        try { _documentIndex.DeleteDocument(_documentId); } catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.Reindex: xoá chỉ mục cũ lỗi: {ex}"); }
-#pragma warning restore CA1031
-        StartBackgroundIndexing();
-    }
-
-    [RelayCommand]
     private void AddNoteFromSelection(PdfReaderApp.Models.NoteSelection? sel)
     {
         if (sel is null) return;
@@ -1276,7 +1228,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        _indexCts?.Cancel();
+        Indexing.Dispose();
         _documentIndex.Dispose();
         _documentService.Dispose();
         _chatService.Dispose();

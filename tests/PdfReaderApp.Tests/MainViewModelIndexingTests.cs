@@ -90,11 +90,11 @@ public sealed class MainViewModelIndexingTests : IDisposable
     }
 
     [Fact]
-    public void IndexingStatusText_IsEmpty_BeforeAnyIndexing()
+    public void IndexingStatus_IsEmpty_BeforeAnyIndexing()
     {
         var vm = BuildVm(new RecordingIndex());
 
-        Assert.Equal(string.Empty, vm.IndexingStatusText);
+        Assert.Equal(string.Empty, vm.Indexing.StatusText);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public sealed class MainViewModelIndexingTests : IDisposable
         string documentId = vm.CurrentDocumentId!;
         index.Deleted.Clear();
 
-        vm.ReindexDocumentCommand.Execute(parameter: null);
+        vm.Indexing.ReindexDocumentCommand.Execute(parameter: null);
 
         Assert.Equal([documentId], index.Deleted);
     }
@@ -117,7 +117,7 @@ public sealed class MainViewModelIndexingTests : IDisposable
         var index = new RecordingIndex();
         var vm = BuildVm(index);
 
-        vm.ReindexDocumentCommand.Execute(parameter: null);
+        vm.Indexing.ReindexDocumentCommand.Execute(parameter: null);
 
         Assert.Empty(index.Deleted);
     }
