@@ -228,6 +228,7 @@ public sealed class ChatCancellationTests : IDisposable
 
         await first.WaitAsync(Timeout);
         Assert.True(tokens[0].IsCancellationRequested);
+        Assert.DoesNotContain(_sentMessages[1], m => m.Text.Contains("Câu một", StringComparison.Ordinal));
         Assert.Equal([(docA, "User", "Câu hai"), (docA, "AI", "Đáp mới")], chat.Appended);
         Assert.DoesNotContain(vm.Chat.Messages, m => m.Content.Contains("lỗi", StringComparison.OrdinalIgnoreCase));
     }
@@ -249,6 +250,7 @@ public sealed class ChatCancellationTests : IDisposable
 
         await vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null).WaitAsync(Timeout);
 
+        Assert.DoesNotContain(_sentMessages[1], m => m.Text.Contains("Câu một", StringComparison.Ordinal));
         var thirdCall = _sentMessages[2];
         Assert.Contains(thirdCall, m => m.Role == ChatRole.User && m.Text.Contains("Câu hai", StringComparison.Ordinal));
         Assert.DoesNotContain(thirdCall, m => m.Text.Contains("Câu một", StringComparison.Ordinal));
@@ -277,5 +279,21 @@ public sealed class ChatCancellationTests : IDisposable
         var secondCall = _sentMessages[1];
         Assert.DoesNotContain(secondCall, m => m.Text.Contains("Đáp cũ", StringComparison.Ordinal));
         Assert.DoesNotContain(secondCall, m => m.Text.Contains("Câu một", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SendCommand_StaysExecutableWhileRequestRuns_SoNewQuestionCanReplaceIt()
+    {
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var (vm, _) = BuildVm(ct => BlockingStream(started, ct));
+        OpenDocument(vm, "docA");
+        vm.Chat.Input = "Câu một";
+        var send = vm.Chat.SendMessageCommand.ExecuteAsync(parameter: null);
+        await started.Task.WaitAsync(Timeout);
+
+        Assert.True(vm.Chat.SendMessageCommand.CanExecute(parameter: null));
+
+        vm.Chat.CancelPendingRequest();
+        await send.WaitAsync(Timeout);
     }
 }
