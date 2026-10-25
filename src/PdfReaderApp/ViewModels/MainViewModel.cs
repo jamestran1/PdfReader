@@ -880,7 +880,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Owner = System.Windows.Application.Current?.MainWindow
         };
 
-        window.ShowDialog();
+        if (window.ShowDialog() == true) OnSettingsSaved();
+    }
+
+    // Seam sau khi lưu Settings (test gọi trực tiếp, không cần cửa sổ): cập nhật nhãn provider ở khung chat
+    // và lập chỉ mục tài liệu đang mở theo Embedding Model mới; model đã Complete thì DocumentIndexingService bỏ qua.
+    internal void OnSettingsSaved()
+    {
+        Chat.RefreshActiveModel();
+        Indexing.StartBackgroundIndexing();
     }
 
     [RelayCommand]

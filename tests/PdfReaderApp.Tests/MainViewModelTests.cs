@@ -207,7 +207,7 @@ public class MainViewModelTests
             ("User", "Câu hỏi 1"),
             ("AI", "Trả lời tốt"),
             ("User", "Câu hỏi 2"),
-            ("AI", "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key."),
+            ("AI", "Chưa có API key cho OpenAI. Mở Cài đặt AI để nhập key."),
             ("AI", "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng."),
             ("AI", "Một phần trả lời" + PdfReaderApp.Services.AiChatService.InterruptedSentinel),
             ("AI", ""),
@@ -221,7 +221,7 @@ public class MainViewModelTests
         Assert.Contains(kept, t => t.content == "Câu hỏi 3");
         Assert.Contains(kept, t => t.content == "Trả lời tốt");
         // Bỏ: AI báo lỗi (kể cả lỗi suy ra từ MapError), AI rỗng, AI gián đoạn.
-        Assert.DoesNotContain(kept, t => t.content.Contains("Chưa cấu hình"));
+        Assert.DoesNotContain(kept, t => t.content.Contains("Chưa có API key"));
         Assert.DoesNotContain(kept, t => t.content.Contains("Không kết nối được"));
         Assert.DoesNotContain(kept, t => t.content.Contains(PdfReaderApp.Services.AiChatService.InterruptedSentinel));
         Assert.DoesNotContain(kept, t => t.role == "AI" && t.content.Length == 0);

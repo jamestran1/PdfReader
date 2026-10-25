@@ -74,13 +74,9 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
             ? string.Empty
             : string.Create(CultureInfo.InvariantCulture, $"Đang lập chỉ mục: {p.Done}/{p.Total}");
 
-    internal static string FormatError(Exception ex) => AiErrorClassifier.Classify(ex) switch
-    {
-        AiChatError.InsufficientQuota => "Lập chỉ mục AI bị bỏ qua: tài khoản OpenAI hết credits/quota (tìm kiếm văn bản vẫn dùng được).",
-        AiChatError.Unauthorized => "Lập chỉ mục AI bị bỏ qua: API key không hợp lệ (tìm kiếm văn bản vẫn dùng được).",
-        AiChatError.Network => "Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).",
-        _ => $"Lập chỉ mục lỗi: {ex.Message}"
-    };
+    // Không lộ ex.Message thô của SDK: phân loại rồi dùng lời báo tiếng Việt chung với chat.
+    internal static string FormatError(Exception ex)
+        => $"Lập chỉ mục AI bị bỏ qua: {AiErrorMessages.Describe(AiErrorClassifier.Classify(ex))} Tìm kiếm văn bản vẫn dùng được.";
 
     [RelayCommand]
     private void ReindexDocument()

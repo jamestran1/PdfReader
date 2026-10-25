@@ -108,7 +108,7 @@ public sealed class WindowsSettingsService : ISettingsService
     private static bool IsUsable([NotNullWhen(true)] AiModelSettings? settings) =>
         settings is not null
         && Enum.IsDefined(settings.ChatProvider)
-        && Enum.IsDefined(settings.EmbeddingProvider)
+        && AiModelCatalog.EmbeddingProviders.Contains(settings.EmbeddingProvider)
         && !string.IsNullOrWhiteSpace(settings.ChatModel)
         && !string.IsNullOrWhiteSpace(settings.EmbeddingModel);
 

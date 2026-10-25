@@ -17,7 +17,7 @@ public sealed class MainViewModelChatTests : IDisposable
     private readonly List<string> _tempFiles = [];
 
     private const string NotConfigured =
-        "Chưa cấu hình API key. Vui lòng mở Cài đặt để nhập OpenAI API key.";
+        "Chưa có API key cho OpenAI. Mở Cài đặt AI để nhập key.";
 
     private sealed class FakeSettings(bool hasKey) : ISettingsService
     {
