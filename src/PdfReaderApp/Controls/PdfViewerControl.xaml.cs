@@ -147,11 +147,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private void RepaintOverlay() => skiaCanvas.InvalidateVisual();
 
     // Trạng thái chọn text
-    private int _selPageIndex = -1;
-    private int _anchorChar = -1;
-    private bool _selecting;
-    private string _selectionText = string.Empty;
-    private readonly List<Rect> _selectionRectsPdf = []; // rect theo PDF points của _selPageIndex
+    private readonly Viewer.TextSelectionController _selection;
 
     private IReadOnlyList<Models.MatchRect> GetMatchRects(int pageIndex, string query)
     {
@@ -205,6 +201,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     public PdfViewerControl()
     {
+        _selection = new Viewer.TextSelectionController(pageIndex => _session!.ObjectManager.GetPageTexts(pageIndex));
         InitializeComponent();
         this.Unloaded += PdfViewerControl_Unloaded;
         InteractionCanvas.MouseDown += OnCanvasMouseDown;
@@ -303,25 +300,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
             if (TryPageHit(sp, out var slot, out var pdf))
             {
                 _session!.ObjectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
-                var chars = BuildSelChars(slot.PageIndex);
-                int anchor = Core.TextSelectionResolver.NearestCharIndex(chars, pdf);
-                if (anchor >= 0)
-                {
-                    _selPageIndex = slot.PageIndex;
-                    _anchorChar = anchor;
-                    _selecting = true;
+                if (_selection.Begin(slot.PageIndex, pdf))
                     InteractionCanvas.CaptureMouse();
-                }
             }
         }
-    }
-
-    private List<Core.SelChar> BuildSelChars(int pageIndex)
-    {
-        var list = new List<Core.SelChar>();
-        foreach (var g in _session!.ObjectManager.GetPageTexts(pageIndex))
-            list.Add(new Core.SelChar(g.CharIndex, g.Text, g.Bounds));
-        return list;
     }
 
     private bool TryPageHit(Point screenPoint, out Core.PageSlot slot, out Point pdfPoint)
@@ -339,31 +321,25 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void InteractionCanvas_MouseMove(object sender, MouseEventArgs e)
     {
-        if (!_selecting || _selPageIndex < 0) return;
+        if (!_selection.IsSelecting) return;
         var sp = e.GetPosition(InteractionCanvas);
-        if (!TryPageHit(sp, out var slot, out var pdf) || slot.PageIndex != _selPageIndex) return;
-        var chars = BuildSelChars(_selPageIndex);
-        int focus = Core.TextSelectionResolver.NearestCharIndex(chars, pdf);
-        if (focus < 0) return;
-        var res = Core.TextSelectionResolver.Resolve(chars, _anchorChar, focus);
-        _selectionText = res.Text;
-        _selectionRectsPdf.Clear();
-        _selectionRectsPdf.AddRange(res.LineRects);
+        if (!TryPageHit(sp, out var slot, out var pdf)) return;
+        if (!_selection.Extend(slot.PageIndex, pdf)) return;
         AddNoteButton.Visibility = Visibility.Collapsed;
         skiaCanvas.InvalidateVisual();
     }
 
     private void InteractionCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_selecting) return;
-        _selecting = false;
+        if (!_selection.IsSelecting) return;
+        bool hasSelection = _selection.Finish();
         InteractionCanvas.ReleaseMouseCapture();
-        if (string.IsNullOrEmpty(_selectionText) || _selectionRectsPdf.Count == 0) return;
-        // Đặt nút nổi gần cuối vùng chọn (đổi PDF -> screen của trang _selPageIndex)
-        var slot = _slots.FirstOrDefault(s => s.PageIndex == _selPageIndex);
+        if (!hasSelection) return;
+        // Đặt nút nổi gần cuối vùng chọn (đổi PDF -> screen của trang đang chọn)
+        var slot = _slots.FirstOrDefault(s => s.PageIndex == _selection.PageIndex);
         if (slot == null) return;
         float scale = (float)ZoomLevel;
-        var last = _selectionRectsPdf[_selectionRectsPdf.Count - 1];
+        var last = _selection.LastLineRect;
         Canvas.SetLeft(AddNoteButton, slot.X + last.Right * scale);
         Canvas.SetTop(AddNoteButton, slot.Y + last.Bottom * scale + 2);
         AddNoteButton.Visibility = Visibility.Visible;
@@ -371,25 +347,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void AddNoteButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!string.IsNullOrEmpty(_selectionText) && _selPageIndex >= 0)
-        {
-            var rects = _selectionRectsPdf
-                .Select(r => new Models.HighlightRect(r.Left, r.Top, r.Width, r.Height))
-                .ToList();
-            var sel = new Models.NoteSelection(_selectionText, _selPageIndex, rects);
-            if (AddNoteFromSelectionCommand?.CanExecute(sel) == true)
-                AddNoteFromSelectionCommand.Execute(sel);
-        }
+        var sel = _selection.ToNoteSelection();
+        if (sel != null && AddNoteFromSelectionCommand?.CanExecute(sel) == true)
+            AddNoteFromSelectionCommand.Execute(sel);
         ClearSelection();
     }
 
     private void ClearSelection()
     {
-        _selecting = false;
-        _selPageIndex = -1;
-        _anchorChar = -1;
-        _selectionText = string.Empty;
-        _selectionRectsPdf.Clear();
+        _selection.Clear();
         if (AddNoteButton != null)
             AddNoteButton.Visibility = Visibility.Collapsed;
         skiaCanvas.InvalidateVisual();
@@ -514,7 +480,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
             // Phát cuộn-đích SAU khi RefreshLayout xong: nếu cuộn giữa chừng rồi RefreshLayout chạy sau sẽ
             // reset offset về 0. Timer ổn-định-hoá re-assert cuộn tới đích cho tới khi offset dính (xem
-            // ScheduleScrollToCurrentPage/OnScrollSettleTick); guard giữ tới lúc đó.
+            // ScheduleScrollToCurrentPage/ScrollSettleTimer); guard giữ tới lúc đó.
             ScheduleScrollToCurrentPage();
             System.Diagnostics.Debug.WriteLine($"Successfully loaded PDF via Skia: {path}");
         }
@@ -618,7 +584,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
         float scale = (float)ZoomLevel;
 
         var overlays = new Viewer.OverlayData(
-            _selPageIndex, _selectionRectsPdf, HighlightQuery, Highlights, CurrentDocumentId);
+            _selection.PageIndex, _selection.LineRects, HighlightQuery, Highlights, CurrentDocumentId);
         var sources = new Viewer.PageSources(
             pageIndex => GetPageBitmap(session, pageIndex, scale * dpiX),
             session.ImageRectsByPage,
@@ -640,57 +606,33 @@ public partial class PdfViewerControl : UserControl, IDisposable
         return _pageCache.GetOrRender(pageIndex, () => _renderEngine.RenderPage(page, renderScale));
     }
 
-    // Trang chờ cuộn tới sau khi nạp tài liệu (cross-doc jump) ở chế độ cuộn liên tục; 0 = không có.
-    // Trong khi pending > 0, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
-    private readonly Core.ScrollSettleState _scrollSettle = new();
-    // Timer "ổn định hoá": sau nạp, extent ảo hoá lớn dần qua nhiều đợt layout và có thể reset offset về 0.
-    // Timer re-assert cuộn tới đích mỗi tick, chỉ gỡ guard khi offset đã ĐỨNG YÊN tại đích vài tick liên tiếp.
-    private System.Windows.Threading.DispatcherTimer? _scrollSettleTimer;
+    // Trong khi pending, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
+    // Timer ổn định hoá re-assert cuộn tới trang đích sau nạp (xem ScrollSettleTimer).
+    private Viewer.ScrollSettleTimer? _scrollSettleTimer;
+
+    private Viewer.ScrollSettleTimer ScrollSettle => _scrollSettleTimer ??= new Viewer.ScrollSettleTimer(
+        PagesScrollViewer,
+        () => _currentDocument != null,
+        pageIndex => _slots.FirstOrDefault(s => s.PageIndex == pageIndex)?.Y);
 
     // Bật guard pending (chặn đồng bộ scroll->trang) NGAY trước các bước layout của LoadDocument để
     // ScrollChanged trung gian không kéo CurrentPage về trang đầu. Việc cuộn thực sự do timer ổn-định-hoá
     // (ScheduleScrollToCurrentPage) lo SAU khi layout xong.
     private void ArmPendingScrollGuard()
     {
-        _scrollSettle.Arm((CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing)
+        ScrollSettle.Arm((CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing)
             ? CurrentPage : 0);
     }
 
-    // Cuộn tới CurrentPage ở chế độ cuộn liên tục sau khi nạp tài liệu. Vì extent ảo hoá lớn dần qua nhiều
-    // đợt layout (và có thể reset offset về 0), KHÔNG thể cuộn một lần rồi gỡ guard ngay (offset dao động).
-    // Dùng DispatcherTimer re-assert offset đích mỗi tick; chỉ gỡ guard khi offset ĐỨNG YÊN tại đích vài
-    // tick liên tiếp (đã ổn định), hoặc sau trần thời gian. Timer chạy ổn định bất kể layout có fire hay không.
+    // Cuộn tới CurrentPage ở chế độ cuộn liên tục sau khi nạp tài liệu; guard giữ tới khi offset đã dính tại đích.
     private void ScheduleScrollToCurrentPage()
     {
         if (!(CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing))
         {
-            _scrollSettle.Clear();
-            StopScrollSettleTimer();
+            ScrollSettle.Cancel();
             return;
         }
-        _scrollSettle.Begin(CurrentPage);   // guard ON suốt quá trình ổn định
-        if (_scrollSettleTimer == null)
-        {
-            _scrollSettleTimer = new System.Windows.Threading.DispatcherTimer
-            { Interval = System.TimeSpan.FromMilliseconds(30) };
-            _scrollSettleTimer.Tick += OnScrollSettleTick;
-        }
-        _scrollSettleTimer.Start();
-    }
-
-    private void StopScrollSettleTimer() => _scrollSettleTimer?.Stop();
-
-    private void OnScrollSettleTick(object? sender, EventArgs e)
-    {
-        // Slot chưa dựng (đang chờ layout) trả null; state machine bỏ cuộc sau trần tick để khỏi kẹt guard.
-        var step = _scrollSettle.Tick(
-            _currentDocument != null,
-            pageIndex => _slots.FirstOrDefault(s => s.PageIndex == pageIndex)?.Y,
-            new Core.ScrollViewport(PagesScrollViewer.ScrollableHeight, PagesScrollViewer.VerticalOffset));
-
-        // Re-assert: layout có thể đã reset offset.
-        if (step.ReassertOffset is { } offset) PagesScrollViewer.ScrollToVerticalOffset(offset);
-        if (step.ShouldStop) StopScrollSettleTimer();
+        ScrollSettle.Begin(CurrentPage);
     }
 
     private void PagesScrollViewer_ScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -703,8 +645,8 @@ public partial class PdfViewerControl : UserControl, IDisposable
         if (!Core.ViewerScrollGate.ShouldSyncPageFromScroll(IsVisible, PagesScrollViewer.ViewportHeight)) return;
 
         // Đang chờ cuộn tới trang đích (sau khi nạp): KHÔNG đồng bộ scroll->trang để khỏi bị kéo về cover.
-        // Guard được gỡ bởi timer ổn-định-hoá (OnScrollSettleTick) khi offset đã dính tại đích.
-        if (_scrollSettle.IsPending)
+        // Guard được gỡ bởi timer ổn-định-hoá (ScrollSettleTimer) khi offset đã dính tại đích.
+        if (ScrollSettle.IsPending)
         {
             skiaCanvas.InvalidateVisual();
             return;
