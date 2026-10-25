@@ -25,6 +25,16 @@ public class DocumentIndexingServiceTests
         public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new FakeGen();
     }
 
+    private sealed class CountingEmbedFactory : IEmbeddingGeneratorFactory
+    {
+        public int Created { get; private set; }
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options)
+        {
+            Created++;
+            return new FakeGen();
+        }
+    }
+
     private sealed class ThrowingEmbedFactory : IEmbeddingGeneratorFactory
     {
         public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new ThrowingGen();
@@ -69,23 +79,37 @@ public class DocumentIndexingServiceTests
     {
         public List<Chunk> Written = [];
         public List<(long, float[])> Embeddings = [];
+        public List<string> DeletedEmbeddingModels = [];
         public string? FinalStatusDoc;
         public DocumentIndexStatus FinalStatus;
         public DocumentIndexStatus StatusToReturn = DocumentIndexStatus.None;
+        public Dictionary<string, DocumentIndexStatus> StatusByModel = [];
+        public List<StoredChunk> Stored = [];
 
+        public bool VectorAvailable = true;
+        public bool VectorSearchAvailable => VectorAvailable;
         public void EnsureSchema() { }
-        public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) => StatusToReturn;
+        public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) =>
+            StatusByModel.TryGetValue(embeddingModel, out var s) ? s : StatusToReturn;
         public void DeleteDocument(string documentId) { }
         public IReadOnlyList<long> WriteChunks(string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks)
         {
             Written.AddRange(chunks);
-            return Enumerable.Range(1, chunks.Count).Select(i => (long)i).ToList();
+            var ids = Enumerable.Range(1, chunks.Count).Select(i => (long)i).ToList();
+            Stored = [.. ids.Select((id, i) => new StoredChunk(id, chunks[i].Text))];
+            return ids;
         }
-        public void WriteEmbeddings(IReadOnlyList<(long ChunkId, float[] Vector)> e) => Embeddings.AddRange(e);
+        public IReadOnlyList<StoredChunk> GetChunks(string documentId) => Stored;
+        public void DeleteEmbeddings(string documentId, string embeddingModel) => DeletedEmbeddingModels.Add(embeddingModel);
+        public void WriteEmbeddings(string embeddingModel, IReadOnlyList<(long ChunkId, float[] Vector)> e) => Embeddings.AddRange(e);
         public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel)
-        { FinalStatusDoc = documentId; FinalStatus = status; }
+        {
+            FinalStatusDoc = documentId;
+            if (status != DocumentIndexStatus.Indexing) FinalStatus = status;
+            StatusByModel[embeddingModel] = status;
+        }
         public IReadOnlyList<SearchResult> SearchText(string d, string q, int l = 50) => [];
-        public IReadOnlyList<Chunk> RetrieveRelevant(string d, float[] v, int k = 5) => [];
+        public IReadOnlyList<Chunk> RetrieveRelevant(string d, string m, float[] v, int k = 5) => [];
         public void Dispose() { }
     }
 
@@ -273,6 +297,67 @@ public class DocumentIndexingServiceTests
 
         Assert.NotEqual(DocumentIndexStatus.Partial, index.FinalStatus);
         Assert.NotEqual(DocumentIndexStatus.Complete, index.FinalStatus);
+        Assert.Empty(index.Embeddings);
+    }
+
+    [Fact]
+    public async Task IndexAsync_ChunksAlreadyStoredByAnotherModel_ReusesChunksAndEmbedsOnlyForCurrentModel()
+    {
+        var index = new RecordingIndex
+        {
+            Stored = [new StoredChunk(10, "đã lưu một"), new StoredChunk(11, "đã lưu hai")]
+        };
+        index.StatusByModel["gemini-embedding-001"] = DocumentIndexStatus.Complete;
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+
+        await svc.IndexAsync("doc1", "a.pdf", Pages("nội dung trang"), null, CancellationToken.None);
+
+        Assert.Empty(index.Written);
+        Assert.Equal([10L, 11L], index.Embeddings.Select(e => e.Item1));
+        Assert.Equal(DocumentIndexStatus.Complete, index.StatusByModel[AiModelSettings.Default.EmbeddingModel]);
+        Assert.Equal(DocumentIndexStatus.Complete, index.StatusByModel["gemini-embedding-001"]);
+        Assert.Equal([AiModelSettings.Default.EmbeddingModel], index.DeletedEmbeddingModels);
+    }
+
+    [Fact]
+    public async Task IndexAsync_SwitchingBackToCompleteModel_DoesNotCallEmbeddingGenerator()
+    {
+        var index = new RecordingIndex();
+        index.StatusByModel[AiModelSettings.Default.EmbeddingModel] = DocumentIndexStatus.Complete;
+        var factory = new CountingEmbedFactory();
+        var svc = new DocumentIndexingService(index, factory, new FakeSettings("sk-x"));
+
+        await svc.IndexAsync("doc1", "a.pdf", Pages("page text"), null, CancellationToken.None);
+
+        Assert.Equal(0, factory.Created);
+        Assert.Empty(index.Embeddings);
+        Assert.Empty(index.DeletedEmbeddingModels);
+    }
+
+    [Fact]
+    public async Task IndexAsync_PartialModel_ClearsOnlyThatModelsVectorsBeforeReembedding()
+    {
+        var index = new RecordingIndex { Stored = [new StoredChunk(1, "một")] };
+        index.StatusByModel[AiModelSettings.Default.EmbeddingModel] = DocumentIndexStatus.Partial;
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+
+        await svc.IndexAsync("doc1", "a.pdf", Pages("một"), null, CancellationToken.None);
+
+        Assert.Equal([AiModelSettings.Default.EmbeddingModel], index.DeletedEmbeddingModels);
+        Assert.Single(index.Embeddings);
+    }
+
+    [Fact]
+    public async Task IndexAsync_VectorSearchUnavailable_MarksTextOnlyAndDoesNotEmbed()
+    {
+        var index = new RecordingIndex { VectorAvailable = false, Stored = [new StoredChunk(1, "một")] };
+        var factory = new CountingEmbedFactory();
+        var svc = new DocumentIndexingService(index, factory, new FakeSettings("sk-x"));
+
+        await svc.IndexAsync("doc1", "a.pdf", Pages("một"), null, CancellationToken.None);
+
+        Assert.Equal(DocumentIndexStatus.TextOnly, index.StatusByModel[AiModelSettings.Default.EmbeddingModel]);
+        Assert.Equal(0, factory.Created);
         Assert.Empty(index.Embeddings);
     }
 }
