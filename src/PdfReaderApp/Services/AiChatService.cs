@@ -17,6 +17,10 @@ public sealed class AiChatService : IDisposable
     private readonly IChatClientFactory _factory;
     private readonly List<ChatMessage> _history = [];
 
+    // Tăng mỗi khi hội thoại bị dựng lại; yêu cầu bị huỷ chỉ dọn lượt của mình nếu thế hệ chưa đổi,
+    // tránh xoá nhầm lượt của tài liệu khác đã nạp sau khi đổi tài liệu.
+    private int _conversationGeneration;
+
     private IChatClient? _client;
     private AiClientOptions? _clientOptions;
 
@@ -31,6 +35,7 @@ public sealed class AiChatService : IDisposable
 
     public void ResetConversation()
     {
+        _conversationGeneration++;
         _history.Clear();
         _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
     }
@@ -39,6 +44,7 @@ public sealed class AiChatService : IDisposable
     /// khối ngữ cảnh tài liệu). Dùng khi mở lại một sách để AI nhớ tiếp mạch.</summary>
     public void SeedHistory(IEnumerable<(string role, string content)> turns)
     {
+        _conversationGeneration++;
         _history.Clear();
         _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
         foreach (var (role, content) in turns)
@@ -53,6 +59,7 @@ public sealed class AiChatService : IDisposable
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var client = EnsureClient();
+        int generation = _conversationGeneration;
         _history.Add(BuildUserTurn(question, documentContext));
 
         var assistant = new StringBuilder();
@@ -62,7 +69,14 @@ public sealed class AiChatService : IDisposable
         {
             while (true)
             {
-                var step = await ReadNextAsync(e, hasPartialReply: assistant.Length > 0);
+                var step = await ReadNextAsync(e, hasPartialReply: assistant.Length > 0, ct);
+
+                if (step.Cancelled)
+                {
+                    // Huỷ: bỏ cả lượt (kể cả câu trả lời dở) khỏi trí nhớ LLM.
+                    if (generation == _conversationGeneration) _history.RemoveAt(_history.Count - 1);
+                    ct.ThrowIfCancellationRequested();
+                }
 
                 if (step.Fatal != null)
                 {
@@ -98,7 +112,7 @@ public sealed class AiChatService : IDisposable
 
     /// <summary>Kết quả một lần đọc stream. Lỗi đọc được gói lại vì iterator không được yield
     /// bên trong khối try/catch; vòng lặp xử lý sau khi thoát khối catch.</summary>
-    private readonly record struct StreamStep(bool HasNext, string? Text, bool Interrupted, AiChatException? Fatal);
+    private readonly record struct StreamStep(bool HasNext, string? Text, bool Interrupted, AiChatException? Fatal, bool Cancelled = false);
 
     private IChatClient EnsureClient()
     {
@@ -152,12 +166,16 @@ public sealed class AiChatService : IDisposable
     }
 
     private static async Task<StreamStep> ReadNextAsync(
-        IAsyncEnumerator<ChatResponseUpdate> e, bool hasPartialReply)
+        IAsyncEnumerator<ChatResponseUpdate> e, bool hasPartialReply, CancellationToken ct)
     {
         try
         {
             bool hasNext = await e.MoveNextAsync();
             return new StreamStep(hasNext, hasNext ? e.Current.Text : null, Interrupted: false, Fatal: null);
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            return new StreamStep(HasNext: false, Text: null, Interrupted: false, Fatal: null, Cancelled: true);
         }
 #pragma warning disable CA1031 // ranh giới stream AI: SDK ném nhiều kiểu lỗi, được phân loại (AiErrorClassifier) và bọc lại kèm inner exception
         catch (Exception ex)
