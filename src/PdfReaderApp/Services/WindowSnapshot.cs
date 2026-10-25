@@ -88,7 +88,7 @@ internal static class WindowSnapshot
             vm.CurrentPage = page;
         }
         // ImportAndOpen báo lỗi bằng notification trên UI; đưa nó ra stderr để script thấy nguyên nhân.
-        if (vm.CurrentNotification is { IsError: true } error)
+        if (vm.Notifications.Current is { IsError: true } error)
         {
             throw new InvalidOperationException($"Mở {path} lỗi: {error.Message}");
         }
