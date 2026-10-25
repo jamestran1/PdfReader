@@ -27,7 +27,7 @@ public sealed class SqliteDocumentIndexMigrationTests : IDisposable
         string searchTextColumn = withSearchTextColumn ? ", search_text TEXT" : "";
         string tokenize = trigramFts ? ", tokenize='trigram'" : "";
         string searchTextFtsColumn = withSearchTextColumn ? "search_text" : "text";
-        // user_version = 5 (schema đa model) để các bước di trú phiên bản không đụng vào dữ liệu.
+        // user_version = 6 (mới nhất) để các bước di trú phiên bản không đụng vào dữ liệu.
         string sql = $@"
 CREATE TABLE documents (
   document_id TEXT PRIMARY KEY, file_path TEXT, page_count INTEGER,
@@ -38,7 +38,7 @@ CREATE TABLE chunks (
 CREATE VIRTUAL TABLE chunks_fts USING fts5({searchTextFtsColumn}, content='chunks', content_rowid='chunk_id'{tokenize});
 INSERT INTO chunks (document_id, page_index, ordinal, text) VALUES ('doc1', 0, 0, 'Kinh Hạnh phúc');
 INSERT INTO chunks (document_id, page_index, ordinal, text) VALUES ('doc1', 1, 1, 'Kinh Thánh');
-PRAGMA user_version = 5;";
+PRAGMA user_version = 6;";
         using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;
         cmd.ExecuteNonQuery();
@@ -160,7 +160,7 @@ PRAGMA user_version = 4;");
         {
         }
 
-        Assert.Equal("5", ScalarString("PRAGMA user_version"));
+        Assert.Equal("6", ScalarString("PRAGMA user_version"));
         Assert.Equal("0", ScalarString("SELECT COUNT(*) FROM pragma_table_info('documents') WHERE name IN ('status','embedding_model')"));
         Assert.Equal("1", ScalarString("SELECT COUNT(*) FROM sqlite_master WHERE name='document_models'"));
         Assert.Equal("0", ScalarString("SELECT COUNT(*) FROM sqlite_master WHERE name='vec_chunks'"));
@@ -185,13 +185,13 @@ PRAGMA user_version = 4;");
     }
 
     [Fact]
-    public void EnsureSchema_FreshDb_StampsVersion5WithoutRefoldStep()
+    public void EnsureSchema_FreshDb_StampsLatestVersion()
     {
         using (Migrate())
         {
         }
 
-        Assert.Equal("5", ScalarString("PRAGMA user_version"));
+        Assert.Equal("6", ScalarString("PRAGMA user_version"));
         Assert.Equal("1", ScalarString("SELECT COUNT(*) FROM sqlite_master WHERE name='document_models'"));
     }
 
@@ -217,6 +217,44 @@ PRAGMA user_version = 4;");
         }
 
         Assert.Equal("0", ScalarString("SELECT COUNT(*) FROM sqlite_master WHERE name='vec_chunks'"));
+    }
+
+    [Fact]
+    public void EnsureSchema_V5DbNeedingRefold_KeepsChunksAndVectorsAndRefoldsSearchText()
+    {
+        using (var first = Migrate())
+        {
+            var ids = first.WriteChunks("doc1", null, 1, [new("doc1", 0, 0, "Kinh Thánh")]);
+            first.WriteEmbeddings("m", [(ids[0], [1f, 0f])]);
+            first.SetStatus("doc1", PdfReaderApp.Models.DocumentIndexStatus.Complete, "m");
+        }
+
+        ExecuteRaw("UPDATE chunks SET search_text='stale'");
+        ExecuteRaw("PRAGMA user_version = 5");
+
+        using var idx = Migrate();
+
+        Assert.Equal("kinh thanh", ScalarString("SELECT search_text FROM chunks"));
+        Assert.Equal("6", ScalarString("PRAGMA user_version"));
+        Assert.Equal(PdfReaderApp.Models.DocumentIndexStatus.Complete, idx.GetStatus("doc1", "m"));
+        Assert.Single(idx.RetrieveRelevant("doc1", "m", [1f, 0f]));
+    }
+
+    [Fact]
+    public void EnsureSchema_V5DbWithNewShape_IsNeverTreatedAsLegacyEvenAtLowerVersion()
+    {
+        using (var first = Migrate())
+        {
+            first.WriteChunks("doc1", null, 1, [new("doc1", 0, 0, "giữ lại")]);
+        }
+
+        ExecuteRaw("PRAGMA user_version = 4");
+
+        using (Migrate())
+        {
+        }
+
+        Assert.Equal("1", ScalarString("SELECT COUNT(*) FROM chunks"));
     }
 
     [Fact]
