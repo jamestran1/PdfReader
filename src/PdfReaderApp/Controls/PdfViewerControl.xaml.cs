@@ -156,11 +156,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
     private void RepaintOverlay() => skiaCanvas.InvalidateVisual();
 
     // Trạng thái chọn text
-    private int _selPageIndex = -1;
-    private int _anchorChar = -1;
-    private bool _selecting;
-    private string _selectionText = string.Empty;
-    private readonly List<Rect> _selectionRectsPdf = []; // rect theo PDF points của _selPageIndex
+    private readonly Viewer.TextSelectionController _selection;
 
     private IReadOnlyList<Models.MatchRect> GetMatchRects(int pageIndex, string query)
     {
@@ -214,6 +210,7 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     public PdfViewerControl()
     {
+        _selection = new Viewer.TextSelectionController(pageIndex => _session!.ObjectManager.GetPageTexts(pageIndex));
         InitializeComponent();
         this.Unloaded += PdfViewerControl_Unloaded;
         InteractionCanvas.MouseDown += OnCanvasMouseDown;
@@ -312,25 +309,10 @@ public partial class PdfViewerControl : UserControl, IDisposable
             if (TryPageHit(sp, out var slot, out var pdf))
             {
                 _session!.ObjectManager.MapPage(_currentDocument.Pages[slot.PageIndex], slot.PageIndex);
-                var chars = BuildSelChars(slot.PageIndex);
-                int anchor = Core.TextSelectionResolver.NearestCharIndex(chars, pdf);
-                if (anchor >= 0)
-                {
-                    _selPageIndex = slot.PageIndex;
-                    _anchorChar = anchor;
-                    _selecting = true;
+                if (_selection.Begin(slot.PageIndex, pdf))
                     InteractionCanvas.CaptureMouse();
-                }
             }
         }
-    }
-
-    private List<Core.SelChar> BuildSelChars(int pageIndex)
-    {
-        var list = new List<Core.SelChar>();
-        foreach (var g in _session!.ObjectManager.GetPageTexts(pageIndex))
-            list.Add(new Core.SelChar(g.CharIndex, g.Text, g.Bounds));
-        return list;
     }
 
     private bool TryPageHit(Point screenPoint, out Core.PageSlot slot, out Point pdfPoint)
@@ -348,31 +330,25 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void InteractionCanvas_MouseMove(object sender, MouseEventArgs e)
     {
-        if (!_selecting || _selPageIndex < 0) return;
+        if (!_selection.IsSelecting) return;
         var sp = e.GetPosition(InteractionCanvas);
-        if (!TryPageHit(sp, out var slot, out var pdf) || slot.PageIndex != _selPageIndex) return;
-        var chars = BuildSelChars(_selPageIndex);
-        int focus = Core.TextSelectionResolver.NearestCharIndex(chars, pdf);
-        if (focus < 0) return;
-        var res = Core.TextSelectionResolver.Resolve(chars, _anchorChar, focus);
-        _selectionText = res.Text;
-        _selectionRectsPdf.Clear();
-        _selectionRectsPdf.AddRange(res.LineRects);
+        if (!TryPageHit(sp, out var slot, out var pdf)) return;
+        if (!_selection.Extend(slot.PageIndex, pdf)) return;
         AddNoteButton.Visibility = Visibility.Collapsed;
         skiaCanvas.InvalidateVisual();
     }
 
     private void InteractionCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (!_selecting) return;
-        _selecting = false;
+        if (!_selection.IsSelecting) return;
+        bool hasSelection = _selection.Finish();
         InteractionCanvas.ReleaseMouseCapture();
-        if (string.IsNullOrEmpty(_selectionText) || _selectionRectsPdf.Count == 0) return;
-        // Đặt nút nổi gần cuối vùng chọn (đổi PDF -> screen của trang _selPageIndex)
-        var slot = _slots.FirstOrDefault(s => s.PageIndex == _selPageIndex);
+        if (!hasSelection) return;
+        // Đặt nút nổi gần cuối vùng chọn (đổi PDF -> screen của trang đang chọn)
+        var slot = _slots.FirstOrDefault(s => s.PageIndex == _selection.PageIndex);
         if (slot == null) return;
         float scale = (float)ZoomLevel;
-        var last = _selectionRectsPdf[_selectionRectsPdf.Count - 1];
+        var last = _selection.LastLineRect;
         Canvas.SetLeft(AddNoteButton, slot.X + last.Right * scale);
         Canvas.SetTop(AddNoteButton, slot.Y + last.Bottom * scale + 2);
         AddNoteButton.Visibility = Visibility.Visible;
@@ -380,25 +356,15 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void AddNoteButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!string.IsNullOrEmpty(_selectionText) && _selPageIndex >= 0)
-        {
-            var rects = _selectionRectsPdf
-                .Select(r => new Models.HighlightRect(r.Left, r.Top, r.Width, r.Height))
-                .ToList();
-            var sel = new Models.NoteSelection(_selectionText, _selPageIndex, rects);
-            if (AddNoteFromSelectionCommand?.CanExecute(sel) == true)
-                AddNoteFromSelectionCommand.Execute(sel);
-        }
+        var sel = _selection.ToNoteSelection();
+        if (sel != null && AddNoteFromSelectionCommand?.CanExecute(sel) == true)
+            AddNoteFromSelectionCommand.Execute(sel);
         ClearSelection();
     }
 
     private void ClearSelection()
     {
-        _selecting = false;
-        _selPageIndex = -1;
-        _anchorChar = -1;
-        _selectionText = string.Empty;
-        _selectionRectsPdf.Clear();
+        _selection.Clear();
         if (AddNoteButton != null)
             AddNoteButton.Visibility = Visibility.Collapsed;
         skiaCanvas.InvalidateVisual();
@@ -715,14 +681,14 @@ public partial class PdfViewerControl : UserControl, IDisposable
 
     private void DrawSelectionOverlay(SKCanvas canvas, int pageIndex, System.Windows.Rect pageRect, float scale)
     {
-        if (_selPageIndex != pageIndex || _selectionRectsPdf.Count == 0 || _currentDocument == null) return;
+        if (_selection.PageIndex != pageIndex || _selection.LineRects.Count == 0 || _currentDocument == null) return;
 
         // GhostText.Bounds là top-origin (Y hướng xuống) - cùng hệ với double-click/ShowEditor
         // (đặt tại pageRect.Top + Bounds.Top*scale). KHÔNG lật Y như DrawHighlights (vốn dùng
         // MatchRect bottom-origin của iText). Chỉ cần nhân scale + cộng offset của trang.
         using var paint = new SKPaint { Color = new SKColor(33, 150, 243, 90), Style = SKPaintStyle.Fill };
         var page = ToRectF(pageRect);
-        foreach (var r in _selectionRectsPdf)
+        foreach (var r in _selection.LineRects)
             canvas.DrawRect(ToSkRect(Core.OverlayGeometry.TopOrigin(r.Left, r.Top, r.Width, r.Height, scale, page)), paint);
     }
 
