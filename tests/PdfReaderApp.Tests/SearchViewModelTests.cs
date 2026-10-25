@@ -8,6 +8,7 @@ public class SearchViewModelTests
 {
     private sealed class StubIndex(Func<string, string, IReadOnlyList<SearchResult>> search) : IDocumentIndex
     {
+        public bool VectorSearchAvailable => true;
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) => DocumentIndexStatus.None;
         public void DeleteDocument(string documentId) { }

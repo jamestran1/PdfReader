@@ -40,13 +40,15 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
         lock (_lock)
         {
             MigrateToMultiModelIfNeeded();
+            // Bảng đơn vec_chunks cũ còn sót (DB di trú lúc vec0 không nạp được) chỉ DROP được khi vec0 sẵn sàng.
+            if (_vecAvailable) Exec("DROP TABLE IF EXISTS vec_chunks;");
 
             Exec(@"
 CREATE TABLE IF NOT EXISTS documents (
   document_id TEXT PRIMARY KEY, file_path TEXT, page_count INTEGER,
   chunk_count INTEGER, indexed_at INTEGER);
 CREATE TABLE IF NOT EXISTS document_models (
-  document_id TEXT NOT NULL, model_name TEXT NOT NULL, dimension INTEGER,
+  document_id TEXT NOT NULL, model_name TEXT NOT NULL,
   status TEXT NOT NULL, indexed_at INTEGER NOT NULL,
   PRIMARY KEY (document_id, model_name));
 CREATE TABLE IF NOT EXISTS chunks (
@@ -80,14 +82,17 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
         using var exists = _conn.CreateCommand();
         exists.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='documents'";
-        if (Convert.ToInt32(exists.ExecuteScalar(), CultureInfo.InvariantCulture) == 0) return; // DB mới
+        bool hasLegacyData = Convert.ToInt32(exists.ExecuteScalar(), CultureInfo.InvariantCulture) > 0;
 
+        // Tự đóng dấu phiên bản để không phụ thuộc bước di trú khác; DB mới chỉ cần đóng dấu.
         using var tx = _conn.BeginTransaction();
-        // Không có vec0 thì không DROP được bảng ảo; bảng vec_chunks cũ mồ côi nhưng vô hại.
-        if (_vecAvailable) ExecInTransaction(tx, "DROP TABLE IF EXISTS vec_chunks;");
-        ExecInTransaction(tx, "DROP TABLE IF EXISTS chunks_fts;");
-        ExecInTransaction(tx, "DROP TABLE IF EXISTS chunks;");
-        ExecInTransaction(tx, "DROP TABLE IF EXISTS documents;");
+        if (hasLegacyData)
+        {
+            ExecInTransaction(tx, "DROP TABLE IF EXISTS chunks_fts;");
+            ExecInTransaction(tx, "DROP TABLE IF EXISTS chunks;");
+            ExecInTransaction(tx, "DROP TABLE IF EXISTS documents;");
+        }
+
         ExecInTransaction(tx, $"PRAGMA user_version = {SchemaVersion}");
         tx.Commit();
     }
@@ -239,15 +244,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             using var r = cmd.ExecuteReader();
             if (!r.Read()) return DocumentIndexStatus.None;
 
-            return r.GetString(0) switch
-            {
-                "indexing" => DocumentIndexStatus.Indexing,
-                "complete" => DocumentIndexStatus.Complete,
-                "partial" => DocumentIndexStatus.Partial,
-                "text-only" => DocumentIndexStatus.TextOnly,
-                "empty" => DocumentIndexStatus.Empty,
-                _ => DocumentIndexStatus.None
-            };
+            string raw = r.GetString(0);
+            return Enum.GetValues<DocumentIndexStatus>().FirstOrDefault(v => ToDbStatus(v) == raw);
         }
     }
 
@@ -352,20 +350,22 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     public void WriteEmbeddings(string embeddingModel, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings)
     {
         ArgumentNullException.ThrowIfNull(embeddings);
-        if (embeddings.Any(e => e.Vector is null || e.Vector.Length == 0))
-            throw new ArgumentException("Vector rỗng không ghi được vào chỉ mục.", nameof(embeddings));
-        if (!_vecAvailable || embeddings.Count == 0) return; // degrade: no vector store available
+        if (embeddings.Count == 0) return;
+        int dim = embeddings[0].Vector?.Length ?? 0;
+        if (dim == 0 || embeddings.Any(e => e.Vector is null || e.Vector.Length != dim))
+            throw new ArgumentException("Mọi vector trong một lô phải cùng số chiều và không rỗng.", nameof(embeddings));
+        if (!_vecAvailable) return; // degrade: no vector store available
         lock (_lock)
         {
-            foreach (int dim in embeddings.Select(e => e.Vector.Length).Distinct())
-                EnsureVecTable(dim);
+            EnsureVecTable(dim);
 
             using var tx = _conn.BeginTransaction();
+            DeleteExistingVectors(tx, embeddingModel, embeddings, dim);
             foreach (var (chunkId, vector) in embeddings)
             {
                 using var cmd = _conn.CreateCommand();
                 cmd.Transaction = tx;
-                cmd.CommandText = $@"INSERT INTO {VecTableName(vector.Length)} (model_name, document_id, chunk_id, embedding)
+                cmd.CommandText = $@"INSERT INTO {VecTableName(dim)} (model_name, document_id, chunk_id, embedding)
                     VALUES ($m, (SELECT document_id FROM chunks WHERE chunk_id=$id), $id, $vec)";
                 cmd.Parameters.AddWithValue("$m", embeddingModel);
                 cmd.Parameters.AddWithValue("$id", chunkId);
@@ -373,26 +373,49 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
                 cmd.ExecuteNonQuery();
             }
 
-            RecordDimension(tx, embeddings, embeddingModel);
             tx.Commit();
         }
     }
 
-    // Người gọi có thể chưa SetStatus trước khi ghi vector, nên dòng document_models được upsert
-    // với trạng thái indexing để luôn có chỗ ghi số chiều.
-    private void RecordDimension(
-        SqliteTransaction tx, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings, string embeddingModel)
+    // chunk_id chỉ là cột metadata nên vec0 không tự chặn trùng; tác vụ lập chỉ mục bị huỷ mà còn chạy
+    // dở có thể ghi lại cùng chunk, nên xoá bản cũ của (model, chunk) trước khi chèn.
+    private void DeleteExistingVectors(
+        SqliteTransaction tx, string embeddingModel, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings, int dim)
     {
-        using var cmd = _conn.CreateCommand();
-        cmd.Transaction = tx;
-        cmd.CommandText = @"INSERT INTO document_models (document_id, model_name, dimension, status, indexed_at)
-            VALUES ((SELECT document_id FROM chunks WHERE chunk_id=$id), $m, $dim, 'indexing', $ts)
-            ON CONFLICT(document_id, model_name) DO UPDATE SET dimension=excluded.dimension";
-        cmd.Parameters.AddWithValue("$id", embeddings[0].ChunkId);
-        cmd.Parameters.AddWithValue("$m", embeddingModel);
-        cmd.Parameters.AddWithValue("$dim", embeddings[0].Vector.Length);
-        cmd.Parameters.AddWithValue("$ts", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-        cmd.ExecuteNonQuery();
+        var batchIds = embeddings.Select(e => e.ChunkId).ToHashSet();
+        var documentIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (long id in batchIds)
+        {
+            using var doc = _conn.CreateCommand();
+            doc.Transaction = tx;
+            doc.CommandText = "SELECT document_id FROM chunks WHERE chunk_id=$id";
+            doc.Parameters.AddWithValue("$id", id);
+            if (doc.ExecuteScalar() is string documentId) documentIds.Add(documentId);
+        }
+
+        var staleRowIds = new List<long>();
+        foreach (string documentId in documentIds)
+        {
+            using var scan = _conn.CreateCommand();
+            scan.Transaction = tx;
+            scan.CommandText = $"SELECT rowid, chunk_id FROM {VecTableName(dim)} WHERE model_name=$m AND document_id=$d";
+            scan.Parameters.AddWithValue("$m", embeddingModel);
+            scan.Parameters.AddWithValue("$d", documentId);
+            using var r = scan.ExecuteReader();
+            while (r.Read())
+            {
+                if (batchIds.Contains(r.GetInt64(1))) staleRowIds.Add(r.GetInt64(0));
+            }
+        }
+
+        foreach (long rowId in staleRowIds)
+        {
+            using var del = _conn.CreateCommand();
+            del.Transaction = tx;
+            del.CommandText = $"DELETE FROM {VecTableName(dim)} WHERE rowid=$r";
+            del.Parameters.AddWithValue("$r", rowId);
+            del.ExecuteNonQuery();
+        }
     }
 
     public void DeleteEmbeddings(string documentId, string embeddingModel)
@@ -451,6 +474,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         return tables;
     }
 
+    private static string ToDbStatus(DocumentIndexStatus status) => status switch
+    {
+        DocumentIndexStatus.TextOnly => "text-only",
+        _ => status.ToString().ToLowerInvariant()
+    };
+
     public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel)
     {
         lock (_lock)
@@ -459,11 +488,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             cmd.CommandText = @"INSERT INTO document_models (document_id, model_name, status, indexed_at)
                 VALUES ($id, $m, $s, $ts)
                 ON CONFLICT(document_id, model_name) DO UPDATE SET status=excluded.status, indexed_at=excluded.indexed_at";
-            cmd.Parameters.AddWithValue("$s", status switch
-            {
-                DocumentIndexStatus.TextOnly => "text-only",
-                _ => status.ToString().ToLowerInvariant()
-            });
+            cmd.Parameters.AddWithValue("$s", ToDbStatus(status));
             cmd.Parameters.AddWithValue("$m", embeddingModel);
             cmd.Parameters.AddWithValue("$id", documentId);
             cmd.Parameters.AddWithValue("$ts", DateTimeOffset.UtcNow.ToUnixTimeSeconds());

@@ -185,6 +185,41 @@ PRAGMA user_version = 4;");
     }
 
     [Fact]
+    public void EnsureSchema_FreshDb_StampsVersion5WithoutRefoldStep()
+    {
+        using (Migrate())
+        {
+        }
+
+        Assert.Equal("5", ScalarString("PRAGMA user_version"));
+        Assert.Equal("1", ScalarString("SELECT COUNT(*) FROM sqlite_master WHERE name='document_models'"));
+    }
+
+    [Fact]
+    public void EnsureSchema_LegacyVecChunksLeftBehind_IsDroppedOnceVec0Loads()
+    {
+        using (Migrate())
+        {
+        }
+
+        using (var conn = new SqliteConnection($"Data Source={_dbPath};Pooling=False"))
+        {
+            conn.Open();
+            conn.EnableExtensions(true);
+            conn.LoadExtension(_vec0Path);
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "CREATE VIRTUAL TABLE vec_chunks USING vec0(chunk_id INTEGER PRIMARY KEY, embedding FLOAT[4]);";
+            cmd.ExecuteNonQuery();
+        }
+
+        using (Migrate())
+        {
+        }
+
+        Assert.Equal("0", ScalarString("SELECT COUNT(*) FROM sqlite_master WHERE name='vec_chunks'"));
+    }
+
+    [Fact]
     public void EnsureSchema_RunTwice_DoesNotWipeV5Data()
     {
         using (var first = Migrate())

@@ -47,6 +47,7 @@ public sealed class MainViewModelIndexingTests : IDisposable
     private sealed class RecordingIndex : IDocumentIndex
     {
         public List<string> Deleted { get; } = [];
+        public bool VectorSearchAvailable => true;
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) => DocumentIndexStatus.None;
         public void DeleteDocument(string documentId) => Deleted.Add(documentId);

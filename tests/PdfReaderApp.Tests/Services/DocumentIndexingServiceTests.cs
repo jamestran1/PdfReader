@@ -86,6 +86,8 @@ public class DocumentIndexingServiceTests
         public Dictionary<string, DocumentIndexStatus> StatusByModel = [];
         public List<StoredChunk> Stored = [];
 
+        public bool VectorAvailable = true;
+        public bool VectorSearchAvailable => VectorAvailable;
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) =>
             StatusByModel.TryGetValue(embeddingModel, out var s) ? s : StatusToReturn;
@@ -325,5 +327,19 @@ public class DocumentIndexingServiceTests
 
         Assert.Equal([AiModelSettings.Default.EmbeddingModel], index.DeletedEmbeddingModels);
         Assert.Single(index.Embeddings);
+    }
+
+    [Fact]
+    public async Task IndexAsync_VectorSearchUnavailable_MarksTextOnlyAndDoesNotEmbed()
+    {
+        var index = new RecordingIndex { VectorAvailable = false, Stored = [new StoredChunk(1, "một")] };
+        var factory = new CountingEmbedFactory();
+        var svc = new DocumentIndexingService(index, factory, new FakeSettings("sk-x"));
+
+        await svc.IndexAsync("doc1", "a.pdf", Pages("một"), null, CancellationToken.None);
+
+        Assert.Equal(DocumentIndexStatus.TextOnly, index.StatusByModel[AiModelSettings.Default.EmbeddingModel]);
+        Assert.Equal(0, factory.Created);
+        Assert.Empty(index.Embeddings);
     }
 }

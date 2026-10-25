@@ -72,6 +72,7 @@ public sealed class MainViewModelChatTests : IDisposable
 
     private sealed class FakeDocumentIndex(DocumentIndexStatus status) : IDocumentIndex
     {
+        public bool VectorSearchAvailable => true;
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) => status;
         public void DeleteDocument(string documentId) { }

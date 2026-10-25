@@ -154,11 +154,55 @@ public sealed class SqliteDocumentIndexMultiModelTests : IDisposable
     }
 
     [Fact]
-    public void WriteEmbeddings_RecordsDimensionInDocumentModels()
+    public void WriteEmbeddings_SameChunkTwice_YieldsOneKnnHit()
     {
-        WriteHot(ModelB, 768);
+        _idx.WriteEmbeddings(ModelB, [(_ids[0], Hot(768, 0))]);
+        _idx.WriteEmbeddings(ModelB, [(_ids[0], Hot(768, 0)), (_ids[1], Hot(768, 1))]);
 
-        Assert.Equal("768", Scalar($"SELECT dimension FROM document_models WHERE model_name='{ModelB}'"));
+        var hits = _idx.RetrieveRelevant("doc1", ModelB, Hot(768, 0), k: 10);
+
+        Assert.Equal(2, hits.Count);
+        Assert.Single(hits, h => h.Text == "chunk zero");
+    }
+
+    [Fact]
+    public void WriteEmbeddings_SameChunkTwice_DoesNotTouchOtherModelsVectors()
+    {
+        _idx.WriteEmbeddings(ModelB, [(_ids[0], Hot(768, 0))]);
+        _idx.WriteEmbeddings(ModelC, [(_ids[0], Hot(768, 0))]);
+
+        _idx.WriteEmbeddings(ModelB, [(_ids[0], Hot(768, 0))]);
+
+        Assert.Single(_idx.RetrieveRelevant("doc1", ModelC, Hot(768, 0), k: 10));
+    }
+
+    [Fact]
+    public void WriteEmbeddings_MixedVectorLengths_Throws()
+    {
+        Assert.Throws<ArgumentException>(() =>
+            _idx.WriteEmbeddings(ModelA, [(_ids[0], Hot(4, 0)), (_ids[1], Hot(8, 0))]));
+    }
+
+    [Fact]
+    public void WriteEmbeddings_DoesNotCreateStatusRow()
+    {
+        _idx.WriteEmbeddings(ModelB, [(_ids[0], Hot(768, 0))]);
+
+        Assert.Equal(DocumentIndexStatus.None, _idx.GetStatus("doc1", ModelB));
+        Assert.Equal("0", Scalar("SELECT COUNT(*) FROM document_models"));
+    }
+
+    [Theory]
+    [InlineData(DocumentIndexStatus.Indexing)]
+    [InlineData(DocumentIndexStatus.Complete)]
+    [InlineData(DocumentIndexStatus.Partial)]
+    [InlineData(DocumentIndexStatus.TextOnly)]
+    [InlineData(DocumentIndexStatus.Empty)]
+    public void SetStatus_RoundTripsEveryStatus(DocumentIndexStatus status)
+    {
+        _idx.SetStatus("doc1", status, ModelA);
+
+        Assert.Equal(status, _idx.GetStatus("doc1", ModelA));
     }
 
     [Fact]

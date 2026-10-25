@@ -4,6 +4,7 @@ namespace PdfReaderApp.Services;
 
 public interface IDocumentIndex : IDisposable
 {
+    bool VectorSearchAvailable { get; }
     void EnsureSchema();
     DocumentIndexStatus GetStatus(string documentId, string embeddingModel);
     void DeleteDocument(string documentId);

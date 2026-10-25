@@ -36,6 +36,7 @@ public class RagContextServiceTests
         private readonly DocumentIndexStatus _status;
         private readonly List<Chunk> _retrieve;
         public StubIndex(DocumentIndexStatus s, List<Chunk> retrieve) { _status = s; _retrieve = retrieve; }
+        public bool VectorSearchAvailable => true;
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string d, string m) => _status;
         public void DeleteDocument(string d) { }
