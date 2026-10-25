@@ -58,28 +58,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private IReadOnlyList<PageText> _pageTexts = [];
 
     private string? _documentId;
-    public ObservableCollection<SearchResult> SearchResults { get; } = [];
-
-    [ObservableProperty]
-    public partial string SearchQuery { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string SelectedSearchQuery { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string ExecutedSearchQuery { get; set; } = string.Empty;
-
-    // Mỗi khi người dùng sửa/xóa ô tìm: tắt highlight trên trang ngay lập tức.
-    // Nếu ô rỗng: xóa luôn danh sách kết quả và query đã chạy.
-    partial void OnSearchQueryChanged(string value)
-    {
-        SelectedSearchQuery = string.Empty;
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            SearchResults.Clear();
-            ExecutedSearchQuery = string.Empty;
-        }
-    }
+    public SearchViewModel Search { get; }
 
     [ObservableProperty]
     public partial string WindowTitle { get; set; } = "Trí Thư";
@@ -272,34 +251,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public IndexingViewModel Indexing { get; }
     public WorkspaceDocumentsViewModel DocumentsSurface { get; }
-    // #67: thông báo snackbar non-blocking, đáy-giữa, tự ẩn. Một surface duy nhất cho cả app.
-    [ObservableProperty]
-    public partial Notification? CurrentNotification { get; set; }
+    public NotificationViewModel Notifications { get; } = new();
 
-    private System.Windows.Threading.DispatcherTimer? _notificationTimer;
-
-    public void NotifySuccess(string message) => ShowNotification(new Notification(message, false));
-    public void NotifyError(string message) => ShowNotification(new Notification(message, true));
-
-    private void ShowNotification(Notification notification)
-    {
-        CurrentNotification = notification;
-        // Unit test (không có Application): bỏ qua timer tự ẩn; chỉ cần CurrentNotification được set.
-        if (System.Windows.Application.Current is null) return;
-        _notificationTimer ??= CreateNotificationTimer();
-        _notificationTimer.Stop();
-        _notificationTimer.Start();
-    }
-
-    private System.Windows.Threading.DispatcherTimer CreateNotificationTimer()
-    {
-        var timer = new System.Windows.Threading.DispatcherTimer
-        {
-            Interval = System.TimeSpan.FromMilliseconds(2200)
-        };
-        timer.Tick += (_, _) => { _notificationTimer!.Stop(); CurrentNotification = null; };
-        return timer;
-    }
+    public void NotifySuccess(string message) => Notifications.ShowSuccess(message);
+    public void NotifyError(string message) => Notifications.ShowError(message);
 
     public MainViewModel()
         : this(DefaultServices.Create())
@@ -361,6 +316,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             () => _documentId,
             OpenDocumentForNote,
             NotifyError);
+        Search = new SearchViewModel(_documentIndex, () => _documentId, page => CurrentPage = page, NotifyError);
 
         _workspaceStore = services.WorkspaceStore;
         _workspaceStore.EnsureSchema();
@@ -435,7 +391,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.FilterCurrentDocumentOnly = incoming.FilterCurrentDocumentOnly;
         }
 
-        SearchQuery = string.Empty;
+        Search.Reset();
 
         if (incoming is not null)
             HydrateTab(incoming);
@@ -930,7 +886,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.LoadFor(_activeWorkspaceId);
             UpdateNotesDocumentContext();
             OnPropertyChanged(nameof(ActiveWorkspaceId));
-            SearchResults.Clear();
+            Search.ClearResults();
             Indexing.StartBackgroundIndexing();
         }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: nạp tài liệu lỗi thì báo cho người dùng
@@ -1132,37 +1088,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         AiChatError.Network => "Không kết nối được dịch vụ AI, vui lòng kiểm tra mạng.",
         _ => "Đã xảy ra lỗi khi gọi AI."
     };
-
-    [RelayCommand]
-    private void Search()
-    {
-        SearchResults.Clear();
-        if (_documentId is null || string.IsNullOrWhiteSpace(SearchQuery)) return;
-
-        try
-        {
-            ExecutedSearchQuery = SearchQuery;
-            foreach (var hit in _documentIndex.SearchText(_documentId, SearchQuery))
-                SearchResults.Add(hit);
-        }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: tìm kiếm lỗi thì báo cho người dùng
-        catch (Exception ex)
-        {
-            NotifyError($"Tìm kiếm lỗi: {ex.Message}");
-        }
-#pragma warning restore CA1031
-    }
-
-    [RelayCommand]
-    private void SelectSearchResult(SearchResult? result)
-    {
-        if (result is null) return;
-        CurrentPage = result.PageIndex + 1;
-        SelectedSearchQuery = SearchQuery;
-    }
-
-    [RelayCommand]
-    private void ClearSearch() => SearchQuery = string.Empty;
 
     [RelayCommand]
     private void OpenSettings()
