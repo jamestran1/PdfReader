@@ -113,6 +113,19 @@ public sealed class IndexingViewModelTests
         Assert.Equal("Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).", status);
     }
 
+    // Báo tiến độ ("0/1") đi qua Progress<> và bị post bất đồng bộ; nó không được ghi đè thông báo lỗi
+    // đã hiển thị. Lặp nhiều lượt song song để lộ cuộc đua thay vì trông chờ vào may rủi.
+    [Fact]
+    public async Task Start_NetworkError_LateProgressNeverOverwritesErrorMessage()
+    {
+        const string expected = "Lập chỉ mục AI bị bỏ qua: không kết nối được (tìm kiếm văn bản vẫn dùng được).";
+
+        string[] statuses = await Task.WhenAll(Enumerable.Range(0, 1000)
+            .Select(_ => Task.Run(() => RunUntilStatusAsync(new System.Net.Http.HttpRequestException("down")))));
+
+        Assert.All(statuses, status => Assert.Equal(expected, status));
+    }
+
     [Fact]
     public async Task Start_UnknownError_ShowsErrorMessageWithDetail()
     {

@@ -49,14 +49,38 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
         _cts = new CancellationTokenSource();
         CancellationToken ct = _cts.Token;
 
-        // Progress<> bắt SynchronizationContext của luồng UI đang gọi, nên cập nhật trạng thái về đúng luồng UI.
-        var progress = new Progress<IndexingProgress>(p => StatusText = FormatProgress(p));
+        var run = new IndexingRun();
 
-        _ = Task.Run(() => IndexInBackgroundAsync(target, progress, ct), ct);
+        // Progress<> bắt SynchronizationContext của luồng UI đang gọi, nên cập nhật trạng thái về đúng luồng UI.
+        var progress = new Progress<IndexingProgress>(p => run.ReportProgress(() => StatusText = FormatProgress(p)));
+
+        _ = Task.Run(() => IndexInBackgroundAsync(target, progress, run, ct), ct);
+    }
+
+    /// <summary>Một lượt lập chỉ mục. Progress&lt;T&gt; post báo tiến độ bất đồng bộ nên một báo cáo cũ có thể tới
+    /// sau khi lỗi đã hiển thị và ghi đè thông báo lỗi; lượt đã lỗi thì bỏ qua mọi báo tiến độ đến muộn.</summary>
+    private sealed class IndexingRun
+    {
+        private readonly Lock _gate = new();
+        private bool _faulted;
+
+        // Kiểm tra và ghi nằm chung trong khoá: sau khi MarkFaulted trả về thì không còn báo tiến độ nào ghi nữa.
+        public void ReportProgress(Action updateStatus)
+        {
+            lock (_gate)
+            {
+                if (!_faulted) updateStatus();
+            }
+        }
+
+        public void MarkFaulted()
+        {
+            lock (_gate) _faulted = true;
+        }
     }
 
     private async Task IndexInBackgroundAsync(
-        IndexingTarget target, IProgress<IndexingProgress> progress, CancellationToken ct)
+        IndexingTarget target, IProgress<IndexingProgress> progress, IndexingRun run, CancellationToken ct)
     {
         try { await _indexingService.IndexAsync(target.DocumentId, target.FilePath, target.PageTexts, progress, ct); }
         catch (OperationCanceledException) { }
@@ -64,6 +88,7 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             string message = FormatError(ex);
+            run.MarkFaulted();
             _runOnUiThread(() => StatusText = message);
         }
 #pragma warning restore CA1031
