@@ -148,8 +148,9 @@ public class AiChatServiceTests
     [Fact]
     public async Task AskStreaming_ProviderNotSupported_ThrowsUnsupportedProviderError()
     {
-        var models = new AiModelSettings(AiProvider.Claude, "claude-x", AiProvider.OpenAi, "e");
-        var svc = new AiChatService(new ProviderSettings(models, AiProvider.Claude), new UnsupportedFactory());
+        // Claude đã được hỗ trợ (#104); hiện chỉ Gemini còn chưa có client chat (#105).
+        var models = new AiModelSettings(AiProvider.Gemini, "gemini-x", AiProvider.OpenAi, "e");
+        var svc = new AiChatService(new ProviderSettings(models, AiProvider.Gemini), new UnsupportedFactory());
 
         var ex = await Assert.ThrowsAsync<AiChatException>(() => Collect(svc.AskStreamingAsync("hi", "ctx")));
 

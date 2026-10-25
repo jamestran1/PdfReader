@@ -1,4 +1,6 @@
 using System.Net.Http;
+using Anthropic.Exceptions;
+using Anthropic.Models;
 
 namespace PdfReaderApp.Services;
 
@@ -39,9 +41,52 @@ public static class AiErrorClassifier
             return ClassifyResponse(cre.Status, detail);
         }
 
+        if (FindAnthropicException(ex) is { } anthropic)
+            return ClassifyAnthropic(anthropic);
+
         if (ex is HttpRequestException or TaskCanceledException or TimeoutException)
             return AiChatError.Network;
 
         return AiChatError.Unknown;
     }
+
+    // Phòng thủ: chưa có bằng chứng adapter bọc lỗi SDK Anthropic, nhưng duyệt InnerException không tốn gì.
+    private static AnthropicException? FindAnthropicException(Exception ex)
+    {
+        for (Exception? current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is AnthropicException anthropic)
+                return anthropic;
+        }
+
+        return null;
+    }
+
+    private static AiChatError ClassifyAnthropic(AnthropicException ex)
+    {
+        if (ex is AnthropicServiceException { ErrorType: { } errorType } && ClassifyAnthropicErrorType(errorType) is { } byType)
+            return byType;
+
+        // Anthropic báo hết tiền bằng HTTP 400 invalid_request_error "Your credit balance is too low", không có ErrorType riêng.
+        string detail = ex.Message + " " + (ex as AnthropicApiException)?.ResponseBody + " " + ex.InnerException?.Message;
+        if (detail.Contains("credit balance", StringComparison.OrdinalIgnoreCase))
+            return AiChatError.InsufficientQuota;
+
+        return ex switch
+        {
+            AnthropicUnauthorizedException => AiChatError.Unauthorized,
+            AnthropicRateLimitException => AiChatError.RateLimit,
+            AnthropicIOException => AiChatError.Network,
+            _ => AiChatError.Unknown,
+        };
+    }
+
+    // OverloadedError còn sau khi SDK đã tự thử lại nghĩa là "hãy thử lại sau", cùng cách xử lý với RateLimit.
+    private static AiChatError? ClassifyAnthropicErrorType(ErrorType errorType) => errorType switch
+    {
+        ErrorType.AuthenticationError or ErrorType.PermissionError => AiChatError.Unauthorized,
+        ErrorType.RateLimitError or ErrorType.OverloadedError => AiChatError.RateLimit,
+        ErrorType.BillingError => AiChatError.InsufficientQuota,
+        _ => null,
+    };
 }
