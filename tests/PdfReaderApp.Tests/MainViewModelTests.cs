@@ -305,56 +305,57 @@ public class MainViewModelTests
     public void OnSearchQueryChanged_ClearsPageHighlight()
     {
         var vm = new MainViewModel();
-        vm.SelectedSearchQuery = "abc";
-        vm.SearchQuery = "x";
-        Assert.Equal(string.Empty, vm.SelectedSearchQuery);
+        vm.Search.SelectedQuery = "abc";
+        vm.Search.Query = "x";
+        Assert.Equal(string.Empty, vm.Search.SelectedQuery);
     }
 
     [Fact]
     public void SearchQuery_SetEmpty_ClearsResultsAndExecutedQuery()
     {
         var vm = new MainViewModel();
-        vm.SearchQuery = "abc";
-        vm.ExecutedSearchQuery = "abc";
-        vm.SearchQuery = "";
-        Assert.Empty(vm.SearchResults);
-        Assert.Equal(string.Empty, vm.ExecutedSearchQuery);
+        vm.Search.Query = "abc";
+        vm.Search.ExecutedQuery = "abc";
+        vm.Search.Query = "";
+        Assert.Empty(vm.Search.Results);
+        Assert.Equal(string.Empty, vm.Search.ExecutedQuery);
     }
 
     [Fact]
     public void ClearSearchCommand_ClearsQueryAndResults()
     {
         var vm = new MainViewModel();
-        vm.SearchQuery = "abc";
-        vm.ClearSearchCommand.Execute(null);
-        Assert.Equal(string.Empty, vm.SearchQuery);
-        Assert.Empty(vm.SearchResults);
+        vm.Search.Query = "abc";
+        vm.Search.ClearCommand.Execute(null);
+        Assert.Equal(string.Empty, vm.Search.Query);
+        Assert.Empty(vm.Search.Results);
     }
 
     [Fact]
     public void SelectSearchResult_SetsPageAndHighlightQuery()
     {
-        var vm = new MainViewModel { SearchQuery = "hành" };
+        var vm = new MainViewModel();
+        vm.Search.Query = "hành";
         var result = new SearchResult(2, "snip", 1);
-        vm.SelectSearchResultCommand.Execute(result);
+        vm.Search.SelectResultCommand.Execute(result);
         Assert.Equal(3, vm.CurrentPage);
-        Assert.Equal("hành", vm.SelectedSearchQuery);
+        Assert.Equal("hành", vm.Search.SelectedQuery);
     }
 
     [Fact]
     public void ActiveTabChange_ClearsSearchQueryAndHighlight()
     {
         var vm = new MainViewModel();
-        vm.SearchQuery = "abc";
-        vm.SelectedSearchQuery = "abc";
-        vm.ExecutedSearchQuery = "abc";
+        vm.Search.Query = "abc";
+        vm.Search.SelectedQuery = "abc";
+        vm.Search.ExecutedQuery = "abc";
 
         vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
 
-        Assert.Equal(string.Empty, vm.SearchQuery);
-        Assert.Equal(string.Empty, vm.SelectedSearchQuery);
-        Assert.Equal(string.Empty, vm.ExecutedSearchQuery);
-        Assert.Empty(vm.SearchResults);
+        Assert.Equal(string.Empty, vm.Search.Query);
+        Assert.Equal(string.Empty, vm.Search.SelectedQuery);
+        Assert.Equal(string.Empty, vm.Search.ExecutedQuery);
+        Assert.Empty(vm.Search.Results);
     }
 
     [Fact]
