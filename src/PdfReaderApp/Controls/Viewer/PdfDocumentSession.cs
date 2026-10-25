@@ -41,20 +41,30 @@ internal sealed class PdfDocumentSession : IDisposable
     /// <summary>Nạp PDF từ đường dẫn. Ném exception nếu PDFium hoặc IO lỗi; lỗi đọc vùng ảnh chỉ làm mất chọn ảnh.</summary>
     public static PdfDocumentSession Open(string path)
     {
-        byte[] fileBytes = File.ReadAllBytes(path);
-        var stream = new MemoryStream(fileBytes);
+        return Open(new MemoryStream(File.ReadAllBytes(path)), path);
+    }
+
+    /// <summary>Seam cho test: session nhận quyền sở hữu stream, kể cả khi nạp lỗi.</summary>
+    internal static PdfDocumentSession Open(MemoryStream stream, string path)
+    {
+        PdfDocument? document = null;
         bool loaded = false;
         try
         {
-            var document = PdfDocument.Load(stream);
+            document = PdfDocument.Load(stream);
             var session = new PdfDocumentSession(stream, document, ReadImageRects(path));
             loaded = true;
             return session;
         }
         finally
         {
-            // Load lỗi thì chưa có document nào sở hữu stream, nên tự đóng ở đây.
-            if (!loaded) stream.Dispose();
+            // Nạp lỗi thì chưa có session sở hữu tài nguyên. PdfDocument.Dispose tự đóng stream
+            // (test Dispose_ReleasesBackingStream ghim điều này), nên chỉ đóng stream khi chưa có document.
+            if (!loaded)
+            {
+                if (document != null) document.Dispose();
+                else stream.Dispose();
+            }
         }
     }
 
