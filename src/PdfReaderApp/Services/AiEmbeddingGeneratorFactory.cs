@@ -18,7 +18,8 @@ public sealed class AiEmbeddingGeneratorFactory : IEmbeddingGeneratorFactory
     {
         var client = GeminiClientFactory.Create(options.ApiKey);
         return new OwningEmbeddingGenerator(
-            client.AsIEmbeddingGenerator(options.Model, AiModelCatalog.GeminiEmbeddingDimensions),
+            new NormalizingEmbeddingGenerator(
+                client.AsIEmbeddingGenerator(options.Model, AiModelCatalog.GeminiEmbeddingDimensions)),
             client);
     }
 }

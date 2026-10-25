@@ -1,4 +1,7 @@
+using System.Net;
 using System.Net.Http;
+using Anthropic.Exceptions;
+using Anthropic.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -67,23 +70,117 @@ public class AiErrorClassifierTests
             AiErrorClassifier.ClassifyResponse(401, "insufficient_quota")); // non-429 ignores quota text
     }
 
+    // Constructor public của SDK chỉ nhận HttpRequestException; StatusCode, ResponseBody (required) và ErrorType là init-only nên gán qua reflection.
+    private static T Api<T>(HttpStatusCode status, string body = "", ErrorType? errorType = null)
+        where T : AnthropicApiException
+    {
+        var exception = (T)Activator.CreateInstance(typeof(T), new HttpRequestException("boom", null, status))!;
+        typeof(AnthropicApiException).GetProperty(nameof(AnthropicApiException.StatusCode))!.SetValue(exception, status);
+        typeof(AnthropicApiException).GetProperty(nameof(AnthropicApiException.ResponseBody))!.SetValue(exception, body);
+        typeof(AnthropicServiceException).GetProperty(nameof(AnthropicServiceException.ErrorType))!.SetValue(exception, errorType);
+        return exception;
+    }
+
+    [Theory]
+    [InlineData(ErrorType.AuthenticationError, AiChatError.Unauthorized)]
+    [InlineData(ErrorType.PermissionError, AiChatError.Unauthorized)]
+    [InlineData(ErrorType.RateLimitError, AiChatError.RateLimit)]
+    [InlineData(ErrorType.OverloadedError, AiChatError.RateLimit)]
+    [InlineData(ErrorType.BillingError, AiChatError.InsufficientQuota)]
+    [InlineData(ErrorType.InvalidRequestError, AiChatError.Unknown)]
+    public void Classify_AnthropicApiException_UsesErrorType(ErrorType type, AiChatError expected)
+    {
+        // Loại exception cố tình lệch với ErrorType để chứng minh ErrorType được ưu tiên.
+        var ex = Api<AnthropicNotFoundException>(HttpStatusCode.NotFound, errorType: type);
+        Assert.Equal(expected, AiErrorClassifier.Classify(ex));
+    }
+
+    [Theory]
+    [InlineData(ErrorType.OverloadedError, AiChatError.RateLimit)]
+    [InlineData(ErrorType.BillingError, AiChatError.InsufficientQuota)]
+    [InlineData(ErrorType.AuthenticationError, AiChatError.Unauthorized)]
+    public void Classify_AnthropicSseErrorEvent_UsesErrorType(ErrorType type, AiChatError expected)
+    {
+        var ex = new AnthropicSseException("sse error", new InvalidOperationException()) { ErrorType = type };
+        Assert.Equal(expected, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_Anthropic529WithoutErrorType_IsUnknown()
+    {
+        var ex = Api<Anthropic5xxException>((HttpStatusCode)529, "Overloaded");
+        Assert.Equal(AiChatError.Unknown, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicUnauthorizedWithoutErrorType_FallsBackToExceptionType()
+    {
+        var ex = Api<AnthropicUnauthorizedException>(HttpStatusCode.Unauthorized);
+        Assert.Equal(AiChatError.Unauthorized, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicRateLimitWithoutErrorType_FallsBackToExceptionType()
+    {
+        var ex = Api<AnthropicRateLimitException>(HttpStatusCode.TooManyRequests);
+        Assert.Equal(AiChatError.RateLimit, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicCreditBalanceText_IsInsufficientQuota()
+    {
+        // Anthropic trả HTTP 400 invalid_request_error kèm câu này khi hết credit.
+        const string body = "Your credit balance is too low to access the Anthropic API.";
+        var ex = Api<AnthropicBadRequestException>(HttpStatusCode.BadRequest, body,
+            ErrorType.InvalidRequestError);
+        Assert.Equal(AiChatError.InsufficientQuota, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicBadRequestOtherwise_IsUnknown()
+    {
+        var ex = Api<AnthropicBadRequestException>(HttpStatusCode.BadRequest,
+            "max_tokens: field required");
+        Assert.Equal(AiChatError.Unknown, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicIOException_IsNetwork()
+    {
+        var ex = new AnthropicIOException("không kết nối được", new HttpRequestException("dns"));
+        Assert.Equal(AiChatError.Network, AiErrorClassifier.Classify(ex));
+    }
+
+    private const string GeminiPerDayMessage =
+        "You exceeded your current quota, please check your plan and billing details. Quota exceeded for metric: "
+        + "generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 50, "
+        + "quotaId: GenerateRequestsPerDayPerProjectPerModel-FreeTier. Please retry in 12s.";
+
+    private const string GeminiPerMinuteMessage =
+        "You exceeded your current quota. Quota exceeded for metric: "
+        + "generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 10, "
+        + "quotaId: GenerateRequestsPerMinutePerProjectPerModel-FreeTier. Please retry in 12s.";
+
+    private static Google.GenAI.ApiException GoogleError(int status, string code, string message) =>
+        status >= 500
+            ? new Google.GenAI.ServerError(message, status, code, new HttpRequestException(message))
+            : new Google.GenAI.ClientError(message, status, code, new HttpRequestException(message));
+
     [Theory]
     [InlineData(400, "INVALID_ARGUMENT", "API key not valid. Please pass a valid API key. API_KEY_INVALID", AiChatError.Unauthorized)]
     [InlineData(401, "UNAUTHENTICATED", "Request had invalid authentication credentials.", AiChatError.Unauthorized)]
     [InlineData(403, "PERMISSION_DENIED", "API key not valid or permission denied.", AiChatError.Unauthorized)]
     [InlineData(400, "INVALID_ARGUMENT", "Request contains an invalid argument.", AiChatError.Unknown)]
-    [InlineData(429, "RESOURCE_EXHAUSTED", "Quota exceeded for metric generate_content_requests_per_minute PerMinute, retry in 20s", AiChatError.RateLimit)]
-    [InlineData(429, "RESOURCE_EXHAUSTED", "You exceeded your current quota, please check your plan and billing details.", AiChatError.InsufficientQuota)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", GeminiPerMinuteMessage, AiChatError.RateLimit)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", GeminiPerDayMessage, AiChatError.InsufficientQuota)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", "Quota exceeded for metric: generate_content_free_tier_requests, limit: 0", AiChatError.InsufficientQuota)]
+    [InlineData(429, "RESOURCE_EXHAUSTED", "Resource has been exhausted (e.g. check quota).", AiChatError.RateLimit)]
     [InlineData(503, "UNAVAILABLE", "The model is overloaded. Please try again later.", AiChatError.RateLimit)]
+    [InlineData(408, "DEADLINE_EXCEEDED", "Request timed out.", AiChatError.Network)]
+    [InlineData(504, "DEADLINE_EXCEEDED", "The service is unable to finish in time.", AiChatError.Network)]
     [InlineData(500, "INTERNAL", "An internal error has occurred.", AiChatError.Unknown)]
-    public void Classify_GoogleApiException_MapsStatusAndMessage(int status, string code, string message, AiChatError expected)
-    {
-        Google.GenAI.ApiException ex = status >= 500
-            ? new Google.GenAI.ServerError(message, status, code, null!)
-            : new Google.GenAI.ClientError(message, status, code, null!);
-
-        Assert.Equal(expected, AiErrorClassifier.Classify(ex));
-    }
+    public void Classify_GoogleApiException_MapsStatusAndMessage(int status, string code, string message, AiChatError expected) =>
+        Assert.Equal(expected, AiErrorClassifier.Classify(GoogleError(status, code, message)));
 
     [Fact]
     public void Classify_GoogleApiException_WithoutStatus_IsNetwork()
@@ -92,4 +189,13 @@ public class AiErrorClassifierTests
 
         Assert.Equal(AiChatError.Network, AiErrorClassifier.Classify(ex));
     }
+
+    [Fact]
+    public void Classify_GoogleApiException_WrappedInInnerException_IsFound()
+    {
+        var ex = new InvalidOperationException("wrapped", GoogleError(401, "UNAUTHENTICATED", "bad key"));
+
+        Assert.Equal(AiChatError.Unauthorized, AiErrorClassifier.Classify(ex));
+    }
 }
+
