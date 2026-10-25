@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http;
 using Anthropic.Exceptions;
+using Anthropic.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -69,46 +70,77 @@ public class AiErrorClassifierTests
             AiErrorClassifier.ClassifyResponse(401, "insufficient_quota")); // non-429 ignores quota text
     }
 
-    private static HttpRequestException Http(HttpStatusCode status, string message = "boom") =>
-        new(message, null, status);
+    // Constructor public của SDK chỉ nhận HttpRequestException; StatusCode, ResponseBody (required) và ErrorType là init-only nên gán qua reflection.
+    private static T Api<T>(HttpStatusCode status, string body = "", ErrorType? errorType = null)
+        where T : AnthropicApiException
+    {
+        var exception = (T)Activator.CreateInstance(typeof(T), new HttpRequestException("boom", null, status))!;
+        typeof(AnthropicApiException).GetProperty(nameof(AnthropicApiException.StatusCode))!.SetValue(exception, status);
+        typeof(AnthropicApiException).GetProperty(nameof(AnthropicApiException.ResponseBody))!.SetValue(exception, body);
+        typeof(AnthropicServiceException).GetProperty(nameof(AnthropicServiceException.ErrorType))!.SetValue(exception, errorType);
+        return exception;
+    }
+
+    [Theory]
+    [InlineData(ErrorType.AuthenticationError, AiChatError.Unauthorized)]
+    [InlineData(ErrorType.PermissionError, AiChatError.Unauthorized)]
+    [InlineData(ErrorType.RateLimitError, AiChatError.RateLimit)]
+    [InlineData(ErrorType.OverloadedError, AiChatError.RateLimit)]
+    [InlineData(ErrorType.BillingError, AiChatError.InsufficientQuota)]
+    [InlineData(ErrorType.InvalidRequestError, AiChatError.Unknown)]
+    public void Classify_AnthropicApiException_UsesErrorType(ErrorType type, AiChatError expected)
+    {
+        // Loại exception cố tình lệch với ErrorType để chứng minh ErrorType được ưu tiên.
+        var ex = Api<AnthropicNotFoundException>(HttpStatusCode.NotFound, errorType: type);
+        Assert.Equal(expected, AiErrorClassifier.Classify(ex));
+    }
+
+    [Theory]
+    [InlineData(ErrorType.OverloadedError, AiChatError.RateLimit)]
+    [InlineData(ErrorType.BillingError, AiChatError.InsufficientQuota)]
+    [InlineData(ErrorType.AuthenticationError, AiChatError.Unauthorized)]
+    public void Classify_AnthropicSseErrorEvent_UsesErrorType(ErrorType type, AiChatError expected)
+    {
+        var ex = new AnthropicSseException("sse error", new InvalidOperationException()) { ErrorType = type };
+        Assert.Equal(expected, AiErrorClassifier.Classify(ex));
+    }
 
     [Fact]
-    public void Classify_AnthropicUnauthorized_IsUnauthorized()
+    public void Classify_Anthropic529WithoutErrorType_IsUnknown()
     {
-        var ex = new AnthropicUnauthorizedException(Http(HttpStatusCode.Unauthorized)) { StatusCode = HttpStatusCode.Unauthorized, ResponseBody = "" };
+        var ex = Api<Anthropic5xxException>((HttpStatusCode)529, "Overloaded");
+        Assert.Equal(AiChatError.Unknown, AiErrorClassifier.Classify(ex));
+    }
+
+    [Fact]
+    public void Classify_AnthropicUnauthorizedWithoutErrorType_FallsBackToExceptionType()
+    {
+        var ex = Api<AnthropicUnauthorizedException>(HttpStatusCode.Unauthorized);
         Assert.Equal(AiChatError.Unauthorized, AiErrorClassifier.Classify(ex));
     }
 
     [Fact]
-    public void Classify_AnthropicRateLimit_IsRateLimit()
+    public void Classify_AnthropicRateLimitWithoutErrorType_FallsBackToExceptionType()
     {
-        var ex = new AnthropicRateLimitException(Http(HttpStatusCode.TooManyRequests)) { StatusCode = HttpStatusCode.TooManyRequests, ResponseBody = "" };
+        var ex = Api<AnthropicRateLimitException>(HttpStatusCode.TooManyRequests);
         Assert.Equal(AiChatError.RateLimit, AiErrorClassifier.Classify(ex));
     }
 
     [Fact]
-    public void Classify_AnthropicBadRequestWithCreditBalanceMessage_IsInsufficientQuota()
+    public void Classify_AnthropicCreditBalanceText_IsInsufficientQuota()
     {
+        // Anthropic trả HTTP 400 invalid_request_error kèm câu này khi hết credit.
         const string body = "Your credit balance is too low to access the Anthropic API.";
-        var ex = new AnthropicBadRequestException(Http(HttpStatusCode.BadRequest, body))
-        {
-            StatusCode = HttpStatusCode.BadRequest,
-            ResponseBody = body,
-        };
+        var ex = Api<AnthropicBadRequestException>(HttpStatusCode.BadRequest, body,
+            ErrorType.InvalidRequestError);
         Assert.Equal(AiChatError.InsufficientQuota, AiErrorClassifier.Classify(ex));
     }
 
     [Fact]
     public void Classify_AnthropicBadRequestOtherwise_IsUnknown()
     {
-        var ex = new AnthropicBadRequestException(Http(HttpStatusCode.BadRequest, "max_tokens: field required")) { StatusCode = HttpStatusCode.BadRequest, ResponseBody = "max_tokens: field required" };
-        Assert.Equal(AiChatError.Unknown, AiErrorClassifier.Classify(ex));
-    }
-
-    [Fact]
-    public void Classify_Anthropic529Overloaded_IsUnknown()
-    {
-        var ex = new Anthropic5xxException(Http((HttpStatusCode)529, "Overloaded")) { StatusCode = (HttpStatusCode)529, ResponseBody = "Overloaded" };
+        var ex = Api<AnthropicBadRequestException>(HttpStatusCode.BadRequest,
+            "max_tokens: field required");
         Assert.Equal(AiChatError.Unknown, AiErrorClassifier.Classify(ex));
     }
 
@@ -118,11 +150,5 @@ public class AiErrorClassifierTests
         var ex = new AnthropicIOException("không kết nối được", new HttpRequestException("dns"));
         Assert.Equal(AiChatError.Network, AiErrorClassifier.Classify(ex));
     }
-
-    [Fact]
-    public void Classify_ExceptionWrappedAroundAnthropicException_IsClassifiedByInner()
-    {
-        var inner = new AnthropicUnauthorizedException(Http(HttpStatusCode.Unauthorized)) { StatusCode = HttpStatusCode.Unauthorized, ResponseBody = "" };
-        Assert.Equal(AiChatError.Unauthorized, AiErrorClassifier.Classify(new InvalidOperationException("wrap", inner)));
-    }
 }
+

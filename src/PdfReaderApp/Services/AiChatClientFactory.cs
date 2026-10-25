@@ -14,8 +14,13 @@ public sealed class AiChatClientFactory : IChatClientFactory
     {
         AiProvider.OpenAi => new ChatClient(options.Model, options.ApiKey).AsIChatClient(),
         AiProvider.Gemini => throw new NotSupportedException("Chat qua Google Gemini chưa được hỗ trợ."),
-        AiProvider.Claude => new AnthropicClient { ApiKey = options.ApiKey }
-            .AsIChatClient(options.Model, ClaudeDefaultMaxOutputTokens),
+        AiProvider.Claude => CreateClaude(options),
         _ => throw new NotSupportedException("Nhà cung cấp AI không được hỗ trợ."),
     };
+
+    private static OwningChatClient CreateClaude(AiClientOptions options)
+    {
+        var client = new AnthropicClient { ApiKey = options.ApiKey };
+        return new OwningChatClient(client.AsIChatClient(options.Model, ClaudeDefaultMaxOutputTokens), client);
+    }
 }
