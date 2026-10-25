@@ -41,10 +41,10 @@ public class WindowsSettingsServiceThemeTests : IDisposable
     public void ThemePreference_IsStoredSeparatelyFromApiKey()
     {
         var service = new WindowsSettingsService(_dir);
-        service.SaveApiKey("sk-test-123");
+        service.SaveApiKey(AiProvider.OpenAi, "sk-test-123");
         service.SaveThemePreference(AppTheme.Dark);
 
-        Assert.Equal("sk-test-123", service.GetApiKey());
+        Assert.Equal("sk-test-123", service.GetApiKey(AiProvider.OpenAi));
         Assert.Equal(AppTheme.Dark, service.GetThemePreference());
     }
 

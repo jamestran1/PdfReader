@@ -64,9 +64,9 @@ public sealed class MainViewModelDefaultServicesTests : IDisposable
         using var vm = new MainViewModel(
             new ITextPdfDocumentService(),
             new WindowsSettingsService(TempSettingsDir()),
-            new OpenAiChatClientFactory(),
+            new AiChatClientFactory(),
             DefaultServices.CreateDocumentIndex(_dataDir),
-            new OpenAiEmbeddingGeneratorFactory());
+            new AiEmbeddingGeneratorFactory());
 
         foreach (string name in new[] { "chats.db", "notes.db", "workspaces.db", "library.db" })
             Assert.True(File.Exists(Path.Combine(_dataDir, name)), name);

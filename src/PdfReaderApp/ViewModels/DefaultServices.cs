@@ -20,9 +20,9 @@ public static class DefaultServices
         return new MainViewModelServices(
             new ITextPdfDocumentService(),
             new WindowsSettingsService(),
-            new OpenAiChatClientFactory(),
+            new AiChatClientFactory(),
             CreateDocumentIndex(dataDir),
-            new OpenAiEmbeddingGeneratorFactory(),
+            new AiEmbeddingGeneratorFactory(),
             CreateChatHistory(dataDir),
             CreateNoteStore(dataDir),
             CreateWorkspaceStore(dataDir),

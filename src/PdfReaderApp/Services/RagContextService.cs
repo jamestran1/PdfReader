@@ -20,13 +20,15 @@ public sealed class RagContextService
     public async Task<string?> BuildContextAsync(
         string documentId, string question, int k = 5, int maxChars = 48000, CancellationToken ct = default)
     {
-        if (_index.GetStatus(documentId, DocumentIndexingService.EmbeddingModel) != DocumentIndexStatus.Complete)
+        var models = _settings.GetModelSettings();
+        if (_index.GetStatus(documentId, models.EmbeddingModel) != DocumentIndexStatus.Complete)
             return null;
 
-        string? key = _settings.GetApiKey();
+        string? key = _settings.GetApiKey(models.EmbeddingProvider);
         if (string.IsNullOrEmpty(key)) return null;
 
-        using var generator = _embedFactory.Create(key);
+        using var generator = _embedFactory.Create(
+            new AiClientOptions(models.EmbeddingProvider, models.EmbeddingModel, key));
         var embeddings = await generator.GenerateAsync(new[] { question }, cancellationToken: ct);
         float[] queryVector = embeddings[0].Vector.ToArray();
 

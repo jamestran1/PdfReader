@@ -13,11 +13,13 @@ public class AiChatServiceTests
     {
         private string? _key;
         public FakeSettings(string? key) => _key = key;
-        public string? GetApiKey() => _key;
-        public void SaveApiKey(string apiKey) => _key = apiKey;
-        public bool HasApiKey() => !string.IsNullOrEmpty(_key);
+        public string? GetApiKey(AiProvider provider) => _key;
+        public void SaveApiKey(AiProvider provider, string apiKey) => _key = apiKey;
+        public bool HasApiKey(AiProvider provider) => !string.IsNullOrEmpty(_key);
         public AppTheme GetThemePreference() => AppTheme.Light;
         public void SaveThemePreference(AppTheme theme) { }
+        public AiModelSettings GetModelSettings() => AiModelSettings.Default;
+        public void SaveModelSettings(AiModelSettings settings) { }
     }
 
     private sealed class FakeChatClient : IChatClient
@@ -60,7 +62,7 @@ public class AiChatServiceTests
     {
         private readonly IChatClient _client;
         public FakeFactory(IChatClient client) => _client = client;
-        public IChatClient Create(string apiKey) => _client;
+        public IChatClient Create(AiClientOptions options) => _client;
     }
 
     /// <summary>Factory that returns clients from a queue, one per Create call.</summary>
@@ -68,7 +70,7 @@ public class AiChatServiceTests
     {
         private readonly Queue<IChatClient> _clients;
         public SequentialFactory(params IChatClient[] clients) => _clients = new Queue<IChatClient>(clients);
-        public IChatClient Create(string apiKey) => _clients.Dequeue();
+        public IChatClient Create(AiClientOptions options) => _clients.Dequeue();
     }
 
     /// <summary>Throws on the first MoveNextAsync — simulates a fatal pre-token error.</summary>
@@ -106,6 +108,66 @@ public class AiChatServiceTests
     }
 
     // ---- Tests ----
+
+    private sealed class ProviderSettings(AiModelSettings models, params AiProvider[] withKey) : ISettingsService
+    {
+        public string? GetApiKey(AiProvider provider) => withKey.Contains(provider) ? $"key-{provider}" : null;
+        public void SaveApiKey(AiProvider provider, string apiKey) { }
+        public bool HasApiKey(AiProvider provider) => withKey.Contains(provider);
+        public AiModelSettings GetModelSettings() => models;
+        public void SaveModelSettings(AiModelSettings settings) { }
+        public AppTheme GetThemePreference() => AppTheme.Light;
+        public void SaveThemePreference(AppTheme theme) { }
+    }
+
+    private sealed class CapturingFactory(IChatClient client) : IChatClientFactory
+    {
+        public AiClientOptions? Last { get; private set; }
+
+        public IChatClient Create(AiClientOptions options)
+        {
+            Last = options;
+            return client;
+        }
+    }
+
+    [Fact]
+    public void IsConfigured_ChecksKeyOfChatProvider()
+    {
+        var models = new AiModelSettings(AiProvider.Claude, "claude-x", AiProvider.OpenAi, "e");
+
+        Assert.False(new AiChatService(new ProviderSettings(models, AiProvider.OpenAi), new FakeFactory(new FakeChatClient([]))).IsConfigured);
+        Assert.True(new AiChatService(new ProviderSettings(models, AiProvider.Claude), new FakeFactory(new FakeChatClient([]))).IsConfigured);
+    }
+
+    private sealed class UnsupportedFactory : IChatClientFactory
+    {
+        public IChatClient Create(AiClientOptions options) => throw new NotSupportedException("chưa hỗ trợ");
+    }
+
+    [Fact]
+    public async Task AskStreaming_ProviderNotSupported_ThrowsUnsupportedProviderError()
+    {
+        var models = new AiModelSettings(AiProvider.Claude, "claude-x", AiProvider.OpenAi, "e");
+        var svc = new AiChatService(new ProviderSettings(models, AiProvider.Claude), new UnsupportedFactory());
+
+        var ex = await Assert.ThrowsAsync<AiChatException>(() => Collect(svc.AskStreamingAsync("hi", "ctx")));
+
+        Assert.Equal(AiChatError.UnsupportedProvider, ex.Error);
+        Assert.IsType<NotSupportedException>(ex.InnerException);
+    }
+
+    [Fact]
+    public async Task AskStreaming_BuildsClientFromChatProviderModelAndKey()
+    {
+        var models = new AiModelSettings(AiProvider.Gemini, "gemini-x", AiProvider.OpenAi, "e");
+        var factory = new CapturingFactory(new FakeChatClient(["ok"]));
+        var svc = new AiChatService(new ProviderSettings(models, AiProvider.Gemini), factory);
+
+        await Collect(svc.AskStreamingAsync("hi", "ctx"));
+
+        Assert.Equal(new AiClientOptions(AiProvider.Gemini, "gemini-x", "key-Gemini"), factory.Last);
+    }
 
     [Fact]
     public async Task AskStreaming_YieldsTokensInOrder()
@@ -204,7 +266,7 @@ public class AiChatServiceTests
             async () => await Collect(svc.AskStreamingAsync("Câu hỏi lỗi", "ctx")));
 
         // Rotate key to force _client rebuild on next call (SequentialFactory -> goodClient).
-        mutSettings.SaveApiKey("sk-second");
+        mutSettings.SaveApiKey(AiProvider.OpenAi, "sk-second");
 
         // Act 2: successful call.
         await Collect(svc.AskStreamingAsync("Câu hỏi hợp lệ", "ctx"));
@@ -372,7 +434,7 @@ public class AiChatServiceTests
 
         var ex = await Assert.ThrowsAsync<AiChatException>(
             async () => await Collect(svc.AskStreamingAsync("Câu hỏi lỗi", "ctx")));
-        settings.SaveApiKey("sk-2");
+        settings.SaveApiKey(AiProvider.OpenAi, "sk-2");
         await Collect(svc.AskStreamingAsync("Câu hỏi tốt", "ctx"));
 
         Assert.Equal(AiChatError.Network, ex.Error);
@@ -402,7 +464,7 @@ public class AiChatServiceTests
         var svc = new AiChatService(settings, new SequentialFactory(first, second));
 
         await Collect(svc.AskStreamingAsync("1", "ctx"));
-        settings.SaveApiKey("sk-2");
+        settings.SaveApiKey(AiProvider.OpenAi, "sk-2");
         var tokens = await Collect(svc.AskStreamingAsync("2", "ctx"));
 
         Assert.Equal(1, first.DisposeCount);
