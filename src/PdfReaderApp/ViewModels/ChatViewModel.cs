@@ -27,6 +27,9 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     private string? _currentChatOwnerId;
     // Yêu cầu chat đang chạy (RAG + stream). Mỗi yêu cầu tự dispose CTS của mình; trường này chỉ để huỷ.
     private CancellationTokenSource? _requestCts;
+    // Hoàn tất của lượt gửi gần nhất (không bao giờ lỗi): lượt mới chờ nó xong để lịch sử LLM sạch
+    // và không có hai yêu cầu cùng sửa lịch sử.
+    private Task _lastSend = Task.CompletedTask;
 
     [ObservableProperty]
     public partial string Input { get; set; } = string.Empty;
@@ -140,15 +143,19 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         return set;
     }
 
-    [RelayCommand]
+    // Cho chạy đồng thời để nút gửi/Enter vẫn dùng được khi đang trả lời: câu hỏi mới huỷ câu cũ.
+    [RelayCommand(AllowConcurrentExecutions = true)]
     private async Task SendMessageAsync()
     {
         if (string.IsNullOrWhiteSpace(Input)) return;
 
         // Câu hỏi mới thay thế yêu cầu đang chạy (CS-13).
+        Task previous = _lastSend;
         CancelPendingRequest();
         using var cts = new CancellationTokenSource();
         _requestCts = cts;
+        var done = new TaskCompletionSource();
+        _lastSend = done.Task;
         // Chốt chủ sở hữu lịch sử lúc gửi: đổi tài liệu giữa chừng không được đổi nơi lưu.
         string? owner = _currentContext().OwnerId;
         ChatMessage? aiMessage = null;
@@ -158,6 +165,10 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             string question = Input;
             Input = string.Empty;
             Messages.Add(new ChatMessage { Role = "User", Content = question });
+
+            // Chờ yêu cầu cũ (đã bị huỷ) dọn xong lượt của nó rồi mới dựng prompt mới.
+            await previous;
+            cts.Token.ThrowIfCancellationRequested();
 
             if (!_chatService.IsConfigured)
             {
@@ -183,6 +194,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         finally
         {
             if (ReferenceEquals(_requestCts, cts)) _requestCts = null;
+            done.SetResult();
         }
     }
 
