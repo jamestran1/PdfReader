@@ -137,7 +137,7 @@ public sealed class IndexingViewModelTests
             while (true)
             {
                 Action? urgent = null;
-                (SendOrPostCallback Callback, object? State) normal = default;
+                (SendOrPostCallback Callback, object? State)? normal = null;
                 lock (_normal)
                 {
                     if (_urgent.Count > 0) urgent = _urgent.Dequeue();
@@ -145,7 +145,7 @@ public sealed class IndexingViewModelTests
                     else return;
                 }
                 if (urgent is not null) urgent();
-                else normal.Callback(normal.State);
+                else if (normal is { } next) next.Callback(next.State);
             }
         }
 
