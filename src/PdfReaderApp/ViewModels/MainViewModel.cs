@@ -358,6 +358,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     private void OnActiveTabChanged(OpenTab? incoming)
     {
+        // Đổi hoặc đóng tab: câu trả lời đang chạy thuộc tài liệu của tab cũ (kể cả khi đóng tab cuối, không nạp lại chat).
+        Chat.CancelPendingRequest();
+
         // View-state sống trên OpenTab (một nguồn sự thật). Theo dõi tab active để khi viewer
         // ghi Page/Zoom/TotalPages thì toolbar (bind vm.CurrentPage/ZoomLevel/TotalPages) cập nhật.
         if (_subscribedTab is not null)
