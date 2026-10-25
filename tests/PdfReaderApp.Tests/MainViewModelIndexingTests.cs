@@ -51,10 +51,12 @@ public sealed class MainViewModelIndexingTests : IDisposable
         public DocumentIndexStatus GetStatus(string documentId, string embeddingModel) => DocumentIndexStatus.None;
         public void DeleteDocument(string documentId) => Deleted.Add(documentId);
         public IReadOnlyList<long> WriteChunks(string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks) => [];
-        public void WriteEmbeddings(IReadOnlyList<(long ChunkId, float[] Vector)> embeddings) { }
+        public IReadOnlyList<StoredChunk> GetChunks(string documentId) => [];
+        public void DeleteEmbeddings(string documentId, string embeddingModel) { }
+        public void WriteEmbeddings(string embeddingModel, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings) { }
         public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel) { }
         public IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50) => [];
-        public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, float[] queryVector, int k = 5) => [];
+        public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
         public void Dispose() { }
     }
 

@@ -35,7 +35,7 @@ public class SqliteDocumentIndexSchemaTests : IDisposable
     }
 
     [Fact]
-    public void WriteChunks_ThenGetStatus_IsIndexing()
+    public void WriteChunks_ThenGetStatus_IsNoneUntilAModelIsIndexed()
     {
         using var idx = NewIndex();
         var chunks = new List<Chunk>
@@ -46,7 +46,7 @@ public class SqliteDocumentIndexSchemaTests : IDisposable
         var ids = idx.WriteChunks("doc1", "C:\\a.pdf", pageCount: 2, chunks);
 
         Assert.Equal(2, ids.Count);
-        Assert.Equal(DocumentIndexStatus.Indexing, idx.GetStatus("doc1", "text-embedding-3-small"));
+        Assert.Equal(DocumentIndexStatus.None, idx.GetStatus("doc1", "text-embedding-3-small"));
     }
 
     [Fact]

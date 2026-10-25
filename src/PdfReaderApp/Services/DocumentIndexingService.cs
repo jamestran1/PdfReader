@@ -33,18 +33,23 @@ public sealed class DocumentIndexingService
             return;
         }
 
-        var chunks = TextChunker.ChunkPages(documentId, pages);
-        int pageCount = pages.Count == 0 ? 0 : pages.Max(p => p.PageIndex) + 1;
-
-        if (chunks.Count == 0)
+        // Chunk đã có (do model khác lập chỉ mục trước) thì dùng lại, không ghi đè và không xoá vector model khác.
+        var stored = _index.GetChunks(documentId);
+        if (stored.Count == 0)
         {
-            _index.WriteChunks(documentId, filePath, pageCount, chunks);
+            var fresh = TextChunker.ChunkPages(documentId, pages);
+            int pageCount = pages.Count == 0 ? 0 : pages.Max(p => p.PageIndex) + 1;
+            var freshIds = _index.WriteChunks(documentId, filePath, pageCount, fresh);
+            stored = [.. freshIds.Select((id, i) => new StoredChunk(id, fresh[i].Text))];
+        }
+
+        if (stored.Count == 0)
+        {
             _index.SetStatus(documentId, DocumentIndexStatus.Empty, embeddingModel);
             return;
         }
 
-        var chunkIds = _index.WriteChunks(documentId, filePath, pageCount, chunks);
-        progress?.Report(new IndexingProgress(0, chunks.Count, "indexing"));
+        progress?.Report(new IndexingProgress(0, stored.Count, "indexing"));
 
         string? key = _settings.GetApiKey(models.EmbeddingProvider);
         if (string.IsNullOrEmpty(key))
@@ -56,9 +61,13 @@ public sealed class DocumentIndexingService
         using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key));
         int done;
 
+        // Xoá vector dở dang của chính model này (Partial) trước khi nhúng lại; vector model khác giữ nguyên.
+        _index.DeleteEmbeddings(documentId, embeddingModel);
+        _index.SetStatus(documentId, DocumentIndexStatus.Indexing, embeddingModel);
+
         try
         {
-            done = await EmbedAllBatchesAsync(generator, chunks, chunkIds, progress, ct);
+            done = await EmbedAllBatchesAsync(generator, embeddingModel, stored, progress, ct);
         }
         catch (OperationCanceledException)
         {
@@ -71,31 +80,29 @@ public sealed class DocumentIndexingService
         }
 
         _index.SetStatus(documentId, DocumentIndexStatus.Complete, embeddingModel);
-        progress?.Report(new IndexingProgress(done, chunks.Count, "complete"));
+        progress?.Report(new IndexingProgress(done, stored.Count, "complete"));
     }
 
     private async Task<int> EmbedAllBatchesAsync(
-        IEmbeddingGenerator<string, Embedding<float>> generator,
-        IReadOnlyList<Chunk> chunks, IReadOnlyList<long> chunkIds,
-        IProgress<IndexingProgress>? progress, CancellationToken ct)
+        IEmbeddingGenerator<string, Embedding<float>> generator, string embeddingModel,
+        IReadOnlyList<StoredChunk> chunks, IProgress<IndexingProgress>? progress, CancellationToken ct)
     {
         int done = 0;
         for (int i = 0; i < chunks.Count; i += BatchSize)
         {
             ct.ThrowIfCancellationRequested();
 
-            var batchChunks = chunks.Skip(i).Take(BatchSize).ToList();
-            var batchIds = chunkIds.Skip(i).Take(BatchSize).ToList();
+            var batch = chunks.Skip(i).Take(BatchSize).ToList();
 
             var embeddings = await generator.GenerateAsync(
-                batchChunks.Select(c => c.Text), cancellationToken: ct);
+                batch.Select(c => c.Text), cancellationToken: ct);
 
             var pairs = new List<(long, float[])>();
-            for (int j = 0; j < batchChunks.Count; j++)
-                pairs.Add((batchIds[j], embeddings[j].Vector.ToArray()));
+            for (int j = 0; j < batch.Count; j++)
+                pairs.Add((batch[j].ChunkId, embeddings[j].Vector.ToArray()));
 
-            _index.WriteEmbeddings(pairs);
-            done += batchChunks.Count;
+            _index.WriteEmbeddings(embeddingModel, pairs);
+            done += batch.Count;
             progress?.Report(new IndexingProgress(done, chunks.Count, "indexing"));
         }
 

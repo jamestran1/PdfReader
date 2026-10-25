@@ -32,7 +32,7 @@ public sealed class RagContextService
         var embeddings = await generator.GenerateAsync(new[] { question }, cancellationToken: ct);
         float[] queryVector = embeddings[0].Vector.ToArray();
 
-        var chunks = _index.RetrieveRelevant(documentId, queryVector, k);
+        var chunks = _index.RetrieveRelevant(documentId, models.EmbeddingModel, queryVector, k);
         if (chunks.Count == 0) return null;
 
         var sb = new StringBuilder();
