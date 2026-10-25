@@ -1088,7 +1088,7 @@
                 MinWidth="240" Padding="14,12,18,12" CornerRadius="8"
                 Background="{DynamicResource TriThu.Brush.InverseSurface}"
                 Effect="{DynamicResource TriThu.Elevation.E3}"
-                DataContext="{Binding CurrentNotification}"
+                DataContext="{Binding Notifications.Current}"
                 Visibility="{Binding Converter={StaticResource NullToCollapsedConverter}}">
             <StackPanel Orientation="Horizontal">
                 <materialDesign:PackIcon Width="16" Height="16" VerticalAlignment="Center"
