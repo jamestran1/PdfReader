@@ -20,7 +20,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     private readonly Viewer.ViewerLifecycle _lifecycle = new();
 
     private PdfDocument? _currentDocument => _session?.Document;
-    private bool _restoreZoomOnNextLoad;
+    private readonly Viewer.ViewerZoomOnLoad _zoomOnLoad = new();
     private readonly List<Core.PageSlot> _slots = [];
 
     public static readonly DependencyProperty DocumentSourceProperty =
@@ -315,23 +315,26 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             _ = control.Dispatcher.BeginInvoke(
                 new Action(() =>
                 {
-                    if ((control.DocumentSource as string) == path) control.LoadDocument(path);
+                    // Nguồn đã đổi thì lượt nạp mới (hoặc EvictDocument) tự lo lớp phủ.
+                    if ((control.DocumentSource as string) != path) return;
+                    control.LoadDocument(path);
                     control.LoadingOverlay.Visibility = Visibility.Collapsed;
                 }),
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
         else if (e.OldValue is string oldPath && !string.IsNullOrEmpty(oldPath))
         {
-            control.EvictDocument();
+            control.EvictDocument(oldPath);
         }
     }
 
     // Tab bị evict theo LRU (#48): nhả handle PDFium và bitmap; view-state vẫn nằm trên OpenTab qua binding.
-    private void EvictDocument()
+    private void EvictDocument(string path)
     {
         DisposeCurrentDocument();
         _slots.Clear();
-        _restoreZoomOnNextLoad = true;
+        _zoomOnLoad.OnEvicted(path);
+        LoadingOverlay.Visibility = Visibility.Collapsed;
         skiaCanvas.InvalidateVisual();
     }
 
@@ -382,9 +385,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             ArmPendingScrollGuard();
 
             _session.ResetEditState();
-            // Nạp lại sau khi bị evict thì giữ zoom của tab; lần nạp đầu mới fit trang đầu vừa khung.
-            if (!_restoreZoomOnNextLoad) FitToViewport();
-            _restoreZoomOnNextLoad = false;
+            if (_zoomOnLoad.ShouldFitOnLoad(path)) FitToViewport();
             RefreshLayout();
 
             // Phát cuộn-đích SAU khi RefreshLayout xong: nếu cuộn giữa chừng rồi RefreshLayout chạy sau sẽ
