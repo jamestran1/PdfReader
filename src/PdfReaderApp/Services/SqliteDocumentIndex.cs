@@ -14,6 +14,7 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
     private readonly SqliteConnection _conn;
     private readonly Lock _lock = new();
     private readonly bool _vecAvailable;
+    private bool _orphanedIndexingReset;
 
     /// <summary>True when sqlite-vec loaded; false -> vector RAG degrades, FTS5 search still works.</summary>
     public bool VectorSearchAvailable => _vecAvailable;
@@ -67,6 +68,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
             // Re-fold search_text if Fold logic changed (version gate)
             RefoldSearchTextIfStale();
+
+            ResetOrphanedIndexingStatusOnce();
         }
     }
 
@@ -288,7 +291,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     {
         lock (_lock)
         {
+            var claimedModels = ReadIndexingModels(documentId);
             DeleteDocumentCore(documentId); // idempotent re-index, atomic with inserts
+            foreach (string model in claimedModels) SetStatus(documentId, DocumentIndexStatus.Indexing, model);
             var ids = new List<long>();
             using var tx = _conn.BeginTransaction();
 
@@ -495,6 +500,43 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         DocumentIndexStatus.TextOnly => "text-only",
         _ => status.ToString().ToLowerInvariant()
     };
+
+    public bool TryBeginIndexing(string documentId, string embeddingModel)
+    {
+        // Kiểm tra và đặt trong cùng một lock: hai lượt (tài liệu đang mở và hàng đợi Workspace) không thể cùng thắng.
+        lock (_lock)
+        {
+            if (GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing) return false;
+            SetStatus(documentId, DocumentIndexStatus.Indexing, embeddingModel);
+            return true;
+        }
+    }
+
+    // Trạng thái Indexing mà không còn tác vụ nào chạy (app tắt hoặc sập giữa chừng) sẽ chặn lập chỉ mục mãi mãi.
+    // Chạy một lần sau khi mở: EnsureSchema gọi lại giữa phiên không được xoá claim đang sống.
+    private void ResetOrphanedIndexingStatusOnce()
+    {
+        if (_orphanedIndexingReset) return;
+        _orphanedIndexingReset = true;
+        Exec($"UPDATE document_models SET status='{ToDbStatus(DocumentIndexStatus.Partial)}' WHERE status='{ToDbStatus(DocumentIndexStatus.Indexing)}'");
+    }
+
+    // WriteChunks xoá mọi trạng thái của tài liệu; claim Indexing của lượt đang ghi chunk phải được giữ lại.
+    private List<string> ReadIndexingModels(string documentId)
+    {
+        var models = new List<string>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT model_name FROM document_models WHERE document_id=$id AND status=$s";
+        cmd.Parameters.AddWithValue("$id", documentId);
+        cmd.Parameters.AddWithValue("$s", ToDbStatus(DocumentIndexStatus.Indexing));
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            models.Add(r.GetString(0));
+        }
+
+        return models;
+    }
 
     public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel)
     {

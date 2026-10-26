@@ -33,6 +33,26 @@ public sealed class DocumentIndexingService
             return;
         }
 
+        // Giành quyền trước khi đụng tới chunk: tài liệu đang mở và hàng đợi Workspace có thể cùng muốn lập chỉ mục
+        // một tài liệu; lượt thua bỏ qua để không ghi chunk chồng nhau (mồ côi vector) và không nhúng hai lần.
+        if (!_index.TryBeginIndexing(documentId, embeddingModel)) return;
+
+        try
+        {
+            await IndexClaimedAsync(documentId, filePath, pages, progress, embeddingModel, models, ct);
+        }
+        catch (Exception)
+        {
+            // Mọi lối thoát lỗi hoặc huỷ phải nhả claim: để kẹt ở Indexing thì tài liệu không bao giờ được lập lại.
+            _index.SetStatus(documentId, DocumentIndexStatus.Partial, embeddingModel);
+            throw;
+        }
+    }
+
+    private async Task IndexClaimedAsync(
+        string documentId, string? filePath, IReadOnlyList<PageText> pages,
+        IProgress<IndexingProgress>? progress, string embeddingModel, AiModelSettings models, CancellationToken ct)
+    {
         // Chunk đã có (do model khác lập chỉ mục trước) thì dùng lại, không ghi đè và không xoá vector model khác.
         var stored = LoadOrWriteChunks(documentId, filePath, pages);
 
@@ -58,26 +78,11 @@ public sealed class DocumentIndexingService
             return;
         }
 
-        int done;
-
         // Xoá vector dở dang của chính model này (Partial) trước khi nhúng lại; vector model khác giữ nguyên.
         _index.DeleteEmbeddings(documentId, embeddingModel);
-        _index.SetStatus(documentId, DocumentIndexStatus.Indexing, embeddingModel);
 
-        try
-        {
-            using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key), EmbeddingPurpose.Document);
-            done = await EmbedAllBatchesAsync(generator, embeddingModel, stored, progress, ct);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            _index.SetStatus(documentId, DocumentIndexStatus.Partial, embeddingModel);
-            throw;
-        }
+        using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key), EmbeddingPurpose.Document);
+        int done = await EmbedAllBatchesAsync(generator, embeddingModel, stored, progress, ct);
 
         _index.SetStatus(documentId, DocumentIndexStatus.Complete, embeddingModel);
         progress?.Report(new IndexingProgress(done, stored.Count, "complete"));

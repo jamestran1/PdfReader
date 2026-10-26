@@ -58,6 +58,7 @@ public class WorkspaceIndexingServiceTests
         public IReadOnlyList<SearchResult> SearchText(string d, string q, int l = 50) => [];
         public IReadOnlyList<Chunk> RetrieveRelevant(string d, string m, float[] v, int k = 5) => [];
         public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(string d, string m, float[] v, int k = 5) => [];
+        public bool TryBeginIndexing(string documentId, string embeddingModel) => true;
         public void Dispose() { }
     }
 

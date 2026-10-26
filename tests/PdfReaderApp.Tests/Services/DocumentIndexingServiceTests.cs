@@ -85,6 +85,7 @@ public class DocumentIndexingServiceTests
         public DocumentIndexStatus StatusToReturn = DocumentIndexStatus.None;
         public Dictionary<string, DocumentIndexStatus> StatusByModel = [];
         public List<StoredChunk> Stored = [];
+        public bool ThrowOnWriteChunks;
 
         public bool VectorAvailable = true;
         public bool VectorSearchAvailable => VectorAvailable;
@@ -94,6 +95,7 @@ public class DocumentIndexingServiceTests
         public void DeleteDocument(string documentId) { }
         public IReadOnlyList<long> WriteChunks(string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks)
         {
+            if (ThrowOnWriteChunks) throw new InvalidOperationException("ghi chunk lỗi");
             Written.AddRange(chunks);
             var ids = Enumerable.Range(1, chunks.Count).Select(i => (long)i).ToList();
             Stored = [.. ids.Select((id, i) => new StoredChunk(id, chunks[i].Text))];
@@ -111,6 +113,12 @@ public class DocumentIndexingServiceTests
         public IReadOnlyList<SearchResult> SearchText(string d, string q, int l = 50) => [];
         public IReadOnlyList<Chunk> RetrieveRelevant(string d, string m, float[] v, int k = 5) => [];
         public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
+        public bool TryBeginIndexing(string documentId, string embeddingModel)
+        {
+            if (GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing) return false;
+            SetStatus(documentId, DocumentIndexStatus.Indexing, embeddingModel);
+            return true;
+        }
         public void Dispose() { }
     }
 
@@ -308,7 +316,7 @@ public class DocumentIndexingServiceTests
     }
 
     [Fact]
-    public async Task IndexAsync_Cancelled_RethrowsAndDoesNotMarkPartialOrComplete()
+    public async Task IndexAsync_Cancelled_RethrowsAndReleasesIndexingClaimAsPartial()
     {
         var index = new RecordingIndex();
         var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
@@ -318,9 +326,37 @@ public class DocumentIndexingServiceTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => svc.IndexAsync("doc1", filePath: null, Pages("some text"), progress: null, cts.Token));
 
-        Assert.NotEqual(DocumentIndexStatus.Partial, index.FinalStatus);
-        Assert.NotEqual(DocumentIndexStatus.Complete, index.FinalStatus);
+        // Huỷ không được để trạng thái kẹt ở Indexing: tài liệu sẽ không bao giờ được lập chỉ mục lại.
+        Assert.Equal(DocumentIndexStatus.Partial, index.StatusByModel[AiModelSettings.Default.EmbeddingModel]);
         Assert.Empty(index.Embeddings);
+    }
+
+    [Fact]
+    public async Task IndexAsync_AnotherRunAlreadyIndexingSameDocumentAndModel_SkipsWithoutWritingChunksOrEmbeddings()
+    {
+        var index = new RecordingIndex();
+        index.StatusByModel[AiModelSettings.Default.EmbeddingModel] = DocumentIndexStatus.Indexing;
+        var factory = new CountingEmbedFactory();
+        var svc = new DocumentIndexingService(index, factory, new FakeSettings("sk-x"));
+
+        await svc.IndexAsync("doc1", "a.pdf", Pages("some text"), null, CancellationToken.None);
+
+        Assert.Empty(index.Written);
+        Assert.Empty(index.Embeddings);
+        Assert.Equal(0, factory.Created);
+        Assert.Equal(DocumentIndexStatus.Indexing, index.StatusByModel[AiModelSettings.Default.EmbeddingModel]);
+    }
+
+    [Fact]
+    public async Task IndexAsync_StoringChunksFails_ReleasesIndexingClaimAsPartial()
+    {
+        var index = new RecordingIndex { ThrowOnWriteChunks = true };
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => svc.IndexAsync("doc1", "a.pdf", Pages("some text"), null, CancellationToken.None));
+
+        Assert.Equal(DocumentIndexStatus.Partial, index.StatusByModel[AiModelSettings.Default.EmbeddingModel]);
     }
 
     [Fact]
