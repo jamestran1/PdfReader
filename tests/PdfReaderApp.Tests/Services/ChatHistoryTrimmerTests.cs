@@ -36,6 +36,17 @@ public class ChatHistoryTrimmerTests
     }
 
     [Fact]
+    public void Trim_BudgetFitsOnlyTheAnswer_DropsTheWholePair()
+    {
+        var messages = new List<ChatMessage> { Sys("s"), User("q1"), Ai("a1"), User("cur") };
+
+        // s(1) + cur(3) + a1(2) = 6 vừa ngân sách, nhưng giữ a1 mà bỏ q1 là để sót nửa cặp.
+        var result = ChatHistoryTrimmer.Trim(messages, maxChars: 6);
+
+        Assert.Equal("s|cur", Texts(result));
+    }
+
+    [Fact]
     public void Trim_NeverLeavesHalfAPair()
     {
         // Lượt AI mồ côi ở đầu (lịch sử nạp lại bị cắt) phải bị bỏ, không giữ lại một nửa cặp.
