@@ -289,6 +289,40 @@ public class MainViewModelTabTests
         Assert.Equal(8, vm.Tabs.ActiveTab!.Page);
         Assert.Equal(2.5, vm.Tabs.ActiveTab!.Zoom);
         Assert.Equal(1, vm.HydrateCallCount);
+        Assert.False(vm.Tabs.Tabs.Single(t => t.DocumentId == "docA").IsHydrated);
+        Assert.True(vm.Tabs.ActiveTab!.IsHydrated);
+    }
+
+    // =========================================================
+    // S5 (#48): đổi tab cập nhật MRU; vượt ngưỡng thì evict tab inactive ít dùng nhất.
+    // =========================================================
+    [Fact]
+    public void OpeningTabsBeyondWarmLimit_EvictsLeastRecentlyUsed_SwitchUpdatesMru()
+    {
+        var (vm, wsStore) = MakeVm();
+        var workspace = new Workspace("ws-lru", "L", false, null, 1, 1);
+        wsStore.Upsert(workspace);
+        int tabCount = TabSetViewModel.DefaultMaxWarmInactiveTabs + 2;
+        var items = Enumerable.Range(0, tabCount)
+            .Select(i => MakeItem($"doc{i}", $"T{i}", $"/{i}.pdf"))
+            .ToList();
+        foreach (var item in items)
+        {
+            wsStore.AddDocument(workspace.Id, item.DocumentId);
+            vm.Library.Add(item);
+        }
+        vm.OpenWorkspaceCommand.Execute(workspace);
+        vm.OpenWorkspaceDocumentCommand.Execute(items[0]);
+
+        // doc0 vừa được dùng lại nên victim phải là doc1, tab inactive ít dùng nhất.
+        for (int i = 1; i < tabCount - 1; i++)
+            vm.OpenWorkspaceDocumentCommand.Execute(items[i]);
+        vm.ActivateTabCommand.Execute(vm.Tabs.Tabs.Single(t => t.DocumentId == "doc0"));
+        vm.OpenWorkspaceDocumentCommand.Execute(items[tabCount - 1]);
+
+        Assert.False(vm.Tabs.Tabs.Single(t => t.DocumentId == "doc1").IsHydrated);
+        Assert.True(vm.Tabs.Tabs.Single(t => t.DocumentId == "doc0").IsHydrated);
+        Assert.Equal(TabSetViewModel.DefaultMaxWarmInactiveTabs + 1, vm.Tabs.Tabs.Count(t => t.IsHydrated));
     }
 
     [Fact]

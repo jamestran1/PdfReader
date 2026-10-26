@@ -10,6 +10,16 @@ namespace PdfReaderApp.ViewModels;
 /// </summary>
 public sealed class TabSetViewModel : ObservableObject
 {
+    /// <summary>Số tab inactive gần nhất (theo MRU) vẫn giữ handle PDFium, ngoài tab active (ADR 0003).</summary>
+    public const int DefaultMaxWarmInactiveTabs = 5;
+
+    private readonly int _maxWarmInactiveTabs;
+
+    public TabSetViewModel(int maxWarmInactiveTabs = DefaultMaxWarmInactiveTabs)
+    {
+        _maxWarmInactiveTabs = maxWarmInactiveTabs;
+    }
+
     // Danh sách tab theo thứ tự hiển thị (Tab Strip order).
     public ObservableCollection<OpenTab> Tabs { get; } = [];
 
@@ -137,10 +147,20 @@ public sealed class TabSetViewModel : ObservableObject
     }
 
     // Kích hoạt tab: cập nhật ActiveTab và đẩy lên đầu MRU.
+    // Nạp tab TRƯỚC khi đổi ActiveTab để handler ActiveTabChanged thấy tab đã ở trạng thái nạp.
     private void Activate(OpenTab tab)
     {
         _mru.Remove(tab);
         _mru.Insert(0, tab);
+        tab.IsHydrated = true;
+        EvictBeyondWarmLimit();
         ActiveTab = tab;
+    }
+
+    // Tab ngoài nhóm ấm (active + N MRU) nhả handle PDFium; tab chưa từng kích hoạt (khôi phục lười) vốn chưa nạp.
+    private void EvictBeyondWarmLimit()
+    {
+        for (int i = _maxWarmInactiveTabs + 1; i < _mru.Count; i++)
+            _mru[i].IsHydrated = false;
     }
 }

@@ -199,4 +199,72 @@ public class TabSetViewModelTests
         Assert.Equal(1, activationCount);
         Assert.Equal(7, tabSet.ActiveTab!.Page);
     }
+
+    // =========================================================
+    // S5 (#48): chỉ tab đã nạp mới giữ handle PDFium; LRU giới hạn số tab nạp.
+    // =========================================================
+    [Fact]
+    public void RestoreTabs_OnlyActiveTabIsHydrated()
+    {
+        var tabSet = new TabSetViewModel();
+        var tabA = new OpenTab("docA", "A", "/a.pdf");
+        var tabB = new OpenTab("docB", "B", "/b.pdf");
+        var tabC = new OpenTab("docC", "C", "/c.pdf");
+
+        tabSet.RestoreTabs(new[] { tabA, tabB, tabC }, activeDocumentId: "docB");
+
+        Assert.False(tabA.IsHydrated);
+        Assert.True(tabB.IsHydrated);
+        Assert.False(tabC.IsHydrated);
+        Assert.Null(tabA.ViewerSource);
+        Assert.Equal("/b.pdf", tabB.ViewerSource);
+    }
+
+    [Fact]
+    public void Activate_BeyondWarmLimit_EvictsLeastRecentlyUsedInactiveTab()
+    {
+        var tabSet = new TabSetViewModel(maxWarmInactiveTabs: 2);
+        var tabA = tabSet.OpenOrActivate("docA", "A", "/a.pdf");
+        var tabB = tabSet.OpenOrActivate("docB", "B", "/b.pdf");
+        var tabC = tabSet.OpenOrActivate("docC", "C", "/c.pdf");
+        tabSet.ActivateTab(tabA);   // MRU: A, C, B -> B ít dùng nhất
+
+        var tabD = tabSet.OpenOrActivate("docD", "D", "/d.pdf");   // MRU: D, A, C, B
+
+        Assert.True(tabD.IsHydrated);
+        Assert.True(tabA.IsHydrated);
+        Assert.True(tabC.IsHydrated);
+        Assert.False(tabB.IsHydrated);
+    }
+
+    [Fact]
+    public void ActivateEvictedTab_RehydratesIt_KeepsViewState_AndEvictsNextVictim()
+    {
+        var tabSet = new TabSetViewModel(maxWarmInactiveTabs: 1);
+        var tabA = tabSet.OpenOrActivate("docA", "A", "/a.pdf");
+        tabA.Page = 9;
+        tabA.Zoom = 1.75;
+        var tabB = tabSet.OpenOrActivate("docB", "B", "/b.pdf");
+        tabSet.OpenOrActivate("docC", "C", "/c.pdf");   // MRU: C, B, A -> A bị evict
+        Assert.False(tabA.IsHydrated);
+
+        tabSet.ActivateTab(tabA);   // MRU: A, C, B -> B bị evict
+
+        Assert.True(tabA.IsHydrated);
+        Assert.Equal(9, tabA.Page);
+        Assert.Equal(1.75, tabA.Zoom);
+        Assert.False(tabB.IsHydrated);
+    }
+
+    [Fact]
+    public void DefaultWarmLimit_KeepsActivePlusFiveHydrated()
+    {
+        var tabSet = new TabSetViewModel();
+        for (int i = 0; i < 8; i++)
+            tabSet.OpenOrActivate($"doc{i}", $"T{i}", $"/{i}.pdf");
+
+        Assert.Equal(TabSetViewModel.DefaultMaxWarmInactiveTabs + 1, tabSet.Tabs.Count(t => t.IsHydrated));
+        Assert.False(tabSet.Tabs.Single(t => t.DocumentId == "doc0").IsHydrated);
+        Assert.False(tabSet.Tabs.Single(t => t.DocumentId == "doc1").IsHydrated);
+    }
 }
