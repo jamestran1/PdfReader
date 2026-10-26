@@ -134,7 +134,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     private readonly FakeHistory _history = new();
     private readonly List<RagSource> _openedSources = [];
 
-    private ChatViewModel CreateChat(string? currentDocumentId = "a")
+    private ChatViewModel CreateChat(string? currentDocumentId = "a", IReadOnlyList<TextBlock>? blocks = null)
     {
         _statuses["a"] = DocumentIndexStatus.Complete;
         _statuses["b"] = DocumentIndexStatus.Complete;
@@ -155,11 +155,50 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
             new AiChatService(settings, new FakeChatClientFactory(_sent)),
             _history,
             new RagContextService(new FakeIndex(this), new FakeEmbeddingFactory(this), settings),
-            () => new ChatContext(currentDocumentId, "ws1", [], 1, "Sách A"),
+            () => new ChatContext(currentDocumentId, "ws1", blocks ?? [], 1, "Sách A"),
             new ChatWorkspace(() => { _documentsRequested++; return _documents; }, runner),
             _openedSources.Add);
         _chats.Add(chat);
         return chat;
+    }
+
+    private static TextBlock PageBlock(int page, string text) => new(text, 0, 0, 10, 10, 12, page, "P");
+
+    [Fact]
+    public async Task CurrentDocumentScope_NotIndexed_PageContextIsNumberedAndAnswerHasClickableSources()
+    {
+        var chat = CreateChat(blocks: [PageBlock(0, "chữ trang một")]);
+        _statuses["a"] = DocumentIndexStatus.None;
+
+        await AskAsync(chat, "câu hỏi");
+
+        Assert.Contains("[1] Tài liệu: \"Sách A\", Trang: 1\nchữ trang một", LastUserTurn(), StringComparison.Ordinal);
+        Assert.Equal([new RagSource(1, "a", "Sách A", 0, "chữ trang một")], chat.Messages.Last().Sources);
+    }
+
+    [Fact]
+    public async Task WorkspaceScope_RagFails_PageContextIsNumberedAndNoticeStays()
+    {
+        var chat = CreateChat(blocks: [PageBlock(0, "chữ trang một")]);
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
+        _ragThrows = true;
+
+        await AskAsync(chat, "câu hỏi");
+
+        Assert.Equal([new RagSource(1, "a", "Sách A", 0, "chữ trang một")], chat.Messages.Last().Sources);
+        Assert.NotEmpty(chat.ScopeNotice);
+    }
+
+    [Fact]
+    public async Task CurrentDocumentScope_NoDocumentId_PageContextStaysUnnumbered()
+    {
+        var chat = CreateChat(currentDocumentId: null, blocks: [PageBlock(0, "chữ trang một")]);
+
+        await AskAsync(chat, "câu hỏi");
+
+        Assert.DoesNotContain("[1]", LastUserTurn(), StringComparison.Ordinal);
+        Assert.Contains("chữ trang một", LastUserTurn(), StringComparison.Ordinal);
+        Assert.Empty(chat.Messages.Last().Sources);
     }
 
     private static async Task AskAsync(ChatViewModel chat, string question)
