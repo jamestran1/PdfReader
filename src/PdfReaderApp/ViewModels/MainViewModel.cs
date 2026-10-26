@@ -302,7 +302,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             () => _documentId,
             OpenDocumentForNote,
             NotifyError);
-        Search = new SearchViewModel(_documentIndex, () => _documentId, page => CurrentPage = page, NotifyError);
+        Search = new SearchViewModel(
+            _documentIndex, () => _documentId, page => CurrentPage = page, NotifyError,
+            new SearchWorkspaceContext(GetSearchDocuments, JumpToDocumentFromSearch));
 
         _workspaceStore = services.WorkspaceStore;
         _workspaceStore.EnsureSchema();
@@ -380,7 +382,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.FilterCurrentDocumentOnly = incoming.FilterCurrentDocumentOnly;
         }
 
-        Search.Reset();
+        // Nhảy từ kết quả tìm Toàn Workspace: giữ ô tìm, kết quả và phạm vi để bấm tiếp kết quả khác.
+        if (!_keepSearchOnTabChange) Search.Reset();
 
         if (incoming is not null)
             HydrateTab(incoming);
@@ -429,6 +432,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(StandaloneDocumentSource));
         OnPropertyChanged(nameof(IsDocumentTabStripVisible));
         OnPropertyChanged(nameof(CanPromoteToWorkspace));
+    }
+
+    // Seam của phần dọn kết quả tìm khi nạp tài liệu: test gọi lại để đi qua đúng đường nạp thật mà không cần PDF.
+    // Nạp tài liệu chạy đồng bộ trong lúc đổi tab nên cờ nhảy-từ-kết-quả-tìm vẫn còn hiệu lực ở đây.
+    protected void ClearSearchResultsForLoadedDocument()
+    {
+        if (!_keepSearchOnTabChange) Search.ClearResults();
     }
 
     /// <summary>
@@ -667,6 +677,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Notes.SetDocumentContext(titles, showChips: titles.Count > 1);
     }
 
+    // Các Document của Workspace đang mở (kèm tên) để tìm Toàn Workspace; ngoài phiên Workspace chỉ có tài liệu hiện tại.
+    private List<SearchDocument> GetSearchDocuments()
+    {
+        if (_activeWorkspaceId is null)
+            return _documentId is null ? [] : [new SearchDocument(_documentId, System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty))];
+
+        var documents = new List<SearchDocument>();
+        foreach (string id in _workspaceStore.GetDocumentIds(_activeWorkspaceId))
+        {
+            var item = Library.FirstOrDefault(i => i.DocumentId == id);
+            if (item is not null) documents.Add(new SearchDocument(id, item.Title));
+        }
+
+        return documents;
+    }
+
+    // Tab đổi do chính kết quả tìm kiếm gây ra thì không xoá trạng thái tìm kiếm (xem OnActiveTabChanged).
+    private bool _keepSearchOnTabChange;
+
+    private void JumpToDocumentFromSearch(string documentId, int pageIndex)
+    {
+        _keepSearchOnTabChange = true;
+        try { JumpToDocument(documentId, pageIndex); }
+        finally { _keepSearchOnTabChange = false; }
+    }
+
+    /// <summary>Cross-doc jump: mở hoặc kích hoạt tab của <paramref name="documentId"/> rồi cuộn tới trang
+    /// (<paramref name="pageIndex"/> tính từ 0). Dùng chung cho note, kết quả tìm kiếm và trích dẫn AI.</summary>
+    public void JumpToDocument(string documentId, int pageIndex) => OpenDocumentForNote(documentId, pageIndex);
+
     // S3 / Tab S1: callback mở tài liệu khác trong cùng workspace khi bấm note cross-doc.
     // Cross-doc jump: activate-or-open tab, luôn điều hướng tới trang đích.
     private void OpenDocumentForNote(string documentId, int? pageIndex)
@@ -840,7 +880,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.LoadFor(_activeWorkspaceId);
             UpdateNotesDocumentContext();
             OnPropertyChanged(nameof(ActiveWorkspaceId));
-            Search.ClearResults();
+            ClearSearchResultsForLoadedDocument();
             Indexing.StartBackgroundIndexing();
         }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: nạp tài liệu lỗi thì báo cho người dùng
