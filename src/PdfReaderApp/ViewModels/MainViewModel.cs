@@ -434,11 +434,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanPromoteToWorkspace));
     }
 
-    /// <summary>
-    /// Seam có thể ghi đè trong test: nạp tài liệu cho tab được kích hoạt.
-    /// Cài đặt mặc định gọi LoadActiveDocument (nạp PDFium thật).
-    /// Test subclass override thành no-op để không nạp PDF thật.
-    /// </summary>
     // Seam của phần dọn kết quả tìm khi nạp tài liệu: test gọi lại để đi qua đúng đường nạp thật mà không cần PDF.
     // Nạp tài liệu chạy đồng bộ trong lúc đổi tab nên cờ nhảy-từ-kết-quả-tìm vẫn còn hiệu lực ở đây.
     protected void ClearSearchResultsForLoadedDocument()
@@ -446,6 +441,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (!_keepSearchOnTabChange) Search.ClearResults();
     }
 
+    /// <summary>
+    /// Seam có thể ghi đè trong test: nạp tài liệu cho tab được kích hoạt.
+    /// Cài đặt mặc định gọi LoadActiveDocument (nạp PDFium thật).
+    /// Test subclass override thành no-op để không nạp PDF thật.
+    /// </summary>
     protected virtual void HydrateTab(OpenTab tab)
     {
         LoadActiveDocument(tab.Path, _activeWorkspaceId, tab.Page);
