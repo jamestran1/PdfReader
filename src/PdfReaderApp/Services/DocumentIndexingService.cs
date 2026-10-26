@@ -33,6 +33,10 @@ public sealed class DocumentIndexingService
             return IndexingOutcome.Finished;
         }
 
+        // Lượt đã bị huỷ khi còn chờ lượt trước không được giành claim: hàng đợi Workspace tới đúng lúc đó
+        // sẽ tưởng có lượt khác đang chạy và bỏ qua tài liệu.
+        ct.ThrowIfCancellationRequested();
+
         // Giành quyền trước khi đụng tới chunk: tài liệu đang mở và hàng đợi Workspace có thể cùng muốn lập chỉ mục
         // một tài liệu; lượt thua bỏ qua để không ghi chunk chồng nhau (mồ côi vector) và không nhúng hai lần.
         if (!_index.TryBeginIndexing(documentId, embeddingModel, out long claimToken))

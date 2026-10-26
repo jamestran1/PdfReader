@@ -78,6 +78,26 @@ public class DocumentIndexingServiceTests
         public void Dispose() { }
     }
 
+    // Huỷ giữa lượt: lượt đã giành claim rồi mới bị huỷ khi đang chờ embed.
+    private sealed class CancellingEmbedFactory(CancellationTokenSource cts) : IEmbeddingGeneratorFactory
+    {
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose) => new CancellingGen(cts);
+    }
+
+    private sealed class CancellingGen(CancellationTokenSource cts) : IEmbeddingGenerator<string, Embedding<float>>
+    {
+        public async Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
+            IEnumerable<string> values, EmbeddingGenerationOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            await cts.CancelAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+            return [];
+        }
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
+
     private sealed class FakeGen : IEmbeddingGenerator<string, Embedding<float>>
     {
         public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
@@ -200,6 +220,24 @@ public class DocumentIndexingServiceTests
         Assert.NotEmpty(index.Written);
         Assert.Equal(index.Written.Count, index.Embeddings.Count);
         Assert.Equal(DocumentIndexStatus.Complete, index.FinalStatus);
+    }
+
+    [Fact]
+    public async Task IndexAsync_CancelledBeforeStart_DoesNotClaimOrTouchTheIndex()
+    {
+        // Lượt bị huỷ khi còn chờ lượt trước (đổi tài liệu nhanh) không được giành claim: hàng đợi Workspace
+        // tới đúng lúc đó sẽ tưởng có lượt khác đang chạy và bỏ qua tài liệu.
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => svc.IndexAsync("doc1", "a.pdf", Pages("page zero text"), null, cts.Token));
+
+        Assert.Empty(index.StatusByModel);
+        Assert.Empty(index.Written);
+        Assert.Empty(index.DeletedEmbeddingModels);
     }
 
     private sealed class PurposeRecordingFactory : IEmbeddingGeneratorFactory
@@ -382,10 +420,9 @@ public class DocumentIndexingServiceTests
     [Fact]
     public async Task IndexAsync_Cancelled_RethrowsAndReleasesIndexingClaimAsPartial()
     {
-        var index = new RecordingIndex();
-        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new CancellingEmbedFactory(cts), new FakeSettings("sk-x"));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => svc.IndexAsync("doc1", filePath: null, Pages("some text"), progress: null, cts.Token));
