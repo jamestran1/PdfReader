@@ -54,7 +54,7 @@ public class RagContextServiceWorkspaceTests
         public Dictionary<(string Doc, string Model), List<ScoredChunk>> Hits { get; } = [];
         public List<(string Doc, string Model, int K)> Queries { get; } = [];
 
-        public bool VectorSearchAvailable => true;
+        public bool VectorSearchAvailable { get; set; } = true;
         public bool TryBeginIndexing(string documentId, string embeddingModel) => true;
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string d, string m)
@@ -210,18 +210,61 @@ public class RagContextServiceWorkspaceTests
     }
 
     [Fact]
-    public async Task BuildWorkspaceContext_TextOnlyAndEmptyDocuments_AreNeitherQueriedNorPending()
+    public async Task BuildWorkspaceContext_EmptyDocuments_AreNeitherQueriedNorPending()
     {
         var index = new FakeIndex();
-        index.Statuses[("t", Model)] = DocumentIndexStatus.TextOnly;
         index.Statuses[("z", Model)] = DocumentIndexStatus.Empty;
         var svc = Create(index);
 
-        var result = await svc.BuildWorkspaceContextAsync([Doc("t", "T"), Doc("z", "Z")], "q");
+        var result = await svc.BuildWorkspaceContextAsync([Doc("z", "Z")], "q");
 
         Assert.Empty(index.Queries);
         Assert.Empty(result.UnindexedDocuments);
         Assert.Empty(result.IndexingDocuments);
+    }
+
+    [Fact]
+    public void PlanWorkspaceIndexing_TextOnlyDocumentAndKeyNowPresent_NeedsIndexingAgain()
+    {
+        // TextOnly do thiếu key lúc lập chỉ mục: thêm key sau đó phải cho phép lập lại.
+        var index = new FakeIndex();
+        index.Statuses[("t", Model)] = DocumentIndexStatus.TextOnly;
+        var svc = Create(index, key: "sk-x");
+
+        var plan = svc.PlanWorkspaceIndexing([Doc("t", "T")]);
+
+        Assert.Equal(["t"], plan.Unindexed.Select(d => d.DocumentId), StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void PlanWorkspaceIndexing_TextOnlyBecauseVectorSearchUnavailable_IsNotRetried()
+    {
+        var index = new FakeIndex { VectorSearchAvailable = false };
+        index.Statuses[("t", Model)] = DocumentIndexStatus.TextOnly;
+        var svc = Create(index, key: "sk-x");
+
+        var plan = svc.PlanWorkspaceIndexing([Doc("t", "T")]);
+
+        Assert.Empty(plan.Unindexed);
+    }
+
+    [Fact]
+    public void PlanWorkspaceIndexing_NoEmbeddingKey_ReportsMissingProviderAndNothingToIndex()
+    {
+        var svc = Create(new FakeIndex(), key: null);
+
+        var plan = svc.PlanWorkspaceIndexing([Doc("a", "A")]);
+
+        Assert.Equal(AiModelSettings.Default.EmbeddingProvider, plan.MissingEmbeddingKeyProvider);
+        Assert.Empty(plan.Unindexed);
+    }
+
+    [Fact]
+    public void PlanWorkspaceIndexing_WithKey_HasNoMissingProvider()
+    {
+        var svc = Create(new FakeIndex(), key: "sk-x");
+
+        Assert.Null(svc.PlanWorkspaceIndexing([Doc("a", "A")]).MissingEmbeddingKeyProvider);
     }
 
     [Fact]

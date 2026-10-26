@@ -177,6 +177,98 @@ public sealed class WorkspaceIndexingRunnerTests
         Assert.Equal(2, calls);
     }
 
+    [Theory]
+    [InlineData(DocumentIndexStatus.TextOnly)]
+    [InlineData(DocumentIndexStatus.Partial)]
+    [InlineData(DocumentIndexStatus.Empty)]
+    [InlineData(DocumentIndexStatus.None)]
+    public async Task Enqueue_DocumentDoesNotReachComplete_ReportsFailureNotDone(DocumentIndexStatus outcome)
+    {
+        using var queue = CreateWithOutcome(outcome);
+
+        queue.Enqueue([Doc("a")]);
+        await Finished(queue);
+
+        Assert.Contains("Không lập được chỉ mục cho 1 tài liệu", queue.StatusText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Đã lập chỉ mục xong", queue.StatusText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Enqueue_AnotherRunIsIndexingTheDocument_CountsNeitherDoneNorFailed()
+    {
+        using var queue = CreateWithOutcome(DocumentIndexStatus.Indexing);
+
+        queue.Enqueue([Doc("a")]);
+        await Finished(queue);
+
+        Assert.Equal(string.Empty, queue.StatusText);
+    }
+
+    [Fact]
+    public async Task Enqueue_AfterDispose_IsIgnored()
+    {
+        int calls = 0;
+        var queue = Create((_, _) =>
+        {
+            Interlocked.Increment(ref calls);
+            return Task.CompletedTask;
+        });
+        queue.Dispose();
+
+        queue.Enqueue([Doc("a")]);
+        await Finished(queue);
+
+        Assert.Equal(0, calls);
+        Assert.Equal(string.Empty, queue.StatusText);
+    }
+
+    [Fact]
+    public async Task Dispose_WhileIndexing_LateFinishDoesNotChangeStatus()
+    {
+        var gate = new TaskCompletionSource();
+        var started = new TaskCompletionSource();
+        var queue = Create(async (_, _) =>
+        {
+            started.SetResult();
+            await gate.Task;
+        });
+        queue.Enqueue([Doc("a")]);
+        await started.Task.WaitAsync(Timeout);
+        string before = queue.StatusText;
+
+        queue.Dispose();
+        gate.SetResult();
+        await Finished(queue);
+
+        Assert.Equal(before, queue.StatusText);
+    }
+
+    [Fact]
+    public void SetExternallyIndexing_ShowsTheCountAndZeroClearsIt()
+    {
+        using var queue = Create((_, _) => Task.CompletedTask);
+
+        queue.SetExternallyIndexing(2);
+        Assert.Equal("Đang lập chỉ mục 2 tài liệu, câu trả lời chưa gồm các tài liệu này.", queue.StatusText);
+
+        queue.SetExternallyIndexing(0);
+        Assert.Equal(string.Empty, queue.StatusText);
+    }
+
+    [Fact]
+    public async Task SetExternallyIndexing_AddsToTheQueuedRemainingCount()
+    {
+        var gate = new TaskCompletionSource();
+        using var queue = Create(async (_, _) => await gate.Task);
+
+        queue.SetExternallyIndexing(1);
+        queue.Enqueue([Doc("a")]);
+
+        Assert.Equal("Đang lập chỉ mục 2 tài liệu, câu trả lời chưa gồm các tài liệu này.", queue.StatusText);
+        gate.SetResult();
+        await Finished(queue);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         var deadline = DateTime.UtcNow + Timeout;

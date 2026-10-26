@@ -89,22 +89,34 @@ public sealed class RagContextService
     {
         ArgumentNullException.ThrowIfNull(documents);
         var models = _settings.GetModelSettings();
+        bool hasKey = !string.IsNullOrEmpty(_settings.GetApiKey(models.EmbeddingProvider));
+        // TextOnly do thiếu key lúc lập chỉ mục thì nay có key nên lập lại được; TextOnly do kho vector không nạp được
+        // thì lập lại cũng vô ích (và sẽ lặp lại mỗi câu hỏi).
+        bool retryTextOnly = hasKey && _index.VectorSearchAvailable;
         var ready = new List<WorkspaceDocument>();
         var unindexed = new List<WorkspaceDocument>();
         var indexing = new List<WorkspaceDocument>();
         foreach (var document in documents)
         {
-            switch (_index.GetStatus(document.DocumentId, models.EmbeddingModel))
+            var status = _index.GetStatus(document.DocumentId, models.EmbeddingModel);
+            if (status == DocumentIndexStatus.Complete)
             {
-                case DocumentIndexStatus.Complete: ready.Add(document); break;
-                case DocumentIndexStatus.None or DocumentIndexStatus.Partial: unindexed.Add(document); break;
-                case DocumentIndexStatus.Indexing: indexing.Add(document); break;
-                // TextOnly (không có key/kho vector) và Empty (không có text): lập chỉ mục lại cũng không đổi kết quả.
-                default: break;
+                ready.Add(document);
             }
+            else if (status == DocumentIndexStatus.Indexing)
+            {
+                indexing.Add(document);
+            }
+            // Không có key thì không lập chỉ mục được: không xếp hàng, nơi gọi báo thiếu key.
+            else if (hasKey && (status is DocumentIndexStatus.None or DocumentIndexStatus.Partial
+                || (status == DocumentIndexStatus.TextOnly && retryTextOnly)))
+            {
+                unindexed.Add(document);
+            }
+            // Empty (không có text): lập chỉ mục lại cũng không đổi kết quả.
         }
 
-        return new WorkspaceIndexPlan(ready, unindexed, indexing);
+        return new WorkspaceIndexPlan(ready, unindexed, indexing, hasKey ? null : models.EmbeddingProvider);
     }
 
     private async Task<float[]> EmbedQuestionAsync(AiModelSettings models, string key, string question, CancellationToken ct)

@@ -16,10 +16,11 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
     // Tăng mỗi lần huỷ hoặc Dispose: báo cáo của lượt đã bị huỷ có thể tới muộn và không được ghi đè trạng thái mới.
     private int _generation;
     private IndexingTally _tally = new(0, 0, 0);
-    private readonly int _externallyIndexing;
+    private int _externallyIndexing;
+    private bool _disposed;
 
     /// <summary>Số liệu để dựng thông báo: còn chờ, đã lập xong (đạt Complete), không lập được.</summary>
-    internal readonly record struct IndexingTally(int Remaining, int Done, int Failed);
+    internal sealed record IndexingTally(int Remaining, int Done, int Failed);
 
     /// <summary>Thông báo cho người dùng; rỗng khi không có tài liệu nào đang chờ hoặc vừa lập xong.</summary>
     [ObservableProperty]
@@ -44,6 +45,7 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
     public void Enqueue(IReadOnlyList<WorkspaceDocument> documents)
     {
         ArgumentNullException.ThrowIfNull(documents);
+        if (_disposed) return;
         var fresh = documents.Where(d => _queued.Add(d.DocumentId)).ToList();
         if (fresh.Count == 0) return;
 
@@ -63,6 +65,9 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
     /// Gọi mỗi lần hỏi: đặt lại số đếm, 0 nghĩa là không còn.</summary>
     public void SetExternallyIndexing(int count)
     {
+        if (_disposed) return;
+        _externallyIndexing = count;
+        Publish();
     }
 
     /// <summary>Huỷ việc đang chạy và xoá hàng đợi, thông báo. Gọi khi đổi Workspace
@@ -75,6 +80,7 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
         _generation++;
         _queued.Clear();
         _tally = new IndexingTally(0, 0, 0);
+        _externallyIndexing = 0;
         StatusText = string.Empty;
     }
 
@@ -120,13 +126,18 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
         // Gỡ khỏi tập đã xếp hàng cả khi lỗi: câu hỏi sau sẽ thử lại tài liệu còn thiếu.
         _queued.Remove(document.DocumentId);
         _tally = _tally with { Remaining = _tally.Remaining - 1 };
-        _tally = outcome is null
-            ? _tally with { Failed = _tally.Failed + 1 }
-            : _tally with { Done = _tally.Done + 1 };
+        _tally = outcome switch
+        {
+            DocumentIndexStatus.Complete => _tally with { Done = _tally.Done + 1 },
+            // Lượt khác đang lập chỉ mục tài liệu này: không phải thành công cũng không phải lỗi của lượt này.
+            DocumentIndexStatus.Indexing => _tally,
+            // Lỗi, hoặc kết thúc ở TextOnly/Empty/Partial/None: chưa dùng được cho RAG nên không được báo "xong".
+            _ => _tally with { Failed = _tally.Failed + 1 },
+        };
         Publish();
     }
 
-    private void Publish() => StatusText = FormatStatus(_tally);
+    private void Publish() => StatusText = FormatStatus(_tally with { Remaining = _tally.Remaining + _externallyIndexing });
 
     internal static string FormatStatus(IndexingTally tally)
     {
@@ -150,6 +161,10 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
 
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
+        // Tăng thế hệ để báo cáo đến muộn của tác vụ đang bay không còn ghi vào trạng thái của đối tượng đã dispose.
+        _generation++;
         _cts.Cancel();
         _cts.Dispose();
     }

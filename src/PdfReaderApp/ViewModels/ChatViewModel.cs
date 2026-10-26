@@ -11,6 +11,8 @@ namespace PdfReaderApp.ViewModels;
 public sealed partial class ChatViewModel : ObservableObject, IDisposable
 {
     private const int ContextPageWindow = 2;
+    private const string PageOnlyNotice =
+        "Câu trả lời này chỉ dựa trên trang đang đọc, chưa dùng được các tài liệu khác của Workspace.";
     private const string MissingKeySuffix = " (chưa có key)";
 
     // Lời lỗi của các bản cũ vẫn nằm trong lịch sử chat đã lưu; giữ trong bộ lọc để không nạp lại vào trí nhớ LLM.
@@ -57,7 +59,14 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     public WorkspaceIndexingRunner WorkspaceIndexing => _workspace.Indexing;
 
     /// <summary>Thông báo trên ô nhập: lập chỉ mục nền, thiếu key, hoặc câu trả lời chỉ dùng trang đang đọc.</summary>
-    public string Notice => WorkspaceIndexing.StatusText;
+    public string Notice => string.Join('\n', new[] { ScopeNotice, WorkspaceIndexing.StatusText }.Where(s => s.Length > 0));
+
+    // Cảnh báo của lần hỏi Toàn Workspace gần nhất (thiếu key embedding, hoặc phải lùi về trang đang đọc).
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Notice))]
+    public partial string ScopeNotice { get; set; } = string.Empty;
+
+    partial void OnScopeChanged(DocumentScope value) => ScopeNotice = string.Empty;
 
     public ObservableCollection<ChatMessage> Messages { get; } = [];
 
@@ -91,7 +100,9 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
     // Đưa về luồng UI không chặn luồng nền (InvokeAsync, không phải Invoke); thứ tự các lần gọi được giữ.
     private static void PostToApplicationDispatcher(Action action)
-        => System.Windows.Application.Current?.Dispatcher.InvokeAsync(action);
+    {
+        _ = System.Windows.Application.Current?.Dispatcher.InvokeAsync(action);
+    }
 
     /// <summary>Dựng ChatViewModel cùng các dịch vụ chat từ <paramref name="services"/>; ChatViewModel sở hữu chúng.</summary>
     /// <param name="services">Các dịch vụ dùng chung của ứng dụng.</param>
@@ -124,6 +135,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         // Đổi tài liệu: câu trả lời đang chạy thuộc tài liệu cũ, không được ghi sang tài liệu mới.
         CancelPendingRequest();
         _workspace.Indexing.Cancel();
+        ScopeNotice = string.Empty;
         Messages.Clear();
 
         if (newOwnerId is null)
@@ -279,6 +291,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     {
         ChatContext context = _currentContext();
         BuiltContext? rag = null;
+        ScopeNotice = string.Empty;
         try
         {
             rag = Scope == DocumentScope.Workspace
@@ -287,7 +300,11 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
 #pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
-        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: RAG lỗi: {ex}"); }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: RAG lỗi: {ex}");
+            if (Scope == DocumentScope.Workspace) ScopeNotice = PageOnlyNotice;
+        }
 #pragma warning restore CA1031
         return rag ?? new BuiltContext(
             DocumentContextBuilder.BuildAround(context.Blocks, context.CurrentPage, ContextPageWindow), []);
@@ -303,9 +320,26 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     // Câu hỏi không chờ tài liệu chưa index: chỉ dùng tài liệu đã Complete, phần còn lại đưa vào lập chỉ mục nền.
     private async Task<BuiltContext?> BuildWorkspaceRagAsync(string question, CancellationToken ct)
     {
-        WorkspaceRagResult result = await _ragContext.BuildWorkspaceContextAsync(_workspace.GetDocuments(), question, ct: ct);
-        if (result.UnindexedDocuments.Count > 0) _workspace.Indexing.Enqueue(result.UnindexedDocuments);
-        return result.Context is null ? null : new BuiltContext(result.Context, result.Sources);
+        var plan = _ragContext.PlanWorkspaceIndexing(_workspace.GetDocuments());
+
+        // Xếp hàng lập chỉ mục TRƯỚC khi nhúng câu hỏi: nhúng lỗi (mạng, key) không được làm mất việc lập chỉ mục.
+        if (plan.Unindexed.Count > 0) _workspace.Indexing.Enqueue(plan.Unindexed);
+        _workspace.Indexing.SetExternallyIndexing(plan.Indexing.Count);
+
+        if (plan.MissingEmbeddingKeyProvider is { } provider)
+        {
+            ScopeNotice = $"{AiErrorMessages.NotConfigured(provider)} {PageOnlyNotice}";
+            return null;
+        }
+
+        WorkspaceRagResult result = await _ragContext.BuildWorkspaceContextAsync(plan, question, ct: ct);
+        if (result.Context is null)
+        {
+            ScopeNotice = PageOnlyNotice;
+            return null;
+        }
+
+        return new BuiltContext(result.Context, result.Sources);
     }
 
     private async Task StreamAnswerAsync(ChatMessage aiMessage, string question, string context, CancellationToken ct)
