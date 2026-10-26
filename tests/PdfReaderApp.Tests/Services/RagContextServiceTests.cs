@@ -29,7 +29,7 @@ public class RagContextServiceTests
     }
     private sealed class FakeFactory : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new FakeGen();
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose) => new FakeGen();
     }
     private sealed class StubIndex : IDocumentIndex
     {
@@ -64,6 +64,28 @@ public class RagContextServiceTests
         Assert.NotNull(ctx);
         Assert.Contains("first chunk", ctx);
         Assert.Contains("second chunk", ctx);
+    }
+
+    private sealed class PurposeRecordingFactory : IEmbeddingGeneratorFactory
+    {
+        public List<EmbeddingPurpose> Purposes { get; } = [];
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose)
+        {
+            Purposes.Add(purpose);
+            return new FakeGen();
+        }
+    }
+
+    [Fact]
+    public async Task BuildContext_EmbedsQuestionWithQueryPurpose()
+    {
+        var factory = new PurposeRecordingFactory();
+        var svc = new RagContextService(
+            new StubIndex(DocumentIndexStatus.Complete, [new("d", 0, 0, "chunk")]), factory, new FakeSettings("sk-x"));
+
+        await svc.BuildContextAsync("d", "câu hỏi");
+
+        Assert.Equal([EmbeddingPurpose.Query], factory.Purposes);
     }
 
     [Fact]

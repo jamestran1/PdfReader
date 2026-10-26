@@ -66,7 +66,7 @@ public sealed class DocumentIndexingService
 
         try
         {
-            using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key));
+            using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key), EmbeddingPurpose.Document);
             done = await EmbedAllBatchesAsync(generator, embeddingModel, stored, progress, ct);
         }
         catch (OperationCanceledException)
