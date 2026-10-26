@@ -586,6 +586,10 @@ LIMIT $lim";
 
     public IReadOnlyList<Chunk> RetrieveRelevant(
         string documentId, string embeddingModel, float[] queryVector, int k = 5)
+        => [.. RetrieveRelevantScored(documentId, embeddingModel, queryVector, k).Select(s => s.Chunk)];
+
+    public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(
+        string documentId, string embeddingModel, float[] queryVector, int k = 5)
     {
         ArgumentNullException.ThrowIfNull(queryVector);
         if (!_vecAvailable || queryVector.Length == 0) return []; // degrade: caller falls back to per-page context
@@ -594,11 +598,11 @@ LIMIT $lim";
             // Chưa có model nào ghi vector ở số chiều này thì chưa có bảng.
             if (!VecTableExists(queryVector.Length)) return [];
 
-            var results = new List<Chunk>();
+            var results = new List<ScoredChunk>();
             using var cmd = _conn.CreateCommand();
 #pragma warning disable S2077 // tên bảng từ VecTableName(int), giá trị qua tham số (#123)
             cmd.CommandText = $@"
-SELECT c.document_id, c.page_index, c.ordinal, c.text
+SELECT c.document_id, c.page_index, c.ordinal, c.text, v.distance
 FROM {VecTableName(queryVector.Length)} v
 JOIN chunks c ON c.chunk_id = v.chunk_id
 WHERE v.model_name = $m AND v.document_id = $id AND v.embedding MATCH $vec AND k = $k
@@ -613,7 +617,10 @@ ORDER BY distance";
             {
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
-                    results.Add(new Chunk(r.GetString(0), r.GetInt32(1), r.GetInt32(2), r.GetString(3)));
+                {
+                    results.Add(new ScoredChunk(
+                        new Chunk(r.GetString(0), r.GetInt32(1), r.GetInt32(2), r.GetString(3)), r.GetDouble(4)));
+                }
             }
             catch (Microsoft.Data.Sqlite.SqliteException)
             {

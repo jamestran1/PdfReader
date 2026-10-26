@@ -110,6 +110,7 @@ public class DocumentIndexingServiceTests
         }
         public IReadOnlyList<SearchResult> SearchText(string d, string q, int l = 50) => [];
         public IReadOnlyList<Chunk> RetrieveRelevant(string d, string m, float[] v, int k = 5) => [];
+        public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
         public void Dispose() { }
     }
 

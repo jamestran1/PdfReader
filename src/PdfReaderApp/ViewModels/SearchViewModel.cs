@@ -33,21 +33,21 @@ public partial class SearchViewModel(
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsWorkspaceScope))]
     [NotifyPropertyChangedFor(nameof(IsCurrentDocumentScope))]
-    public partial SearchScope Scope { get; set; } = SearchScope.CurrentDocument;
+    public partial DocumentScope Scope { get; set; } = DocumentScope.CurrentDocument;
 
     /// <summary>Phạm vi của lần tìm gần nhất; quyết định kết quả có hiện tên tài liệu hay không.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowDocumentTitle))]
-    public partial SearchScope ExecutedScope { get; set; } = SearchScope.CurrentDocument;
+    public partial DocumentScope ExecutedScope { get; set; } = DocumentScope.CurrentDocument;
 
-    public bool IsWorkspaceScope => Scope == SearchScope.Workspace;
+    public bool IsWorkspaceScope => Scope == DocumentScope.Workspace;
 
-    public bool IsCurrentDocumentScope => Scope == SearchScope.CurrentDocument;
+    public bool IsCurrentDocumentScope => Scope == DocumentScope.CurrentDocument;
 
-    public bool ShowDocumentTitle => ExecutedScope == SearchScope.Workspace;
+    public bool ShowDocumentTitle => ExecutedScope == DocumentScope.Workspace;
 
     // Đổi phạm vi: kết quả cũ thuộc phạm vi khác nên bỏ, và tìm lại ngay nếu ô tìm đang có chữ.
-    partial void OnScopeChanged(SearchScope value)
+    partial void OnScopeChanged(DocumentScope value)
     {
         CancelSearch();
         Results.Clear();
@@ -58,7 +58,7 @@ public partial class SearchViewModel(
     [RelayCommand]
     private void SetScope(string scope)
     {
-        if (Enum.TryParse<SearchScope>(scope, out var parsed)) Scope = parsed;
+        if (Enum.TryParse<DocumentScope>(scope, out var parsed)) Scope = parsed;
     }
 
     // Mỗi khi người dùng sửa/xóa ô tìm: tắt highlight trên trang ngay lập tức.
@@ -92,7 +92,7 @@ public partial class SearchViewModel(
         {
             ExecutedQuery = query;
             ExecutedScope = scope;
-            IReadOnlyList<SearchResult> hits = scope == SearchScope.Workspace && workspace is not null
+            IReadOnlyList<SearchResult> hits = scope == DocumentScope.Workspace && workspace is not null
                 ? await Task.Run(() => SearchWorkspaceDocuments(documents, query, cts.Token), cts.Token)
                 : SearchCurrentDocument(documents[0], query);
 
@@ -116,9 +116,9 @@ public partial class SearchViewModel(
         }
     }
 
-    private IReadOnlyList<SearchDocument> ResolveDocuments(SearchScope scope)
+    private IReadOnlyList<SearchDocument> ResolveDocuments(DocumentScope scope)
     {
-        if (scope == SearchScope.Workspace && workspace is not null) return workspace.GetDocuments();
+        if (scope == DocumentScope.Workspace && workspace is not null) return workspace.GetDocuments();
 
         string? documentId = getDocumentId();
         return documentId is null ? [] : [new SearchDocument(documentId, string.Empty)];

@@ -83,6 +83,7 @@ public sealed class MainViewModelChatTests : IDisposable
         public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel) { }
         public IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50) => [];
         public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
+        public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
         public void Dispose() { }
     }
 
