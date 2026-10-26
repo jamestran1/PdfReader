@@ -55,7 +55,12 @@ public class RagContextServiceWorkspaceTests
         public List<(string Doc, string Model, int K)> Queries { get; } = [];
 
         public bool VectorSearchAvailable { get; set; } = true;
-        public bool TryBeginIndexing(string documentId, string embeddingModel) => true;
+        public bool TryBeginIndexing(string documentId, string embeddingModel, out long claimToken)
+        {
+            claimToken = 0;
+            return true;
+        }
+        public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken) { }
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string d, string m)
             => Statuses.TryGetValue((d, m), out var s) ? s : DocumentIndexStatus.None;

@@ -92,7 +92,12 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     private sealed class FakeIndex(ChatViewModelWorkspaceTests owner) : IDocumentIndex
     {
         public bool VectorSearchAvailable => true;
-        public bool TryBeginIndexing(string documentId, string embeddingModel) => true;
+        public bool TryBeginIndexing(string documentId, string embeddingModel, out long claimToken)
+        {
+            claimToken = 0;
+            return true;
+        }
+        public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken) { }
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string d, string m)
             => m == Model && owner._statuses.TryGetValue(d, out var s) ? s : DocumentIndexStatus.None;

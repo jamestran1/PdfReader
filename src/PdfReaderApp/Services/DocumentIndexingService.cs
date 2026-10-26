@@ -35,7 +35,7 @@ public sealed class DocumentIndexingService
 
         // Giành quyền trước khi đụng tới chunk: tài liệu đang mở và hàng đợi Workspace có thể cùng muốn lập chỉ mục
         // một tài liệu; lượt thua bỏ qua để không ghi chunk chồng nhau (mồ côi vector) và không nhúng hai lần.
-        if (!_index.TryBeginIndexing(documentId, embeddingModel)) return;
+        if (!_index.TryBeginIndexing(documentId, embeddingModel, out long claimToken)) return;
 
         try
         {
@@ -44,7 +44,8 @@ public sealed class DocumentIndexingService
         catch (Exception)
         {
             // Mọi lối thoát lỗi hoặc huỷ phải nhả claim: để kẹt ở Indexing thì tài liệu không bao giờ được lập lại.
-            _index.SetStatus(documentId, DocumentIndexStatus.Partial, embeddingModel);
+            // Chỉ nhả claim của chính mình: lập chỉ mục lại (xoá rồi chạy lượt mới) có thể đã giao claim cho lượt khác.
+            _index.ReleaseIndexing(documentId, embeddingModel, claimToken);
             throw;
         }
     }

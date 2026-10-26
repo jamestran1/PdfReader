@@ -25,8 +25,8 @@ public sealed class SqliteDocumentIndexClaimTests : IDisposable
     {
         using var index = Open();
 
-        Assert.True(index.TryBeginIndexing("doc1", Model));
-        Assert.False(index.TryBeginIndexing("doc1", Model));
+        Assert.True(index.TryBeginIndexing("doc1", Model, out _));
+        Assert.False(index.TryBeginIndexing("doc1", Model, out _));
         Assert.Equal(DocumentIndexStatus.Indexing, index.GetStatus("doc1", Model));
     }
 
@@ -34,20 +34,20 @@ public sealed class SqliteDocumentIndexClaimTests : IDisposable
     public void TryBeginIndexing_OtherModelOrDocument_IsIndependent()
     {
         using var index = Open();
-        Assert.True(index.TryBeginIndexing("doc1", Model));
+        Assert.True(index.TryBeginIndexing("doc1", Model, out _));
 
-        Assert.True(index.TryBeginIndexing("doc1", "other"));
-        Assert.True(index.TryBeginIndexing("doc2", Model));
+        Assert.True(index.TryBeginIndexing("doc1", "other", out _));
+        Assert.True(index.TryBeginIndexing("doc2", Model, out _));
     }
 
     [Fact]
     public void TryBeginIndexing_AfterClaimReleased_CanBeClaimedAgain()
     {
         using var index = Open();
-        index.TryBeginIndexing("doc1", Model);
+        index.TryBeginIndexing("doc1", Model, out _);
         index.SetStatus("doc1", DocumentIndexStatus.Partial, Model);
 
-        Assert.True(index.TryBeginIndexing("doc1", Model));
+        Assert.True(index.TryBeginIndexing("doc1", Model, out _));
     }
 
     [Fact]
@@ -56,22 +56,60 @@ public sealed class SqliteDocumentIndexClaimTests : IDisposable
         using var index = Open();
 
         var results = await Task.WhenAll(Enumerable.Range(0, 16)
-            .Select(_ => Task.Run(() => index.TryBeginIndexing("doc1", Model))));
+            .Select(attempt => Task.Run(() => index.TryBeginIndexing("doc1", Model, out long _))));
 
         Assert.Equal(1, results.Count(won => won));
+    }
+
+    [Fact]
+    public void ReleaseIndexing_OwnClaim_SetsPartial()
+    {
+        using var index = Open();
+        index.TryBeginIndexing("doc1", Model, out long token);
+
+        index.ReleaseIndexing("doc1", Model, token);
+
+        Assert.Equal(DocumentIndexStatus.Partial, index.GetStatus("doc1", Model));
+    }
+
+    [Fact]
+    public void ReleaseIndexing_StaleClaimAfterDeleteAndNewClaim_KeepsTheNewClaim()
+    {
+        using var index = Open();
+        index.TryBeginIndexing("doc1", Model, out long runA);
+        index.DeleteDocument("doc1"); // "Lập chỉ mục lại": xoá rồi lượt B bắt đầu, lượt A chưa kịp nhận ra bị huỷ
+        Assert.True(index.TryBeginIndexing("doc1", Model, out long runB));
+
+        index.ReleaseIndexing("doc1", Model, runA);
+
+        Assert.NotEqual(runA, runB);
+        Assert.Equal(DocumentIndexStatus.Indexing, index.GetStatus("doc1", Model));
+        Assert.False(index.TryBeginIndexing("doc1", Model, out _));
+    }
+
+    [Fact]
+    public void ReleaseIndexing_StaleClaimAfterDeleteWithoutNewClaim_DoesNotCreateAStatusRow()
+    {
+        using var index = Open();
+        index.TryBeginIndexing("doc1", Model, out long runA);
+        index.DeleteDocument("doc1");
+
+        index.ReleaseIndexing("doc1", Model, runA);
+
+        Assert.Equal(DocumentIndexStatus.None, index.GetStatus("doc1", Model));
     }
 
     [Fact]
     public void WriteChunks_KeepsTheIndexingClaimOfTheWriter()
     {
         using var index = Open();
-        index.TryBeginIndexing("doc1", Model);
+        index.TryBeginIndexing("doc1", Model, out _);
 
         index.WriteChunks("doc1", null, 1, [new Chunk("doc1", 0, 0, "text")]);
 
         // WriteChunks xoá mọi trạng thái của tài liệu; claim của lượt đang ghi phải sống sót để lượt thứ hai không chen vào.
         Assert.Equal(DocumentIndexStatus.Indexing, index.GetStatus("doc1", Model));
-        Assert.False(index.TryBeginIndexing("doc1", Model));
+        Assert.False(index.TryBeginIndexing("doc1", Model, out _));
     }
 
     [Fact]
@@ -79,7 +117,7 @@ public sealed class SqliteDocumentIndexClaimTests : IDisposable
     {
         using (var first = Open())
         {
-            first.TryBeginIndexing("doc1", Model);
+            first.TryBeginIndexing("doc1", Model, out _);
             first.SetStatus("doc2", DocumentIndexStatus.Complete, Model);
         }
 
@@ -93,7 +131,7 @@ public sealed class SqliteDocumentIndexClaimTests : IDisposable
     public void EnsureSchema_CalledAgainInSameSession_DoesNotResetLiveClaims()
     {
         using var index = Open();
-        index.TryBeginIndexing("doc1", Model);
+        index.TryBeginIndexing("doc1", Model, out _);
 
         index.EnsureSchema();
 

@@ -15,6 +15,9 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
     private readonly Lock _lock = new();
     private readonly bool _vecAvailable;
     private bool _orphanedIndexingReset;
+    // Claim đang sống theo (document, model); chỉ trong bộ nhớ vì claim không sống qua lần mở lại (xem ResetOrphanedIndexingStatusOnce).
+    private readonly Dictionary<(string DocumentId, string Model), long> _claimTokens = [];
+    private long _lastClaimToken;
 
     /// <summary>True when sqlite-vec loaded; false -> vector RAG degrades, FTS5 search still works.</summary>
     public bool VectorSearchAvailable => _vecAvailable;
@@ -501,14 +504,29 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         _ => status.ToString().ToLowerInvariant()
     };
 
-    public bool TryBeginIndexing(string documentId, string embeddingModel)
+    public bool TryBeginIndexing(string documentId, string embeddingModel, out long claimToken)
     {
+        claimToken = 0;
         // Kiểm tra và đặt trong cùng một lock: hai lượt (tài liệu đang mở và hàng đợi Workspace) không thể cùng thắng.
         lock (_lock)
         {
             if (GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing) return false;
             SetStatus(documentId, DocumentIndexStatus.Indexing, embeddingModel);
+            claimToken = ++_lastClaimToken;
+            _claimTokens[(documentId, embeddingModel)] = claimToken;
             return true;
+        }
+    }
+
+    public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken)
+    {
+        lock (_lock)
+        {
+            // Claim đã đổi chủ (tài liệu bị xoá rồi lượt khác giành quyền) hoặc hàng trạng thái đã mất thì không đụng tới.
+            if (!_claimTokens.TryGetValue((documentId, embeddingModel), out long current) || current != claimToken) return;
+            _claimTokens.Remove((documentId, embeddingModel));
+            if (GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing)
+                SetStatus(documentId, DocumentIndexStatus.Partial, embeddingModel);
         }
     }
 

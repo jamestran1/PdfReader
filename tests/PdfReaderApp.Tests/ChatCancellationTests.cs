@@ -86,7 +86,12 @@ public sealed class ChatCancellationTests : IDisposable
         public IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50) => [];
         public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
         public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
-        public bool TryBeginIndexing(string documentId, string embeddingModel) => true;
+        public bool TryBeginIndexing(string documentId, string embeddingModel, out long claimToken)
+        {
+            claimToken = 0;
+            return true;
+        }
+        public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken) { }
         public void Dispose() { }
     }
 
