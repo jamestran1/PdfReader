@@ -292,7 +292,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _library = services.Library;
         ReloadLibrary();
 
-        Chat = ChatViewModel.Create(services, GetChatContext, GetWorkspaceDocuments);
+        Chat = ChatViewModel.Create(services, GetChatContext, GetWorkspaceDocuments, JumpToDocument);
 
         _noteStore = services.NoteStore;
         _noteStore.EnsureSchema();

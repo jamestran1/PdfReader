@@ -14,7 +14,7 @@ public class MainViewModelTests
         private readonly List<PdfReaderApp.Models.ChatHistoryEntry> _entries = [];
 
         public void EnsureSchema() { }
-        public void Append(string documentId, string role, string content, long createdAtUnix)
+        public void Append(string documentId, string role, string content, long createdAtUnix, IReadOnlyList<PdfReaderApp.Models.RagSource>? sources = null)
         {
             Appended.Add((documentId, role, content));
             _entries.Add(new PdfReaderApp.Models.ChatHistoryEntry(documentId, role, content, createdAtUnix));
