@@ -96,7 +96,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             ExecInTransaction(tx, "DROP TABLE IF EXISTS documents;");
         }
 
-        // PRAGMA không nhận tham số; chỉ ghép hằng số (#123).
+        // PRAGMA không nhận tham số; chỉ ghép hằng số. Sonar không lần qua helper nên không cần tắt S2077 (#123).
         ExecInTransaction(tx, $"PRAGMA user_version = {MultiModelSchemaVersion}");
         tx.Commit();
     }
@@ -459,6 +459,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     private void EnsureVecTable(int dimension)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(dimension);
+        // Chỉ ghép số nguyên dimension; Sonar không lần qua helper nên không cần tắt S2077 (#123).
         Exec($@"CREATE VIRTUAL TABLE IF NOT EXISTS {VecTableName(dimension)} USING vec0(
   model_name TEXT partition key, document_id TEXT partition key,
   chunk_id INTEGER, embedding FLOAT[{dimension.ToString(CultureInfo.InvariantCulture)}]);");
