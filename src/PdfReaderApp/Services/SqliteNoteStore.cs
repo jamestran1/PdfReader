@@ -72,7 +72,9 @@ CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
             if (current < SchemaVersion)
             {
                 using var set = conn.CreateCommand();
+#pragma warning disable S2077 // PRAGMA không nhận tham số; chỉ ghép hằng số SchemaVersion (#123)
                 set.CommandText = $"PRAGMA user_version = {SchemaVersion};";
+#pragma warning restore S2077
                 set.ExecuteNonQuery();
             }
         }
@@ -81,15 +83,10 @@ CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
     private static bool ColumnExists(SqliteConnection conn, string table, string column)
     {
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"PRAGMA table_info({table});";
-        using var r = cmd.ExecuteReader();
-        while (r.Read())
-        {
-            if (string.Equals(r.GetString(1), column, System.StringComparison.OrdinalIgnoreCase))
-                return true;
-        }
-
-        return false;
+        cmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info($table) WHERE name = $column COLLATE NOCASE;";
+        cmd.Parameters.AddWithValue("$table", table);
+        cmd.Parameters.AddWithValue("$column", column);
+        return (long)(cmd.ExecuteScalar() ?? 0L) > 0;
     }
 
     public void Add(Note note)

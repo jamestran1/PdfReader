@@ -229,7 +229,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         using (var ver = _conn.CreateCommand())
         {
             ver.Transaction = tx;
+#pragma warning disable S2077 // PRAGMA không nhận tham số; chỉ ghép hằng số RefoldSchemaVersion (#123)
             ver.CommandText = $"PRAGMA user_version = {RefoldSchemaVersion}";
+#pragma warning restore S2077
             ver.ExecuteNonQuery();
         }
 
@@ -368,8 +370,10 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             {
                 using var cmd = _conn.CreateCommand();
                 cmd.Transaction = tx;
+#pragma warning disable S2077 // tên bảng từ VecTableName(int), giá trị qua tham số (#123)
                 cmd.CommandText = $@"INSERT INTO {VecTableName(dim)} (model_name, document_id, chunk_id, embedding)
                     VALUES ($m, (SELECT document_id FROM chunks WHERE chunk_id=$id), $id, $vec)";
+#pragma warning restore S2077
                 cmd.Parameters.AddWithValue("$m", embeddingModel);
                 cmd.Parameters.AddWithValue("$id", chunkId);
                 cmd.Parameters.AddWithValue("$vec", ToJson(vector));
@@ -401,7 +405,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         {
             using var scan = _conn.CreateCommand();
             scan.Transaction = tx;
+#pragma warning disable S2077 // tên bảng từ VecTableName(int), giá trị qua tham số (#123)
             scan.CommandText = $"SELECT rowid, chunk_id FROM {VecTableName(dim)} WHERE model_name=$m AND document_id=$d";
+#pragma warning restore S2077
             scan.Parameters.AddWithValue("$m", embeddingModel);
             scan.Parameters.AddWithValue("$d", documentId);
             using var r = scan.ExecuteReader();
@@ -415,7 +421,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         {
             using var del = _conn.CreateCommand();
             del.Transaction = tx;
+#pragma warning disable S2077 // tên bảng từ VecTableName(int), giá trị qua tham số (#123)
             del.CommandText = $"DELETE FROM {VecTableName(dim)} WHERE rowid=$r";
+#pragma warning restore S2077
             del.Parameters.AddWithValue("$r", rowId);
             del.ExecuteNonQuery();
         }
@@ -429,7 +437,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             foreach (string table in ListVecTables())
             {
                 using var cmd = _conn.CreateCommand();
+#pragma warning disable S2077 // tên bảng từ ListVecTables, đã kiểm chỉ gồm tiền tố và chữ số (#123)
                 cmd.CommandText = $"DELETE FROM {table} WHERE model_name=$m AND document_id=$id";
+#pragma warning restore S2077
                 cmd.Parameters.AddWithValue("$m", embeddingModel);
                 cmd.Parameters.AddWithValue("$id", documentId);
                 cmd.ExecuteNonQuery();
@@ -583,12 +593,14 @@ LIMIT $lim";
 
             var results = new List<Chunk>();
             using var cmd = _conn.CreateCommand();
+#pragma warning disable S2077 // tên bảng từ VecTableName(int), giá trị qua tham số (#123)
             cmd.CommandText = $@"
 SELECT c.document_id, c.page_index, c.ordinal, c.text
 FROM {VecTableName(queryVector.Length)} v
 JOIN chunks c ON c.chunk_id = v.chunk_id
 WHERE v.model_name = $m AND v.document_id = $id AND v.embedding MATCH $vec AND k = $k
 ORDER BY distance";
+#pragma warning restore S2077
             cmd.Parameters.AddWithValue("$m", embeddingModel);
             cmd.Parameters.AddWithValue("$id", documentId);
             cmd.Parameters.AddWithValue("$vec", ToJson(queryVector));
