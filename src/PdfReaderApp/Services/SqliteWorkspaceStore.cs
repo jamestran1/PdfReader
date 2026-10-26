@@ -61,7 +61,9 @@ CREATE INDEX IF NOT EXISTS ix_open_tab_ws ON open_tab(workspace_id);";
             if (current < SchemaVersion)
             {
                 using var set = conn.CreateCommand();
+#pragma warning disable S2077 // PRAGMA không nhận tham số; chỉ ghép hằng số SchemaVersion (#123)
                 set.CommandText = $"PRAGMA user_version = {SchemaVersion};";
+#pragma warning restore S2077
                 set.ExecuteNonQuery();
             }
         }
@@ -107,9 +109,8 @@ ON CONFLICT(id) DO UPDATE SET name=$name, is_default=$def, default_document_id=$
             var list = new System.Collections.Generic.List<Workspace>();
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
-            cmd.CommandText = "SELECT id, name, is_default, default_document_id, created_at, updated_at FROM workspace"
-                + (includeDefault ? "" : " WHERE is_default=0")
-                + " ORDER BY updated_at DESC";
+            cmd.CommandText = "SELECT id, name, is_default, default_document_id, created_at, updated_at FROM workspace WHERE ($includeDefault = 1 OR is_default = 0) ORDER BY updated_at DESC";
+            cmd.Parameters.AddWithValue("$includeDefault", includeDefault ? 1 : 0);
             using var r = cmd.ExecuteReader();
             while (r.Read()) list.Add(ReadRow(r));
             return list;
