@@ -93,8 +93,8 @@ public partial class SearchViewModel(
             ExecutedQuery = query;
             ExecutedScope = scope;
             IReadOnlyList<SearchResult> hits = scope == SearchScope.Workspace && workspace is not null
-                ? await Task.Run(() => SearchDocuments(documents, query, tagDocument: true, cts.Token), cts.Token)
-                : SearchDocuments(documents, query, tagDocument: false, cts.Token);
+                ? await Task.Run(() => SearchWorkspaceDocuments(documents, query, cts.Token), cts.Token)
+                : SearchCurrentDocument(documents[0], query);
 
             // Lần tìm mới hoặc đổi tài liệu đã huỷ lần này: không ghi kết quả cũ vào danh sách.
             if (cts.IsCancellationRequested) return;
@@ -124,20 +124,17 @@ public partial class SearchViewModel(
         return documentId is null ? [] : [new SearchDocument(documentId, string.Empty)];
     }
 
+    private List<SearchResult> SearchCurrentDocument(SearchDocument document, string query)
+        => [.. documentIndex.SearchText(document.DocumentId, query)];
+
     // Tài liệu chưa lập chỉ mục không có chunk nên SearchText trả rỗng và tự bị bỏ qua.
-    private List<SearchResult> SearchDocuments(
-        IReadOnlyList<SearchDocument> documents, string query, bool tagDocument, CancellationToken cancellationToken)
+    private List<SearchResult> SearchWorkspaceDocuments(
+        IReadOnlyList<SearchDocument> documents, string query, CancellationToken cancellationToken)
     {
         var hits = new List<SearchResult>();
         foreach (var document in documents)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!tagDocument)
-            {
-                hits.AddRange(documentIndex.SearchText(document.DocumentId, query));
-                continue;
-            }
-
             foreach (var hit in documentIndex.SearchText(document.DocumentId, query, WorkspacePerDocumentLimit))
                 hits.Add(hit with { DocumentId = document.DocumentId, DocumentTitle = document.Title });
         }

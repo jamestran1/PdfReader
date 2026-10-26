@@ -37,6 +37,8 @@ public class MainViewModelTabTests
             // No-op: không nạp PDF thật.
             HydrateCallCount++;
             HydratedTabs.Add(tab);
+            // Giữ đúng bước dọn kết quả tìm của LoadActiveDocument thật.
+            ClearSearchResultsForLoadedDocument();
         }
     }
 

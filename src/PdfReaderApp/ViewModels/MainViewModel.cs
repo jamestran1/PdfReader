@@ -439,6 +439,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// Cài đặt mặc định gọi LoadActiveDocument (nạp PDFium thật).
     /// Test subclass override thành no-op để không nạp PDF thật.
     /// </summary>
+    // Seam của phần dọn kết quả tìm khi nạp tài liệu: test gọi lại để đi qua đúng đường nạp thật mà không cần PDF.
+    // Nạp tài liệu chạy đồng bộ trong lúc đổi tab nên cờ nhảy-từ-kết-quả-tìm vẫn còn hiệu lực ở đây.
+    protected void ClearSearchResultsForLoadedDocument()
+    {
+        if (!_keepSearchOnTabChange) Search.ClearResults();
+    }
+
     protected virtual void HydrateTab(OpenTab tab)
     {
         LoadActiveDocument(tab.Path, _activeWorkspaceId, tab.Page);
@@ -873,7 +880,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.LoadFor(_activeWorkspaceId);
             UpdateNotesDocumentContext();
             OnPropertyChanged(nameof(ActiveWorkspaceId));
-            Search.ClearResults();
+            ClearSearchResultsForLoadedDocument();
             Indexing.StartBackgroundIndexing();
         }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: nạp tài liệu lỗi thì báo cho người dùng
