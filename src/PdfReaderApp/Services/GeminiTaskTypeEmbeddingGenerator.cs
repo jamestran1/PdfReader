@@ -14,7 +14,7 @@ public sealed class GeminiTaskTypeEmbeddingGenerator(
     public const string RetrievalDocument = "RETRIEVAL_DOCUMENT";
     public const string RetrievalQuery = "RETRIEVAL_QUERY";
 
-    private readonly string _taskType = purpose switch
+    public string TaskType { get; } = purpose switch
     {
         EmbeddingPurpose.Document => RetrievalDocument,
         EmbeddingPurpose.Query => RetrievalQuery,
@@ -31,7 +31,7 @@ public sealed class GeminiTaskTypeEmbeddingGenerator(
         {
             // Caller đã tự dựng config thì giữ nguyên, chỉ bổ sung TaskType khi chưa có.
             var config = callerFactory?.Invoke(generator) as EmbedContentConfig ?? new EmbedContentConfig();
-            config.TaskType ??= _taskType;
+            config.TaskType ??= TaskType;
             return config;
         };
         return base.GenerateAsync(values, effective, cancellationToken);
