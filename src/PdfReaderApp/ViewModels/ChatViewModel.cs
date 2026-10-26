@@ -31,7 +31,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     private readonly RagContextService _ragContext;
     private readonly Func<ChatContext> _currentContext;
     private readonly ChatWorkspace _workspace;
-    private readonly CitationJump _openSource;
+    private readonly CitationOpener _openSource;
     private string? _currentChatOwnerId;
     // Yêu cầu chat đang chạy (RAG + stream). Mỗi yêu cầu tự dispose CTS của mình; trường này chỉ để huỷ.
     private CancellationTokenSource? _requestCts;
@@ -77,7 +77,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         RagContextService ragContext,
         Func<ChatContext> currentContext,
         ChatWorkspace workspace,
-        CitationJump? openSource = null)
+        CitationOpener? openSource = null)
     {
         _openSource = openSource ?? (_ => { });
         _chatService = chatService;
@@ -119,7 +119,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     public static ChatViewModel Create(
         MainViewModelServices services, Func<ChatContext> currentContext,
         Func<IReadOnlyList<WorkspaceDocument>> getWorkspaceDocuments,
-        CitationJump openSource)
+        CitationOpener openSource)
     {
         services.ChatHistory.EnsureSchema();
         var workspaceIndexing = new WorkspaceIndexingService(

@@ -20,7 +20,8 @@ namespace PdfReaderApp.Controls.Viewer;
 /// <param name="SavedHighlights">Ghi chú đã lưu.</param>
 /// <param name="CurrentDocumentId">Chỉ vẽ ghi chú của tài liệu này (null thì vẽ hết).</param>
 /// <param name="MatchSource">Nguồn tìm vị trí từ khoá; null thì không tô kết quả tìm.</param>
-/// <param name="SourceHighlight">Đoạn nguồn của trích dẫn AI đang mở; chỉ tô khi thuộc <paramref name="CurrentDocumentId"/>.</param>
+/// <param name="SourcePassage">Đoạn nguồn của trích dẫn AI đang mở; chỉ tô khi thuộc <paramref name="CurrentDocumentId"/>.</param>
+/// <param name="SourcePassageResource">Token <c>TriThu.Brush.SourcePassage</c> tìm được trong theme; không phải brush đặc thì dùng cam mặc định.</param>
 internal sealed record ViewerFrameState(
     IReadOnlyList<PageSlot> Slots,
     double Zoom,
@@ -34,4 +35,5 @@ internal sealed record ViewerFrameState(
     System.Collections.IEnumerable? SavedHighlights,
     string? CurrentDocumentId,
     IPdfDocumentService? MatchSource,
-    SourceHighlight? SourceHighlight = null);
+    SourcePassage? SourcePassage = null,
+    object? SourcePassageResource = null);

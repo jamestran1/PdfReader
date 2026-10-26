@@ -2,6 +2,7 @@ using System.IO;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.AI;
 using AiMessage = Microsoft.Extensions.AI.ChatMessage;
+using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 using PdfReaderApp.Tests.Fakes;
@@ -379,26 +380,93 @@ public sealed class MainViewModelChatTests : IDisposable
     }
 
     [Fact]
-    public void OpenCitationSource_HighlightsCitedPassageOnItsPage()
+    public void OpenCitationSource_SetsSourcePassageOnItsPage()
     {
-        var vm = BuildVm(hasKey: true, () => Tokens("x"), new FakeChatHistoryStore());
+        var (vm, _) = WorkspaceSessionWithDocA();
 
-        vm.OpenCitationSource(new RagSource(1, "doc", "Sách", 2, "đoạn nguồn được trích"));
+        vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "đoạn nguồn được trích"));
 
-        Assert.NotNull(vm.ActiveSourceHighlight);
-        Assert.Equal("doc", vm.ActiveSourceHighlight.DocumentId);
-        Assert.Equal(2, vm.ActiveSourceHighlight.PageIndex);
-        Assert.Equal(["đoạn nguồn được trích"], vm.ActiveSourceHighlight.Fragments);
+        Assert.NotNull(vm.ActiveSourcePassage);
+        Assert.Equal("docA", vm.ActiveSourcePassage.DocumentId);
+        Assert.Equal(2, vm.ActiveSourcePassage.PageIndex);
+        Assert.Equal(["đoạn nguồn được trích"], vm.ActiveSourcePassage.Fragments);
     }
 
     [Fact]
-    public void OpenCitationSource_SourceSavedWithoutPassage_ClearsPreviousHighlight()
+    public void OpenCitationSource_SourceSavedWithoutPassage_ClearsPreviousSourcePassage()
     {
-        var vm = BuildVm(hasKey: true, () => Tokens("x"), new FakeChatHistoryStore());
-        vm.OpenCitationSource(new RagSource(1, "doc", "Sách", 2, "đoạn nguồn"));
+        var (vm, _) = WorkspaceSessionWithDocA();
+        vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "đoạn nguồn"));
 
-        vm.OpenCitationSource(new RagSource(2, "doc", "Sách", 5));
+        vm.OpenCitationSource(new RagSource(2, "docA", "Sách A", 5));
 
-        Assert.Null(vm.ActiveSourceHighlight);
+        Assert.Null(vm.ActiveSourcePassage);
+    }
+
+    [Fact]
+    public void OpenCitationSource_DocumentNotInLibrary_ClearsStalePassage()
+    {
+        var (vm, _) = WorkspaceSessionWithDocA();
+        vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "đoạn nguồn"));
+
+        vm.OpenCitationSource(new RagSource(2, "đã-xoá", "Sách đã xoá", 1, "đoạn khác"));
+
+        Assert.Null(vm.ActiveSourcePassage);
+    }
+
+    [Fact]
+    public void OpenCitationSource_InCurrentDocument_KeepsNewPassage()
+    {
+        var (vm, _) = WorkspaceSessionWithDocA();
+        vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "đoạn một"));
+
+        vm.OpenCitationSource(new RagSource(2, "docA", "Sách A", 3, "đoạn hai"));
+
+        Assert.Equal(3, vm.ActiveSourcePassage?.PageIndex);
+    }
+
+    [Fact]
+    public void OpenCitationSource_InAnotherDocument_ActivatesItAndKeepsItsPassage()
+    {
+        var (vm, _) = WorkspaceSessionWithDocA();
+        vm.Library.Add(new LibraryItem("docB", "Sách B", "/lib/b.pdf", ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1));
+
+        vm.OpenCitationSource(new RagSource(1, "docB", "Sách B", 4, "đoạn của B"));
+
+        Assert.Equal("docB", vm.ActiveSourcePassage?.DocumentId);
+    }
+
+    [Fact]
+    public void ActiveTabChange_ClearsSourcePassage()
+    {
+        var (vm, _) = WorkspaceSessionWithDocA();
+        vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "đoạn nguồn"));
+
+        vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+
+        Assert.Null(vm.ActiveSourcePassage);
+    }
+
+    [Fact]
+    public void OpeningAnotherFileStandalone_ClearsSourcePassage()
+    {
+        var (vm, _) = OpenedDocumentVm(DocumentIndexStatus.None);
+        vm.ActiveSourcePassage = new SourcePassage("docOpen", 1, ["đoạn"]);
+
+        vm.OpenLibraryItemCommand.Execute(
+            new LibraryItem("docOpen", "Sách mở", vm.FilePath!, ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1));
+
+        Assert.Null(vm.ActiveSourcePassage);
+    }
+
+    [Fact]
+    public void ClearSourcePassageCommand_DismissesPassage()
+    {
+        var (vm, _) = WorkspaceSessionWithDocA();
+        vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "đoạn nguồn"));
+
+        vm.ClearSourcePassageCommand.Execute(parameter: null);
+
+        Assert.Null(vm.ActiveSourcePassage);
     }
 }

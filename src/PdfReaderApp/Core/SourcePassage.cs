@@ -6,16 +6,16 @@ namespace PdfReaderApp.Core;
 /// <see cref="DocumentId"/>, đã chẻ thành các cụm từ liên tiếp.</summary>
 /// <remarks>Tô theo từng cụm thay vì cả đoạn: chữ của chunk và chữ iText dựng lại từ trang có thể lệch ở vài chỗ
 /// (gạch nối cuối dòng, header chen giữa, thứ tự cột). Lệch một chỗ chỉ làm mất cụm đó, các cụm còn lại vẫn được tô.</remarks>
-public sealed record SourceHighlight(string DocumentId, int PageIndex, IReadOnlyList<string> Fragments)
+public sealed record SourcePassage(string DocumentId, int PageIndex, IReadOnlyList<string> Fragments)
 {
     public const int WordsPerFragment = 8;
 
     /// <summary>Vùng tô cho <paramref name="source"/>; null khi nguồn không mang chữ của đoạn (lịch sử chat bản cũ).</summary>
-    public static SourceHighlight? From(RagSource source)
+    public static SourcePassage? From(RagSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
         if (string.IsNullOrWhiteSpace(source.Passage)) return null;
-        return new SourceHighlight(source.DocumentId, source.PageIndex, SplitFragments(source.Passage));
+        return new SourcePassage(source.DocumentId, source.PageIndex, SplitFragments(source.Passage));
     }
 
     /// <summary>Chẻ <paramref name="passage"/> thành các cụm <paramref name="wordsPerFragment"/> từ. Cụm cuối ngắn hơn

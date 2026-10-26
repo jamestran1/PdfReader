@@ -23,7 +23,7 @@ internal sealed class ViewerFrameComposer
     private readonly Dictionary<int, IReadOnlyList<MatchRect>> _matchCache = [];
 
     // Vùng đoạn nguồn chỉ nằm trên một trang nên giữ một kết quả cho trích dẫn đang mở.
-    private SourceHighlight? _sourceCacheKey;
+    private SourcePassage? _sourceCacheKey;
     private IReadOnlyList<MatchRect>? _sourceRects;
 
     public ViewerFrameComposer(PageBitmapCache pageCache, RenderEngine renderEngine, Func<bool>? isDarkTheme = null)
@@ -57,7 +57,8 @@ internal sealed class ViewerFrameComposer
         float scale = (float)state.Zoom;
 
         var overlays = new OverlayData(
-            state.SelectionPageIndex, state.SelectionRects, state.HighlightQuery, state.SavedHighlights, state.CurrentDocumentId);
+            state.SelectionPageIndex, state.SelectionRects, state.HighlightQuery, state.SavedHighlights, state.CurrentDocumentId,
+            ResolveBrushColor(state.SourcePassageResource, OverlayData.DefaultSourcePassageColor));
         var matchSource = state.MatchSource;
         var sources = new PageSources(
             pageIndex => GetPageBitmap(session, pageIndex, scale * dpiX),
@@ -71,14 +72,16 @@ internal sealed class ViewerFrameComposer
             ResolveGutterColor(state.GutterResource), _isDarkTheme(), overlays, sources);
     }
 
-    internal static SKColor ResolveGutterColor(object? resource)
+    internal static SKColor ResolveGutterColor(object? resource) => ResolveBrushColor(resource, SKColors.DimGray);
+
+    private static SKColor ResolveBrushColor(object? resource, SKColor fallback)
     {
         if (resource is SolidColorBrush brush)
         {
             Color c = brush.Color;
             return new SKColor(c.R, c.G, c.B, c.A);
         }
-        return SKColors.DimGray;
+        return fallback;
     }
 
     // Render ở độ phân giải thiết bị (zoom * DPI) để trang vẫn nét khi canvas scale theo DIP.
@@ -91,17 +94,18 @@ internal sealed class ViewerFrameComposer
 
     private Func<int, IReadOnlyList<MatchRect>>? SourceRectsFor(ViewerFrameState state)
     {
-        if (state.MatchSource is not { } source || state.SourceHighlight is not { } highlight) return null;
-        if (!string.Equals(highlight.DocumentId, state.CurrentDocumentId, StringComparison.Ordinal)) return null;
-        return pageIndex => pageIndex == highlight.PageIndex ? GetSourceRects(source, highlight) : [];
+        if (state.MatchSource is not { } source || state.SourcePassage is not { } passage) return null;
+        if (!string.Equals(passage.DocumentId, state.CurrentDocumentId, StringComparison.Ordinal)) return null;
+        return pageIndex => pageIndex == passage.PageIndex ? GetSourceRects(source, passage) : [];
     }
 
-    private IReadOnlyList<MatchRect> GetSourceRects(IPdfDocumentService source, SourceHighlight highlight)
+    /// <summary>Vùng của đoạn nguồn trên trang của nó, cache theo trích dẫn; control dùng lại để cuộn tới đó mà không trích xuất iText lần nữa.</summary>
+    internal IReadOnlyList<MatchRect> GetSourceRects(IPdfDocumentService source, SourcePassage passage)
     {
-        if (_sourceRects is null || !ReferenceEquals(_sourceCacheKey, highlight))
+        if (_sourceRects is null || !ReferenceEquals(_sourceCacheKey, passage))
         {
-            _sourceRects = source.FindPassageRects(highlight.PageIndex, highlight.Fragments);
-            _sourceCacheKey = highlight;
+            _sourceRects = source.FindPassageRects(passage.PageIndex, passage.Fragments);
+            _sourceCacheKey = passage;
         }
         return _sourceRects;
     }

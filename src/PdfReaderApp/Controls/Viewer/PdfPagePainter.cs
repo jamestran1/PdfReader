@@ -117,27 +117,30 @@ internal static class PdfPagePainter
         var rects = frame.Sources.GetMatchRects(pageIndex, query);
         if (rects.Count == 0) return;
 
-        // Trang được layout ở pageSize * zoom (1 PDF point = zoom pixel), nên mapper highlight phải dùng
-        // cùng số pixel trên point, tức dpi=72. Dùng 96 thì phóng quá 1.333 lần và hộp trôi khỏi chữ.
-        float pageHeightPt = (float)frame.Sources.GetPageHeightPt(pageIndex);
-        var page = ToRectF(pageRect);
-
-        using var highlightPaint = new SKPaint { Color = new SKColor(255, 235, 59, 110), IsStroke = false };
-        foreach (var m in rects)
-            canvas.DrawRect(ToSkRect(OverlayGeometry.SearchMatch(m, pageHeightPt, frame.Zoom, page)), highlightPaint);
+        DrawMatchRects(canvas, rects, pageIndex, pageRect, frame, new SKColor(255, 235, 59, 110));
     }
 
-    // Cam nhạt, khác vàng của kết quả tìm và xanh của vùng chọn để đoạn nguồn trích dẫn không lẫn với chúng.
+    // Màu cam của token TriThu.Brush.SourcePassage, khác vàng của kết quả tìm và xanh của vùng chọn
+    // để đoạn nguồn trích dẫn không lẫn với chúng.
     private static void DrawSourcePassage(SKCanvas canvas, int pageIndex, WpfRect pageRect, PaintFrame frame)
     {
         var rects = frame.Sources.GetSourceRects?.Invoke(pageIndex);
         if (rects is null || rects.Count == 0) return;
 
+        DrawMatchRects(canvas, rects, pageIndex, pageRect, frame, frame.Overlays.SourcePassageColor);
+    }
+
+    private static void DrawMatchRects(
+        SKCanvas canvas, IReadOnlyList<MatchRect> rects, int pageIndex, WpfRect pageRect, PaintFrame frame, SKColor color)
+    {
+        // Trang được layout ở pageSize * zoom (1 PDF point = zoom pixel), nên mapper highlight phải dùng
+        // cùng số pixel trên point, tức dpi=72. Dùng 96 thì phóng quá 1.333 lần và hộp trôi khỏi chữ.
         float pageHeightPt = (float)frame.Sources.GetPageHeightPt(pageIndex);
         var page = ToRectF(pageRect);
-        using var passagePaint = new SKPaint { Color = new SKColor(255, 152, 0, 80), IsStroke = false };
+
+        using var paint = new SKPaint { Color = color, IsStroke = false };
         foreach (var m in rects)
-            canvas.DrawRect(ToSkRect(OverlayGeometry.SearchMatch(m, pageHeightPt, frame.Zoom, page)), passagePaint);
+            canvas.DrawRect(ToSkRect(OverlayGeometry.BottomOrigin(m, pageHeightPt, frame.Zoom, page)), paint);
     }
 
     private static RectF ToRectF(WpfRect r) => new((float)r.Left, (float)r.Top, (float)r.Width, (float)r.Height);

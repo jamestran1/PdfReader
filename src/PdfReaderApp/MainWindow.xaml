@@ -58,6 +58,7 @@
         <KeyBinding Modifiers="Control" Key="Home" Command="{Binding FirstPageCommand}" />
         <KeyBinding Modifiers="Control" Key="End" Command="{Binding LastPageCommand}" />
         <KeyBinding Modifiers="Control" Key="O" Command="{Binding OpenFileCommand}" />
+        <KeyBinding Key="Escape" Command="{Binding ClearSourcePassageCommand}" />
     </Window.InputBindings>
     <Grid Margin="{Binding WindowState, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource WindowStateToContentMarginConverter}}">
         <Grid.RowDefinitions>
@@ -537,7 +538,7 @@
                                        ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
                                        HighlightQuery="{Binding Search.SelectedQuery}"
                                        MatchSource="{Binding PdfService}"
-                                       SourceHighlight="{Binding ActiveSourceHighlight}"
+                                       SourcePassage="{Binding ActiveSourcePassage}"
                                        ViewMode="{Binding ViewMode}"
                                        ShowCover="{Binding ShowCoverSeparately}"
                                        AddNoteFromSelectionCommand="{Binding AddNoteFromSelectionCommand}"
@@ -588,7 +589,7 @@
                                     CurrentDocumentId="{Binding DocumentId}"
                                     HighlightQuery="{Binding DataContext.Search.SelectedQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     MatchSource="{Binding DataContext.PdfService, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    SourceHighlight="{Binding DataContext.ActiveSourceHighlight, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    SourcePassage="{Binding DataContext.ActiveSourcePassage, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     ViewMode="{Binding DataContext.ViewMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     ShowCover="{Binding DataContext.ShowCoverSeparately, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     AddNoteFromSelectionCommand="{Binding DataContext.AddNoteFromSelectionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
