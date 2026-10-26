@@ -107,4 +107,129 @@ public class SearchViewModelTests
         Assert.Equal(string.Empty, vm.ExecutedQuery);
         Assert.Empty(vm.Results);
     }
+
+    private static readonly SearchDocument[] TwoDocs =
+        [new("docA", "Kinh A"), new("docB", "Sách B")];
+
+    private static SearchViewModel CreateWorkspace(
+        Func<string, string, IReadOnlyList<SearchResult>> search,
+        string? currentDocumentId,
+        List<(string DocumentId, int PageIndex)> jumps,
+        List<int>? pages = null)
+        => new(new StubIndex(search), () => currentDocumentId, p => pages?.Add(p), _ => { },
+            new SearchWorkspaceContext(() => TwoDocs, (id, page) => jumps.Add((id, page))));
+
+    [Fact]
+    public async Task Search_DefaultScopeIsCurrentDocument_QueriesOnlyThatDocument()
+    {
+        var queried = new List<string>();
+        var vm = CreateWorkspace((id, _) => { queried.Add(id); return [new SearchResult(1, "s", 1)]; }, "docA", []);
+        vm.Query = "hành";
+
+        await vm.SearchCommand.ExecuteAsync(null);
+
+        Assert.Equal(SearchScope.CurrentDocument, vm.Scope);
+        Assert.Equal(["docA"], queried);
+        Assert.All(vm.Results, r => Assert.Null(r.DocumentTitle));
+        Assert.False(vm.ShowDocumentTitle);
+    }
+
+    [Fact]
+    public async Task Search_WorkspaceScope_FansOutAndFillsDocumentTitle()
+    {
+        var vm = CreateWorkspace((id, _) => [new SearchResult(id == "docA" ? 2 : 7, "s", 1)], "docA", []);
+        vm.Query = "hành";
+        vm.Scope = SearchScope.Workspace;
+        await vm.SearchCommand.ExecuteAsync(null);
+
+        Assert.Equal(
+            [("docA", "Kinh A", 2), ("docB", "Sách B", 7)],
+            vm.Results.Select(r => (r.DocumentId!, r.DocumentTitle!, r.PageIndex)));
+        Assert.True(vm.ShowDocumentTitle);
+    }
+
+    [Fact]
+    public async Task Search_WorkspaceScope_SkipsDocumentsWithoutIndexedText()
+    {
+        var vm = CreateWorkspace((id, _) => id == "docB" ? [new SearchResult(0, "s", 1)] : [], "docA", []);
+        vm.Query = "hành";
+        vm.Scope = SearchScope.Workspace;
+        await vm.SearchCommand.ExecuteAsync(null);
+
+        var only = Assert.Single(vm.Results);
+        Assert.Equal("docB", only.DocumentId);
+    }
+
+    [Fact]
+    public void ChangingScope_WithQuery_ReSearchesAndDropsOldResults()
+    {
+        var vm = CreateWorkspace((id, _) => [new SearchResult(0, "s", 1)], "docA", []);
+        vm.Query = "hành";
+        vm.SearchCommand.Execute(null);
+        Assert.Single(vm.Results);
+
+        vm.SetScopeCommand.Execute("Workspace");
+
+        Assert.True(vm.IsWorkspaceScope);
+        Assert.False(vm.IsCurrentDocumentScope);
+    }
+
+    [Fact]
+    public void SelectResult_FromOtherDocument_JumpsToThatDocumentAndPage()
+    {
+        var jumps = new List<(string DocumentId, int PageIndex)>();
+        var pages = new List<int>();
+        var vm = CreateWorkspace((_, _) => [], "docA", jumps, pages);
+        vm.Query = "hành";
+
+        vm.SelectResultCommand.Execute(new SearchResult(4, "s", 1, "docB", "Sách B"));
+
+        Assert.Equal([("docB", 4)], jumps);
+        Assert.Empty(pages);
+    }
+
+    [Fact]
+    public void SelectResult_FromCurrentDocumentInWorkspaceScope_JustGoesToPage()
+    {
+        var jumps = new List<(string DocumentId, int PageIndex)>();
+        var pages = new List<int>();
+        var vm = CreateWorkspace((_, _) => [], "docA", jumps, pages);
+
+        vm.SelectResultCommand.Execute(new SearchResult(4, "s", 1, "docA", "Kinh A"));
+
+        Assert.Empty(jumps);
+        Assert.Equal([5], pages);
+    }
+
+    [Fact]
+    public async Task Search_NewSearchCancelsOlderOne_OlderResultsAreDiscarded()
+    {
+        var firstStarted = new ManualResetEventSlim();
+        var releaseFirst = new ManualResetEventSlim();
+        int call = 0;
+        var vm = CreateWorkspace((id, q) =>
+        {
+            if (q == "cũ")
+            {
+                firstStarted.Set();
+                releaseFirst.Wait(TimeSpan.FromSeconds(5));
+                return [new SearchResult(0, "cũ", 1)];
+            }
+
+            Interlocked.Increment(ref call);
+            return [new SearchResult(1, "mới", 2)];
+        }, "docA", []);
+        vm.Scope = SearchScope.Workspace;
+
+        vm.Query = "cũ";
+        var first = vm.SearchCommand.ExecuteAsync(null);
+        Assert.True(firstStarted.Wait(TimeSpan.FromSeconds(5)));
+        vm.Query = "mới";
+        await vm.SearchCommand.ExecuteAsync(null);
+        releaseFirst.Set();
+        await first;
+
+        Assert.All(vm.Results, r => Assert.Equal("mới", r.Snippet));
+        Assert.Equal("mới", vm.ExecutedQuery);
+    }
 }

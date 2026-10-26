@@ -302,7 +302,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             () => _documentId,
             OpenDocumentForNote,
             NotifyError);
-        Search = new SearchViewModel(_documentIndex, () => _documentId, page => CurrentPage = page, NotifyError);
+        Search = new SearchViewModel(
+            _documentIndex, () => _documentId, page => CurrentPage = page, NotifyError,
+            new SearchWorkspaceContext(GetSearchDocuments, JumpToDocument));
 
         _workspaceStore = services.WorkspaceStore;
         _workspaceStore.EnsureSchema();
@@ -666,6 +668,26 @@ public partial class MainViewModel : ObservableObject, IDisposable
         foreach (var document in DocumentsSurface.Members) titles[document.DocumentId] = document.Title;
         Notes.SetDocumentContext(titles, showChips: titles.Count > 1);
     }
+
+    // Các Document của Workspace đang mở (kèm tên) để tìm Toàn Workspace; ngoài phiên Workspace chỉ có tài liệu hiện tại.
+    private IReadOnlyList<SearchDocument> GetSearchDocuments()
+    {
+        if (_activeWorkspaceId is null)
+            return _documentId is null ? [] : [new SearchDocument(_documentId, System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty))];
+
+        var documents = new List<SearchDocument>();
+        foreach (string id in _workspaceStore.GetDocumentIds(_activeWorkspaceId))
+        {
+            var item = Library.FirstOrDefault(i => i.DocumentId == id);
+            if (item is not null) documents.Add(new SearchDocument(id, item.Title));
+        }
+
+        return documents;
+    }
+
+    /// <summary>Cross-doc jump: mở hoặc kích hoạt tab của <paramref name="documentId"/> rồi cuộn tới trang
+    /// (<paramref name="pageIndex"/> tính từ 0). Dùng chung cho note, kết quả tìm kiếm và trích dẫn AI.</summary>
+    public void JumpToDocument(string documentId, int pageIndex) => OpenDocumentForNote(documentId, pageIndex);
 
     // S3 / Tab S1: callback mở tài liệu khác trong cùng workspace khi bấm note cross-doc.
     // Cross-doc jump: activate-or-open tab, luôn điều hướng tới trang đích.
