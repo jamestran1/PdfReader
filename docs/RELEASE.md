@@ -65,7 +65,9 @@ Chạy trong **Windows PowerShell 5.1** (`powershell.exe`, không phải `pwsh`:
   Import-Certificate -FilePath .\release-signer.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
   ```
 
-- [ ] Cài: `Add-AppxPackage .\PdfReaderApp_X.Y.Z.msix`, không báo lỗi.
+  Cách bằng giao diện (thay cho lệnh trên): chuột phải file `.msix` > Properties > Digital Signatures > Details > View Certificate > Install Certificate > Local Machine > Place all certificates in the following store > Trusted People. Bỏ qua bước này thì App Installer báo `0x800B010A` và nút Install bị mờ.
+
+- [ ] Cài: `Add-AppxPackage .\PdfReaderApp_X.Y.Z.msix` (hoặc nhấp đúp file `.msix`), không báo lỗi.
 - [ ] Mở "Trí Thư" từ Start menu: app chạy, không cần cài .NET runtime, chạy được khi chưa có API key (điều kiện certification).
 - [ ] Mở một PDF vào Library, mở từ Library: trang render đúng, cuộn và zoom được.
 - [ ] Tạo Workspace, thêm Document vào Workspace, mở vài Tab.
@@ -79,13 +81,19 @@ Chạy trong **Windows PowerShell 5.1** (`powershell.exe`, không phải `pwsh`:
   ```
 
 - [ ] Gỡ cài sạch: `$pkg | Remove-AppxPackage`. App biến mất khỏi Start menu và `Test-Path "$env:LOCALAPPDATA\Packages\$($pkg.PackageFamilyName)"` trả về `False`.
-- [ ] Dọn: bỏ tin cert của bản này (`Remove-Item "Cert:\LocalMachine\TrustedPeople\$thumb"`), xoá `release-signer.cer`, đổi tên `%APPDATA%\PdfReaderApp` về như cũ nếu đã đổi.
+- [ ] Dọn: bỏ tin cert của bản này (`Remove-Item "Cert:\LocalMachine\TrustedPeople\$thumb"`, hoặc xoá cert `CN=<Publisher>` trong `certlm.msc` > Trusted People > Certificates), xoá `release-signer.cer`, đổi tên `%APPDATA%\PdfReaderApp` về như cũ nếu đã đổi.
 
 ### 4. Tạo Submission trên Partner Center
 
 - [ ] Tạo Submission mới, upload `PdfReaderApp_X.Y.Z.msix` (package không cần ký lại: Store tự re-sign sau certification).
 - [ ] Viết tay "What's new" tiếng Việt, 3-5 gạch đầu dòng hướng người dùng (bản mới làm được gì). **Không** dán commit log hay notes của GitHub Release.
 - [ ] Listing còn khai báo AGPL-3.0 và link mã nguồn trỏ đúng tag: `https://github.com/jamestran1/PdfReader/tree/vX.Y.Z`.
+- [ ] Store listings phải Complete cho đúng ngôn ngữ package khai báo (`vi-VN`). Upload package có thể thêm listing Vietnamese trống: điền description + screenshot, bỏ ngôn ngữ thừa qua "Add/remove languages".
+- [ ] Submission options > Restricted capabilities: app WPF đóng gói MSIX luôn cần `runFullTrust`. Ô giải thích giới hạn độ dài, dán bản ngắn:
+
+  ```text
+  Trí Thư is a WPF desktop application (.NET 10) packaged as MSIX. As a classic Win32 desktop app, it requires runFullTrust to run outside the AppContainer; this is the standard capability for desktop apps packaged with MSIX.
+  ```
 
 ### 5. Submit và theo dõi certification
 
