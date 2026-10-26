@@ -304,7 +304,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             NotifyError);
         Search = new SearchViewModel(
             _documentIndex, () => _documentId, page => CurrentPage = page, NotifyError,
-            new SearchWorkspaceContext(GetSearchDocuments, JumpToDocument));
+            new SearchWorkspaceContext(GetSearchDocuments, JumpToDocumentFromSearch));
 
         _workspaceStore = services.WorkspaceStore;
         _workspaceStore.EnsureSchema();
@@ -382,7 +382,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.FilterCurrentDocumentOnly = incoming.FilterCurrentDocumentOnly;
         }
 
-        Search.Reset();
+        // Nhảy từ kết quả tìm Toàn Workspace: giữ ô tìm, kết quả và phạm vi để bấm tiếp kết quả khác.
+        if (!_keepSearchOnTabChange) Search.Reset();
 
         if (incoming is not null)
             HydrateTab(incoming);
@@ -670,7 +671,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     // Các Document của Workspace đang mở (kèm tên) để tìm Toàn Workspace; ngoài phiên Workspace chỉ có tài liệu hiện tại.
-    private IReadOnlyList<SearchDocument> GetSearchDocuments()
+    private List<SearchDocument> GetSearchDocuments()
     {
         if (_activeWorkspaceId is null)
             return _documentId is null ? [] : [new SearchDocument(_documentId, System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty))];
@@ -683,6 +684,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
 
         return documents;
+    }
+
+    // Tab đổi do chính kết quả tìm kiếm gây ra thì không xoá trạng thái tìm kiếm (xem OnActiveTabChanged).
+    private bool _keepSearchOnTabChange;
+
+    private void JumpToDocumentFromSearch(string documentId, int pageIndex)
+    {
+        _keepSearchOnTabChange = true;
+        try { JumpToDocument(documentId, pageIndex); }
+        finally { _keepSearchOnTabChange = false; }
     }
 
     /// <summary>Cross-doc jump: mở hoặc kích hoạt tab của <paramref name="documentId"/> rồi cuộn tới trang
