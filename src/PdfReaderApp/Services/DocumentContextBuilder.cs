@@ -6,7 +6,7 @@ namespace PdfReaderApp.Services;
 public static class DocumentContextBuilder
 {
     public static string BuildAround(
-        IReadOnlyList<TextBlock> blocks, int currentPageOneBased, int window, int maxChars = 48000)
+        IReadOnlyList<TextBlock> blocks, int currentPageOneBased, int window, int maxChars = ContextLimits.MaxChars)
     {
         if (maxChars <= 0) return string.Empty;
 

@@ -25,6 +25,34 @@ public class DocumentIndexingServiceTests
         public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose) => new FakeGen();
     }
 
+    // Chạy một hành động ngay khi bắt đầu nhúng lô đầu tiên: giả lập sự kiện chen vào giữa lúc lượt đang nhúng.
+    private sealed class HookedEmbedFactory(Action onFirstGenerate) : IEmbeddingGeneratorFactory
+    {
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose)
+            => new HookedGen(onFirstGenerate);
+
+        private sealed class HookedGen(Action onFirstGenerate) : IEmbeddingGenerator<string, Embedding<float>>
+        {
+            private bool _fired;
+
+            public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
+                IEnumerable<string> values, EmbeddingGenerationOptions? options = null,
+                CancellationToken cancellationToken = default)
+            {
+                if (!_fired)
+                {
+                    _fired = true;
+                    onFirstGenerate();
+                }
+
+                return new FakeGen().GenerateAsync(values, options, cancellationToken);
+            }
+
+            public object? GetService(Type serviceType, object? serviceKey = null) => null;
+            public void Dispose() { }
+        }
+    }
+
     private sealed class CountingEmbedFactory : IEmbeddingGeneratorFactory
     {
         public int Created { get; private set; }
@@ -46,6 +74,26 @@ public class DocumentIndexingServiceTests
             IEnumerable<string> values, EmbeddingGenerationOptions? options = null,
             CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("embedding failure");
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+        public void Dispose() { }
+    }
+
+    // Huỷ giữa lượt: lượt đã giành claim rồi mới bị huỷ khi đang chờ embed.
+    private sealed class CancellingEmbedFactory(CancellationTokenSource cts) : IEmbeddingGeneratorFactory
+    {
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose) => new CancellingGen(cts);
+    }
+
+    private sealed class CancellingGen(CancellationTokenSource cts) : IEmbeddingGenerator<string, Embedding<float>>
+    {
+        public async Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
+            IEnumerable<string> values, EmbeddingGenerationOptions? options = null,
+            CancellationToken cancellationToken = default)
+        {
+            await cts.CancelAsync();
+            cancellationToken.ThrowIfCancellationRequested();
+            return [];
+        }
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
         public void Dispose() { }
     }
@@ -85,6 +133,7 @@ public class DocumentIndexingServiceTests
         public DocumentIndexStatus StatusToReturn = DocumentIndexStatus.None;
         public Dictionary<string, DocumentIndexStatus> StatusByModel = [];
         public List<StoredChunk> Stored = [];
+        public bool ThrowOnWriteChunks;
 
         public bool VectorAvailable = true;
         public bool VectorSearchAvailable => VectorAvailable;
@@ -94,6 +143,7 @@ public class DocumentIndexingServiceTests
         public void DeleteDocument(string documentId) { }
         public IReadOnlyList<long> WriteChunks(string documentId, string? filePath, int pageCount, IReadOnlyList<Chunk> chunks)
         {
+            if (ThrowOnWriteChunks) throw new InvalidOperationException("ghi chunk lỗi");
             Written.AddRange(chunks);
             var ids = Enumerable.Range(1, chunks.Count).Select(i => (long)i).ToList();
             Stored = [.. ids.Select((id, i) => new StoredChunk(id, chunks[i].Text))];
@@ -110,6 +160,49 @@ public class DocumentIndexingServiceTests
         }
         public IReadOnlyList<SearchResult> SearchText(string d, string q, int l = 50) => [];
         public IReadOnlyList<Chunk> RetrieveRelevant(string d, string m, float[] v, int k = 5) => [];
+        public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
+        public bool TryBeginIndexing(string documentId, string embeddingModel, out long claimToken)
+        {
+            claimToken = 0;
+            if (GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing) return false;
+            SetStatus(documentId, DocumentIndexStatus.Indexing, embeddingModel);
+            claimToken = ++_lastToken;
+            _currentToken = claimToken;
+            return true;
+        }
+        private long _lastToken;
+        private long _currentToken;
+        public List<long> Released { get; } = [];
+
+        // Giả lập "Lập chỉ mục lại": tài liệu bị xoá rồi một lượt khác giành claim mới trong lúc lượt cũ còn chạy.
+        public long SupersedeClaim(string embeddingModel)
+        {
+            Embeddings.Clear();
+            StatusByModel[embeddingModel] = DocumentIndexStatus.Indexing;
+            _currentToken = ++_lastToken;
+            return _currentToken;
+        }
+
+        public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken)
+        {
+            Released.Add(claimToken);
+            if (claimToken == _currentToken && GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing)
+                SetStatus(documentId, DocumentIndexStatus.Partial, embeddingModel);
+        }
+
+        public bool WriteEmbeddingsIfClaimed(string documentId, string embeddingModel, long claimToken, IReadOnlyList<(long ChunkId, float[] Vector)> e)
+        {
+            if (claimToken != _currentToken) return false;
+            WriteEmbeddings(embeddingModel, e);
+            return true;
+        }
+
+        public bool FinishIndexing(string documentId, string embeddingModel, long claimToken, DocumentIndexStatus status)
+        {
+            if (claimToken != _currentToken) return false;
+            SetStatus(documentId, status, embeddingModel);
+            return true;
+        }
         public void Dispose() { }
     }
 
@@ -127,6 +220,24 @@ public class DocumentIndexingServiceTests
         Assert.NotEmpty(index.Written);
         Assert.Equal(index.Written.Count, index.Embeddings.Count);
         Assert.Equal(DocumentIndexStatus.Complete, index.FinalStatus);
+    }
+
+    [Fact]
+    public async Task IndexAsync_CancelledBeforeStart_DoesNotClaimOrTouchTheIndex()
+    {
+        // Lượt bị huỷ khi còn chờ lượt trước (đổi tài liệu nhanh) không được giành claim: hàng đợi Workspace
+        // tới đúng lúc đó sẽ tưởng có lượt khác đang chạy và bỏ qua tài liệu.
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+        using var cts = new CancellationTokenSource();
+        await cts.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => svc.IndexAsync("doc1", "a.pdf", Pages("page zero text"), null, cts.Token));
+
+        Assert.Empty(index.StatusByModel);
+        Assert.Empty(index.Written);
+        Assert.Empty(index.DeletedEmbeddingModels);
     }
 
     private sealed class PurposeRecordingFactory : IEmbeddingGeneratorFactory
@@ -307,19 +418,67 @@ public class DocumentIndexingServiceTests
     }
 
     [Fact]
-    public async Task IndexAsync_Cancelled_RethrowsAndDoesNotMarkPartialOrComplete()
+    public async Task IndexAsync_Cancelled_RethrowsAndReleasesIndexingClaimAsPartial()
     {
-        var index = new RecordingIndex();
-        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
         using var cts = new CancellationTokenSource();
-        await cts.CancelAsync();
+        var index = new RecordingIndex();
+        var svc = new DocumentIndexingService(index, new CancellingEmbedFactory(cts), new FakeSettings("sk-x"));
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => svc.IndexAsync("doc1", filePath: null, Pages("some text"), progress: null, cts.Token));
 
-        Assert.NotEqual(DocumentIndexStatus.Partial, index.FinalStatus);
-        Assert.NotEqual(DocumentIndexStatus.Complete, index.FinalStatus);
+        // Huỷ không được để trạng thái kẹt ở Indexing: tài liệu sẽ không bao giờ được lập chỉ mục lại.
+        Assert.Equal(DocumentIndexStatus.Partial, index.StatusByModel[AiModelSettings.Default.EmbeddingModel]);
         Assert.Empty(index.Embeddings);
+    }
+
+    [Fact]
+    public async Task IndexAsync_AnotherRunAlreadyIndexingSameDocumentAndModel_SkipsWithoutWritingChunksOrEmbeddings()
+    {
+        var index = new RecordingIndex();
+        index.StatusByModel[AiModelSettings.Default.EmbeddingModel] = DocumentIndexStatus.Indexing;
+        var factory = new CountingEmbedFactory();
+        var svc = new DocumentIndexingService(index, factory, new FakeSettings("sk-x"));
+
+        var outcome = await svc.IndexAsync("doc1", "a.pdf", Pages("some text"), null, CancellationToken.None);
+
+        Assert.Equal(IndexingOutcome.SkippedAnotherRunIndexing, outcome);
+
+        Assert.Empty(index.Written);
+        Assert.Empty(index.Embeddings);
+        Assert.Equal(0, factory.Created);
+        Assert.Equal(DocumentIndexStatus.Indexing, index.StatusByModel[AiModelSettings.Default.EmbeddingModel]);
+    }
+
+    [Fact]
+    public async Task IndexAsync_ClaimLostMidRun_WritesNoVectorsLeavesNewClaimAndReportsNothing()
+    {
+        string model = AiModelSettings.Default.EmbeddingModel;
+        var index = new RecordingIndex();
+        // "Lập chỉ mục lại" giữa lúc lượt 1 đang nhúng: tài liệu bị xoá và lượt 2 giành claim mới.
+        var factory = new HookedEmbedFactory(() => index.SupersedeClaim(model));
+        var svc = new DocumentIndexingService(index, factory, new FakeSettings("sk-x"));
+        var progress = new SyncProgress();
+
+        var outcome = await svc.IndexAsync("doc1", "a.pdf", Pages("some text"), progress, CancellationToken.None);
+
+        Assert.Equal(IndexingOutcome.Superseded, outcome);
+
+        Assert.Empty(index.Embeddings);
+        Assert.Equal(DocumentIndexStatus.Indexing, index.StatusByModel[model]);
+        Assert.DoesNotContain(progress.Reports, r => r.Status == "complete");
+    }
+
+    [Fact]
+    public async Task IndexAsync_StoringChunksFails_ReleasesIndexingClaimAsPartial()
+    {
+        var index = new RecordingIndex { ThrowOnWriteChunks = true };
+        var svc = new DocumentIndexingService(index, new FakeEmbedFactory(), new FakeSettings("sk-x"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => svc.IndexAsync("doc1", "a.pdf", Pages("some text"), null, CancellationToken.None));
+
+        Assert.Equal(DocumentIndexStatus.Partial, index.StatusByModel[AiModelSettings.Default.EmbeddingModel]);
     }
 
     [Fact]

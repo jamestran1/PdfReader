@@ -50,6 +50,17 @@ public class SqliteDocumentIndexKnnTests : IDisposable
         Assert.InRange(results.Count, 1, 2);
     }
 
+    [Fact]
+    public void RetrieveRelevantScored_ReturnsDistanceAscending_NearestHasSmallestDistance()
+    {
+        var results = _idx.RetrieveRelevantScored("doc1", "m", Hot(1), k: 3);
+
+        Assert.Equal(3, results.Count);
+        Assert.Contains("hot-1", results[0].Chunk.Text);
+        Assert.True(results[0].Distance < results[1].Distance);
+        Assert.True(results[1].Distance <= results[2].Distance);
+    }
+
     public void Dispose()
     {
         _idx.Dispose();

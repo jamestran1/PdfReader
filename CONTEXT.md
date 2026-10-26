@@ -28,6 +28,14 @@ _Avoid_: Annotation, comment.
 Một luồng hội thoại AI cho mỗi **Workspace**, RAG xuyên mọi Document thành viên; Document active là neo trích dẫn mặc định. Đổi Tab KHÔNG đổi luồng chat (ADR 0004). Lịch sử bền + RAG thật: #26.
 _Avoid_: Chat per-tab, per-document chat.
 
+**Phạm vi** (`DocumentScope`):
+Một truy vấn của người dùng áp dụng cho **Tài liệu này** (Document đang mở) hoặc **Toàn Workspace** (mọi Document thuộc Workspace membership). Dùng chung cho Search (#106) và Chat (#107); mặc định Tài liệu này. Toàn Workspace chỉ dùng được những Document đã có Vector Index `Complete` cho Embedding Model đang chọn; Document còn thiếu được lập chỉ mục nền và bị loại khỏi câu trả lời hiện tại.
+_Avoid_: Search scope / chat scope (một khái niệm, một từ), mode.
+
+**Nguồn trích dẫn** (`RagSource`):
+Một dòng của bảng nguồn do RAG xuyên Workspace trả về: số tham chiếu `[n]` trong ngữ cảnh và câu trả lời của AI ↔ (Document, Title, trang). AI chỉ chép số `[n]`, không chép `documentId` (hash dài); #108 biến `[n]` thành link nhảy sang Document và trang đó.
+_Avoid_: Citation (dành cho phần hiển thị ở #108), reference.
+
 ## AI
 
 **AI Provider**:
