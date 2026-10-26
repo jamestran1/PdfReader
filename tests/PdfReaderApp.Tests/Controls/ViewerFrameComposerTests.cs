@@ -50,10 +50,12 @@ public sealed class ViewerFrameComposerTests : IDisposable
 
         public int PassageCalls { get; private set; }
 
+        public IReadOnlyList<MatchRect> PassageRects { get; init; } = [new MatchRect(5, 6, 7, 8)];
+
         public IReadOnlyList<MatchRect> FindPassageRects(int pageIndex, IReadOnlyList<string> fragments)
         {
             PassageCalls++;
-            return [new MatchRect(5, 6, 7, 8)];
+            return PassageRects;
         }
 
         public void Dispose() { }
@@ -229,6 +231,22 @@ public sealed class ViewerFrameComposerTests : IDisposable
         Assert.Equal([new MatchRect(5, 6, 7, 8)], first);
         Assert.Same(first, second);
         Assert.Equal(1, source.PassageCalls);
+    }
+
+    [Fact]
+    public void SourceRects_FragmentsOnOneLine_ComeBackMergedWithoutGap()
+    {
+        var source = new CountingMatchSource
+        {
+            PassageRects = [new MatchRect(72f, 321.6f, 86.7f, 13.5f), new MatchRect(160.6f, 321.6f, 182.6f, 13.5f)],
+        };
+
+        var rects = Composer().Compose(_session, State(matches: source, source: new SourcePassage("doc1", 0, ["abc"])), Info)
+            .Sources.GetSourceRects!(0);
+
+        var merged = Assert.Single(rects);
+        Assert.Equal(72f, merged.PdfX, 0.01f);
+        Assert.Equal(160.6f + 182.6f - 72f, merged.Width, 0.01f);
     }
 
     [Fact]
