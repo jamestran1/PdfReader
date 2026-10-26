@@ -51,16 +51,14 @@ public sealed class SqliteDocumentIndexClaimTests : IDisposable
     }
 
     [Fact]
-    public void TryBeginIndexing_ConcurrentCallers_ExactlyOneWins()
+    public async Task TryBeginIndexing_ConcurrentCallers_ExactlyOneWins()
     {
         using var index = Open();
 
-        var results = Enumerable.Range(0, 16)
-            .Select(_ => Task.Run(() => index.TryBeginIndexing("doc1", Model)))
-            .ToArray();
-        Task.WaitAll(results);
+        var results = await Task.WhenAll(Enumerable.Range(0, 16)
+            .Select(_ => Task.Run(() => index.TryBeginIndexing("doc1", Model))));
 
-        Assert.Equal(1, results.Count(r => r.Result));
+        Assert.Equal(1, results.Count(won => won));
     }
 
     [Fact]
