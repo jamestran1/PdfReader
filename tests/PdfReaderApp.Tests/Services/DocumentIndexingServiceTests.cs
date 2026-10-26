@@ -22,13 +22,13 @@ public class DocumentIndexingServiceTests
 
     private sealed class FakeEmbedFactory : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new FakeGen();
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose) => new FakeGen();
     }
 
     private sealed class CountingEmbedFactory : IEmbeddingGeneratorFactory
     {
         public int Created { get; private set; }
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options)
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose)
         {
             Created++;
             return new FakeGen();
@@ -37,7 +37,7 @@ public class DocumentIndexingServiceTests
 
     private sealed class ThrowingEmbedFactory : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new ThrowingGen();
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose) => new ThrowingGen();
     }
 
     private sealed class ThrowingGen : IEmbeddingGenerator<string, Embedding<float>>
@@ -129,6 +129,28 @@ public class DocumentIndexingServiceTests
         Assert.Equal(DocumentIndexStatus.Complete, index.FinalStatus);
     }
 
+    private sealed class PurposeRecordingFactory : IEmbeddingGeneratorFactory
+    {
+        public List<EmbeddingPurpose> Purposes { get; } = [];
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose)
+        {
+            Purposes.Add(purpose);
+            return new FakeGen();
+        }
+    }
+
+    [Fact]
+    public async Task IndexAsync_EmbedsChunksWithDocumentPurpose()
+    {
+        var factory = new PurposeRecordingFactory();
+        var svc = new DocumentIndexingService(new RecordingIndex(), factory, new FakeSettings("sk-x"));
+
+        await svc.IndexAsync("doc1", "a.pdf", Pages("page zero text"), null, CancellationToken.None);
+
+        Assert.NotEmpty(factory.Purposes);
+        Assert.All(factory.Purposes, p => Assert.Equal(EmbeddingPurpose.Document, p));
+    }
+
     [Fact]
     public async Task IndexAsync_NoKey_WritesChunksButTextOnly()
     {
@@ -182,7 +204,7 @@ public class DocumentIndexingServiceTests
 
     private sealed class FactoryThatThrows : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) =>
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose) =>
             throw new NotSupportedException("provider chưa hỗ trợ");
     }
 

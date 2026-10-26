@@ -42,7 +42,7 @@ public sealed class IndexingViewModelTests
 
     private sealed class ThrowingEmbeddingFactory(Exception error) : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => throw error;
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose) => throw error;
     }
 
     // Generator treo đến khi bị huỷ, để quan sát việc Dispose huỷ tác vụ nền.
@@ -51,7 +51,7 @@ public sealed class IndexingViewModelTests
         public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Cancelled { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options) => new BlockingGenerator(this);
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose) => new BlockingGenerator(this);
     }
 
     private sealed class BlockingGenerator(BlockingEmbeddingFactory owner) : IEmbeddingGenerator<string, Embedding<float>>
@@ -166,8 +166,8 @@ public sealed class IndexingViewModelTests
     {
         private int _calls;
 
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options)
-            => (Interlocked.Increment(ref _calls) == 1 ? first : second).Create(options);
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose)
+            => (Interlocked.Increment(ref _calls) == 1 ? first : second).Create(options, purpose);
     }
 
     [Fact]
