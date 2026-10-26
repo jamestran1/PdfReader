@@ -244,29 +244,18 @@ public sealed class WorkspaceIndexingRunnerTests
     }
 
     [Fact]
-    public void SetExternallyIndexing_ShowsTheCountAndZeroClearsIt()
-    {
-        using var queue = Create((_, _) => Task.CompletedTask);
-
-        queue.SetExternallyIndexing(2);
-        Assert.Equal("Đang lập chỉ mục 2 tài liệu, câu trả lời chưa gồm các tài liệu này.", queue.StatusText);
-
-        queue.SetExternallyIndexing(0);
-        Assert.Equal(string.Empty, queue.StatusText);
-    }
-
-    [Fact]
-    public async Task SetExternallyIndexing_AddsToTheQueuedRemainingCount()
+    public async Task IsQueued_TrueWhileTheRunnerOwnsTheDocumentAndFalseAfterItFinishes()
     {
         var gate = new TaskCompletionSource();
         using var queue = Create(async (_, _) => await gate.Task);
 
-        queue.SetExternallyIndexing(1);
         queue.Enqueue([Doc("a")]);
+        Assert.True(queue.IsQueued("a"));
+        Assert.False(queue.IsQueued("other"));
 
-        Assert.Equal("Đang lập chỉ mục 2 tài liệu, câu trả lời chưa gồm các tài liệu này.", queue.StatusText);
         gate.SetResult();
         await Finished(queue);
+        Assert.False(queue.IsQueued("a"));
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition)

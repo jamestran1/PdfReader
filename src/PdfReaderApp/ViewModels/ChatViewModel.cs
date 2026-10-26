@@ -303,7 +303,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: RAG lỗi: {ex}");
-            if (Scope == DocumentScope.Workspace) ScopeNotice = PageOnlyNotice;
+            if (Scope == DocumentScope.Workspace) AppendScopeNotice(PageOnlyNotice);
         }
 #pragma warning restore CA1031
         return rag ?? new BuiltContext(
@@ -317,6 +317,9 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         return text is null ? null : new BuiltContext(text, []);
     }
 
+    private void AppendScopeNotice(string notice)
+        => ScopeNotice = ScopeNotice.Length == 0 ? notice : $"{ScopeNotice} {notice}";
+
     // Câu hỏi không chờ tài liệu chưa index: chỉ dùng tài liệu đã Complete, phần còn lại đưa vào lập chỉ mục nền.
     private async Task<BuiltContext?> BuildWorkspaceRagAsync(string question, CancellationToken ct)
     {
@@ -324,18 +327,27 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
         // Xếp hàng lập chỉ mục TRƯỚC khi nhúng câu hỏi: nhúng lỗi (mạng, key) không được làm mất việc lập chỉ mục.
         if (plan.Unindexed.Count > 0) _workspace.Indexing.Enqueue(plan.Unindexed);
-        _workspace.Indexing.SetExternallyIndexing(plan.Indexing.Count);
+
+        // Tài liệu đang lập chỉ mục ở nơi khác (vd tài liệu đang mở) chỉ được nêu một lần cho câu hỏi này, không giữ lâu dài:
+        // không có sự kiện nào báo khi chúng xong nên một con số lưu lại sẽ cũ đi. Tài liệu runner đang giữ claim thì đã có
+        // trong StatusText của runner nên không đếm lại.
+        int elsewhere = plan.Indexing.Count(d => !_workspace.Indexing.IsQueued(d.DocumentId));
+        if (elsewhere > 0)
+        {
+            ScopeNotice = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"Khi bạn hỏi, {elsewhere} tài liệu đang được lập chỉ mục ở nơi khác nên câu trả lời này chưa gồm tài liệu đó.");
+        }
 
         if (plan.MissingEmbeddingKeyProvider is { } provider)
         {
-            ScopeNotice = $"{AiErrorMessages.NotConfigured(provider)} {PageOnlyNotice}";
+            AppendScopeNotice($"{AiErrorMessages.NotConfigured(provider)} {PageOnlyNotice}");
             return null;
         }
 
         WorkspaceRagResult result = await _ragContext.BuildWorkspaceContextAsync(plan, question, ct: ct);
         if (result.Context is null)
         {
-            ScopeNotice = PageOnlyNotice;
+            AppendScopeNotice(PageOnlyNotice);
             return null;
         }
 

@@ -380,7 +380,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkspaceScope_DocumentBeingIndexedElsewhere_IsCountedInTheNotice()
+    public async Task WorkspaceScope_DocumentBeingIndexedElsewhere_IsMentionedInTheNoticeForThatQuestion()
     {
         var chat = CreateChat();
         _statuses["e"] = DocumentIndexStatus.Indexing;
@@ -389,7 +389,33 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
 
         await AskAsync(chat, "câu hỏi");
 
+        Assert.Equal(
+            "Khi bạn hỏi, 1 tài liệu đang được lập chỉ mục ở nơi khác nên câu trả lời này chưa gồm tài liệu đó.",
+            chat.Notice);
+        Assert.Equal(string.Empty, chat.WorkspaceIndexing.StatusText);
+    }
+
+    [Fact]
+    public async Task WorkspaceScope_AskedTwiceWhileRunnerIndexes_CountsEachDocumentOnceAndEndsWithDoneText()
+    {
+        var chat = CreateChat();
+        _statuses["c"] = DocumentIndexStatus.None;
+        _documents = [Doc("a", "Sách A"), Doc("c", "Sách C")];
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
+
+        await AskAsync(chat, "câu hỏi một");
+        await WaitUntilAsync(() => _indexedInBackground.Count >= 1);
+        _statuses["c"] = DocumentIndexStatus.Indexing; // lập chỉ mục thật giữ claim của chính hàng đợi
+        await AskAsync(chat, "câu hỏi hai");
+
+        // Tài liệu do chính hàng đợi xử lý không được tính lại như "ở nơi khác".
         Assert.Equal("Đang lập chỉ mục 1 tài liệu, câu trả lời chưa gồm các tài liệu này.", chat.Notice);
+
+        _statuses["c"] = DocumentIndexStatus.Complete;
+        _indexingGate.SetResult();
+        await chat.WorkspaceIndexing.BackgroundTask!.WaitAsync(Timeout);
+
+        Assert.Equal("Đã lập chỉ mục xong 1 tài liệu. Hỏi lại để câu trả lời gồm cả các tài liệu này.", chat.Notice);
     }
 
     [Fact]

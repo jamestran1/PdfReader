@@ -16,7 +16,6 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
     // Tăng mỗi lần huỷ hoặc Dispose: báo cáo của lượt đã bị huỷ có thể tới muộn và không được ghi đè trạng thái mới.
     private int _generation;
     private IndexingTally _tally = new(0, 0, 0);
-    private int _externallyIndexing;
     private bool _disposed;
 
     /// <summary>Số liệu để dựng thông báo: còn chờ, đã lập xong (đạt Complete), không lập được.</summary>
@@ -61,14 +60,9 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
         BackgroundTask = Task.Run(() => RunAsync(previous, fresh, generation, ct));
     }
 
-    /// <summary>Báo số tài liệu đang được lập chỉ mục bởi tác vụ khác (vd tài liệu đang mở) để thông báo tính cả chúng.
-    /// Gọi mỗi lần hỏi: đặt lại số đếm, 0 nghĩa là không còn.</summary>
-    public void SetExternallyIndexing(int count)
-    {
-        if (_disposed) return;
-        _externallyIndexing = count;
-        Publish();
-    }
+    /// <summary>Tài liệu có đang nằm trong hàng đợi (chờ hoặc đang chạy) của chính runner này không. Dùng để phân biệt
+    /// tài liệu mà runner đang giữ claim với tài liệu được lập chỉ mục ở nơi khác (vd tài liệu đang mở).</summary>
+    public bool IsQueued(string documentId) => _queued.Contains(documentId);
 
     /// <summary>Huỷ việc đang chạy và xoá hàng đợi, thông báo. Gọi khi đổi Workspace
     /// (<c>ChatViewModel.LoadHistory</c> thấy owner khác) và từ <see cref="Dispose"/>.</summary>
@@ -80,7 +74,6 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
         _generation++;
         _queued.Clear();
         _tally = new IndexingTally(0, 0, 0);
-        _externallyIndexing = 0;
         StatusText = string.Empty;
     }
 
@@ -137,7 +130,7 @@ public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposa
         Publish();
     }
 
-    private void Publish() => StatusText = FormatStatus(_tally with { Remaining = _tally.Remaining + _externallyIndexing });
+    private void Publish() => StatusText = FormatStatus(_tally);
 
     internal static string FormatStatus(IndexingTally tally)
     {
