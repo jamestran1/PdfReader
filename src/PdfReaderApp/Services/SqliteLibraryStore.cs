@@ -41,30 +41,27 @@ CREATE TABLE IF NOT EXISTS library (
             cmd.ExecuteNonQuery();
 
             // DB tạo trước #78 thiếu hai cột này; thêm tại chỗ để giữ dữ liệu cũ.
-            AddColumnIfMissing(conn, "library", "author", "TEXT");
-            AddColumnIfMissing(conn, "library", "publisher", "TEXT");
+            // Tên bảng/cột không truyền qua tham số được nên câu ALTER viết cứng, không ghép chuỗi (#123).
+            if (!ColumnExists(conn, "library", "author"))
+                Exec(conn, "ALTER TABLE library ADD COLUMN author TEXT");
+            if (!ColumnExists(conn, "library", "publisher"))
+                Exec(conn, "ALTER TABLE library ADD COLUMN publisher TEXT");
         }
     }
 
     private static bool ColumnExists(SqliteConnection conn, string table, string column)
     {
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"PRAGMA table_info({table})";
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
-        {
-            if (string.Equals(reader.GetString(1), column, System.StringComparison.Ordinal))
-                return true;
-        }
-
-        return false;
+        cmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info($table) WHERE name = $column";
+        cmd.Parameters.AddWithValue("$table", table);
+        cmd.Parameters.AddWithValue("$column", column);
+        return System.Convert.ToInt64(cmd.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
     }
 
-    private static void AddColumnIfMissing(SqliteConnection conn, string table, string column, string columnType)
+    private static void Exec(SqliteConnection conn, string sql)
     {
-        if (ColumnExists(conn, table, column)) return;
         using var cmd = conn.CreateCommand();
-        cmd.CommandText = $"ALTER TABLE {table} ADD COLUMN {column} {columnType}";
+        cmd.CommandText = sql;
         cmd.ExecuteNonQuery();
     }
 
