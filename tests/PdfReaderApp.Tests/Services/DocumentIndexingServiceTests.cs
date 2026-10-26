@@ -403,7 +403,9 @@ public class DocumentIndexingServiceTests
         var factory = new CountingEmbedFactory();
         var svc = new DocumentIndexingService(index, factory, new FakeSettings("sk-x"));
 
-        await svc.IndexAsync("doc1", "a.pdf", Pages("some text"), null, CancellationToken.None);
+        var outcome = await svc.IndexAsync("doc1", "a.pdf", Pages("some text"), null, CancellationToken.None);
+
+        Assert.Equal(IndexingOutcome.SkippedAnotherRunIndexing, outcome);
 
         Assert.Empty(index.Written);
         Assert.Empty(index.Embeddings);
@@ -421,7 +423,9 @@ public class DocumentIndexingServiceTests
         var svc = new DocumentIndexingService(index, factory, new FakeSettings("sk-x"));
         var progress = new SyncProgress();
 
-        await svc.IndexAsync("doc1", "a.pdf", Pages("some text"), progress, CancellationToken.None);
+        var outcome = await svc.IndexAsync("doc1", "a.pdf", Pages("some text"), progress, CancellationToken.None);
+
+        Assert.Equal(IndexingOutcome.Superseded, outcome);
 
         Assert.Empty(index.Embeddings);
         Assert.Equal(DocumentIndexStatus.Indexing, index.StatusByModel[model]);

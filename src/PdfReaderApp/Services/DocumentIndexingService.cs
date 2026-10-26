@@ -19,7 +19,7 @@ public sealed class DocumentIndexingService
         _settings = settings;
     }
 
-    public async Task IndexAsync(
+    public async Task<IndexingOutcome> IndexAsync(
         string documentId, string? filePath, IReadOnlyList<PageText> pages,
         IProgress<IndexingProgress>? progress, CancellationToken ct)
     {
@@ -30,16 +30,17 @@ public sealed class DocumentIndexingService
         if (_index.GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Complete)
         {
             progress?.Report(new IndexingProgress(0, 0, "complete"));
-            return;
+            return IndexingOutcome.Finished;
         }
 
         // Giành quyền trước khi đụng tới chunk: tài liệu đang mở và hàng đợi Workspace có thể cùng muốn lập chỉ mục
         // một tài liệu; lượt thua bỏ qua để không ghi chunk chồng nhau (mồ côi vector) và không nhúng hai lần.
-        if (!_index.TryBeginIndexing(documentId, embeddingModel, out long claimToken)) return;
+        if (!_index.TryBeginIndexing(documentId, embeddingModel, out long claimToken))
+            return IndexingOutcome.SkippedAnotherRunIndexing;
 
         try
         {
-            await IndexClaimedAsync(documentId, filePath, pages, progress, new ClaimedRun(embeddingModel, models, claimToken), ct);
+            return await IndexClaimedAsync(documentId, filePath, pages, progress, new ClaimedRun(embeddingModel, models, claimToken), ct);
         }
         catch (Exception)
         {
@@ -55,7 +56,7 @@ public sealed class DocumentIndexingService
 
     // Lượt mất claim giữa chừng (tài liệu bị xoá để lập chỉ mục lại, lượt khác đã giành claim) dừng im lặng, như lượt thua ở
     // đầu IndexAsync: không ghi thêm vector mồ côi, không đè trạng thái của lượt mới, không báo thành công hay lỗi.
-    private async Task IndexClaimedAsync(
+    private async Task<IndexingOutcome> IndexClaimedAsync(
         string documentId, string? filePath, IReadOnlyList<PageText> pages,
         IProgress<IndexingProgress>? progress, ClaimedRun run, CancellationToken ct)
     {
@@ -68,15 +69,13 @@ public sealed class DocumentIndexingService
 
         if (stored.Count == 0)
         {
-            _index.FinishIndexing(documentId, embeddingModel, claimToken, DocumentIndexStatus.Empty);
-            return;
+            return Finish(documentId, run, DocumentIndexStatus.Empty);
         }
 
         // Không có kho vector thì WriteEmbeddings bỏ qua; đánh dấu Complete sẽ không bao giờ nhúng lại khi vec0 nạp được.
         if (!_index.VectorSearchAvailable)
         {
-            _index.FinishIndexing(documentId, embeddingModel, claimToken, DocumentIndexStatus.TextOnly);
-            return;
+            return Finish(documentId, run, DocumentIndexStatus.TextOnly);
         }
 
         progress?.Report(new IndexingProgress(0, stored.Count, "indexing"));
@@ -84,8 +83,7 @@ public sealed class DocumentIndexingService
         string? key = _settings.GetApiKey(models.EmbeddingProvider);
         if (string.IsNullOrEmpty(key))
         {
-            _index.FinishIndexing(documentId, embeddingModel, claimToken, DocumentIndexStatus.TextOnly);
-            return;
+            return Finish(documentId, run, DocumentIndexStatus.TextOnly);
         }
 
         // Xoá vector dở dang của chính model này (Partial) trước khi nhúng lại; vector model khác giữ nguyên.
@@ -93,11 +91,17 @@ public sealed class DocumentIndexingService
 
         using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key), EmbeddingPurpose.Document);
         int? done = await EmbedAllBatchesAsync(generator, documentId, run, stored, progress, ct);
-        if (done is null) return;
+        if (done is null) return IndexingOutcome.Superseded;
 
-        if (!_index.FinishIndexing(documentId, embeddingModel, claimToken, DocumentIndexStatus.Complete)) return;
+        if (Finish(documentId, run, DocumentIndexStatus.Complete) == IndexingOutcome.Superseded) return IndexingOutcome.Superseded;
         progress?.Report(new IndexingProgress(done.Value, stored.Count, "complete"));
+        return IndexingOutcome.Finished;
     }
+
+    private IndexingOutcome Finish(string documentId, ClaimedRun run, DocumentIndexStatus status)
+        => _index.FinishIndexing(documentId, run.EmbeddingModel, run.ClaimToken, status)
+            ? IndexingOutcome.Finished
+            : IndexingOutcome.Superseded;
 
     private IReadOnlyList<StoredChunk> LoadOrWriteChunks(
         string documentId, string? filePath, IReadOnlyList<PageText> pages)
