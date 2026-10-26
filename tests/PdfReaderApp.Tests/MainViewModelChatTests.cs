@@ -67,6 +67,7 @@ public sealed class MainViewModelChatTests : IDisposable
         public IReadOnlyList<TextBlock> ExtractStructure() => [];
         public IReadOnlyList<PageText> ExtractPageTexts() => [];
         public IReadOnlyList<MatchRect> FindMatchRects(int pageIndex, string query) => [];
+        public IReadOnlyList<MatchRect> FindPassageRects(int pageIndex, IReadOnlyList<string> fragments) => [];
         public void Dispose() { }
     }
 
@@ -375,5 +376,29 @@ public sealed class MainViewModelChatTests : IDisposable
         var (vm, _) = OpenedDocumentVm(DocumentIndexStatus.None, seeded);
 
         Assert.Equal(["Câu hỏi cũ", "Trả lời cũ"], vm.Chat.Messages.Select(m => m.Content), StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void OpenCitationSource_HighlightsCitedPassageOnItsPage()
+    {
+        var vm = BuildVm(hasKey: true, () => Tokens("x"), new FakeChatHistoryStore());
+
+        vm.OpenCitationSource(new RagSource(1, "doc", "Sách", 2, "đoạn nguồn được trích"));
+
+        Assert.NotNull(vm.ActiveSourceHighlight);
+        Assert.Equal("doc", vm.ActiveSourceHighlight.DocumentId);
+        Assert.Equal(2, vm.ActiveSourceHighlight.PageIndex);
+        Assert.Equal(["đoạn nguồn được trích"], vm.ActiveSourceHighlight.Fragments);
+    }
+
+    [Fact]
+    public void OpenCitationSource_SourceSavedWithoutPassage_ClearsPreviousHighlight()
+    {
+        var vm = BuildVm(hasKey: true, () => Tokens("x"), new FakeChatHistoryStore());
+        vm.OpenCitationSource(new RagSource(1, "doc", "Sách", 2, "đoạn nguồn"));
+
+        vm.OpenCitationSource(new RagSource(2, "doc", "Sách", 5));
+
+        Assert.Null(vm.ActiveSourceHighlight);
     }
 }

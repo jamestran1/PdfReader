@@ -22,6 +22,10 @@ internal sealed class ViewerFrameComposer
     private string? _matchCacheQuery;
     private readonly Dictionary<int, IReadOnlyList<MatchRect>> _matchCache = [];
 
+    // Vùng đoạn nguồn chỉ nằm trên một trang nên giữ một kết quả cho trích dẫn đang mở.
+    private SourceHighlight? _sourceCacheKey;
+    private IReadOnlyList<MatchRect>? _sourceRects;
+
     public ViewerFrameComposer(PageBitmapCache pageCache, RenderEngine renderEngine, Func<bool>? isDarkTheme = null)
     {
         _pageCache = pageCache;
@@ -34,6 +38,8 @@ internal sealed class ViewerFrameComposer
     {
         _matchCache.Clear();
         _matchCacheQuery = null;
+        _sourceCacheKey = null;
+        _sourceRects = null;
     }
 
     /// <summary>Dựng khung rồi vẽ lên surface của lần paint; bỏ qua khi chưa có surface.</summary>
@@ -57,7 +63,8 @@ internal sealed class ViewerFrameComposer
             pageIndex => GetPageBitmap(session, pageIndex, scale * dpiX),
             session.ImageRectsByPage,
             matchSource == null ? null : (pageIndex, query) => GetMatchRects(matchSource, pageIndex, query),
-            pageIndex => session.GetPageSize(pageIndex).Height);
+            pageIndex => session.GetPageSize(pageIndex).Height,
+            SourceRectsFor(state));
 
         return new PaintFrame(
             state.Slots, scale, (dpiX, dpiY), state.Scroll, state.ViewportHeight,
@@ -80,6 +87,23 @@ internal sealed class ViewerFrameComposer
         var page = session.Document.Pages[pageIndex];
         session.ObjectManager.MapPage(page, pageIndex);
         return _pageCache.GetOrRender(pageIndex, () => _renderEngine.RenderPage(page, renderScale));
+    }
+
+    private Func<int, IReadOnlyList<MatchRect>>? SourceRectsFor(ViewerFrameState state)
+    {
+        if (state.MatchSource is not { } source || state.SourceHighlight is not { } highlight) return null;
+        if (!string.Equals(highlight.DocumentId, state.CurrentDocumentId, StringComparison.Ordinal)) return null;
+        return pageIndex => pageIndex == highlight.PageIndex ? GetSourceRects(source, highlight) : [];
+    }
+
+    private IReadOnlyList<MatchRect> GetSourceRects(IPdfDocumentService source, SourceHighlight highlight)
+    {
+        if (_sourceRects is null || !ReferenceEquals(_sourceCacheKey, highlight))
+        {
+            _sourceRects = source.FindPassageRects(highlight.PageIndex, highlight.Fragments);
+            _sourceCacheKey = highlight;
+        }
+        return _sourceRects;
     }
 
     private IReadOnlyList<MatchRect> GetMatchRects(IPdfDocumentService source, int pageIndex, string query)

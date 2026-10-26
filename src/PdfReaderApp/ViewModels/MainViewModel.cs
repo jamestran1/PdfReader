@@ -292,7 +292,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _library = services.Library;
         ReloadLibrary();
 
-        Chat = ChatViewModel.Create(services, GetChatContext, GetWorkspaceDocuments, JumpToDocument);
+        Chat = ChatViewModel.Create(services, GetChatContext, GetWorkspaceDocuments, OpenCitationSource);
 
         _noteStore = services.NoteStore;
         _noteStore.EnsureSchema();
@@ -711,6 +711,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         finally { _keepSearchOnTabChange = false; }
     }
 
+    /// <summary>Đoạn nguồn của trích dẫn AI vừa mở, viewer của Document đó tô trên trang; null khi chưa mở trích dẫn
+    /// nào hoặc nguồn không mang chữ của đoạn (lịch sử chat bản cũ).</summary>
+    [ObservableProperty]
+    public partial SourceHighlight? ActiveSourceHighlight { get; set; }
+
+    /// <summary>Mở nguồn của trích dẫn <c>[n]</c>: Cross-doc jump tới Document và trang được trích rồi tô đoạn nguồn.</summary>
+    public void OpenCitationSource(RagSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        JumpToDocument(source.DocumentId, source.PageIndex);
+        ActiveSourceHighlight = SourceHighlight.From(source);
+    }
+
     /// <summary>Cross-doc jump: mở hoặc kích hoạt tab của <paramref name="documentId"/> rồi cuộn tới trang
     /// (<paramref name="pageIndex"/> tính từ 0). Dùng chung cho note, kết quả tìm kiếm và trích dẫn AI.</summary>
     public void JumpToDocument(string documentId, int pageIndex) => OpenDocumentForNote(documentId, pageIndex);
@@ -921,7 +934,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _documentId,
         IsWorkspaceSession ? _activeWorkspaceId : _documentId,
         _documentBlocks,
-        CurrentPage);
+        CurrentPage,
+        Library.FirstOrDefault(i => i.DocumentId == _documentId)?.Title
+            ?? System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty));
 
     [RelayCommand]
     private void OpenSettings()

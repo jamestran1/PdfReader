@@ -220,6 +220,47 @@ public class ITextPdfDocumentServiceTests : IDisposable
         }
     }
 
+    [Fact]
+    public void FindPassageRects_FragmentWrappingOntoNextLine_ReturnsOneRectPerLine()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "Trước khi đi kinh hành ta phải\nxác định rõ mục tiêu", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            var rects = service.FindPassageRects(0, ["kinh hanh ta phai xac dinh"]);
+
+            // Một hộp bao cả hai dòng sẽ tô cả phần đầu dòng 1 và đuôi dòng 2 không thuộc đoạn nguồn.
+            Assert.Equal(2, rects.Count);
+            Assert.NotEqual(rects[0].PdfY, rects[1].PdfY);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void FindPassageRects_OneFragmentMissingFromPage_StillLocatesTheOthers()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "Trước khi đi kinh hành ta phải xác định", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            Assert.Single(service.FindPassageRects(0, ["ky sinh trung", "kinh hanh"]));
+            Assert.Empty(service.FindPassageRects(0, []));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     private static void CreateTwoPagePdf(string path, string page1Text, string page2Text)
     {
         using var writer = new PdfWriter(path);

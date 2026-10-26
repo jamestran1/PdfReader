@@ -74,12 +74,23 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         if (_pdfDoc is null)
             throw new InvalidOperationException("Call LoadFile before FindMatchRects.");
 
-        var result = new List<MatchRect>();
-        if (string.IsNullOrWhiteSpace(query)) return result;
-        if (pageIndex < 0 || pageIndex >= _pdfDoc.GetNumberOfPages()) return result;
+        return LocateRects(pageIndex, AccentInsensitiveRegex.BuildPattern(query));
+    }
 
-        string pattern = AccentInsensitiveRegex.BuildPattern(query);
+    public IReadOnlyList<MatchRect> FindPassageRects(int pageIndex, IReadOnlyList<string> fragments)
+    {
+        if (_pdfDoc is null)
+            throw new InvalidOperationException("Call LoadFile before FindPassageRects.");
+
+        // One alternation pattern: a single pass over the page content instead of one per fragment.
+        return LocateRects(pageIndex, AccentInsensitiveRegex.BuildAlternation(fragments));
+    }
+
+    private List<MatchRect> LocateRects(int pageIndex, string pattern)
+    {
+        var result = new List<MatchRect>();
         if (pattern.Length == 0) return result;
+        if (pageIndex < 0 || pageIndex >= _pdfDoc!.GetNumberOfPages()) return result;
 
         // iText computes the match rectangle from the real glyph layout, so it tracks the keyword
         // exactly (no per-glyph reconstruction guesswork).

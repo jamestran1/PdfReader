@@ -87,6 +87,17 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         set => SetValue(MatchSourceProperty, value);
     }
 
+    // Đoạn nguồn của trích dẫn AI vừa mở (bound tới MainViewModel.ActiveSourceHighlight); chỉ tô ở viewer của đúng Document.
+    public static readonly DependencyProperty SourceHighlightProperty =
+        DependencyProperty.Register(nameof(SourceHighlight), typeof(Core.SourceHighlight), typeof(PdfViewerControl),
+            new PropertyMetadata(null, OnHighlightChanged));
+
+    public Core.SourceHighlight? SourceHighlight
+    {
+        get => (Core.SourceHighlight?)GetValue(SourceHighlightProperty);
+        set => SetValue(SourceHighlightProperty, value);
+    }
+
     // DependencyProperty: command nhận NoteSelection khi người dùng bấm "Thêm ghi chú"
     public static readonly DependencyProperty AddNoteFromSelectionCommandProperty =
         DependencyProperty.Register(nameof(AddNoteFromSelectionCommand), typeof(System.Windows.Input.ICommand),
@@ -448,7 +459,8 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         _slots, ZoomLevel, (skiaCanvas.ActualWidth, skiaCanvas.ActualHeight),
         (PagesScrollViewer.HorizontalOffset, PagesScrollViewer.VerticalOffset), PagesScrollViewer.ViewportHeight,
         TryFindResource("TriThu.Brush.SurfaceTonalLow"),
-        _pointerInput.SelectionPageIndex, _pointerInput.SelectionRects, HighlightQuery, Highlights, CurrentDocumentId, MatchSource);
+        _pointerInput.SelectionPageIndex, _pointerInput.SelectionRects, HighlightQuery, Highlights, CurrentDocumentId, MatchSource,
+        SourceHighlight);
 
     // Trong khi pending, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
     // Timer ổn định hoá re-assert cuộn tới trang đích sau nạp (xem ScrollSettleTimer).

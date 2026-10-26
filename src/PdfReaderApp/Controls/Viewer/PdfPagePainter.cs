@@ -39,6 +39,7 @@ internal static class PdfPagePainter
 
             DrawPageSlot(canvas, slot, rect, frame);
             DrawSearchMatches(canvas, slot.PageIndex, rect, frame);
+            DrawSourcePassage(canvas, slot.PageIndex, rect, frame);
             DrawSelectionOverlay(canvas, slot.PageIndex, rect, frame);
             DrawSavedHighlights(canvas, slot.PageIndex, rect, frame);
         }
@@ -124,6 +125,19 @@ internal static class PdfPagePainter
         using var highlightPaint = new SKPaint { Color = new SKColor(255, 235, 59, 110), IsStroke = false };
         foreach (var m in rects)
             canvas.DrawRect(ToSkRect(OverlayGeometry.SearchMatch(m, pageHeightPt, frame.Zoom, page)), highlightPaint);
+    }
+
+    // Cam nhạt, khác vàng của kết quả tìm và xanh của vùng chọn để đoạn nguồn trích dẫn không lẫn với chúng.
+    private static void DrawSourcePassage(SKCanvas canvas, int pageIndex, WpfRect pageRect, PaintFrame frame)
+    {
+        var rects = frame.Sources.GetSourceRects?.Invoke(pageIndex);
+        if (rects is null || rects.Count == 0) return;
+
+        float pageHeightPt = (float)frame.Sources.GetPageHeightPt(pageIndex);
+        var page = ToRectF(pageRect);
+        using var passagePaint = new SKPaint { Color = new SKColor(255, 152, 0, 80), IsStroke = false };
+        foreach (var m in rects)
+            canvas.DrawRect(ToSkRect(OverlayGeometry.SearchMatch(m, pageHeightPt, frame.Zoom, page)), passagePaint);
     }
 
     private static RectF ToRectF(WpfRect r) => new((float)r.Left, (float)r.Top, (float)r.Width, (float)r.Height);

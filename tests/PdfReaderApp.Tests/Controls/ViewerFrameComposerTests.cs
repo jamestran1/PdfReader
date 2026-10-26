@@ -48,6 +48,14 @@ public sealed class ViewerFrameComposerTests : IDisposable
             return [new MatchRect(1, 2, 3, 4)];
         }
 
+        public int PassageCalls { get; private set; }
+
+        public IReadOnlyList<MatchRect> FindPassageRects(int pageIndex, IReadOnlyList<string> fragments)
+        {
+            PassageCalls++;
+            return [new MatchRect(5, 6, 7, 8)];
+        }
+
         public void Dispose() { }
     }
 
@@ -55,11 +63,11 @@ public sealed class ViewerFrameComposerTests : IDisposable
 
     private static ViewerFrameState State(
         object? gutter = null, IPdfDocumentService? matches = null, string query = "abc",
-        double zoom = 2, (double, double)? canvas = null)
+        double zoom = 2, (double, double)? canvas = null, SourceHighlight? source = null)
         => new(
             [new PageSlot(0, 10, 20, 100, 200)], zoom, canvas ?? (400, 300), (5, 6), ViewportHeight: 300, gutter,
             SelectionPageIndex: 3, SelectionRects: [], HighlightQuery: query, SavedHighlights: null,
-            CurrentDocumentId: "doc1", MatchSource: matches);
+            CurrentDocumentId: "doc1", MatchSource: matches, SourceHighlight: source);
 
     private static readonly SKImageInfo Info = new(800, 600);
 
@@ -166,6 +174,54 @@ public sealed class ViewerFrameComposerTests : IDisposable
         frame.Sources.GetMatchRects!(0, "abc");
 
         Assert.Equal(2, source.Calls);
+    }
+
+    [Fact]
+    public void Compose_SourceHighlightOfAnotherDocument_LeavesSourceRectsNull()
+    {
+        var source = new CountingMatchSource();
+        var frame = Composer().Compose(
+            _session, State(matches: source, source: new SourceHighlight("doc2", 0, ["abc"])), Info);
+
+        Assert.Null(frame.Sources.GetSourceRects);
+    }
+
+    [Fact]
+    public void SourceRects_OtherPage_IsEmptyWithoutLookup()
+    {
+        var source = new CountingMatchSource();
+        var frame = Composer().Compose(
+            _session, State(matches: source, source: new SourceHighlight("doc1", 2, ["abc"])), Info);
+
+        Assert.Empty(frame.Sources.GetSourceRects!(0));
+        Assert.Equal(0, source.PassageCalls);
+    }
+
+    [Fact]
+    public void SourceRects_SameHighlightAcrossFrames_HitsSourceOnce()
+    {
+        var source = new CountingMatchSource();
+        var highlight = new SourceHighlight("doc1", 0, ["abc"]);
+        var composer = Composer();
+
+        var first = composer.Compose(_session, State(matches: source, source: highlight), Info).Sources.GetSourceRects!(0);
+        var second = composer.Compose(_session, State(matches: source, source: highlight), Info).Sources.GetSourceRects!(0);
+
+        Assert.Equal([new MatchRect(5, 6, 7, 8)], first);
+        Assert.Same(first, second);
+        Assert.Equal(1, source.PassageCalls);
+    }
+
+    [Fact]
+    public void SourceRects_NewHighlight_LooksUpAgain()
+    {
+        var source = new CountingMatchSource();
+        var composer = Composer();
+
+        composer.Compose(_session, State(matches: source, source: new SourceHighlight("doc1", 0, ["abc"])), Info).Sources.GetSourceRects!(0);
+        composer.Compose(_session, State(matches: source, source: new SourceHighlight("doc1", 0, ["xyz"])), Info).Sources.GetSourceRects!(0);
+
+        Assert.Equal(2, source.PassageCalls);
     }
 
     [Fact]
