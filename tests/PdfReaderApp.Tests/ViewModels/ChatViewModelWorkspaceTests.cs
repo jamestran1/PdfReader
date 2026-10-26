@@ -132,7 +132,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     private static WorkspaceDocument Doc(string id, string title) => new(id, title, $"C:\\lib\\{id}.pdf");
 
     private readonly FakeHistory _history = new();
-    private readonly List<(string DocumentId, int PageIndex)> _jumps = [];
+    private readonly List<RagSource> _openedSources = [];
 
     private ChatViewModel CreateChat(string? currentDocumentId = "a")
     {
@@ -155,9 +155,9 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
             new AiChatService(settings, new FakeChatClientFactory(_sent)),
             _history,
             new RagContextService(new FakeIndex(this), new FakeEmbeddingFactory(this), settings),
-            () => new ChatContext(currentDocumentId, "ws1", [], 1),
+            () => new ChatContext(currentDocumentId, "ws1", [], 1, "Sách A"),
             new ChatWorkspace(() => { _documentsRequested++; return _documents; }, runner),
-            (documentId, pageIndex) => _jumps.Add((documentId, pageIndex)));
+            _openedSources.Add);
         _chats.Add(chat);
         return chat;
     }
@@ -193,16 +193,16 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     }
 
     [Fact]
-    public async Task CurrentDocumentScope_KeepsSingleDocumentBehaviourAndNeverTouchesWorkspace()
+    public async Task CurrentDocumentScope_CitesNumberedSourcesOfThatDocumentOnlyAndNeverTouchesWorkspace()
     {
         var chat = CreateChat();
 
         await AskAsync(chat, "câu hỏi");
 
-        Assert.Contains("[Trang 1] nội dung A", LastUserTurn(), StringComparison.Ordinal);
-        Assert.DoesNotContain("Tài liệu: \"", LastUserTurn(), StringComparison.Ordinal);
+        Assert.Contains("[1] Tài liệu: \"Sách A\", Trang: 1\nnội dung A", LastUserTurn(), StringComparison.Ordinal);
+        Assert.DoesNotContain("nội dung B", LastUserTurn(), StringComparison.Ordinal);
         Assert.Equal(0, _documentsRequested);
-        Assert.Empty(chat.Messages.Last().Sources);
+        Assert.Equal([new RagSource(1, "a", "Sách A", 0, "nội dung A")], chat.Messages.Last().Sources);
     }
 
     [Fact]
@@ -229,7 +229,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         var answer = chat.Messages.Last();
         Assert.Equal("AI", answer.Role);
         Assert.Equal(
-            [new RagSource(1, "a", "Sách A", 0), new RagSource(2, "b", "Sách B", 2)],
+            [new RagSource(1, "a", "Sách A", 0, "nội dung A"), new RagSource(2, "b", "Sách B", 2, "nội dung B")],
             answer.Sources);
     }
 
@@ -242,7 +242,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         await AskAsync(chat, "câu hỏi");
 
         var ai = _history.Entries.Single(e => e.Role == "AI");
-        Assert.Equal([new RagSource(1, "a", "Sách A", 0), new RagSource(2, "b", "Sách B", 2)], ai.Sources);
+        Assert.Equal([new RagSource(1, "a", "Sách A", 0, "nội dung A"), new RagSource(2, "b", "Sách B", 2, "nội dung B")], ai.Sources);
         Assert.Empty(_history.Entries.Single(e => e.Role == "User").Sources);
     }
 
@@ -274,13 +274,14 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     }
 
     [Fact]
-    public void OpenCitationCommand_JumpsToDocumentAndZeroBasedPage()
+    public void OpenCitationCommand_OpensTheCitedSourceWithItsPassage()
     {
         var chat = CreateChat();
+        var source = new RagSource(2, "b", "Sách B", 2, "nội dung B");
 
-        chat.OpenCitationCommand.Execute(new RagSource(2, "b", "Sách B", 2));
+        chat.OpenCitationCommand.Execute(source);
 
-        Assert.Equal([("b", 2)], _jumps);
+        Assert.Equal([source], _openedSources);
     }
 
     [Fact]

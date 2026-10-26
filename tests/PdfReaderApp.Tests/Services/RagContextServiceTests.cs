@@ -59,20 +59,22 @@ public class RagContextServiceTests
         public void Dispose() { }
     }
 
+    private static readonly WorkspaceDocument Doc = new("d", "Sách D", "d.pdf");
+
     [Fact]
-    public async Task BuildContext_Complete_ReturnsJoinedChunks()
+    public async Task BuildDocumentContext_Complete_NumbersChunksLikeWorkspaceContext()
     {
         var idx = new StubIndex(DocumentIndexStatus.Complete,
         [
-            new("d", 0, 0, "first chunk"), new("d", 1, 1, "second chunk")
+            new("d", 0, 0, "first chunk"), new("d", 3, 1, "second chunk")
         ]);
         var svc = new RagContextService(idx, new FakeFactory(), new FakeSettings("sk-x"));
 
-        var ctx = await svc.BuildContextAsync("d", "câu hỏi");
+        var ctx = await svc.BuildDocumentContextAsync(Doc, "câu hỏi");
 
         Assert.NotNull(ctx);
-        Assert.Contains("first chunk", ctx);
-        Assert.Contains("second chunk", ctx);
+        Assert.Equal("[1] Tài liệu: \"Sách D\", Trang: 1\nfirst chunk\n\n[2] Tài liệu: \"Sách D\", Trang: 4\nsecond chunk", ctx.Text);
+        Assert.Equal([new RagSource(1, "d", "Sách D", 0, "first chunk"), new RagSource(2, "d", "Sách D", 3, "second chunk")], ctx.Sources);
     }
 
     private sealed class PurposeRecordingFactory : IEmbeddingGeneratorFactory
@@ -92,7 +94,7 @@ public class RagContextServiceTests
         var svc = new RagContextService(
             new StubIndex(DocumentIndexStatus.Complete, [new("d", 0, 0, "chunk")]), factory, new FakeSettings("sk-x"));
 
-        await svc.BuildContextAsync("d", "câu hỏi");
+        await svc.BuildDocumentContextAsync(Doc, "câu hỏi");
 
         Assert.Equal([EmbeddingPurpose.Query], factory.Purposes);
     }
@@ -102,7 +104,7 @@ public class RagContextServiceTests
     {
         var svc = new RagContextService(
             new StubIndex(DocumentIndexStatus.TextOnly, []), new FakeFactory(), new FakeSettings("sk-x"));
-        Assert.Null(await svc.BuildContextAsync("d", "q"));
+        Assert.Null(await svc.BuildDocumentContextAsync(Doc, "q"));
     }
 
     [Fact]
@@ -110,7 +112,7 @@ public class RagContextServiceTests
     {
         var svc = new RagContextService(
             new StubIndex(DocumentIndexStatus.Complete, []), new FakeFactory(), new FakeSettings(null));
-        Assert.Null(await svc.BuildContextAsync("d", "q"));
+        Assert.Null(await svc.BuildDocumentContextAsync(Doc, "q"));
     }
 
     [Fact]
@@ -118,6 +120,6 @@ public class RagContextServiceTests
     {
         var svc = new RagContextService(
             new StubIndex(DocumentIndexStatus.Complete, []), new FakeFactory(), new FakeSettings("sk-x"));
-        Assert.Null(await svc.BuildContextAsync("d", "q"));
+        Assert.Null(await svc.BuildDocumentContextAsync(Doc, "q"));
     }
 }

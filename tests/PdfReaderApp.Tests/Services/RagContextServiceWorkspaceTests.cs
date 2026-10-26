@@ -147,10 +147,10 @@ public class RagContextServiceWorkspaceTests
 
         Assert.Equal(
             [
-                new RagSource(1, "a", "Sách A", 0),
-                new RagSource(2, "b", "Sách B", 2),
-                new RagSource(3, "a", "Sách A", 4),
-                new RagSource(4, "b", "Sách B", 6),
+                new RagSource(1, "a", "Sách A", 0, "a-near"),
+                new RagSource(2, "b", "Sách B", 2, "b-mid"),
+                new RagSource(3, "a", "Sách A", 4, "a-far"),
+                new RagSource(4, "b", "Sách B", 6, "b-farther"),
             ],
             result.Sources);
     }

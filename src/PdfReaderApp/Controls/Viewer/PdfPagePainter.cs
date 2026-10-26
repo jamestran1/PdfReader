@@ -39,6 +39,7 @@ internal static class PdfPagePainter
 
             DrawPageSlot(canvas, slot, rect, frame);
             DrawSearchMatches(canvas, slot.PageIndex, rect, frame);
+            DrawSourcePassage(canvas, slot.PageIndex, rect, frame);
             DrawSelectionOverlay(canvas, slot.PageIndex, rect, frame);
             DrawSavedHighlights(canvas, slot.PageIndex, rect, frame);
         }
@@ -116,14 +117,35 @@ internal static class PdfPagePainter
         var rects = frame.Sources.GetMatchRects(pageIndex, query);
         if (rects.Count == 0) return;
 
+        DrawMatchRects(canvas, rects, pageIndex, pageRect, frame, new SKColor(255, 235, 59, 110));
+    }
+
+    // Màu cam của token TriThu.Brush.SourcePassage, khác vàng của kết quả tìm và xanh của vùng chọn
+    // để đoạn nguồn trích dẫn không lẫn với chúng.
+    private static void DrawSourcePassage(SKCanvas canvas, int pageIndex, WpfRect pageRect, PaintFrame frame)
+    {
+        var rects = frame.Sources.GetSourceRects?.Invoke(pageIndex);
+        if (rects is null || rects.Count == 0) return;
+
+        DrawMatchRects(canvas, rects, pageIndex, pageRect, frame, frame.Overlays.SourcePassageColor);
+    }
+
+    private static void DrawMatchRects(
+        SKCanvas canvas, IReadOnlyList<MatchRect> rects, int pageIndex, WpfRect pageRect, PaintFrame frame, SKColor color)
+    {
         // Trang được layout ở pageSize * zoom (1 PDF point = zoom pixel), nên mapper highlight phải dùng
         // cùng số pixel trên point, tức dpi=72. Dùng 96 thì phóng quá 1.333 lần và hộp trôi khỏi chữ.
         float pageHeightPt = (float)frame.Sources.GetPageHeightPt(pageIndex);
         var page = ToRectF(pageRect);
 
-        using var highlightPaint = new SKPaint { Color = new SKColor(255, 235, 59, 110), IsStroke = false };
+        // Một path rồi tô một lần (winding = hợp): các hộp chồng nhau (dòng iText cao hơn khoảng cách dòng,
+        // đoạn nguồn gồm nhiều mảnh kề nhau) không bị cộng alpha thành sọc đậm.
+        using var path = new SKPath();
         foreach (var m in rects)
-            canvas.DrawRect(ToSkRect(OverlayGeometry.SearchMatch(m, pageHeightPt, frame.Zoom, page)), highlightPaint);
+            path.AddRect(ToSkRect(OverlayGeometry.BottomOrigin(m, pageHeightPt, frame.Zoom, page)));
+
+        using var paint = new SKPaint { Color = color, IsStroke = false };
+        canvas.DrawPath(path, paint);
     }
 
     private static RectF ToRectF(WpfRect r) => new((float)r.Left, (float)r.Top, (float)r.Width, (float)r.Height);

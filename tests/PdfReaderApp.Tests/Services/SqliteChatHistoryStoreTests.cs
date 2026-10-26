@@ -66,7 +66,7 @@ public class SqliteChatHistoryStoreTests : IDisposable
     [Fact]
     public void Append_WithSources_RoundTripsSourceTable()
     {
-        RagSource[] sources = [new(1, "docA", "Hợp đồng", 2), new(2, "docB", "Báo cáo \"Q3\"", 0)];
+        RagSource[] sources = [new(1, "docA", "Hợp đồng", 2, "Điều 3: bên B thanh toán"), new(2, "docB", "Báo cáo \"Q3\"", 0)];
 
         _store.Append("doc1", "AI", "Theo [1] và [2]", 5, sources);
 
@@ -103,6 +103,25 @@ INSERT INTO chat_message (document_id, role, content, created_at) VALUES ('d', '
         var all = store.GetAll("d");
         Assert.Empty(all[0].Sources);
         Assert.Single(all[1].Sources);
+    }
+
+    [Fact]
+    public void GetAll_SourcesSavedBeforePassageExisted_LoadWithoutPassage()
+    {
+        string path = Path.Combine(_dir, "pre-passage.db");
+        var store = new SqliteChatHistoryStore(path);
+        store.EnsureSchema();
+        using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+INSERT INTO chat_message (document_id, role, content, created_at, sources)
+VALUES ('d', 'AI', 'Cũ [1]', 1, '[{""Number"":1,""DocumentId"":""x"",""Title"":""T"",""PageIndex"":3}]');";
+            cmd.ExecuteNonQuery();
+        }
+
+        Assert.Equal([new RagSource(1, "x", "T", 3)], store.GetAll("d").Single().Sources);
     }
 
     public void Dispose()

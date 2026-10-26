@@ -87,6 +87,31 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         set => SetValue(MatchSourceProperty, value);
     }
 
+    // Đoạn nguồn của trích dẫn AI vừa mở (bound tới MainViewModel.ActiveSourcePassage); chỉ tô ở viewer của đúng Document.
+    public static readonly DependencyProperty SourcePassageProperty =
+        DependencyProperty.Register(nameof(SourcePassage), typeof(Core.SourcePassage), typeof(PdfViewerControl),
+            new PropertyMetadata(null, OnSourcePassageChanged));
+
+    public Core.SourcePassage? SourcePassage
+    {
+        get => (Core.SourcePassage?)GetValue(SourcePassageProperty);
+        set => SetValue(SourcePassageProperty, value);
+    }
+
+    private static void OnSourcePassageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var control = (PdfViewerControl)d;
+        control.skiaCanvas.InvalidateVisual();
+
+        // Trích dẫn có thể trỏ tới trang đang hiện nên CurrentPage không đổi và không có gì cuộn tới đoạn nguồn.
+        // Đang chờ cuộn sau khi nạp thì timer ổn định hoá tự cuộn tới đó.
+        if (e.NewValue is Core.SourcePassage passage && passage.BelongsTo(control.CurrentDocumentId)
+            && control._currentDocument != null && !control.ScrollSettle.IsPending)
+        {
+            control.ScrollToPage(passage.PageIndex + 1);
+        }
+    }
+
     // DependencyProperty: command nhận NoteSelection khi người dùng bấm "Thêm ghi chú"
     public static readonly DependencyProperty AddNoteFromSelectionCommandProperty =
         DependencyProperty.Register(nameof(AddNoteFromSelectionCommand), typeof(System.Windows.Input.ICommand),
@@ -431,10 +456,26 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
 
     private void ScrollToPage(int page)
     {
-        int pageIndex = page - 1;
+        if (TargetOffsetOfPage(page - 1) is { } offset)
+            PagesScrollViewer.ScrollToVerticalOffset(offset);
+    }
+
+    // Đầu trang, hoặc vị trí đoạn nguồn khi trích dẫn đang mở trỏ tới trang này của tài liệu này.
+    private double? TargetOffsetOfPage(int pageIndex)
+    {
         var slot = _slots.FirstOrDefault(s => s.PageIndex == pageIndex);
-        if (slot != null)
-            PagesScrollViewer.ScrollToVerticalOffset(slot.Y);
+        if (slot is null) return null;
+
+        if (SourcePassage is not { } passage || MatchSource is not { } source || _session is null
+            || passage.PageIndex != pageIndex
+            || !passage.BelongsTo(CurrentDocumentId))
+        {
+            return slot.Y;
+        }
+
+        return Core.OverlayGeometry.PassageScrollOffset(
+            slot.Y, (float)_session.GetPageSize(pageIndex).Height, (float)ZoomLevel,
+            _frameComposer.GetSourceRects(source, passage), PagesScrollViewer.ViewportHeight);
     }
 
     private void OnPaintCanvas(object sender, SKPaintSurfaceEventArgs e)
@@ -448,7 +489,8 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         _slots, ZoomLevel, (skiaCanvas.ActualWidth, skiaCanvas.ActualHeight),
         (PagesScrollViewer.HorizontalOffset, PagesScrollViewer.VerticalOffset), PagesScrollViewer.ViewportHeight,
         TryFindResource("TriThu.Brush.SurfaceTonalLow"),
-        _pointerInput.SelectionPageIndex, _pointerInput.SelectionRects, HighlightQuery, Highlights, CurrentDocumentId, MatchSource);
+        _pointerInput.SelectionPageIndex, _pointerInput.SelectionRects, HighlightQuery, Highlights, CurrentDocumentId, MatchSource,
+        SourcePassage, TryFindResource("TriThu.Brush.SourcePassage"));
 
     // Trong khi pending, ScrollChanged KHÔNG đồng bộ scroll->trang (chặn ghi đè CurrentPage về cover).
     // Timer ổn định hoá re-assert cuộn tới trang đích sau nạp (xem ScrollSettleTimer).
@@ -457,7 +499,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     private Viewer.ScrollSettleTimer ScrollSettle => _scrollSettleTimer ??= new Viewer.ScrollSettleTimer(
         PagesScrollViewer,
         () => _currentDocument != null,
-        pageIndex => _slots.FirstOrDefault(s => s.PageIndex == pageIndex)?.Y);
+        TargetOffsetOfPage);
 
     // Bật guard pending (chặn đồng bộ scroll->trang) NGAY trước các bước layout của LoadDocument để
     // ScrollChanged trung gian không kéo CurrentPage về trang đầu. Việc cuộn thực sự do timer ổn-định-hoá

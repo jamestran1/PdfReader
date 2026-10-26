@@ -292,7 +292,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _library = services.Library;
         ReloadLibrary();
 
-        Chat = ChatViewModel.Create(services, GetChatContext, GetWorkspaceDocuments, JumpToDocument);
+        Chat = ChatViewModel.Create(services, GetChatContext, GetWorkspaceDocuments, OpenCitationSource);
 
         _noteStore = services.NoteStore;
         _noteStore.EnsureSchema();
@@ -384,6 +384,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Nhảy từ kết quả tìm Toàn Workspace: giữ ô tìm, kết quả và phạm vi để bấm tiếp kết quả khác.
         if (!_keepSearchOnTabChange) Search.Reset();
+
+        // Tab mới (hoặc không còn tab) thì đoạn nguồn của tài liệu trước không còn nghĩa.
+        ActiveSourcePassage = null;
 
         if (incoming is not null)
             HydrateTab(incoming);
@@ -688,7 +691,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         {
             return _documentId is null
                 ? []
-                : [new WorkspaceDocument(_documentId, System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty), FilePath ?? string.Empty)];
+                : [new WorkspaceDocument(_documentId, CurrentDocumentTitle(), FilePath ?? string.Empty)];
         }
 
         var documents = new List<WorkspaceDocument>();
@@ -711,16 +714,36 @@ public partial class MainViewModel : ObservableObject, IDisposable
         finally { _keepSearchOnTabChange = false; }
     }
 
+    /// <summary>Đoạn nguồn của trích dẫn AI vừa mở, viewer của Document đó tô trên trang; null khi chưa mở trích dẫn
+    /// nào hoặc nguồn không mang chữ của đoạn (lịch sử chat bản cũ).</summary>
+    [ObservableProperty]
+    public partial SourcePassage? ActiveSourcePassage { get; set; }
+
+    /// <summary>Mở nguồn của trích dẫn <c>[n]</c>: Cross-doc jump tới Document và trang được trích rồi tô đoạn nguồn.</summary>
+    public void OpenCitationSource(RagSource source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        // Nhảy trước rồi mới đặt đoạn nguồn: đổi tài liệu xoá đoạn nguồn cũ, nên đặt sau thì không bị xoá mất.
+        // Tài liệu đã gỡ khỏi Library thì không nhảy được; không giữ đoạn của trích dẫn trước tô nhầm chỗ.
+        ActiveSourcePassage = TryOpenDocument(source.DocumentId, source.PageIndex) ? SourcePassage.From(source) : null;
+    }
+
+    /// <summary>Tắt tô Đoạn nguồn (phím Esc).</summary>
+    [RelayCommand]
+    private void ClearSourcePassage() => ActiveSourcePassage = null;
+
     /// <summary>Cross-doc jump: mở hoặc kích hoạt tab của <paramref name="documentId"/> rồi cuộn tới trang
     /// (<paramref name="pageIndex"/> tính từ 0). Dùng chung cho note, kết quả tìm kiếm và trích dẫn AI.</summary>
     public void JumpToDocument(string documentId, int pageIndex) => OpenDocumentForNote(documentId, pageIndex);
 
     // S3 / Tab S1: callback mở tài liệu khác trong cùng workspace khi bấm note cross-doc.
-    // Cross-doc jump: activate-or-open tab, luôn điều hướng tới trang đích.
-    private void OpenDocumentForNote(string documentId, int? pageIndex)
+    private void OpenDocumentForNote(string documentId, int? pageIndex) => TryOpenDocument(documentId, pageIndex);
+
+    // Cross-doc jump: activate-or-open tab, luôn điều hướng tới trang đích. false khi tài liệu không còn trong Library.
+    private bool TryOpenDocument(string documentId, int? pageIndex)
     {
         var item = Library.FirstOrDefault(i => i.DocumentId == documentId);
-        if (item is null) return;
+        if (item is null) return false;
         int targetPage = (pageIndex ?? 0) + 1;
         if (IsWorkspaceSession)
         {
@@ -732,6 +755,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             // Standalone: giữ hành vi cũ.
             LoadActiveDocument(item.StoredPath, _activeWorkspaceId, initialPage: targetPage);
         }
+        return true;
     }
 
     // S4: xóa một workspace (không được xóa default workspace)
@@ -865,6 +889,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // workspaceScopeId: truyền workspace cụ thể (S2 - mở trong workspace); null = dùng default workspace như cũ.
     private void LoadActiveDocument(string path, string? workspaceScopeId = null, int initialPage = 1)
     {
+        ActiveSourcePassage = null;   // đoạn nguồn thuộc tài liệu cũ; OpenCitationSource đặt lại sau khi nhảy
         // Đặt trang đích TRƯỚC khi gán FilePath: việc gán FilePath kích hoạt control nạp tài liệu
         // và bố cục ngay theo CurrentPage, nên mở thẳng tại trang neo (tránh nạp-rồi-nhảy bị reset ghi đè).
         CurrentPage = initialPage;
@@ -921,7 +946,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _documentId,
         IsWorkspaceSession ? _activeWorkspaceId : _documentId,
         _documentBlocks,
-        CurrentPage);
+        CurrentPage,
+        CurrentDocumentTitle());
+
+    // Tên trong Library (người dùng có thể đã đổi tên); chưa có trong Library thì lấy tên file.
+    private string CurrentDocumentTitle()
+        => Library.FirstOrDefault(i => i.DocumentId == _documentId)?.Title
+            ?? System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty);
 
     [RelayCommand]
     private void OpenSettings()

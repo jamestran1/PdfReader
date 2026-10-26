@@ -137,6 +137,21 @@ public class PdfPagePainterTests
     }
 
     [Fact]
+    public void Paint_OverlappingMatchRects_FillOnceSoOverlapIsNotDarker()
+    {
+        using var bitmap = PageBitmap();
+        var overlays = NoOverlays() with { HighlightQuery = "abc" };
+        // Hai hộp chồng nhau ở y 40..50 và 45..55 trên canvas (như dòng iText cao hơn khoảng cách dòng).
+        using var output = Render(Frame(bitmap, overlays: overlays,
+            matches: (_, _) => [new MatchRect(10, 70, 20, 10), new MatchRect(10, 65, 20, 10)]));
+
+        var single = output.GetPixel(20 + 20, 20 + 22);
+        var overlap = output.GetPixel(20 + 20, 20 + 27);
+        Assert.NotEqual(SKColors.White, single);
+        Assert.Equal(single, overlap);
+    }
+
+    [Fact]
     public void Paint_SearchMatch_NeedsQueryAndMatchSource()
     {
         using var bitmap = PageBitmap();
