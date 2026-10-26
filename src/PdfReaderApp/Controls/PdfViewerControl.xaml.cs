@@ -506,14 +506,17 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     // (ScheduleScrollToCurrentPage) lo SAU khi layout xong.
     private void ArmPendingScrollGuard()
     {
-        ScrollSettle.Arm((CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing)
+        // Slot chưa dựng nên chưa biết offset đích; trang 1 có Đoạn nguồn sẽ được Schedule bắt sau layout.
+        ScrollSettle.Arm(Core.ScrollAfterLoadPolicy.NeedsScroll(IsContinuousView, CurrentPage, targetOffset: null)
             ? CurrentPage : 0);
     }
+
+    private bool IsContinuousView => ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing;
 
     // Cuộn tới CurrentPage ở chế độ cuộn liên tục sau khi nạp tài liệu; guard giữ tới khi offset đã dính tại đích.
     private void ScheduleScrollToCurrentPage()
     {
-        if (!(CurrentPage > 1 && ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing))
+        if (!Core.ScrollAfterLoadPolicy.NeedsScroll(IsContinuousView, CurrentPage, TargetOffsetOfPage(CurrentPage - 1)))
         {
             ScrollSettle.Cancel();
             return;
