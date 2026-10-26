@@ -105,8 +105,11 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
 
         // Trích dẫn có thể trỏ tới trang đang hiện nên CurrentPage không đổi và không có gì cuộn tới đoạn nguồn.
         // Đang chờ cuộn sau khi nạp thì timer ổn định hoá tự cuộn tới đó.
-        if (e.NewValue is Core.SourcePassage passage && control._currentDocument != null && !control.ScrollSettle.IsPending)
+        if (e.NewValue is Core.SourcePassage passage && passage.BelongsTo(control.CurrentDocumentId)
+            && control._currentDocument != null && !control.ScrollSettle.IsPending)
+        {
             control.ScrollToPage(passage.PageIndex + 1);
+        }
     }
 
     // DependencyProperty: command nhận NoteSelection khi người dùng bấm "Thêm ghi chú"
@@ -465,7 +468,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
 
         if (SourcePassage is not { } passage || MatchSource is not { } source || _session is null
             || passage.PageIndex != pageIndex
-            || !string.Equals(passage.DocumentId, CurrentDocumentId, StringComparison.Ordinal))
+            || !passage.BelongsTo(CurrentDocumentId))
         {
             return slot.Y;
         }

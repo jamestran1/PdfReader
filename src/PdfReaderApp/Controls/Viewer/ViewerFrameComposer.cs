@@ -95,7 +95,7 @@ internal sealed class ViewerFrameComposer
     private Func<int, IReadOnlyList<MatchRect>>? SourceRectsFor(ViewerFrameState state)
     {
         if (state.MatchSource is not { } source || state.SourcePassage is not { } passage) return null;
-        if (!string.Equals(passage.DocumentId, state.CurrentDocumentId, StringComparison.Ordinal)) return null;
+        if (!passage.BelongsTo(state.CurrentDocumentId)) return null;
         return pageIndex => pageIndex == passage.PageIndex ? GetSourceRects(source, passage) : [];
     }
 

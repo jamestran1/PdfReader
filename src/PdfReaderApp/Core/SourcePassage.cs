@@ -10,6 +10,10 @@ public sealed record SourcePassage(string DocumentId, int PageIndex, IReadOnlyLi
 {
     public const int WordsPerFragment = 8;
 
+    /// <summary>true khi đoạn này thuộc Document <paramref name="documentId"/>. Mọi viewer theo tab cùng bind một đoạn
+    /// nguồn, nên viewer chỉ tô và cuộn khi đoạn thuộc chính Document của nó.</summary>
+    public bool BelongsTo(string? documentId) => string.Equals(DocumentId, documentId, StringComparison.Ordinal);
+
     /// <summary>Vùng tô cho <paramref name="source"/>; null khi nguồn không mang chữ của đoạn (lịch sử chat bản cũ).</summary>
     public static SourcePassage? From(RagSource source)
     {

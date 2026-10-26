@@ -49,4 +49,16 @@ public class SourcePassageTests
     {
         Assert.Null(SourcePassage.From(new RagSource(1, "doc", "Sách", 4)));
     }
+
+    // Mọi viewer theo tab bind cùng một đoạn nguồn: viewer ẩn của Document khác không được cuộn theo (AI review R1, #241).
+    [Theory]
+    [InlineData("doc", true)]
+    [InlineData("other", false)]
+    [InlineData(null, false)]
+    public void BelongsTo_OnlyTheCitedDocument(string? documentId, bool expected)
+    {
+        var passage = new SourcePassage("doc", 4, ["đoạn nguồn"]);
+
+        Assert.Equal(expected, passage.BelongsTo(documentId));
+    }
 }
