@@ -37,6 +37,8 @@ public class MainViewModelTabTests
             // No-op: không nạp PDF thật.
             HydrateCallCount++;
             HydratedTabs.Add(tab);
+            // Giữ đúng bước dọn kết quả tìm của LoadActiveDocument thật.
+            ClearSearchResultsForLoadedDocument();
         }
     }
 
@@ -381,5 +383,64 @@ public class MainViewModelTabTests
 
         Assert.Single(vm.Tabs.Tabs);
         Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
+    }
+
+    // =========================================================
+    // #106: bấm kết quả tìm Toàn Workspace ở tài liệu khác -> đổi tab nhưng giữ ô tìm, kết quả, phạm vi
+    // để người dùng bấm tiếp các kết quả khác; highlight dùng lại query cho tài liệu mới.
+    // =========================================================
+    [Fact]
+    public void WorkspaceSearch_JumpToOtherDocument_KeepsQueryResultsAndScope()
+    {
+        var (vm, wsStore) = MakeVm();
+        var w = new Workspace("ws-s", "S", false, null, 1, 1);
+        wsStore.Upsert(w);
+        wsStore.AddDocument(w.Id, "docA");
+        wsStore.AddDocument(w.Id, "docB");
+        var a = MakeItem("docA", "A", "/a.pdf");
+        var b = MakeItem("docB", "B", "/b.pdf");
+        vm.Library.Add(a);
+        vm.Library.Add(b);
+        vm.OpenWorkspaceCommand.Execute(w);
+        vm.OpenWorkspaceDocumentCommand.Execute(a);
+
+        vm.Search.Scope = SearchScope.Workspace;
+        vm.Search.Query = "hành";
+        var hitB = new SearchResult(4, "s", 1, "docB", "B");
+        var hitA = new SearchResult(1, "s", 2, "docA", "A");
+        vm.Search.Results.Add(hitB);
+        vm.Search.Results.Add(hitA);
+
+        vm.Search.SelectResultCommand.Execute(hitB);
+
+        Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal(5, vm.CurrentPage);
+        Assert.Equal("hành", vm.Search.Query);
+        Assert.Equal("hành", vm.Search.SelectedQuery);
+        Assert.Equal(SearchScope.Workspace, vm.Search.Scope);
+        Assert.Equal([hitB, hitA], vm.Search.Results);
+    }
+
+    [Fact]
+    public void ManualTabSwitch_InCurrentDocumentScope_StillResetsSearch()
+    {
+        var (vm, wsStore) = MakeVm();
+        var w = new Workspace("ws-m", "M", false, null, 1, 1);
+        wsStore.Upsert(w);
+        wsStore.AddDocument(w.Id, "docA");
+        wsStore.AddDocument(w.Id, "docB");
+        var a = MakeItem("docA", "A", "/a.pdf");
+        var b = MakeItem("docB", "B", "/b.pdf");
+        vm.Library.Add(a);
+        vm.Library.Add(b);
+        vm.OpenWorkspaceCommand.Execute(w);
+        vm.OpenWorkspaceDocumentCommand.Execute(a);
+        vm.Search.Query = "hành";
+        vm.Search.Results.Add(new SearchResult(0, "s", 1));
+
+        vm.OpenWorkspaceDocumentCommand.Execute(b);
+
+        Assert.Equal(string.Empty, vm.Search.Query);
+        Assert.Empty(vm.Search.Results);
     }
 }
