@@ -28,7 +28,7 @@ public sealed class RagContextService
         if (string.IsNullOrEmpty(key)) return null;
 
         using var generator = _embedFactory.Create(
-            new AiClientOptions(models.EmbeddingProvider, models.EmbeddingModel, key));
+            new AiClientOptions(models.EmbeddingProvider, models.EmbeddingModel, key), EmbeddingPurpose.Query);
         var embeddings = await generator.GenerateAsync(new[] { question }, cancellationToken: ct);
         float[] queryVector = embeddings[0].Vector.ToArray();
 

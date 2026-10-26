@@ -40,7 +40,7 @@ public sealed class MainViewModelIndexingTests : IDisposable
 
     private sealed class ThrowingEmbeddingFactory : IEmbeddingGeneratorFactory
     {
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options)
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose)
             => throw new InvalidOperationException("embedding không khả dụng");
     }
 

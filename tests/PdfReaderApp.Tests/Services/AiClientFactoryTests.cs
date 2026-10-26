@@ -35,7 +35,7 @@ public class AiClientFactoryTests
     public void EmbeddingFactory_CreatesGenerator_ForOpenAi()
     {
         using var generator = new AiEmbeddingGeneratorFactory()
-            .Create(new AiClientOptions(AiProvider.OpenAi, "text-embedding-3-small", "sk-test"));
+            .Create(new AiClientOptions(AiProvider.OpenAi, "text-embedding-3-small", "sk-test"), EmbeddingPurpose.Document);
 
         Assert.NotNull(generator);
     }
@@ -44,7 +44,7 @@ public class AiClientFactoryTests
     public void EmbeddingFactory_CreatesGenerator_ForGemini()
     {
         using var generator = new AiEmbeddingGeneratorFactory()
-            .Create(new AiClientOptions(AiProvider.Gemini, "gemini-embedding-001", "test-key"));
+            .Create(new AiClientOptions(AiProvider.Gemini, "gemini-embedding-001", "test-key"), EmbeddingPurpose.Document);
 
         Assert.NotNull(generator);
     }
@@ -53,7 +53,7 @@ public class AiClientFactoryTests
     public void EmbeddingFactory_GeminiGenerator_ReportsConfiguredDimensions()
     {
         using var generator = new AiEmbeddingGeneratorFactory()
-            .Create(new AiClientOptions(AiProvider.Gemini, "gemini-embedding-001", "test-key"));
+            .Create(new AiClientOptions(AiProvider.Gemini, "gemini-embedding-001", "test-key"), EmbeddingPurpose.Document);
 
         var metadata = generator.GetService<EmbeddingGeneratorMetadata>();
 
@@ -64,8 +64,19 @@ public class AiClientFactoryTests
         Assert.Equal("gemini-embedding-001", metadata?.DefaultModelId);
     }
 
+    [Theory]
+    [InlineData(EmbeddingPurpose.Document, GeminiTaskTypeEmbeddingGenerator.RetrievalDocument)]
+    [InlineData(EmbeddingPurpose.Query, GeminiTaskTypeEmbeddingGenerator.RetrievalQuery)]
+    public void EmbeddingFactory_GeminiGenerator_CarriesTaskTypeOfPurpose(EmbeddingPurpose purpose, string expected)
+    {
+        using var generator = new AiEmbeddingGeneratorFactory()
+            .Create(new AiClientOptions(AiProvider.Gemini, "gemini-embedding-001", "test-key"), purpose);
+
+        Assert.Equal(expected, generator.GetService<GeminiTaskTypeEmbeddingGenerator>()?.TaskType);
+    }
+
     [Fact]
     public void EmbeddingFactory_Throws_ForClaudeWithoutEmbeddingApi() =>
         Assert.Throws<NotSupportedException>(() =>
-            new AiEmbeddingGeneratorFactory().Create(new AiClientOptions(AiProvider.Claude, "m", "k")));
+            new AiEmbeddingGeneratorFactory().Create(new AiClientOptions(AiProvider.Claude, "m", "k"), EmbeddingPurpose.Document));
 }

@@ -47,7 +47,7 @@ public sealed class MainViewModelAiProviderTests : IDisposable
     private sealed class CountingEmbeddingFactory : IEmbeddingGeneratorFactory
     {
         public int Created;
-        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options)
+        public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose)
         {
             Interlocked.Increment(ref Created);
             throw new InvalidOperationException("embedding không khả dụng");
