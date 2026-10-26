@@ -31,7 +31,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     private readonly RagContextService _ragContext;
     private readonly Func<ChatContext> _currentContext;
     private readonly ChatWorkspace _workspace;
-    private readonly Action<string, int> _jumpToDocument;
+    private readonly CrossDocJump _jumpToDocument;
     private string? _currentChatOwnerId;
     // Yêu cầu chat đang chạy (RAG + stream). Mỗi yêu cầu tự dispose CTS của mình; trường này chỉ để huỷ.
     private CancellationTokenSource? _requestCts;
@@ -77,7 +77,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         RagContextService ragContext,
         Func<ChatContext> currentContext,
         ChatWorkspace workspace,
-        Action<string, int>? jumpToDocument = null)
+        CrossDocJump? jumpToDocument = null)
     {
         _jumpToDocument = jumpToDocument ?? ((_, _) => { });
         _chatService = chatService;
@@ -119,7 +119,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     public static ChatViewModel Create(
         MainViewModelServices services, Func<ChatContext> currentContext,
         Func<IReadOnlyList<WorkspaceDocument>> getWorkspaceDocuments,
-        Action<string, int> jumpToDocument)
+        CrossDocJump jumpToDocument)
     {
         services.ChatHistory.EnsureSchema();
         var workspaceIndexing = new WorkspaceIndexingService(

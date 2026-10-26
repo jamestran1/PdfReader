@@ -59,7 +59,10 @@ public class CitationParserTests
     {
         var spans = CitationParser.Parse("Kết luận [1][2].", Sources);
 
-        Assert.Equal([Sources[0], Sources[1]], spans.Where(s => s.Source is not null).Select(s => s.Source));
+        Assert.Equal(
+            [new CitationSpan("Kết luận "), CitationSpan.ForSource(Sources[0]), new CitationSpan(", "),
+             CitationSpan.ForSource(Sources[1]), new CitationSpan(".")],
+            spans);
     }
 
     [Fact]
@@ -67,8 +70,10 @@ public class CitationParserTests
     {
         var spans = CitationParser.Parse("Kết luận [1, 2].", Sources);
 
-        Assert.Equal([Sources[0], Sources[1]], spans.Where(s => s.Source is not null).Select(s => s.Source));
-        Assert.Equal(".", spans[^1].Text);
+        Assert.Equal(
+            [new CitationSpan("Kết luận "), CitationSpan.ForSource(Sources[0]), new CitationSpan(", "),
+             CitationSpan.ForSource(Sources[1]), new CitationSpan(".")],
+            spans);
     }
 
     [Fact]

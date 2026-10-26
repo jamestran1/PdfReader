@@ -47,6 +47,9 @@ public static partial class CitationParser
                 plain.Append('[').Append(number).Append(']');
                 continue;
             }
+            // Hai trích dẫn liền nhau ([1][2], [1, 2]) ngăn bằng ", " để các link không dính vào nhau.
+            if (plain.Length == 0 && spans.Count > 0 && spans[^1].Source is not null)
+                plain.Append(", ");
             FlushPlain(plain, spans);
             spans.Add(CitationSpan.ForSource(source));
         }
