@@ -31,6 +31,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     private readonly RagContextService _ragContext;
     private readonly Func<ChatContext> _currentContext;
     private readonly ChatWorkspace _workspace;
+    private readonly Action<string, int> _jumpToDocument;
     private string? _currentChatOwnerId;
     // Yêu cầu chat đang chạy (RAG + stream). Mỗi yêu cầu tự dispose CTS của mình; trường này chỉ để huỷ.
     private CancellationTokenSource? _requestCts;
@@ -75,8 +76,10 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         IChatHistoryStore chatHistory,
         RagContextService ragContext,
         Func<ChatContext> currentContext,
-        ChatWorkspace workspace)
+        ChatWorkspace workspace,
+        Action<string, int>? jumpToDocument = null)
     {
+        _jumpToDocument = jumpToDocument ?? ((_, _) => { });
         _chatService = chatService;
         _chatHistory = chatHistory;
         _ragContext = ragContext;
@@ -93,6 +96,10 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         Scope = scope;
     }
 
+    /// <summary>Bấm một trích dẫn <c>[n]</c> trong câu trả lời: Cross-doc jump tới Document và trang được trích.</summary>
+    [RelayCommand]
+    private void OpenCitation(RagSource source) => _jumpToDocument(source.DocumentId, source.PageIndex);
+
     /// <summary>Đọc lại provider và model chat từ Settings; gọi sau khi lưu Settings.</summary>
     public void RefreshActiveModel() =>
         ActiveModelLabel = $"{AiModelCatalog.DisplayName(_chatService.ChatProvider)} · {_chatService.ChatModel}"
@@ -108,9 +115,11 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     /// <param name="services">Các dịch vụ dùng chung của ứng dụng.</param>
     /// <param name="currentContext">Ảnh chụp trạng thái tài liệu đang mở mỗi lần nạp lịch sử hoặc gửi tin.</param>
     /// <param name="getWorkspaceDocuments">Document thuộc Workspace đang mở, cho hỏi đáp Toàn Workspace.</param>
+    /// <param name="jumpToDocument">Cross-doc jump khi bấm trích dẫn <c>[n]</c>: documentId và trang (từ 0).</param>
     public static ChatViewModel Create(
         MainViewModelServices services, Func<ChatContext> currentContext,
-        Func<IReadOnlyList<WorkspaceDocument>> getWorkspaceDocuments)
+        Func<IReadOnlyList<WorkspaceDocument>> getWorkspaceDocuments,
+        Action<string, int> jumpToDocument)
     {
         services.ChatHistory.EnsureSchema();
         var workspaceIndexing = new WorkspaceIndexingService(
@@ -121,7 +130,8 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             services.ChatHistory,
             new RagContextService(services.DocumentIndex, services.EmbeddingFactory, services.Settings),
             currentContext,
-            new ChatWorkspace(getWorkspaceDocuments, new WorkspaceIndexingRunner(workspaceIndexing.IndexDocumentAsync, PostToApplicationDispatcher)));
+            new ChatWorkspace(getWorkspaceDocuments, new WorkspaceIndexingRunner(workspaceIndexing.IndexDocumentAsync, PostToApplicationDispatcher)),
+            jumpToDocument);
     }
 
     // Nạp lại khung chat theo sách đang mở: hiện bong bóng cũ và dựng lại bộ nhớ LLM.
@@ -161,7 +171,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         // Hiển thị TẤT CẢ bong bóng để transcript trung thực, nhưng chỉ nạp các lượt
         // "dùng được" làm trí nhớ LLM (bỏ AI rỗng / báo lỗi / bị gián đoạn).
         foreach (var e in entries)
-            Messages.Add(new ChatMessage { Role = e.Role, Content = e.Content });
+            Messages.Add(new ChatMessage { Role = e.Role, Content = e.Content, Sources = e.Sources });
         _chatService.SeedHistory(MemoryTurns(entries.Select(e => (e.Role, e.Content))));
     }
 
@@ -255,7 +265,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             Messages.Add(aiMessage);
 
             await StreamAnswerAsync(aiMessage, question, built.Text, cts.Token);
-            PersistTurn(owner, question, aiMessage.Content);
+            PersistTurn(owner, question, aiMessage.Content, aiMessage.Sources);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
         {
@@ -270,14 +280,14 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         }
     }
 
-    private void PersistTurn(string? owner, string question, string answer)
+    private void PersistTurn(string? owner, string question, string answer, IReadOnlyList<RagSource>? sources = null)
     {
         if (owner is null) return;
         try
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             _chatHistory.Append(owner, "User", question, now);
-            _chatHistory.Append(owner, "AI", answer, now);
+            _chatHistory.Append(owner, "AI", answer, now, sources);
         }
 #pragma warning disable CA1031 // best-effort: lưu lịch sử lỗi không được chặn chat
         catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"ChatViewModel.PersistTurn: lưu lịch sử chat lỗi: {ex}"); /* không chặn chat khi lưu lỗi */ }

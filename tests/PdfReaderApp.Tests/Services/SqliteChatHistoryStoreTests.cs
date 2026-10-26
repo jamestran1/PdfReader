@@ -1,4 +1,5 @@
 using System.IO;
+using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -60,6 +61,48 @@ public class SqliteChatHistoryStoreTests : IDisposable
     public void GetAll_UnknownDocument_ReturnsEmpty()
     {
         Assert.Empty(_store.GetAll("khong-ton-tai"));
+    }
+
+    [Fact]
+    public void Append_WithSources_RoundTripsSourceTable()
+    {
+        RagSource[] sources = [new(1, "docA", "Hợp đồng", 2), new(2, "docB", "Báo cáo \"Q3\"", 0)];
+
+        _store.Append("doc1", "AI", "Theo [1] và [2]", 5, sources);
+
+        Assert.Equal(sources, _store.GetAll("doc1").Single().Sources);
+    }
+
+    [Fact]
+    public void Append_WithoutSources_ReturnsEmptySources()
+    {
+        _store.Append("doc1", "AI", "Trả lời", 5);
+
+        Assert.Empty(_store.GetAll("doc1").Single().Sources);
+    }
+
+    [Fact]
+    public void EnsureSchema_OldDatabaseWithoutSourcesColumn_MigratesAndKeepsOldRows()
+    {
+        string path = Path.Combine(_dir, "old-chats.db");
+        using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+CREATE TABLE chat_message (id INTEGER PRIMARY KEY AUTOINCREMENT, document_id TEXT NOT NULL, role TEXT NOT NULL, content TEXT NOT NULL, created_at INTEGER NOT NULL);
+INSERT INTO chat_message (document_id, role, content, created_at) VALUES ('d', 'AI', 'Cũ [1]', 1);";
+            cmd.ExecuteNonQuery();
+        }
+        var store = new SqliteChatHistoryStore(path);
+
+        store.EnsureSchema();
+        store.EnsureSchema();
+        store.Append("d", "AI", "Mới [1]", 2, [new RagSource(1, "x", "T", 0)]);
+
+        var all = store.GetAll("d");
+        Assert.Empty(all[0].Sources);
+        Assert.Single(all[1].Sources);
     }
 
     public void Dispose()
