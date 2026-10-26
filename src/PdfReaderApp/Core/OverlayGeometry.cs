@@ -12,11 +12,22 @@ public static class OverlayGeometry
     private const int LayoutDpi = 72;
 
     // MatchRect (PdfX, PdfY) là góc dưới-trái, trục Y của PDF hướng lên: cạnh trên là PdfY + Height.
-    public static RectF SearchMatch(MatchRect match, float pageHeightPt, float zoom, RectF pageRect)
+    public static RectF BottomOrigin(MatchRect match, float pageHeightPt, float zoom, RectF pageRect)
     {
         var mapper = new PdfCoordinateMapper(pageHeightPt, zoom, LayoutDpi);
         var (x, y) = mapper.PdfPointToRender(match.PdfX, match.PdfY + match.Height);
         return new RectF(pageRect.Left + x, pageRect.Top + y, match.Width * zoom, match.Height * zoom);
+    }
+
+    // Cuộn tới đoạn nguồn thay vì đầu trang: đưa hộp trên cùng lên khoảng một phần ba vùng nhìn để còn thấy
+    // chữ phía trước. Không cuộn lên trên đầu trang, nên đoạn nằm sát đỉnh trang vẫn thấy cả đỉnh trang.
+    public static double PassageScrollOffset(
+        double slotY, float pageHeightPt, float zoom, IReadOnlyList<MatchRect> rects, double viewportHeight)
+    {
+        if (rects.Count == 0) return slotY;
+
+        double top = slotY + (pageHeightPt - rects.Max(r => r.PdfY + r.Height)) * zoom;
+        return Math.Max(slotY, top - viewportHeight / 3);
     }
 
     // Vùng chọn và note đã ở gốc trên-trái (Y hướng xuống): chỉ nhân zoom rồi cộng offset trang, không lật Y.

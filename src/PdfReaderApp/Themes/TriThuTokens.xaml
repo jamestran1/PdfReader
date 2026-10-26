@@ -20,6 +20,7 @@
     <SolidColorBrush x:Key="TriThu.Brush.SurfaceTonalHighest" Color="#DDE4E0"/>
     <SolidColorBrush x:Key="TriThu.Brush.InverseSurface" Color="#2B322F"/>
     <SolidColorBrush x:Key="TriThu.Brush.Highlight" Color="#F9E07F"/>
+    <SolidColorBrush x:Key="TriThu.Brush.SourcePassage" Color="#50FF9800"/>
     <SolidColorBrush x:Key="TriThu.Brush.Error" Color="#BA1A1A"/>
     <SolidColorBrush x:Key="TriThu.Brush.SecondaryContainer.On" Color="#06201A"/>
     <SolidColorBrush x:Key="TriThu.Brush.OnSurfaceVariant" Color="#3F4945"/>

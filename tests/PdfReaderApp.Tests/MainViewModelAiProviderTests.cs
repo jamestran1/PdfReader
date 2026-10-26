@@ -41,6 +41,7 @@ public sealed class MainViewModelAiProviderTests : IDisposable
         public IReadOnlyList<TextBlock> ExtractStructure() => [];
         public IReadOnlyList<PageText> ExtractPageTexts() => [];
         public IReadOnlyList<MatchRect> FindMatchRects(int pageIndex, string query) => [];
+        public IReadOnlyList<MatchRect> FindPassageRects(int pageIndex, IReadOnlyList<string> fragments) => [];
         public void Dispose() { }
     }
 

@@ -74,24 +74,39 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         if (_pdfDoc is null)
             throw new InvalidOperationException("Call LoadFile before FindMatchRects.");
 
-        var result = new List<MatchRect>();
-        if (string.IsNullOrWhiteSpace(query)) return result;
-        if (pageIndex < 0 || pageIndex >= _pdfDoc.GetNumberOfPages()) return result;
+        return LocateRects(pageIndex, AccentInsensitiveRegex.BuildPattern(query));
+    }
 
-        string pattern = AccentInsensitiveRegex.BuildPattern(query);
+    public IReadOnlyList<MatchRect> FindPassageRects(int pageIndex, IReadOnlyList<string> fragments)
+    {
+        if (_pdfDoc is null)
+            throw new InvalidOperationException("Call LoadFile before FindPassageRects.");
+
+        // One alternation pattern: a single pass over the page content instead of one per fragment.
+        return LocateRects(pageIndex, AccentInsensitiveRegex.BuildAlternation(fragments));
+    }
+
+    private List<MatchRect> LocateRects(int pageIndex, string pattern)
+    {
+        var result = new List<MatchRect>();
         if (pattern.Length == 0) return result;
+        if (pageIndex < 0 || pageIndex >= _pdfDoc!.GetNumberOfPages()) return result;
 
         // iText computes the match rectangle from the real glyph layout, so it tracks the keyword
         // exactly (no per-glyph reconstruction guesswork).
         var strategy = new RegexBasedLocationExtractionStrategy(pattern);
         var processor = new PdfCanvasProcessor(strategy);
-        processor.ProcessPageContent(_pdfDoc.GetPage(pageIndex + 1));
+        var page = _pdfDoc.GetPage(pageIndex + 1);
+        processor.ProcessPageContent(page);
 
+        // iText trả toạ độ user space (gốc MediaBox) còn PDFium vẽ phần CropBox, nên trừ gốc CropBox
+        // để hộp tính từ góc dưới trái của trang nhìn thấy. Bỏ qua thì hộp lệch đúng bằng độ lệch CropBox.
+        var crop = page.GetCropBox();
         foreach (var loc in strategy.GetResultantLocations())
         {
             var r = loc.GetRectangle();
             if (r is null) continue;
-            result.Add(new MatchRect(r.GetX(), r.GetY(), r.GetWidth(), r.GetHeight()));
+            result.Add(new MatchRect(r.GetX() - crop.GetX(), r.GetY() - crop.GetY(), r.GetWidth(), r.GetHeight()));
         }
         return result;
     }

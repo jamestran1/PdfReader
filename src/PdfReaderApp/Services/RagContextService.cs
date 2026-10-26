@@ -19,33 +19,22 @@ public sealed class RagContextService
         _settings = settings;
     }
 
-    public async Task<string?> BuildContextAsync(
-        string documentId, string question, int k = 5, int maxChars = ContextLimits.MaxChars, CancellationToken ct = default)
+    /// <summary>Dựng ngữ cảnh từ các đoạn liên quan nhất của một Document, đánh số <c>[n]</c> như ngữ cảnh xuyên Workspace
+    /// để câu trả lời trong phạm vi Tài liệu này cũng có trích dẫn. Null khi Document chưa <c>Complete</c>, thiếu key hoặc không có đoạn nào.</summary>
+    public async Task<RagContext?> BuildDocumentContextAsync(
+        WorkspaceDocument document, string question, int k = 5, int maxChars = ContextLimits.MaxChars, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(document);
         var models = _settings.GetModelSettings();
-        if (_index.GetStatus(documentId, models.EmbeddingModel) != DocumentIndexStatus.Complete)
+        if (_index.GetStatus(document.DocumentId, models.EmbeddingModel) != DocumentIndexStatus.Complete)
             return null;
 
         string? key = _settings.GetApiKey(models.EmbeddingProvider);
         if (string.IsNullOrEmpty(key)) return null;
 
-        using var generator = _embedFactory.Create(
-            new AiClientOptions(models.EmbeddingProvider, models.EmbeddingModel, key), EmbeddingPurpose.Query);
-        var embeddings = await generator.GenerateAsync(new[] { question }, cancellationToken: ct);
-        float[] queryVector = embeddings[0].Vector.ToArray();
-
-        var chunks = _index.RetrieveRelevant(documentId, models.EmbeddingModel, queryVector, k);
-        if (chunks.Count == 0) return null;
-
-        var sb = new StringBuilder();
-        foreach (var c in chunks)
-        {
-            string line = $"[Trang {c.PageIndex + 1}] {c.Text}";
-            if (sb.Length + line.Length > maxChars) break;
-            if (sb.Length > 0) sb.Append('\n');
-            sb.Append(line);
-        }
-        return sb.ToString();
+        float[] queryVector = await EmbedQuestionAsync(models, key, question, ct);
+        var chunks = _index.RetrieveRelevant(document.DocumentId, models.EmbeddingModel, queryVector, k);
+        return FormatNumberedContext(chunks.Select(c => (document, c)).ToList(), maxChars);
     }
 
     /// <summary>Dựng ngữ cảnh xuyên Workspace: nhúng câu hỏi một lần, truy vấn từng Document đã <c>Complete</c> cho
@@ -79,9 +68,11 @@ public sealed class RagContextService
                 scored.Add((document, hit));
         }
 
-        var (context, sources) = FormatNumberedContext(
-            scored.OrderBy(s => s.Hit.Distance).Take(options.TopK).ToList(), options.MaxChars);
-        return new WorkspaceRagResult(context, sources, plan.Unindexed, plan.Indexing, plan.MissingEmbeddingKeyProvider);
+        RagContext? context = FormatNumberedContext(
+            scored.OrderBy(s => s.Hit.Distance).Take(options.TopK).Select(s => (s.Document, s.Hit.Chunk)).ToList(),
+            options.MaxChars);
+        return new WorkspaceRagResult(
+            context?.Text, context?.Sources ?? [], plan.Unindexed, plan.Indexing, plan.MissingEmbeddingKeyProvider);
     }
 
     // Chỉ xét trạng thái của chính Embedding Model đang chọn: index Complete của model khác không tính là sẵn sàng.
@@ -128,24 +119,24 @@ public sealed class RagContextService
     }
 
     // Hàm thuần: đánh số theo thứ tự đã sắp, dừng khi vượt ngân sách ký tự (nguồn bị bỏ cũng không vào bảng nguồn).
-    private static (string? Context, IReadOnlyList<RagSource> Sources) FormatNumberedContext(
-        IReadOnlyList<(WorkspaceDocument Document, ScoredChunk Hit)> ranked, int maxChars)
+    private static RagContext? FormatNumberedContext(
+        IReadOnlyList<(WorkspaceDocument Document, Chunk Chunk)> ranked, int maxChars)
     {
         var sb = new StringBuilder();
         var sources = new List<RagSource>();
-        foreach (var (document, hit) in ranked)
+        foreach (var (document, chunk) in ranked)
         {
             int number = sources.Count + 1;
             string entry = string.Create(
                 System.Globalization.CultureInfo.InvariantCulture,
-                $"[{number}] Tài liệu: \"{document.Title}\", Trang: {hit.Chunk.PageIndex + 1}\n{hit.Chunk.Text}");
+                $"[{number}] Tài liệu: \"{document.Title}\", Trang: {chunk.PageIndex + 1}\n{chunk.Text}");
             int separator = sb.Length > 0 ? EntrySeparator.Length : 0;
             if (sb.Length + separator + entry.Length > maxChars) break;
             if (separator > 0) sb.Append(EntrySeparator);
             sb.Append(entry);
-            sources.Add(new RagSource(number, document.DocumentId, document.Title, hit.Chunk.PageIndex));
+            sources.Add(new RagSource(number, document.DocumentId, document.Title, chunk.PageIndex, chunk.Text));
         }
 
-        return (sources.Count == 0 ? null : sb.ToString(), sources);
+        return sources.Count == 0 ? null : new RagContext(sb.ToString(), sources);
     }
 }
