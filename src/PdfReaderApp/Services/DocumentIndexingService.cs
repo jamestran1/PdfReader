@@ -39,7 +39,7 @@ public sealed class DocumentIndexingService
 
         try
         {
-            await IndexClaimedAsync(documentId, filePath, pages, progress, embeddingModel, models, ct);
+            await IndexClaimedAsync(documentId, filePath, pages, progress, new ClaimedRun(embeddingModel, models, claimToken), ct);
         }
         catch (Exception)
         {
@@ -50,23 +50,32 @@ public sealed class DocumentIndexingService
         }
     }
 
+    // Một lượt lập chỉ mục đã giành claim: model, cấu hình và token để mọi lần ghi sau đó kiểm claim còn của mình.
+    private sealed record ClaimedRun(string EmbeddingModel, AiModelSettings Models, long ClaimToken);
+
+    // Lượt mất claim giữa chừng (tài liệu bị xoá để lập chỉ mục lại, lượt khác đã giành claim) dừng im lặng, như lượt thua ở
+    // đầu IndexAsync: không ghi thêm vector mồ côi, không đè trạng thái của lượt mới, không báo thành công hay lỗi.
     private async Task IndexClaimedAsync(
         string documentId, string? filePath, IReadOnlyList<PageText> pages,
-        IProgress<IndexingProgress>? progress, string embeddingModel, AiModelSettings models, CancellationToken ct)
+        IProgress<IndexingProgress>? progress, ClaimedRun run, CancellationToken ct)
     {
+        string embeddingModel = run.EmbeddingModel;
+        AiModelSettings models = run.Models;
+        long claimToken = run.ClaimToken;
+
         // Chunk đã có (do model khác lập chỉ mục trước) thì dùng lại, không ghi đè và không xoá vector model khác.
         var stored = LoadOrWriteChunks(documentId, filePath, pages);
 
         if (stored.Count == 0)
         {
-            _index.SetStatus(documentId, DocumentIndexStatus.Empty, embeddingModel);
+            _index.FinishIndexing(documentId, embeddingModel, claimToken, DocumentIndexStatus.Empty);
             return;
         }
 
         // Không có kho vector thì WriteEmbeddings bỏ qua; đánh dấu Complete sẽ không bao giờ nhúng lại khi vec0 nạp được.
         if (!_index.VectorSearchAvailable)
         {
-            _index.SetStatus(documentId, DocumentIndexStatus.TextOnly, embeddingModel);
+            _index.FinishIndexing(documentId, embeddingModel, claimToken, DocumentIndexStatus.TextOnly);
             return;
         }
 
@@ -75,7 +84,7 @@ public sealed class DocumentIndexingService
         string? key = _settings.GetApiKey(models.EmbeddingProvider);
         if (string.IsNullOrEmpty(key))
         {
-            _index.SetStatus(documentId, DocumentIndexStatus.TextOnly, embeddingModel);
+            _index.FinishIndexing(documentId, embeddingModel, claimToken, DocumentIndexStatus.TextOnly);
             return;
         }
 
@@ -83,10 +92,11 @@ public sealed class DocumentIndexingService
         _index.DeleteEmbeddings(documentId, embeddingModel);
 
         using var generator = _embedFactory.Create(new AiClientOptions(models.EmbeddingProvider, embeddingModel, key), EmbeddingPurpose.Document);
-        int done = await EmbedAllBatchesAsync(generator, embeddingModel, stored, progress, ct);
+        int? done = await EmbedAllBatchesAsync(generator, documentId, run, stored, progress, ct);
+        if (done is null) return;
 
-        _index.SetStatus(documentId, DocumentIndexStatus.Complete, embeddingModel);
-        progress?.Report(new IndexingProgress(done, stored.Count, "complete"));
+        if (!_index.FinishIndexing(documentId, embeddingModel, claimToken, DocumentIndexStatus.Complete)) return;
+        progress?.Report(new IndexingProgress(done.Value, stored.Count, "complete"));
     }
 
     private IReadOnlyList<StoredChunk> LoadOrWriteChunks(
@@ -101,8 +111,9 @@ public sealed class DocumentIndexingService
         return [.. freshIds.Select((id, i) => new StoredChunk(id, fresh[i].Text))];
     }
 
-    private async Task<int> EmbedAllBatchesAsync(
-        IEmbeddingGenerator<string, Embedding<float>> generator, string embeddingModel,
+    // Trả null khi lượt mất claim giữa chừng (lô vừa nhúng bị bỏ, không ghi).
+    private async Task<int?> EmbedAllBatchesAsync(
+        IEmbeddingGenerator<string, Embedding<float>> generator, string documentId, ClaimedRun run,
         IReadOnlyList<StoredChunk> chunks, IProgress<IndexingProgress>? progress, CancellationToken ct)
     {
         int done = 0;
@@ -119,7 +130,8 @@ public sealed class DocumentIndexingService
             for (int j = 0; j < batch.Count; j++)
                 pairs.Add((batch[j].ChunkId, embeddings[j].Vector.ToArray()));
 
-            _index.WriteEmbeddings(embeddingModel, pairs);
+            // Kiểm claim và ghi nguyên tử trong index: không có khe hở để lượt đã mất claim ghi vector mồ côi.
+            if (!_index.WriteEmbeddingsIfClaimed(documentId, run.EmbeddingModel, run.ClaimToken, pairs)) return null;
             done += batch.Count;
             progress?.Report(new IndexingProgress(done, chunks.Count, "indexing"));
         }

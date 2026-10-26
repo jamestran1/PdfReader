@@ -65,6 +65,8 @@ public sealed class MainViewModelIndexingTests : IDisposable
             return true;
         }
         public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken) { }
+        public bool WriteEmbeddingsIfClaimed(string documentId, string embeddingModel, long claimToken, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings) => true;
+        public bool FinishIndexing(string documentId, string embeddingModel, long claimToken, DocumentIndexStatus status) => true;
         public void Dispose() { }
     }
 

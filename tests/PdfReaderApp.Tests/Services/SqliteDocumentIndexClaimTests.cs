@@ -99,6 +99,66 @@ public sealed class SqliteDocumentIndexClaimTests : IDisposable
         Assert.Equal(DocumentIndexStatus.None, index.GetStatus("doc1", Model));
     }
 
+    private static float[] Hot(int dim)
+    {
+        var v = new float[1536];
+        v[dim] = 1f;
+        return v;
+    }
+
+    private static IReadOnlyList<long> SeedChunks(SqliteDocumentIndex index) =>
+        index.WriteChunks("doc1", null, 1, [new Chunk("doc1", 0, 0, "text")]);
+
+    [Fact]
+    public void WriteEmbeddingsIfClaimed_CurrentClaim_WritesVectors()
+    {
+        using var index = Open();
+        index.TryBeginIndexing("doc1", Model, out long token);
+        var ids = SeedChunks(index);
+
+        Assert.True(index.WriteEmbeddingsIfClaimed("doc1", Model, token, [(ids[0], Hot(0))]));
+
+        Assert.Single(index.RetrieveRelevant("doc1", Model, Hot(0)));
+    }
+
+    [Fact]
+    public void WriteEmbeddingsIfClaimed_ClaimLostToReindex_WritesNothing()
+    {
+        using var index = Open();
+        index.TryBeginIndexing("doc1", Model, out long runA);
+        index.DeleteDocument("doc1");
+        index.TryBeginIndexing("doc1", Model, out _);
+        var ids = SeedChunks(index);
+
+        Assert.False(index.WriteEmbeddingsIfClaimed("doc1", Model, runA, [(ids[0], Hot(0))]));
+
+        Assert.Empty(index.RetrieveRelevant("doc1", Model, Hot(0)));
+    }
+
+    [Fact]
+    public void FinishIndexing_CurrentClaim_SetsStatus()
+    {
+        using var index = Open();
+        index.TryBeginIndexing("doc1", Model, out long token);
+
+        Assert.True(index.FinishIndexing("doc1", Model, token, DocumentIndexStatus.Complete));
+
+        Assert.Equal(DocumentIndexStatus.Complete, index.GetStatus("doc1", Model));
+    }
+
+    [Fact]
+    public void FinishIndexing_ClaimLostToReindex_KeepsTheNewRunsIndexingStatus()
+    {
+        using var index = Open();
+        index.TryBeginIndexing("doc1", Model, out long runA);
+        index.DeleteDocument("doc1");
+        index.TryBeginIndexing("doc1", Model, out _);
+
+        Assert.False(index.FinishIndexing("doc1", Model, runA, DocumentIndexStatus.Complete));
+
+        Assert.Equal(DocumentIndexStatus.Indexing, index.GetStatus("doc1", Model));
+    }
+
     [Fact]
     public void WriteChunks_KeepsTheIndexingClaimOfTheWriter()
     {

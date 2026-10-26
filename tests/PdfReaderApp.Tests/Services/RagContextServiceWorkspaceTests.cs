@@ -61,6 +61,8 @@ public class RagContextServiceWorkspaceTests
             return true;
         }
         public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken) { }
+        public bool WriteEmbeddingsIfClaimed(string documentId, string embeddingModel, long claimToken, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings) => true;
+        public bool FinishIndexing(string documentId, string embeddingModel, long claimToken, DocumentIndexStatus status) => true;
         public void EnsureSchema() { }
         public DocumentIndexStatus GetStatus(string d, string m)
             => Statuses.TryGetValue((d, m), out var s) ? s : DocumentIndexStatus.None;

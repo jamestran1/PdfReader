@@ -518,15 +518,44 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         }
     }
 
+    public bool WriteEmbeddingsIfClaimed(
+        string documentId, string embeddingModel, long claimToken, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings)
+    {
+        // Kiểm claim và ghi trong cùng một lock (Monitor cho phép vào lại) nên không có khe hở giữa kiểm và ghi.
+        lock (_lock)
+        {
+            if (!IsClaimCurrent(documentId, embeddingModel, claimToken)) return false;
+            WriteEmbeddings(embeddingModel, embeddings);
+            return true;
+        }
+    }
+
+    public bool FinishIndexing(string documentId, string embeddingModel, long claimToken, DocumentIndexStatus status)
+    {
+        lock (_lock)
+        {
+            if (!IsClaimCurrent(documentId, embeddingModel, claimToken)) return false;
+            _claimTokens.Remove((documentId, embeddingModel));
+            SetStatus(documentId, status, embeddingModel);
+            return true;
+        }
+    }
+
+    // Claim còn hiệu lực khi token khớp VÀ hàng trạng thái vẫn là Indexing (DeleteDocument xoá hàng nhưng để lại token cũ).
+    // Gọi trong _lock.
+    private bool IsClaimCurrent(string documentId, string embeddingModel, long claimToken)
+        => _claimTokens.TryGetValue((documentId, embeddingModel), out long current)
+            && current == claimToken
+            && GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing;
+
     public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken)
     {
         lock (_lock)
         {
             // Claim đã đổi chủ (tài liệu bị xoá rồi lượt khác giành quyền) hoặc hàng trạng thái đã mất thì không đụng tới.
-            if (!_claimTokens.TryGetValue((documentId, embeddingModel), out long current) || current != claimToken) return;
+            if (!IsClaimCurrent(documentId, embeddingModel, claimToken)) return;
             _claimTokens.Remove((documentId, embeddingModel));
-            if (GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing)
-                SetStatus(documentId, DocumentIndexStatus.Partial, embeddingModel);
+            SetStatus(documentId, DocumentIndexStatus.Partial, embeddingModel);
         }
     }
 
