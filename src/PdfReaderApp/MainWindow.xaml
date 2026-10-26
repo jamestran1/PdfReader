@@ -938,7 +938,9 @@
                                                             HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignConverter}}">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
-                                                <TextBlock Text="{Binding Content}" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
+                                                           controls:CitationText.Command="{Binding DataContext.Chat.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                           controls:CitationText.Spans="{Binding Spans}"/>
                                                 <Button HorizontalAlignment="Right" Margin="0,2,0,0"
                                                         Width="28" Height="28" Padding="0"
                                                         ToolTip="Lưu thành ghi chú"

@@ -65,9 +65,12 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
 
     private sealed class FakeHistory : IChatHistoryStore
     {
+        public List<ChatHistoryEntry> Entries { get; } = [];
         public void EnsureSchema() { }
-        public void Append(string documentId, string role, string content, long createdAtUnix) { }
-        public IReadOnlyList<ChatHistoryEntry> GetAll(string documentId) => [];
+        public void Append(string documentId, string role, string content, long createdAtUnix,
+            IReadOnlyList<RagSource>? sources = null)
+            => Entries.Add(new ChatHistoryEntry(documentId, role, content, createdAtUnix, sources ?? []));
+        public IReadOnlyList<ChatHistoryEntry> GetAll(string documentId) => Entries;
         public void DeleteForDocument(string documentId) { }
     }
 
@@ -128,6 +131,9 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
 
     private static WorkspaceDocument Doc(string id, string title) => new(id, title, $"C:\\lib\\{id}.pdf");
 
+    private readonly FakeHistory _history = new();
+    private readonly List<(string DocumentId, int PageIndex)> _jumps = [];
+
     private ChatViewModel CreateChat(string? currentDocumentId = "a")
     {
         _statuses["a"] = DocumentIndexStatus.Complete;
@@ -147,10 +153,11 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
             postToUiThread: action => action());
         var chat = new ChatViewModel(
             new AiChatService(settings, new FakeChatClientFactory(_sent)),
-            new FakeHistory(),
+            _history,
             new RagContextService(new FakeIndex(this), new FakeEmbeddingFactory(this), settings),
             () => new ChatContext(currentDocumentId, "ws1", [], 1),
-            new ChatWorkspace(() => { _documentsRequested++; return _documents; }, runner));
+            new ChatWorkspace(() => { _documentsRequested++; return _documents; }, runner),
+            (documentId, pageIndex) => _jumps.Add((documentId, pageIndex)));
         _chats.Add(chat);
         return chat;
     }
@@ -224,6 +231,56 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         Assert.Equal(
             [new RagSource(1, "a", "Sách A", 0), new RagSource(2, "b", "Sách B", 2)],
             answer.Sources);
+    }
+
+    [Fact]
+    public async Task WorkspaceScope_AnswerPersistsSourceTableWithTheTurn()
+    {
+        var chat = CreateChat();
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
+
+        await AskAsync(chat, "câu hỏi");
+
+        var ai = _history.Entries.Single(e => e.Role == "AI");
+        Assert.Equal([new RagSource(1, "a", "Sách A", 0), new RagSource(2, "b", "Sách B", 2)], ai.Sources);
+        Assert.Empty(_history.Entries.Single(e => e.Role == "User").Sources);
+    }
+
+    [Fact]
+    public void LoadHistory_RestoresSourceTableSoCitationsStayClickable()
+    {
+        RagSource[] sources = [new(1, "a", "Sách A", 0)];
+        _history.Entries.Add(new ChatHistoryEntry("ws1", "AI", "Theo [1].", 1, sources));
+        var chat = CreateChat();
+
+        chat.LoadHistory();
+
+        var message = chat.Messages.Single();
+        Assert.Equal(sources, message.Sources);
+        Assert.Contains(message.Spans, s => s.Source == sources[0]);
+    }
+
+    [Fact]
+    public async Task Spans_FollowStreamedContent()
+    {
+        var chat = CreateChat();
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
+
+        await AskAsync(chat, "câu hỏi");
+
+        var answer = chat.Messages.Last();
+        Assert.Single(answer.Spans, s => s.Source is not null);
+        Assert.Equal(" là vậy.", answer.Spans[^1].Text);
+    }
+
+    [Fact]
+    public void OpenCitationCommand_JumpsToDocumentAndZeroBasedPage()
+    {
+        var chat = CreateChat();
+
+        chat.OpenCitationCommand.Execute(new RagSource(2, "b", "Sách B", 2));
+
+        Assert.Equal([("b", 2)], _jumps);
     }
 
     [Fact]

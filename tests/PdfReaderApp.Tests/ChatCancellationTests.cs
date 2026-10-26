@@ -57,7 +57,7 @@ public sealed class ChatCancellationTests : IDisposable
     {
         public readonly List<(string owner, string role, string content)> Appended = [];
         public void EnsureSchema() { }
-        public void Append(string documentId, string role, string content, long createdAtUnix)
+        public void Append(string documentId, string role, string content, long createdAtUnix, IReadOnlyList<PdfReaderApp.Models.RagSource>? sources = null)
             => Appended.Add((documentId, role, content));
         public IReadOnlyList<ChatHistoryEntry> GetAll(string documentId) => [];
         public void DeleteForDocument(string documentId) { }
