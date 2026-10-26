@@ -261,6 +261,52 @@ public class ITextPdfDocumentServiceTests : IDisposable
         }
     }
 
+    [Fact]
+    public void FindRects_PageWithCropBoxOffsetFromMediaBox_AreRelativeToCropBoxOrigin()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        string uncroppedPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateCroppedPdf(path, new iText.Kernel.Geom.Rectangle(20, 30, 500, 700));
+            CreateCroppedPdf(uncroppedPath, new iText.Kernel.Geom.Rectangle(0, 0, 600, 800));
+            using var cropped = new ITextPdfDocumentService();
+            cropped.LoadFile(path);
+            using var uncropped = new ITextPdfDocumentService();
+            uncropped.LoadFile(uncroppedPath);
+
+            var expected = Assert.Single(uncropped.FindMatchRects(0, "kinh hanh"));
+            var match = Assert.Single(cropped.FindMatchRects(0, "kinh hanh"));
+            var passage = Assert.Single(cropped.FindPassageRects(0, ["kinh hanh"]));
+
+            // PDFium vẽ theo CropBox, nên gốc toạ độ của hộp phải là góc dưới trái của CropBox (20, 30).
+            foreach (var r in new[] { match, passage })
+            {
+                Assert.Equal(expected.PdfX - 20f, r.PdfX, 0.01f);
+                Assert.Equal(expected.PdfY - 30f, r.PdfY, 0.01f);
+            }
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+            if (File.Exists(uncroppedPath)) File.Delete(uncroppedPath);
+        }
+    }
+
+    private static void CreateCroppedPdf(string path, iText.Kernel.Geom.Rectangle cropBox)
+    {
+        using var writer = new PdfWriter(path);
+        using var pdfDoc = new PdfDocument(writer);
+        var page = pdfDoc.AddNewPage(new iText.Kernel.Geom.PageSize(600, 800));
+        var font = PdfFontFactory.CreateFont(
+            @"C:\Windows\Fonts\arial.ttf",
+            PdfEncodings.IDENTITY_H,
+            PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
+        new iText.Kernel.Pdf.Canvas.PdfCanvas(page)
+            .BeginText().SetFontAndSize(font, 12).MoveText(100, 200).ShowText("đi kinh hành").EndText();
+        page.SetCropBox(cropBox);
+    }
+
     private static void CreateTwoPagePdf(string path, string page1Text, string page2Text)
     {
         using var writer = new PdfWriter(path);

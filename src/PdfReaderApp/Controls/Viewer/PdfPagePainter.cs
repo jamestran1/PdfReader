@@ -138,9 +138,14 @@ internal static class PdfPagePainter
         float pageHeightPt = (float)frame.Sources.GetPageHeightPt(pageIndex);
         var page = ToRectF(pageRect);
 
-        using var paint = new SKPaint { Color = color, IsStroke = false };
+        // Một path rồi tô một lần (winding = hợp): các hộp chồng nhau (dòng iText cao hơn khoảng cách dòng,
+        // đoạn nguồn gồm nhiều mảnh kề nhau) không bị cộng alpha thành sọc đậm.
+        using var path = new SKPath();
         foreach (var m in rects)
-            canvas.DrawRect(ToSkRect(OverlayGeometry.BottomOrigin(m, pageHeightPt, frame.Zoom, page)), paint);
+            path.AddRect(ToSkRect(OverlayGeometry.BottomOrigin(m, pageHeightPt, frame.Zoom, page)));
+
+        using var paint = new SKPaint { Color = color, IsStroke = false };
+        canvas.DrawPath(path, paint);
     }
 
     private static RectF ToRectF(WpfRect r) => new((float)r.Left, (float)r.Top, (float)r.Width, (float)r.Height);

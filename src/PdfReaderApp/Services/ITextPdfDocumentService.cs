@@ -96,13 +96,17 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         // exactly (no per-glyph reconstruction guesswork).
         var strategy = new RegexBasedLocationExtractionStrategy(pattern);
         var processor = new PdfCanvasProcessor(strategy);
-        processor.ProcessPageContent(_pdfDoc.GetPage(pageIndex + 1));
+        var page = _pdfDoc.GetPage(pageIndex + 1);
+        processor.ProcessPageContent(page);
 
+        // iText trả toạ độ user space (gốc MediaBox) còn PDFium vẽ phần CropBox, nên trừ gốc CropBox
+        // để hộp tính từ góc dưới trái của trang nhìn thấy. Bỏ qua thì hộp lệch đúng bằng độ lệch CropBox.
+        var crop = page.GetCropBox();
         foreach (var loc in strategy.GetResultantLocations())
         {
             var r = loc.GetRectangle();
             if (r is null) continue;
-            result.Add(new MatchRect(r.GetX(), r.GetY(), r.GetWidth(), r.GetHeight()));
+            result.Add(new MatchRect(r.GetX() - crop.GetX(), r.GetY() - crop.GetY(), r.GetWidth(), r.GetHeight()));
         }
         return result;
     }
