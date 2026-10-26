@@ -28,6 +28,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     private readonly IChatHistoryStore _chatHistory;
     private readonly RagContextService _ragContext;
     private readonly Func<ChatContext> _currentContext;
+    private readonly ChatWorkspace _workspace;
     private string? _currentChatOwnerId;
     // Yêu cầu chat đang chạy (RAG + stream). Mỗi yêu cầu tự dispose CTS của mình; trường này chỉ để huỷ.
     private CancellationTokenSource? _requestCts;
@@ -42,19 +43,41 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ActiveModelLabel { get; set; } = string.Empty;
 
+    /// <summary>Phạm vi hỏi đáp: Tài liệu này (mặc định, RAG một tài liệu) hoặc Toàn Workspace (RAG xuyên các Document).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWorkspaceScope))]
+    [NotifyPropertyChangedFor(nameof(IsCurrentDocumentScope))]
+    public partial DocumentScope Scope { get; set; } = DocumentScope.CurrentDocument;
+
+    public bool IsWorkspaceScope => Scope == DocumentScope.Workspace;
+
+    public bool IsCurrentDocumentScope => Scope == DocumentScope.CurrentDocument;
+
+    /// <summary>Tiến độ lập chỉ mục nền các tài liệu Workspace chưa được câu trả lời dùng tới.</summary>
+    public WorkspaceIndexingRunner WorkspaceIndexing => _workspace.Indexing;
+
     public ObservableCollection<ChatMessage> Messages { get; } = [];
 
     public ChatViewModel(
         AiChatService chatService,
         IChatHistoryStore chatHistory,
         RagContextService ragContext,
-        Func<ChatContext> currentContext)
+        Func<ChatContext> currentContext,
+        ChatWorkspace workspace)
     {
         _chatService = chatService;
         _chatHistory = chatHistory;
         _ragContext = ragContext;
         _currentContext = currentContext;
+        _workspace = workspace;
         RefreshActiveModel();
+    }
+
+    // Radio-style như Search: bấm segment luôn đặt phạm vi, không bỏ chọn phạm vi hiện tại.
+    [RelayCommand]
+    private void SetScope(string scope)
+    {
+        if (Enum.TryParse<DocumentScope>(scope, out var parsed)) Scope = parsed;
     }
 
     /// <summary>Đọc lại provider và model chat từ Settings; gọi sau khi lưu Settings.</summary>
@@ -63,14 +86,23 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             + (_chatService.IsConfigured ? string.Empty : MissingKeySuffix);
 
     /// <summary>Dựng ChatViewModel cùng các dịch vụ chat từ <paramref name="services"/>; ChatViewModel sở hữu chúng.</summary>
-    public static ChatViewModel Create(MainViewModelServices services, Func<ChatContext> currentContext)
+    /// <param name="services">Các dịch vụ dùng chung của ứng dụng.</param>
+    /// <param name="currentContext">Ảnh chụp trạng thái tài liệu đang mở mỗi lần nạp lịch sử hoặc gửi tin.</param>
+    /// <param name="getWorkspaceDocuments">Document thuộc Workspace đang mở, cho hỏi đáp Toàn Workspace.</param>
+    public static ChatViewModel Create(
+        MainViewModelServices services, Func<ChatContext> currentContext,
+        Func<IReadOnlyList<WorkspaceDocument>> getWorkspaceDocuments)
     {
         services.ChatHistory.EnsureSchema();
+        var workspaceIndexing = new WorkspaceIndexingService(
+            new DocumentIndexingService(services.DocumentIndex, services.EmbeddingFactory, services.Settings),
+            services.DocumentIndex, new ITextPageTextSource(), services.Settings);
         return new ChatViewModel(
             new AiChatService(services.Settings, services.ChatClientFactory),
             services.ChatHistory,
             new RagContextService(services.DocumentIndex, services.EmbeddingFactory, services.Settings),
-            currentContext);
+            currentContext,
+            new ChatWorkspace(getWorkspaceDocuments, new WorkspaceIndexingRunner(workspaceIndexing.IndexDocumentAsync)));
     }
 
     // Nạp lại khung chat theo sách đang mở: hiện bong bóng cũ và dựng lại bộ nhớ LLM.
@@ -83,6 +115,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
         // Đổi tài liệu: câu trả lời đang chạy thuộc tài liệu cũ, không được ghi sang tài liệu mới.
         CancelPendingRequest();
+        _workspace.Indexing.Cancel();
         Messages.Clear();
 
         if (newOwnerId is null)
@@ -196,12 +229,12 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            string context = await BuildChatContextAsync(question, cts.Token);
+            BuiltContext built = await BuildChatContextAsync(question, cts.Token);
 
-            aiMessage = new ChatMessage { Role = "AI", Content = string.Empty };
+            aiMessage = new ChatMessage { Role = "AI", Content = string.Empty, Sources = built.Sources };
             Messages.Add(aiMessage);
 
-            await StreamAnswerAsync(aiMessage, question, context, cts.Token);
+            await StreamAnswerAsync(aiMessage, question, built.Text, cts.Token);
             PersistTurn(owner, question, aiMessage.Content);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -231,19 +264,40 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 #pragma warning restore CA1031
     }
 
-    private async Task<string> BuildChatContextAsync(string question, CancellationToken ct)
+    // Ngữ cảnh gửi model và bảng nguồn [n] đi kèm (rỗng ngoài chế độ Toàn Workspace).
+    private readonly record struct BuiltContext(string Text, IReadOnlyList<RagSource> Sources);
+
+    private async Task<BuiltContext> BuildChatContextAsync(string question, CancellationToken ct)
     {
         ChatContext context = _currentContext();
-        string? rag = null;
-        if (context.DocumentId is not null)
+        BuiltContext? rag = null;
+        try
         {
-            try { rag = await _ragContext.BuildContextAsync(context.DocumentId, question, ct: ct); }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-#pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
-            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: RAG lỗi: {ex}"); rag = null; }
-#pragma warning restore CA1031
+            rag = Scope == DocumentScope.Workspace
+                ? await BuildWorkspaceRagAsync(question, ct)
+                : await BuildSingleDocumentRagAsync(context, question, ct);
         }
-        return rag ?? DocumentContextBuilder.BuildAround(context.Blocks, context.CurrentPage, ContextPageWindow);
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+#pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
+        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: RAG lỗi: {ex}"); }
+#pragma warning restore CA1031
+        return rag ?? new BuiltContext(
+            DocumentContextBuilder.BuildAround(context.Blocks, context.CurrentPage, ContextPageWindow), []);
+    }
+
+    private async Task<BuiltContext?> BuildSingleDocumentRagAsync(ChatContext context, string question, CancellationToken ct)
+    {
+        if (context.DocumentId is null) return null;
+        string? text = await _ragContext.BuildContextAsync(context.DocumentId, question, ct: ct);
+        return text is null ? null : new BuiltContext(text, []);
+    }
+
+    // Câu hỏi không chờ tài liệu chưa index: chỉ dùng tài liệu đã Complete, phần còn lại đưa vào lập chỉ mục nền.
+    private async Task<BuiltContext?> BuildWorkspaceRagAsync(string question, CancellationToken ct)
+    {
+        WorkspaceRagResult result = await _ragContext.BuildWorkspaceContextAsync(_workspace.GetDocuments(), question, ct: ct);
+        if (result.UnindexedDocuments.Count > 0) _workspace.Indexing.Enqueue(result.UnindexedDocuments);
+        return result.Context is null ? null : new BuiltContext(result.Context, result.Sources);
     }
 
     private async Task StreamAnswerAsync(ChatMessage aiMessage, string question, string context, CancellationToken ct)
@@ -272,6 +326,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         CancelPendingRequest();
+        _workspace.Indexing.Dispose();
         _chatService.Dispose();
     }
 }

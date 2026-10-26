@@ -893,14 +893,39 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <TextBlock Grid.Row="0" Margin="16,8,16,0"
-                                   Style="{StaticResource MaterialDesignCaptionTextBlock}"
-                                   Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
-                                   Text="{Binding Chat.ActiveModelLabel}"
-                                   TextTrimming="CharacterEllipsis"
-                                   ToolTip="{Binding Chat.ActiveModelLabel}"/>
+                        <Grid Grid.Row="0" Margin="16,8,16,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock VerticalAlignment="Center"
+                                       Style="{StaticResource MaterialDesignCaptionTextBlock}"
+                                       Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
+                                       Text="{Binding Chat.ActiveModelLabel}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding Chat.ActiveModelLabel}"/>
+                            <!-- Phạm vi hỏi đáp: Tài liệu này / Toàn Workspace (radio-style, cùng kiểu với phạm vi tìm kiếm) -->
+                            <Border Grid.Column="1" Height="30" CornerRadius="8" Padding="2" Margin="8,0,0,0" VerticalAlignment="Center"
+                                    BorderBrush="{DynamicResource TriThu.Brush.Outline}" BorderThickness="1">
+                                <StackPanel Orientation="Horizontal">
+                                    <ToggleButton x:Name="ChatScopeDocument" Style="{StaticResource TriThu.TopBar.Segment}" Width="28"
+                                                  ToolTip="Hỏi trong tài liệu này"
+                                                  IsChecked="{Binding Chat.IsCurrentDocumentScope, Mode=OneWay}"
+                                                  Command="{Binding Chat.SetScopeCommand}" CommandParameter="CurrentDocument">
+                                        <materialDesign:PackIcon Kind="FileOutline" Width="16" Height="16"/>
+                                    </ToggleButton>
+                                    <ToggleButton x:Name="ChatScopeWorkspace" Style="{StaticResource TriThu.TopBar.Segment}" Width="28"
+                                                  ToolTip="Hỏi trong toàn Workspace"
+                                                  IsChecked="{Binding Chat.IsWorkspaceScope, Mode=OneWay}"
+                                                  Command="{Binding Chat.SetScopeCommand}" CommandParameter="Workspace">
+                                        <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="16" Height="16"/>
+                                    </ToggleButton>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                             <ItemsControl ItemsSource="{Binding Chat.Messages}" Margin="16">
@@ -941,7 +966,22 @@
                             </ItemsControl>
                         </ScrollViewer>
 
-                        <Grid Grid.Row="2" Margin="16">
+                        <!-- Thông báo lập chỉ mục nền các tài liệu Workspace chưa gồm trong câu trả lời; ẩn khi rỗng -->
+                        <TextBlock Grid.Row="2" Margin="16,0,16,0" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
+                                   Text="{Binding Chat.WorkspaceIndexing.StatusText}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource MaterialDesignCaptionTextBlock}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Chat.WorkspaceIndexing.StatusText}" Value="">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <Grid Grid.Row="3" Margin="16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
