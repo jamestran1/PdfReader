@@ -486,4 +486,36 @@ public class AiChatServiceTests
         Assert.DoesNotContain(texts, t => t.Contains("Hỏi 1"));
         Assert.Contains(texts, t => t.Contains("Hỏi 2"));
     }
+
+    [Fact]
+    public async Task AskStreamingAsync_HistoryOverBudget_SendsTrimmedHistory()
+    {
+        var client = new FakeChatClient(["ok"]);
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+        string big = new('x', ChatHistoryTrimmer.DefaultMaxChars / 4);
+        svc.SeedHistory([("User", "cũ-1 " + big), ("AI", "đáp-1 " + big),
+                         ("User", "cũ-2 " + big), ("AI", "đáp-2 " + big),
+                         ("User", "cũ-3 " + big), ("AI", "đáp-3 " + big)]);
+
+        await foreach (var _ in svc.AskStreamingAsync("câu mới", "ngữ cảnh")) { }
+
+        var sent = client.LastMessages;
+        Assert.Equal(ChatRole.System, sent[0].Role);
+        Assert.Contains("câu mới", sent[^1].Text);
+        Assert.Contains("ngữ cảnh", sent[^1].Text);
+        Assert.DoesNotContain(sent, m => m.Text.StartsWith("cũ-1", StringComparison.Ordinal));
+        Assert.Contains(sent, m => m.Text.StartsWith("đáp-3", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AskStreamingAsync_HistoryWithinBudget_SendsEverything()
+    {
+        var client = new FakeChatClient(["ok"]);
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+        svc.SeedHistory([("User", "hỏi cũ"), ("AI", "đáp cũ")]);
+
+        await foreach (var _ in svc.AskStreamingAsync("câu mới", "")) { }
+
+        Assert.Equal(4, client.LastMessages.Count);
+    }
 }
