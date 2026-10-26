@@ -166,7 +166,8 @@ public sealed class AiChatService : IDisposable
     {
         try
         {
-            return client.GetStreamingResponseAsync(_history, options: null, ct)
+            // Chỉ danh sách gửi đi bị tỉa; _history đầy đủ vẫn giữ trong bộ nhớ.
+            return client.GetStreamingResponseAsync(ChatHistoryTrimmer.Trim(_history), options: null, ct)
                          .GetAsyncEnumerator(ct);
         }
 #pragma warning disable CA1031 // ranh giới gọi AI: SDK ném nhiều kiểu lỗi, được phân loại (AiErrorClassifier) và bọc lại kèm inner exception
