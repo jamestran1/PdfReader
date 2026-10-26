@@ -404,7 +404,7 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceCommand.Execute(w);
         vm.OpenWorkspaceDocumentCommand.Execute(a);
 
-        vm.Search.Scope = SearchScope.Workspace;
+        vm.Search.Scope = DocumentScope.Workspace;
         vm.Search.Query = "hành";
         var hitB = new SearchResult(4, "s", 1, "docB", "B");
         var hitA = new SearchResult(1, "s", 2, "docA", "A");
@@ -417,7 +417,7 @@ public class MainViewModelTabTests
         Assert.Equal(5, vm.CurrentPage);
         Assert.Equal("hành", vm.Search.Query);
         Assert.Equal("hành", vm.Search.SelectedQuery);
-        Assert.Equal(SearchScope.Workspace, vm.Search.Scope);
+        Assert.Equal(DocumentScope.Workspace, vm.Search.Scope);
         Assert.Equal([hitB, hitA], vm.Search.Results);
     }
 

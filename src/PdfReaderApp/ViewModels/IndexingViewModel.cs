@@ -10,6 +10,9 @@ namespace PdfReaderApp.ViewModels;
 /// tài liệu hoặc Dispose (CS-13). Tách khỏi MainViewModel để test trọn vẹn.</summary>
 public sealed partial class IndexingViewModel : ObservableObject, IDisposable
 {
+    /// <summary>Báo khi lượt này không giành được claim vì lượt khác (vd hàng đợi Workspace) đang lập chỉ mục đúng tài liệu.</summary>
+    internal const string IndexingElsewhereMessage = "Tài liệu đang được lập chỉ mục ở nền, kết quả AI sẽ dùng được khi xong.";
+
     private readonly IDocumentIndex _documentIndex;
     private readonly DocumentIndexingService _indexingService;
     private readonly Func<IndexingTarget?> _currentTarget;
@@ -72,13 +75,34 @@ public sealed partial class IndexingViewModel : ObservableObject, IDisposable
             if (IsLive(run)) StatusText = FormatProgress(p);
         });
 
-        BackgroundTask = Task.Run(() => IndexInBackgroundAsync(target, progress, run, ct), ct);
+        // Lượt mới chờ lượt cũ nhả claim rồi mới chạy: lượt cũ chỉ nhả khi huỷ chạm tới nó (thường sau khi lời gọi embedding
+        // đang bay trả về). Chạy ngay thì TryBeginIndexing thấy Indexing và bỏ qua, rồi lượt cũ nhả về Partial và không ai lập lại.
+        // IndexInBackgroundAsync tự bắt mọi lỗi nên chờ nó không bao giờ ném. Không truyền ct cho Task.Run: huỷ trước khi bắt
+        // đầu sẽ biến tác vụ thành Canceled và làm lượt sau ném khi chờ.
+        Task previous = BackgroundTask ?? Task.CompletedTask;
+        BackgroundTask = Task.Run(async () =>
+        {
+            await previous.ConfigureAwait(false);
+            await IndexInBackgroundAsync(target, progress, run, ct).ConfigureAwait(false);
+        });
     }
 
     private async Task IndexInBackgroundAsync(
         IndexingTarget target, IProgress<IndexingProgress> progress, IndexingRun run, CancellationToken ct)
     {
-        try { await _indexingService.IndexAsync(target.DocumentId, target.FilePath, target.PageTexts, progress, ct); }
+        try
+        {
+            IndexingOutcome outcome = await _indexingService.IndexAsync(
+                target.DocumentId, target.FilePath, target.PageTexts, progress, ct);
+            if (outcome == IndexingOutcome.SkippedAnotherRunIndexing)
+            {
+                // Lượt khác giữ claim hợp lệ (vd hàng đợi Workspace): báo thay vì im lặng. Superseded thì lượt mới đã tự báo.
+                _runOnUiThread(() =>
+                {
+                    if (IsLive(run)) StatusText = IndexingElsewhereMessage;
+                });
+            }
+        }
         catch (OperationCanceledException) { }
 #pragma warning disable CA1031 // ranh giới tác vụ nền: lập chỉ mục lỗi được phân loại và báo cho người dùng
         catch (Exception ex)

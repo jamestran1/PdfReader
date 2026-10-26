@@ -83,6 +83,15 @@ public sealed class MainViewModelChatTests : IDisposable
         public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel) { }
         public IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50) => [];
         public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
+        public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
+        public bool TryBeginIndexing(string documentId, string embeddingModel, out long claimToken)
+        {
+            claimToken = 0;
+            return true;
+        }
+        public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken) { }
+        public bool WriteEmbeddingsIfClaimed(string documentId, string embeddingModel, long claimToken, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings) => true;
+        public bool FinishIndexing(string documentId, string embeddingModel, long claimToken, DocumentIndexStatus status) => true;
         public void Dispose() { }
     }
 

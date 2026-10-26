@@ -292,7 +292,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _library = services.Library;
         ReloadLibrary();
 
-        Chat = ChatViewModel.Create(services, GetChatContext);
+        Chat = ChatViewModel.Create(services, GetChatContext, GetWorkspaceDocuments);
 
         _noteStore = services.NoteStore;
         _noteStore.EnsureSchema();
@@ -679,15 +679,23 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Các Document của Workspace đang mở (kèm tên) để tìm Toàn Workspace; ngoài phiên Workspace chỉ có tài liệu hiện tại.
     private List<SearchDocument> GetSearchDocuments()
+        => [.. GetWorkspaceDocuments().Select(d => new SearchDocument(d.DocumentId, d.Title))];
+
+    // Cùng danh sách cho tìm kiếm và hỏi đáp Toàn Workspace; kèm đường dẫn file để lập chỉ mục nền tài liệu chưa mở.
+    private List<WorkspaceDocument> GetWorkspaceDocuments()
     {
         if (_activeWorkspaceId is null)
-            return _documentId is null ? [] : [new SearchDocument(_documentId, System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty))];
+        {
+            return _documentId is null
+                ? []
+                : [new WorkspaceDocument(_documentId, System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty), FilePath ?? string.Empty)];
+        }
 
-        var documents = new List<SearchDocument>();
+        var documents = new List<WorkspaceDocument>();
         foreach (string id in _workspaceStore.GetDocumentIds(_activeWorkspaceId))
         {
             var item = Library.FirstOrDefault(i => i.DocumentId == id);
-            if (item is not null) documents.Add(new SearchDocument(id, item.Title));
+            if (item is not null) documents.Add(new WorkspaceDocument(id, item.Title, item.StoredPath));
         }
 
         return documents;

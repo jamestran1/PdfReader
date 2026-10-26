@@ -11,6 +11,8 @@ namespace PdfReaderApp.ViewModels;
 public sealed partial class ChatViewModel : ObservableObject, IDisposable
 {
     private const int ContextPageWindow = 2;
+    private const string PageOnlyNotice =
+        "Câu trả lời này chỉ dựa trên trang đang đọc, chưa dùng được các tài liệu khác của Workspace.";
     private const string MissingKeySuffix = " (chưa có key)";
 
     // Lời lỗi của các bản cũ vẫn nằm trong lịch sử chat đã lưu; giữ trong bộ lọc để không nạp lại vào trí nhớ LLM.
@@ -28,6 +30,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     private readonly IChatHistoryStore _chatHistory;
     private readonly RagContextService _ragContext;
     private readonly Func<ChatContext> _currentContext;
+    private readonly ChatWorkspace _workspace;
     private string? _currentChatOwnerId;
     // Yêu cầu chat đang chạy (RAG + stream). Mỗi yêu cầu tự dispose CTS của mình; trường này chỉ để huỷ.
     private CancellationTokenSource? _requestCts;
@@ -42,19 +45,52 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     public partial string ActiveModelLabel { get; set; } = string.Empty;
 
+    /// <summary>Phạm vi hỏi đáp: Tài liệu này (mặc định, RAG một tài liệu) hoặc Toàn Workspace (RAG xuyên các Document).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsWorkspaceScope))]
+    [NotifyPropertyChangedFor(nameof(IsCurrentDocumentScope))]
+    public partial DocumentScope Scope { get; set; } = DocumentScope.CurrentDocument;
+
+    public bool IsWorkspaceScope => Scope == DocumentScope.Workspace;
+
+    public bool IsCurrentDocumentScope => Scope == DocumentScope.CurrentDocument;
+
+    /// <summary>Tiến độ lập chỉ mục nền các tài liệu Workspace chưa được câu trả lời dùng tới.</summary>
+    public WorkspaceIndexingRunner WorkspaceIndexing => _workspace.Indexing;
+
+    /// <summary>Thông báo trên ô nhập: lập chỉ mục nền, thiếu key, hoặc câu trả lời chỉ dùng trang đang đọc.</summary>
+    public string Notice => string.Join('\n', new[] { ScopeNotice, WorkspaceIndexing.StatusText }.Where(s => s.Length > 0));
+
+    // Cảnh báo của lần hỏi Toàn Workspace gần nhất (thiếu key embedding, hoặc phải lùi về trang đang đọc).
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Notice))]
+    public partial string ScopeNotice { get; set; } = string.Empty;
+
+    partial void OnScopeChanged(DocumentScope value) => ScopeNotice = string.Empty;
+
     public ObservableCollection<ChatMessage> Messages { get; } = [];
 
     public ChatViewModel(
         AiChatService chatService,
         IChatHistoryStore chatHistory,
         RagContextService ragContext,
-        Func<ChatContext> currentContext)
+        Func<ChatContext> currentContext,
+        ChatWorkspace workspace)
     {
         _chatService = chatService;
         _chatHistory = chatHistory;
         _ragContext = ragContext;
         _currentContext = currentContext;
+        _workspace = workspace;
+        _workspace.Indexing.PropertyChanged += (_, _) => OnPropertyChanged(nameof(Notice));
         RefreshActiveModel();
+    }
+
+    // Radio-style như Search: bấm segment luôn đặt phạm vi, không bỏ chọn phạm vi hiện tại.
+    [RelayCommand]
+    private void SetScope(DocumentScope scope)
+    {
+        Scope = scope;
     }
 
     /// <summary>Đọc lại provider và model chat từ Settings; gọi sau khi lưu Settings.</summary>
@@ -62,15 +98,30 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         ActiveModelLabel = $"{AiModelCatalog.DisplayName(_chatService.ChatProvider)} · {_chatService.ChatModel}"
             + (_chatService.IsConfigured ? string.Empty : MissingKeySuffix);
 
+    // Đưa về luồng UI không chặn luồng nền (InvokeAsync, không phải Invoke); thứ tự các lần gọi được giữ.
+    private static void PostToApplicationDispatcher(Action action)
+    {
+        _ = System.Windows.Application.Current?.Dispatcher.InvokeAsync(action);
+    }
+
     /// <summary>Dựng ChatViewModel cùng các dịch vụ chat từ <paramref name="services"/>; ChatViewModel sở hữu chúng.</summary>
-    public static ChatViewModel Create(MainViewModelServices services, Func<ChatContext> currentContext)
+    /// <param name="services">Các dịch vụ dùng chung của ứng dụng.</param>
+    /// <param name="currentContext">Ảnh chụp trạng thái tài liệu đang mở mỗi lần nạp lịch sử hoặc gửi tin.</param>
+    /// <param name="getWorkspaceDocuments">Document thuộc Workspace đang mở, cho hỏi đáp Toàn Workspace.</param>
+    public static ChatViewModel Create(
+        MainViewModelServices services, Func<ChatContext> currentContext,
+        Func<IReadOnlyList<WorkspaceDocument>> getWorkspaceDocuments)
     {
         services.ChatHistory.EnsureSchema();
+        var workspaceIndexing = new WorkspaceIndexingService(
+            new DocumentIndexingService(services.DocumentIndex, services.EmbeddingFactory, services.Settings),
+            services.DocumentIndex, new PdfFilePageTextSource(), services.Settings);
         return new ChatViewModel(
             new AiChatService(services.Settings, services.ChatClientFactory),
             services.ChatHistory,
             new RagContextService(services.DocumentIndex, services.EmbeddingFactory, services.Settings),
-            currentContext);
+            currentContext,
+            new ChatWorkspace(getWorkspaceDocuments, new WorkspaceIndexingRunner(workspaceIndexing.IndexDocumentAsync, PostToApplicationDispatcher)));
     }
 
     // Nạp lại khung chat theo sách đang mở: hiện bong bóng cũ và dựng lại bộ nhớ LLM.
@@ -83,6 +134,8 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
         // Đổi tài liệu: câu trả lời đang chạy thuộc tài liệu cũ, không được ghi sang tài liệu mới.
         CancelPendingRequest();
+        _workspace.Indexing.Cancel();
+        ScopeNotice = string.Empty;
         Messages.Clear();
 
         if (newOwnerId is null)
@@ -196,12 +249,12 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
                 return;
             }
 
-            string context = await BuildChatContextAsync(question, cts.Token);
+            BuiltContext built = await BuildChatContextAsync(question, cts.Token);
 
-            aiMessage = new ChatMessage { Role = "AI", Content = string.Empty };
+            aiMessage = new ChatMessage { Role = "AI", Content = string.Empty, Sources = built.Sources };
             Messages.Add(aiMessage);
 
-            await StreamAnswerAsync(aiMessage, question, context, cts.Token);
+            await StreamAnswerAsync(aiMessage, question, built.Text, cts.Token);
             PersistTurn(owner, question, aiMessage.Content);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested)
@@ -231,19 +284,74 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 #pragma warning restore CA1031
     }
 
-    private async Task<string> BuildChatContextAsync(string question, CancellationToken ct)
+    // Ngữ cảnh gửi model và bảng nguồn [n] đi kèm (rỗng ngoài chế độ Toàn Workspace).
+    private readonly record struct BuiltContext(string Text, IReadOnlyList<RagSource> Sources);
+
+    private async Task<BuiltContext> BuildChatContextAsync(string question, CancellationToken ct)
     {
         ChatContext context = _currentContext();
-        string? rag = null;
-        if (context.DocumentId is not null)
+        BuiltContext? rag = null;
+        ScopeNotice = string.Empty;
+        try
         {
-            try { rag = await _ragContext.BuildContextAsync(context.DocumentId, question, ct: ct); }
-            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
-#pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
-            catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: RAG lỗi: {ex}"); rag = null; }
-#pragma warning restore CA1031
+            rag = Scope == DocumentScope.Workspace
+                ? await BuildWorkspaceRagAsync(question, ct)
+                : await BuildSingleDocumentRagAsync(context, question, ct);
         }
-        return rag ?? DocumentContextBuilder.BuildAround(context.Blocks, context.CurrentPage, ContextPageWindow);
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+#pragma warning disable CA1031 // degrade: RAG lỗi thì lùi về ngữ cảnh theo trang
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.TraceWarning($"ChatViewModel.SendMessage: RAG lỗi: {ex}");
+            if (Scope == DocumentScope.Workspace) AppendScopeNotice(PageOnlyNotice);
+        }
+#pragma warning restore CA1031
+        return rag ?? new BuiltContext(
+            DocumentContextBuilder.BuildAround(context.Blocks, context.CurrentPage, ContextPageWindow), []);
+    }
+
+    private async Task<BuiltContext?> BuildSingleDocumentRagAsync(ChatContext context, string question, CancellationToken ct)
+    {
+        if (context.DocumentId is null) return null;
+        string? text = await _ragContext.BuildContextAsync(context.DocumentId, question, ct: ct);
+        return text is null ? null : new BuiltContext(text, []);
+    }
+
+    private void AppendScopeNotice(string notice)
+        => ScopeNotice = ScopeNotice.Length == 0 ? notice : $"{ScopeNotice} {notice}";
+
+    // Câu hỏi không chờ tài liệu chưa index: chỉ dùng tài liệu đã Complete, phần còn lại đưa vào lập chỉ mục nền.
+    private async Task<BuiltContext?> BuildWorkspaceRagAsync(string question, CancellationToken ct)
+    {
+        var plan = _ragContext.PlanWorkspaceIndexing(_workspace.GetDocuments());
+
+        // Xếp hàng lập chỉ mục TRƯỚC khi nhúng câu hỏi: nhúng lỗi (mạng, key) không được làm mất việc lập chỉ mục.
+        if (plan.Unindexed.Count > 0) _workspace.Indexing.Enqueue(plan.Unindexed);
+
+        // Tài liệu đang lập chỉ mục ở nơi khác (vd tài liệu đang mở) chỉ được nêu một lần cho câu hỏi này, không giữ lâu dài:
+        // không có sự kiện nào báo khi chúng xong nên một con số lưu lại sẽ cũ đi. Tài liệu runner đang giữ claim thì đã có
+        // trong StatusText của runner nên không đếm lại.
+        int elsewhere = plan.Indexing.Count(d => !_workspace.Indexing.IsQueued(d.DocumentId));
+        if (elsewhere > 0)
+        {
+            ScopeNotice = string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"Khi bạn hỏi, {elsewhere} tài liệu đang được lập chỉ mục ở nơi khác nên câu trả lời này chưa gồm tài liệu đó.");
+        }
+
+        if (plan.MissingEmbeddingKeyProvider is { } provider)
+        {
+            AppendScopeNotice($"{AiErrorMessages.NotConfigured(provider)} {PageOnlyNotice}");
+            return null;
+        }
+
+        WorkspaceRagResult result = await _ragContext.BuildWorkspaceContextAsync(plan, question, ct: ct);
+        if (result.Context is null)
+        {
+            AppendScopeNotice(PageOnlyNotice);
+            return null;
+        }
+
+        return new BuiltContext(result.Context, result.Sources);
     }
 
     private async Task StreamAnswerAsync(ChatMessage aiMessage, string question, string context, CancellationToken ct)
@@ -272,6 +380,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         CancelPendingRequest();
+        _workspace.Indexing.Dispose();
         _chatService.Dispose();
     }
 }

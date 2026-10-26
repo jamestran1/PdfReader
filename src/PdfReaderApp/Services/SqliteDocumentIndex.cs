@@ -14,6 +14,10 @@ public sealed class SqliteDocumentIndex : IDocumentIndex
     private readonly SqliteConnection _conn;
     private readonly Lock _lock = new();
     private readonly bool _vecAvailable;
+    private bool _orphanedIndexingReset;
+    // Claim đang sống theo (document, model); chỉ trong bộ nhớ vì claim không sống qua lần mở lại (xem ResetOrphanedIndexingStatusOnce).
+    private readonly Dictionary<(string DocumentId, string Model), long> _claimTokens = [];
+    private long _lastClaimToken;
 
     /// <summary>True when sqlite-vec loaded; false -> vector RAG degrades, FTS5 search still works.</summary>
     public bool VectorSearchAvailable => _vecAvailable;
@@ -67,6 +71,8 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
 
             // Re-fold search_text if Fold logic changed (version gate)
             RefoldSearchTextIfStale();
+
+            ResetOrphanedIndexingStatusOnce();
         }
     }
 
@@ -288,7 +294,9 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     {
         lock (_lock)
         {
+            var claimedModels = ReadIndexingModels(documentId);
             DeleteDocumentCore(documentId); // idempotent re-index, atomic with inserts
+            foreach (string model in claimedModels) SetStatus(documentId, DocumentIndexStatus.Indexing, model);
             var ids = new List<long>();
             using var tx = _conn.BeginTransaction();
 
@@ -496,6 +504,87 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
         _ => status.ToString().ToLowerInvariant()
     };
 
+    public bool TryBeginIndexing(string documentId, string embeddingModel, out long claimToken)
+    {
+        claimToken = 0;
+        // Kiểm tra và đặt trong cùng một lock: hai lượt (tài liệu đang mở và hàng đợi Workspace) không thể cùng thắng.
+        lock (_lock)
+        {
+            if (GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing) return false;
+            SetStatus(documentId, DocumentIndexStatus.Indexing, embeddingModel);
+            claimToken = ++_lastClaimToken;
+            _claimTokens[(documentId, embeddingModel)] = claimToken;
+            return true;
+        }
+    }
+
+    public bool WriteEmbeddingsIfClaimed(
+        string documentId, string embeddingModel, long claimToken, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings)
+    {
+        // Kiểm claim và ghi trong cùng một lock (Monitor cho phép vào lại) nên không có khe hở giữa kiểm và ghi.
+        lock (_lock)
+        {
+            if (!IsClaimCurrent(documentId, embeddingModel, claimToken)) return false;
+            WriteEmbeddings(embeddingModel, embeddings);
+            return true;
+        }
+    }
+
+    public bool FinishIndexing(string documentId, string embeddingModel, long claimToken, DocumentIndexStatus status)
+    {
+        lock (_lock)
+        {
+            if (!IsClaimCurrent(documentId, embeddingModel, claimToken)) return false;
+            _claimTokens.Remove((documentId, embeddingModel));
+            SetStatus(documentId, status, embeddingModel);
+            return true;
+        }
+    }
+
+    // Claim còn hiệu lực khi token khớp VÀ hàng trạng thái vẫn là Indexing (DeleteDocument xoá hàng nhưng để lại token cũ).
+    // Gọi trong _lock.
+    private bool IsClaimCurrent(string documentId, string embeddingModel, long claimToken)
+        => _claimTokens.TryGetValue((documentId, embeddingModel), out long current)
+            && current == claimToken
+            && GetStatus(documentId, embeddingModel) == DocumentIndexStatus.Indexing;
+
+    public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken)
+    {
+        lock (_lock)
+        {
+            // Claim đã đổi chủ (tài liệu bị xoá rồi lượt khác giành quyền) hoặc hàng trạng thái đã mất thì không đụng tới.
+            if (!IsClaimCurrent(documentId, embeddingModel, claimToken)) return;
+            _claimTokens.Remove((documentId, embeddingModel));
+            SetStatus(documentId, DocumentIndexStatus.Partial, embeddingModel);
+        }
+    }
+
+    // Trạng thái Indexing mà không còn tác vụ nào chạy (app tắt hoặc sập giữa chừng) sẽ chặn lập chỉ mục mãi mãi.
+    // Chạy một lần sau khi mở: EnsureSchema gọi lại giữa phiên không được xoá claim đang sống.
+    private void ResetOrphanedIndexingStatusOnce()
+    {
+        if (_orphanedIndexingReset) return;
+        _orphanedIndexingReset = true;
+        Exec($"UPDATE document_models SET status='{ToDbStatus(DocumentIndexStatus.Partial)}' WHERE status='{ToDbStatus(DocumentIndexStatus.Indexing)}'");
+    }
+
+    // WriteChunks xoá mọi trạng thái của tài liệu; claim Indexing của lượt đang ghi chunk phải được giữ lại.
+    private List<string> ReadIndexingModels(string documentId)
+    {
+        var models = new List<string>();
+        using var cmd = _conn.CreateCommand();
+        cmd.CommandText = "SELECT model_name FROM document_models WHERE document_id=$id AND status=$s";
+        cmd.Parameters.AddWithValue("$id", documentId);
+        cmd.Parameters.AddWithValue("$s", ToDbStatus(DocumentIndexStatus.Indexing));
+        using var r = cmd.ExecuteReader();
+        while (r.Read())
+        {
+            models.Add(r.GetString(0));
+        }
+
+        return models;
+    }
+
     public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel)
     {
         lock (_lock)
@@ -586,6 +675,10 @@ LIMIT $lim";
 
     public IReadOnlyList<Chunk> RetrieveRelevant(
         string documentId, string embeddingModel, float[] queryVector, int k = 5)
+        => [.. RetrieveRelevantScored(documentId, embeddingModel, queryVector, k).Select(s => s.Chunk)];
+
+    public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(
+        string documentId, string embeddingModel, float[] queryVector, int k = 5)
     {
         ArgumentNullException.ThrowIfNull(queryVector);
         if (!_vecAvailable || queryVector.Length == 0) return []; // degrade: caller falls back to per-page context
@@ -594,11 +687,11 @@ LIMIT $lim";
             // Chưa có model nào ghi vector ở số chiều này thì chưa có bảng.
             if (!VecTableExists(queryVector.Length)) return [];
 
-            var results = new List<Chunk>();
+            var results = new List<ScoredChunk>();
             using var cmd = _conn.CreateCommand();
 #pragma warning disable S2077 // tên bảng từ VecTableName(int), giá trị qua tham số (#123)
             cmd.CommandText = $@"
-SELECT c.document_id, c.page_index, c.ordinal, c.text
+SELECT c.document_id, c.page_index, c.ordinal, c.text, v.distance
 FROM {VecTableName(queryVector.Length)} v
 JOIN chunks c ON c.chunk_id = v.chunk_id
 WHERE v.model_name = $m AND v.document_id = $id AND v.embedding MATCH $vec AND k = $k
@@ -613,7 +706,10 @@ ORDER BY distance";
             {
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
-                    results.Add(new Chunk(r.GetString(0), r.GetInt32(1), r.GetInt32(2), r.GetString(3)));
+                {
+                    results.Add(new ScoredChunk(
+                        new Chunk(r.GetString(0), r.GetInt32(1), r.GetInt32(2), r.GetString(3)), r.GetDouble(4)));
+                }
             }
             catch (Microsoft.Data.Sqlite.SqliteException)
             {

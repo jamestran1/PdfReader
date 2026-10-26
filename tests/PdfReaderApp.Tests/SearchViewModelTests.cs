@@ -19,6 +19,15 @@ public class SearchViewModelTests
         public void SetStatus(string documentId, DocumentIndexStatus status, string embeddingModel) { }
         public IReadOnlyList<SearchResult> SearchText(string documentId, string query, int limit = 50) => search(documentId, query);
         public IReadOnlyList<Chunk> RetrieveRelevant(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
+        public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(string documentId, string embeddingModel, float[] queryVector, int k = 5) => [];
+        public bool TryBeginIndexing(string documentId, string embeddingModel, out long claimToken)
+        {
+            claimToken = 0;
+            return true;
+        }
+        public void ReleaseIndexing(string documentId, string embeddingModel, long claimToken) { }
+        public bool WriteEmbeddingsIfClaimed(string documentId, string embeddingModel, long claimToken, IReadOnlyList<(long ChunkId, float[] Vector)> embeddings) => true;
+        public bool FinishIndexing(string documentId, string embeddingModel, long claimToken, DocumentIndexStatus status) => true;
         public void Dispose() { }
     }
 
@@ -128,7 +137,7 @@ public class SearchViewModelTests
 
         await vm.SearchCommand.ExecuteAsync(null);
 
-        Assert.Equal(SearchScope.CurrentDocument, vm.Scope);
+        Assert.Equal(DocumentScope.CurrentDocument, vm.Scope);
         Assert.Equal(["docA"], queried);
         Assert.All(vm.Results, r => Assert.Null(r.DocumentTitle));
         Assert.False(vm.ShowDocumentTitle);
@@ -139,7 +148,7 @@ public class SearchViewModelTests
     {
         var vm = CreateWorkspace((id, _) => [new SearchResult(id == "docA" ? 2 : 7, "s", 1)], "docA", []);
         vm.Query = "hành";
-        vm.Scope = SearchScope.Workspace;
+        vm.Scope = DocumentScope.Workspace;
         await vm.SearchCommand.ExecuteAsync(null);
 
         Assert.Equal(
@@ -153,7 +162,7 @@ public class SearchViewModelTests
     {
         var vm = CreateWorkspace((id, _) => id == "docB" ? [new SearchResult(0, "s", 1)] : [], "docA", []);
         vm.Query = "hành";
-        vm.Scope = SearchScope.Workspace;
+        vm.Scope = DocumentScope.Workspace;
         await vm.SearchCommand.ExecuteAsync(null);
 
         var only = Assert.Single(vm.Results);
@@ -168,7 +177,7 @@ public class SearchViewModelTests
         vm.SearchCommand.Execute(null);
         Assert.Single(vm.Results);
 
-        vm.SetScopeCommand.Execute("Workspace");
+        vm.SetScopeCommand.Execute(DocumentScope.Workspace);
 
         Assert.True(vm.IsWorkspaceScope);
         Assert.False(vm.IsCurrentDocumentScope);
@@ -219,7 +228,7 @@ public class SearchViewModelTests
             Interlocked.Increment(ref call);
             return [new SearchResult(1, "mới", 2)];
         }, "docA", []);
-        vm.Scope = SearchScope.Workspace;
+        vm.Scope = DocumentScope.Workspace;
 
         vm.Query = "cũ";
         var first = vm.SearchCommand.ExecuteAsync(null);
