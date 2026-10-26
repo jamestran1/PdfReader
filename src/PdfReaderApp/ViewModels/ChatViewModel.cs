@@ -56,6 +56,9 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     /// <summary>Tiến độ lập chỉ mục nền các tài liệu Workspace chưa được câu trả lời dùng tới.</summary>
     public WorkspaceIndexingRunner WorkspaceIndexing => _workspace.Indexing;
 
+    /// <summary>Thông báo trên ô nhập: lập chỉ mục nền, thiếu key, hoặc câu trả lời chỉ dùng trang đang đọc.</summary>
+    public string Notice => WorkspaceIndexing.StatusText;
+
     public ObservableCollection<ChatMessage> Messages { get; } = [];
 
     public ChatViewModel(
@@ -70,20 +73,25 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         _ragContext = ragContext;
         _currentContext = currentContext;
         _workspace = workspace;
+        _workspace.Indexing.PropertyChanged += (_, _) => OnPropertyChanged(nameof(Notice));
         RefreshActiveModel();
     }
 
     // Radio-style như Search: bấm segment luôn đặt phạm vi, không bỏ chọn phạm vi hiện tại.
     [RelayCommand]
-    private void SetScope(string scope)
+    private void SetScope(DocumentScope scope)
     {
-        if (Enum.TryParse<DocumentScope>(scope, out var parsed)) Scope = parsed;
+        Scope = scope;
     }
 
     /// <summary>Đọc lại provider và model chat từ Settings; gọi sau khi lưu Settings.</summary>
     public void RefreshActiveModel() =>
         ActiveModelLabel = $"{AiModelCatalog.DisplayName(_chatService.ChatProvider)} · {_chatService.ChatModel}"
             + (_chatService.IsConfigured ? string.Empty : MissingKeySuffix);
+
+    // Đưa về luồng UI không chặn luồng nền (InvokeAsync, không phải Invoke); thứ tự các lần gọi được giữ.
+    private static void PostToApplicationDispatcher(Action action)
+        => System.Windows.Application.Current?.Dispatcher.InvokeAsync(action);
 
     /// <summary>Dựng ChatViewModel cùng các dịch vụ chat từ <paramref name="services"/>; ChatViewModel sở hữu chúng.</summary>
     /// <param name="services">Các dịch vụ dùng chung của ứng dụng.</param>
@@ -96,13 +104,13 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         services.ChatHistory.EnsureSchema();
         var workspaceIndexing = new WorkspaceIndexingService(
             new DocumentIndexingService(services.DocumentIndex, services.EmbeddingFactory, services.Settings),
-            services.DocumentIndex, new ITextPageTextSource(), services.Settings);
+            services.DocumentIndex, new PdfFilePageTextSource(), services.Settings);
         return new ChatViewModel(
             new AiChatService(services.Settings, services.ChatClientFactory),
             services.ChatHistory,
             new RagContextService(services.DocumentIndex, services.EmbeddingFactory, services.Settings),
             currentContext,
-            new ChatWorkspace(getWorkspaceDocuments, new WorkspaceIndexingRunner(workspaceIndexing.IndexDocumentAsync)));
+            new ChatWorkspace(getWorkspaceDocuments, new WorkspaceIndexingRunner(workspaceIndexing.IndexDocumentAsync, PostToApplicationDispatcher)));
     }
 
     // Nạp lại khung chat theo sách đang mở: hiện bong bóng cũ và dựng lại bộ nhớ LLM.

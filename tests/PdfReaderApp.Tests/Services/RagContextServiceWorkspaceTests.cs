@@ -113,7 +113,7 @@ public class RagContextServiceWorkspaceTests
     {
         var svc = Create(TwoCompleteDocs());
 
-        var result = await svc.BuildWorkspaceContextAsync([Doc("a", "Sách A"), Doc("b", "Sách B")], "q", k: 3);
+        var result = await svc.BuildWorkspaceContextAsync([Doc("a", "Sách A"), Doc("b", "Sách B")], "q", new WorkspaceRagOptions(TopK: 3));
 
         Assert.Equal(3, result.Sources.Count);
         Assert.Contains("b-mid", result.Context, StringComparison.Ordinal);
@@ -263,7 +263,7 @@ public class RagContextServiceWorkspaceTests
         ];
         var svc = Create(index);
 
-        var result = await svc.BuildWorkspaceContextAsync([Doc("a", "A")], "q", maxChars: 150);
+        var result = await svc.BuildWorkspaceContextAsync([Doc("a", "A")], "q", new WorkspaceRagOptions(MaxChars: 150));
 
         Assert.Single(result.Sources);
         Assert.DoesNotContain("yyy", result.Context, StringComparison.Ordinal);

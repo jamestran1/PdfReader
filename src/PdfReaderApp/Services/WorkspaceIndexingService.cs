@@ -21,18 +21,27 @@ public sealed class WorkspaceIndexingService
         _settings = settings;
     }
 
-    public async Task IndexDocumentAsync(WorkspaceDocument document, CancellationToken ct)
+    /// <summary>Lập chỉ mục <paramref name="document"/> và trả trạng thái index của model đang chọn sau đó:
+    /// <c>Complete</c> là thành công; <c>Indexing</c> nghĩa là lượt khác đang làm nên lượt này bỏ qua;
+    /// các trạng thái còn lại (TextOnly, Empty, Partial) nghĩa là chưa dùng được cho RAG.</summary>
+    public async Task<DocumentIndexStatus> IndexDocumentAsync(WorkspaceDocument document, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(document);
         ct.ThrowIfCancellationRequested();
 
         string embeddingModel = _settings.GetModelSettings().EmbeddingModel;
-        if (_index.GetStatus(document.DocumentId, embeddingModel) == DocumentIndexStatus.Complete) return;
+        if (_index.GetStatus(document.DocumentId, embeddingModel) == DocumentIndexStatus.Complete)
+            return DocumentIndexStatus.Complete;
 
-        IReadOnlyList<PageText> pages = _index.GetChunks(document.DocumentId).Count > 0
-            ? []
-            : _pageTexts.Extract(document.FilePath);
+        await _indexing.IndexAsync(document.DocumentId, document.FilePath, PagesToIndex(document), progress: null, ct);
+        return _index.GetStatus(document.DocumentId, embeddingModel);
+    }
 
-        await _indexing.IndexAsync(document.DocumentId, document.FilePath, pages, progress: null, ct);
+    // Truyền danh sách rỗng khi chunk đã có là có chủ đích: DocumentIndexingService.IndexAsync dùng lại chunk đã lưu
+    // (GetChunks) và bỏ qua tham số pages, nên không cần tốn công trích text từ file.
+    private IReadOnlyList<PageText> PagesToIndex(WorkspaceDocument document)
+    {
+        bool chunksAlreadyStored = _index.GetChunks(document.DocumentId).Count > 0;
+        return chunksAlreadyStored ? [] : _pageTexts.Extract(document.FilePath);
     }
 }

@@ -14,7 +14,7 @@ public sealed class AiChatService : IDisposable
         "(kèm tên tài liệu và trang), hãy trích dẫn nguồn bằng đúng số đó ngay sau ý lấy từ đoạn ấy, " +
         "ví dụ [1] hoặc [2][3]; không bịa số không có trong ngữ cảnh.";
     public const string InterruptedSentinel = " ...[lỗi: phản hồi bị gián đoạn]";
-    private const int MaxContextChars = 48000;
+    private const int MaxContextChars = ContextLimits.MaxChars;
 
     private readonly ISettingsService _settings;
     private readonly IChatClientFactory _factory;

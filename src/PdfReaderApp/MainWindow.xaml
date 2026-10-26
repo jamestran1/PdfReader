@@ -6,6 +6,7 @@
         xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
         xmlns:local="clr-namespace:PdfReaderApp"
         xmlns:viewmodels="clr-namespace:PdfReaderApp.ViewModels"
+        xmlns:models="clr-namespace:PdfReaderApp.Models"
         xmlns:controls="clr-namespace:PdfReaderApp.Controls"
         xmlns:converters="clr-namespace:PdfReaderApp.Converters"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
@@ -369,13 +370,13 @@
                                         <ToggleButton x:Name="SearchScopeDocument" Style="{StaticResource TriThu.TopBar.Segment}" Width="28"
                                                       ToolTip="Tìm trong tài liệu này"
                                                       IsChecked="{Binding Search.IsCurrentDocumentScope, Mode=OneWay}"
-                                                      Command="{Binding Search.SetScopeCommand}" CommandParameter="CurrentDocument">
+                                                      Command="{Binding Search.SetScopeCommand}" CommandParameter="{x:Static models:DocumentScope.CurrentDocument}">
                                             <materialDesign:PackIcon Kind="FileOutline" Width="16" Height="16"/>
                                         </ToggleButton>
                                         <ToggleButton x:Name="SearchScopeWorkspace" Style="{StaticResource TriThu.TopBar.Segment}" Width="28"
                                                       ToolTip="Tìm trong toàn Workspace"
                                                       IsChecked="{Binding Search.IsWorkspaceScope, Mode=OneWay}"
-                                                      Command="{Binding Search.SetScopeCommand}" CommandParameter="Workspace">
+                                                      Command="{Binding Search.SetScopeCommand}" CommandParameter="{x:Static models:DocumentScope.Workspace}">
                                             <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="16" Height="16"/>
                                         </ToggleButton>
                                     </StackPanel>
@@ -914,13 +915,13 @@
                                     <ToggleButton x:Name="ChatScopeDocument" Style="{StaticResource TriThu.TopBar.Segment}" Width="28"
                                                   ToolTip="Hỏi trong tài liệu này"
                                                   IsChecked="{Binding Chat.IsCurrentDocumentScope, Mode=OneWay}"
-                                                  Command="{Binding Chat.SetScopeCommand}" CommandParameter="CurrentDocument">
+                                                  Command="{Binding Chat.SetScopeCommand}" CommandParameter="{x:Static models:DocumentScope.CurrentDocument}">
                                         <materialDesign:PackIcon Kind="FileOutline" Width="16" Height="16"/>
                                     </ToggleButton>
                                     <ToggleButton x:Name="ChatScopeWorkspace" Style="{StaticResource TriThu.TopBar.Segment}" Width="28"
                                                   ToolTip="Hỏi trong toàn Workspace"
                                                   IsChecked="{Binding Chat.IsWorkspaceScope, Mode=OneWay}"
-                                                  Command="{Binding Chat.SetScopeCommand}" CommandParameter="Workspace">
+                                                  Command="{Binding Chat.SetScopeCommand}" CommandParameter="{x:Static models:DocumentScope.Workspace}">
                                         <materialDesign:PackIcon Kind="FolderMultipleOutline" Width="16" Height="16"/>
                                     </ToggleButton>
                                 </StackPanel>
@@ -969,11 +970,11 @@
                         <!-- Thông báo lập chỉ mục nền các tài liệu Workspace chưa gồm trong câu trả lời; ẩn khi rỗng -->
                         <TextBlock Grid.Row="2" Margin="16,0,16,0" TextWrapping="Wrap"
                                    Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
-                                   Text="{Binding Chat.WorkspaceIndexing.StatusText}">
+                                   Text="{Binding Chat.Notice}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock" BasedOn="{StaticResource MaterialDesignCaptionTextBlock}">
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Chat.WorkspaceIndexing.StatusText}" Value="">
+                                        <DataTrigger Binding="{Binding Chat.Notice}" Value="">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                     </Style.Triggers>

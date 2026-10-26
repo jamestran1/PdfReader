@@ -20,7 +20,7 @@ public sealed class RagContextService
     }
 
     public async Task<string?> BuildContextAsync(
-        string documentId, string question, int k = 5, int maxChars = 48000, CancellationToken ct = default)
+        string documentId, string question, int k = 5, int maxChars = ContextLimits.MaxChars, CancellationToken ct = default)
     {
         var models = _settings.GetModelSettings();
         if (_index.GetStatus(documentId, models.EmbeddingModel) != DocumentIndexStatus.Complete)
@@ -49,19 +49,25 @@ public sealed class RagContextService
     }
 
     /// <summary>Dựng ngữ cảnh xuyên Workspace: nhúng câu hỏi một lần, truy vấn từng Document đã <c>Complete</c> cho
-    /// Embedding Model đang chọn, gộp lấy top-<paramref name="k"/> chung theo khoảng cách rồi đánh số nguồn.
+    /// Embedding Model đang chọn, gộp lấy top-K chung theo khoảng cách rồi đánh số nguồn.
     /// Document chưa có index không chờ: được báo trong kết quả để nơi gọi lập chỉ mục nền.</summary>
-    public async Task<WorkspaceRagResult> BuildWorkspaceContextAsync(
-        IReadOnlyList<WorkspaceDocument> documents, string question, int k = 8, int maxChars = 48000,
+    public Task<WorkspaceRagResult> BuildWorkspaceContextAsync(
+        IReadOnlyList<WorkspaceDocument> documents, string question, WorkspaceRagOptions? options = null,
         CancellationToken ct = default)
+        => BuildWorkspaceContextAsync(PlanWorkspaceIndexing(documents), question, options, ct);
+
+    /// <summary>Dựng ngữ cảnh từ <paramref name="plan"/> đã phân loại. Tách khỏi việc phân loại để nơi gọi đưa tài liệu thiếu
+    /// index vào hàng đợi nền TRƯỚC khi nhúng câu hỏi: nhúng lỗi không được làm mất việc lập chỉ mục.</summary>
+    public async Task<WorkspaceRagResult> BuildWorkspaceContextAsync(
+        WorkspaceIndexPlan plan, string question, WorkspaceRagOptions? options = null, CancellationToken ct = default)
     {
-        ArgumentNullException.ThrowIfNull(documents);
+        ArgumentNullException.ThrowIfNull(plan);
+        options ??= new WorkspaceRagOptions();
         var models = _settings.GetModelSettings();
-        var plan = PartitionByIndexStatus(documents, models.EmbeddingModel);
 
         string? key = _settings.GetApiKey(models.EmbeddingProvider);
         if (plan.Ready.Count == 0 || string.IsNullOrEmpty(key))
-            return new WorkspaceRagResult(null, [], plan.Unindexed, plan.Indexing);
+            return new WorkspaceRagResult(null, [], plan.Unindexed, plan.Indexing, plan.MissingEmbeddingKeyProvider);
 
         float[] queryVector = await EmbedQuestionAsync(models, key, question, ct);
 
@@ -69,29 +75,26 @@ public sealed class RagContextService
         foreach (var document in plan.Ready)
         {
             ct.ThrowIfCancellationRequested();
-            foreach (var hit in _index.RetrieveRelevantScored(document.DocumentId, models.EmbeddingModel, queryVector, k))
+            foreach (var hit in _index.RetrieveRelevantScored(document.DocumentId, models.EmbeddingModel, queryVector, options.TopK))
                 scored.Add((document, hit));
         }
 
         var (context, sources) = FormatNumberedContext(
-            scored.OrderBy(s => s.Hit.Distance).Take(k).ToList(), maxChars);
-        return new WorkspaceRagResult(context, sources, plan.Unindexed, plan.Indexing);
+            scored.OrderBy(s => s.Hit.Distance).Take(options.TopK).ToList(), options.MaxChars);
+        return new WorkspaceRagResult(context, sources, plan.Unindexed, plan.Indexing, plan.MissingEmbeddingKeyProvider);
     }
 
-    private sealed record IndexPlan(
-        IReadOnlyList<WorkspaceDocument> Ready,
-        IReadOnlyList<WorkspaceDocument> Unindexed,
-        IReadOnlyList<WorkspaceDocument> Indexing);
-
     // Chỉ xét trạng thái của chính Embedding Model đang chọn: index Complete của model khác không tính là sẵn sàng.
-    private IndexPlan PartitionByIndexStatus(IReadOnlyList<WorkspaceDocument> documents, string embeddingModel)
+    public WorkspaceIndexPlan PlanWorkspaceIndexing(IReadOnlyList<WorkspaceDocument> documents)
     {
+        ArgumentNullException.ThrowIfNull(documents);
+        var models = _settings.GetModelSettings();
         var ready = new List<WorkspaceDocument>();
         var unindexed = new List<WorkspaceDocument>();
         var indexing = new List<WorkspaceDocument>();
         foreach (var document in documents)
         {
-            switch (_index.GetStatus(document.DocumentId, embeddingModel))
+            switch (_index.GetStatus(document.DocumentId, models.EmbeddingModel))
             {
                 case DocumentIndexStatus.Complete: ready.Add(document); break;
                 case DocumentIndexStatus.None or DocumentIndexStatus.Partial: unindexed.Add(document); break;
@@ -101,7 +104,7 @@ public sealed class RagContextService
             }
         }
 
-        return new IndexPlan(ready, unindexed, indexing);
+        return new WorkspaceIndexPlan(ready, unindexed, indexing);
     }
 
     private async Task<float[]> EmbedQuestionAsync(AiModelSettings models, string key, string question, CancellationToken ct)

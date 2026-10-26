@@ -56,9 +56,9 @@ public partial class SearchViewModel(
 
     // Radio-style như SetViewMode: bấm segment luôn đặt phạm vi, không bỏ chọn phạm vi hiện tại.
     [RelayCommand]
-    private void SetScope(string scope)
+    private void SetScope(DocumentScope scope)
     {
-        if (Enum.TryParse<DocumentScope>(scope, out var parsed)) Scope = parsed;
+        Scope = scope;
     }
 
     // Mỗi khi người dùng sửa/xóa ô tìm: tắt highlight trên trang ngay lập tức.

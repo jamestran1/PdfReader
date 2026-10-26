@@ -170,7 +170,7 @@ public class SearchViewModelTests
         vm.SearchCommand.Execute(null);
         Assert.Single(vm.Results);
 
-        vm.SetScopeCommand.Execute("Workspace");
+        vm.SetScopeCommand.Execute(DocumentScope.Workspace);
 
         Assert.True(vm.IsWorkspaceScope);
         Assert.False(vm.IsCurrentDocumentScope);

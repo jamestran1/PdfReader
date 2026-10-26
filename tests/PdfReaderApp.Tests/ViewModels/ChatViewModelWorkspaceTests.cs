@@ -130,8 +130,9 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
             {
                 _indexedInBackground.Add(document.DocumentId);
                 await _indexingGate.Task.WaitAsync(ct);
+                return DocumentIndexStatus.Complete;
             },
-            runOnUiThread: action => action());
+            postToUiThread: action => action());
         var chat = new ChatViewModel(
             new AiChatService(settings, new FakeChatClientFactory(_sent)),
             new FakeHistory(),
@@ -165,7 +166,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     {
         var chat = CreateChat();
 
-        chat.SetScopeCommand.Execute("Workspace");
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
 
         Assert.Equal(DocumentScope.Workspace, chat.Scope);
         Assert.True(chat.IsWorkspaceScope);
@@ -189,7 +190,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     public async Task WorkspaceScope_SendsNumberedContextFromManyDocumentsToTheModel()
     {
         var chat = CreateChat();
-        chat.SetScopeCommand.Execute("Workspace");
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
 
         await AskAsync(chat, "câu hỏi");
 
@@ -202,7 +203,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     public async Task WorkspaceScope_AnswerMessageCarriesSourceTable()
     {
         var chat = CreateChat();
-        chat.SetScopeCommand.Execute("Workspace");
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
 
         await AskAsync(chat, "câu hỏi");
 
@@ -231,7 +232,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         _statuses["c"] = DocumentIndexStatus.None;
         _statuses["d"] = DocumentIndexStatus.Partial;
         _documents = [Doc("a", "Sách A"), Doc("b", "Sách B"), Doc("c", "Sách C"), Doc("d", "Sách D")];
-        chat.SetScopeCommand.Execute("Workspace");
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
 
         await AskAsync(chat, "câu hỏi");
 
@@ -251,7 +252,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         var chat = CreateChat();
         _statuses["a"] = DocumentIndexStatus.None;
         _statuses["b"] = DocumentIndexStatus.None;
-        chat.SetScopeCommand.Execute("Workspace");
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
 
         await AskAsync(chat, "câu hỏi");
 
@@ -266,7 +267,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     public async Task WorkspaceScope_RagFails_StillAnswersWithoutSources()
     {
         var chat = CreateChat();
-        chat.SetScopeCommand.Execute("Workspace");
+        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
         _ragThrows = true;
 
         await AskAsync(chat, "câu hỏi");
@@ -282,8 +283,12 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         string owner = "ws1";
         var settings = new FakeSettings();
         var runner = new WorkspaceIndexingRunner(
-            async (_, ct) => await Task.Delay(System.Threading.Timeout.Infinite, ct),
-            runOnUiThread: action => action());
+            async (_, ct) =>
+            {
+                await Task.Delay(System.Threading.Timeout.Infinite, ct);
+                return DocumentIndexStatus.Complete;
+            },
+            postToUiThread: action => action());
         using var chat = new ChatViewModel(
             new AiChatService(settings, new FakeChatClientFactory(_sent)),
             new FakeHistory(),

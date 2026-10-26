@@ -9,8 +9,18 @@ public sealed class WorkspaceIndexingRunnerTests
 
     private static WorkspaceDocument Doc(string id) => new(id, $"Sách {id}", $"C:\\lib\\{id}.pdf");
 
+    // Mặc định mỗi tài liệu lập xong đạt Complete; test cần kết cục khác dùng CreateWithOutcome.
     private static WorkspaceIndexingRunner Create(Func<WorkspaceDocument, CancellationToken, Task> indexDocument)
-        => new(indexDocument, runOnUiThread: action => action());
+        => new(
+            async (document, ct) =>
+            {
+                await indexDocument(document, ct);
+                return DocumentIndexStatus.Complete;
+            },
+            postToUiThread: action => action());
+
+    private static WorkspaceIndexingRunner CreateWithOutcome(DocumentIndexStatus outcome)
+        => new((_, _) => Task.FromResult(outcome), postToUiThread: action => action());
 
     private static async Task Finished(WorkspaceIndexingRunner queue)
         => await (queue.BackgroundTask ?? Task.CompletedTask).WaitAsync(Timeout);
