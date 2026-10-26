@@ -43,9 +43,9 @@ CREATE TABLE IF NOT EXISTS library (
             // DB tạo trước #78 thiếu hai cột này; thêm tại chỗ để giữ dữ liệu cũ.
             // Tên bảng/cột không truyền qua tham số được nên câu ALTER viết cứng, không ghép chuỗi (#123).
             if (!ColumnExists(conn, "library", "author"))
-                ExecuteNonQuery(conn, "ALTER TABLE library ADD COLUMN author TEXT");
+                Exec(conn, "ALTER TABLE library ADD COLUMN author TEXT");
             if (!ColumnExists(conn, "library", "publisher"))
-                ExecuteNonQuery(conn, "ALTER TABLE library ADD COLUMN publisher TEXT");
+                Exec(conn, "ALTER TABLE library ADD COLUMN publisher TEXT");
         }
     }
 
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS library (
         return System.Convert.ToInt64(cmd.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
     }
 
-    private static void ExecuteNonQuery(SqliteConnection conn, string sql)
+    private static void Exec(SqliteConnection conn, string sql)
     {
         using var cmd = conn.CreateCommand();
         cmd.CommandText = sql;

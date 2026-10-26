@@ -96,6 +96,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
             ExecInTransaction(tx, "DROP TABLE IF EXISTS documents;");
         }
 
+        // PRAGMA không nhận tham số; chỉ ghép hằng số (#123).
         ExecInTransaction(tx, $"PRAGMA user_version = {MultiModelSchemaVersion}");
         tx.Commit();
     }
@@ -257,6 +258,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     private void DeleteDocumentCore(string documentId)
     {
         var deletes = new List<string>();
+        // Tên bảng từ ListVecTables (chỉ tiền tố và chữ số); Sonar không lần theo List nên không báo (#123).
         if (_vecAvailable)
             deletes.AddRange(ListVecTables().Select(t => $"DELETE FROM {t} WHERE document_id=$id"));
         deletes.Add("DELETE FROM chunks_fts WHERE rowid IN (SELECT chunk_id FROM chunks WHERE document_id=$id)");

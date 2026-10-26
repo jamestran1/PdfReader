@@ -86,7 +86,7 @@ CREATE INDEX IF NOT EXISTS ix_note_owner ON note(owner_key);";
         cmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info($table) WHERE name = $column COLLATE NOCASE;";
         cmd.Parameters.AddWithValue("$table", table);
         cmd.Parameters.AddWithValue("$column", column);
-        return (long)(cmd.ExecuteScalar() ?? 0L) > 0;
+        return System.Convert.ToInt64(cmd.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0;
     }
 
     public void Add(Note note)

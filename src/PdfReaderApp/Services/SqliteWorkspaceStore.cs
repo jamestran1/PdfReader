@@ -110,8 +110,8 @@ ON CONFLICT(id) DO UPDATE SET name=$name, is_default=$def, default_document_id=$
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = "SELECT id, name, is_default, default_document_id, created_at, updated_at FROM workspace"
-                + " WHERE ($all = 1 OR is_default = 0) ORDER BY updated_at DESC";
-            cmd.Parameters.AddWithValue("$all", includeDefault ? 1 : 0);
+                + " WHERE ($includeDefault = 1 OR is_default = 0) ORDER BY updated_at DESC";
+            cmd.Parameters.AddWithValue("$includeDefault", includeDefault ? 1 : 0);
             using var r = cmd.ExecuteReader();
             while (r.Read()) list.Add(ReadRow(r));
             return list;
