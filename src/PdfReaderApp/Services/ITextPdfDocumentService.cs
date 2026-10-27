@@ -108,8 +108,9 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         var found = new bool[fragments.Count];
         foreach (string matchText in located.Select(item => item.Text).Distinct(StringComparer.Ordinal))
         {
-            int index = anchored.FindIndex(regex => regex is not null && regex.IsMatch(matchText));
-            if (index >= 0) found[index] = true;
+            // Mọi cụm khớp nguyên văn đều được đánh dấu: hai cụm trùng chữ sau khi bỏ dấu cùng có mặt.
+            for (int i = 0; i < anchored.Count; i++)
+                if (anchored[i]?.IsMatch(matchText) == true) found[i] = true;
         }
         return new PassageHits([.. located.Select(item => item.Rect)], found);
     }

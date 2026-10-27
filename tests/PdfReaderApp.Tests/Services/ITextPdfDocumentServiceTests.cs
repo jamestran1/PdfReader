@@ -398,6 +398,27 @@ public class ITextPdfDocumentServiceTests : IDisposable
         }
     }
 
+    // Câu trích lặp một cụm (sau khi bỏ dấu và hoa thường) vẫn phải tính số từ của cả hai cụm khi so với ngưỡng khớp.
+    [Fact]
+    public void FindPassageHits_TwoFragmentsWithTheSameText_BothAreFound()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "mot hai ba bon nam", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            var hits = service.FindPassageHits(0, ["mot hai", "bon nam", "MỘT hai"]);
+
+            Assert.Equal([true, true, true], hits.Found);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     [Fact]
     public void FindPassageHits_PageOutOfRange_FindsNothing()
     {
