@@ -516,7 +516,10 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     // Cuộn tới CurrentPage ở chế độ cuộn liên tục sau khi nạp tài liệu; guard giữ tới khi offset đã dính tại đích.
     private void ScheduleScrollToCurrentPage()
     {
-        if (!Core.ScrollAfterLoadPolicy.NeedsScroll(IsContinuousView, CurrentPage, TargetOffsetOfPage(CurrentPage - 1)))
+        // pageTop: chế độ hai trang không bìa căn giữa trang theo hàng nên đầu trang 1 có thể đã lớn hơn 0;
+        // chỉ Đoạn nguồn mới đẩy đích xuống dưới đầu trang.
+        double? pageTop = _slots.FirstOrDefault(s => s.PageIndex == CurrentPage - 1)?.Y;
+        if (!Core.ScrollAfterLoadPolicy.NeedsScroll(IsContinuousView, CurrentPage, TargetOffsetOfPage(CurrentPage - 1), pageTop))
         {
             ScrollSettle.Cancel();
             return;

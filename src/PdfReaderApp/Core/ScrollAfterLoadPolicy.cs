@@ -9,6 +9,7 @@ public static class ScrollAfterLoadPolicy
     /// <param name="isContinuous">Chế độ xem cuộn liên tục.</param>
     /// <param name="currentPage">Trang đích (1-based).</param>
     /// <param name="targetOffset">Offset đích của trang, hoặc null khi slot chưa dựng.</param>
-    public static bool NeedsScroll(bool isContinuous, int currentPage, double? targetOffset) =>
-        isContinuous && (currentPage > 1 || targetOffset > 0);
+    /// <param name="pageTop">Y của slot trang đích, hoặc null khi slot chưa dựng.</param>
+    public static bool NeedsScroll(bool isContinuous, int currentPage, double? targetOffset, double? pageTop = null) =>
+        isContinuous && (currentPage > 1 || targetOffset > (pageTop ?? 0));
 }
