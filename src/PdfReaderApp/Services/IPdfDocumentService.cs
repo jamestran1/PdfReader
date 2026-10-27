@@ -22,12 +22,8 @@ public interface IPdfDocumentService : IDisposable
     IReadOnlyList<MatchRect> FindPassageRects(int pageIndex, IReadOnlyList<string> fragments);
 
     /// <summary>
-    /// Như <see cref="FindPassageRects"/> nhưng còn báo từng cụm có mặt trên trang hay không. Bản mặc định tra riêng từng cụm;
-    /// service thật ghi đè để chỉ xử lý trang một lần cho mọi cụm.
+    /// Như <see cref="FindPassageRects"/> nhưng còn báo từng cụm có mặt trên trang hay không, trong một lần xử lý trang.
+    /// Dùng để biết câu trích khớp được bao nhiêu.
     /// </summary>
-    PassageHits FindPassageHits(int pageIndex, IReadOnlyList<string> fragments)
-    {
-        var perFragment = fragments.Select(fragment => FindPassageRects(pageIndex, [fragment])).ToList();
-        return new PassageHits([.. perFragment.SelectMany(rects => rects)], [.. perFragment.Select(rects => rects.Count > 0)]);
-    }
+    PassageHits FindPassageHits(int pageIndex, IReadOnlyList<string> fragments);
 }

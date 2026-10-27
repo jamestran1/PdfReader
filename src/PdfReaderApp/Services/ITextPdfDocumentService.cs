@@ -96,14 +96,21 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         // với alternation thay vì một strategy cho mỗi cụm; đo ở #246: 4 cụm giảm từ khoảng 75 ms xuống khoảng 16 ms.
         var located = LocateRectsWithText(pageIndex, AccentInsensitiveRegex.BuildAlternation(fragments));
 
-        // Mỗi lượt khớp của alternation bị iText tách thành một đoạn chữ cho mỗi dòng và không cho biết nhánh nào khớp.
-        // Cụm nào có mặt thì chữ của nó nằm liền nhau trong các đoạn này, nên thử lại regex của từng cụm trên chuỗi nối
-        // các đoạn (khoảng trắng nối khớp \s+ của regex nên cụm vắt qua dòng vẫn khớp).
-        string joined = string.Join(' ', located.Select(item => item.Text));
-        var found = fragments
-            .Select(AccentInsensitiveRegex.BuildPattern)
-            .Select(pattern => pattern.Length > 0 && Regex.IsMatch(joined, pattern, RegexOptions.CultureInvariant, RegexTimeout))
+        // Mỗi vùng iText trả mang CẢ chữ của lượt khớp (đã kiểm ở #246: lượt khớp vắt qua hai dòng cho hai vùng, mỗi vùng
+        // cùng một chữ đầy đủ), nên map ngược từng lượt khớp về cụm của nó bằng regex neo hai đầu. Alternation chọn nhánh
+        // đầu tiên khớp tại vị trí đó, và nhánh đầu tiên khớp nguyên văn chữ khớp được chính là nhánh ấy. Không nối chữ của
+        // nhiều lượt khớp lại vì cụm sẽ khớp sai qua chỗ nối.
+        var anchored = fragments
+            .Select(fragment => AccentInsensitiveRegex.BuildPattern(fragment) is { Length: > 0 } pattern
+                ? new Regex($"^(?:{pattern})$", RegexOptions.CultureInvariant, RegexTimeout)
+                : null)
             .ToList();
+        var found = new bool[fragments.Count];
+        foreach (string matchText in located.Select(item => item.Text).Distinct(StringComparer.Ordinal))
+        {
+            int index = anchored.FindIndex(regex => regex is not null && regex.IsMatch(matchText));
+            if (index >= 0) found[index] = true;
+        }
         return new PassageHits([.. located.Select(item => item.Rect)], found);
     }
 

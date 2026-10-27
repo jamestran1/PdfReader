@@ -376,6 +376,28 @@ public class ITextPdfDocumentServiceTests : IDisposable
         }
     }
 
+    // Hai chỗ khớp rời nhau không được ghép lại thành một cụm thứ ba: "hai ba" chỉ xuất hiện khi nối đuôi chỗ khớp
+    // thứ nhất với đầu chỗ khớp thứ hai, còn trên trang hai chữ đó cách nhau cả đoạn.
+    [Fact]
+    public void FindPassageHits_FragmentOnlyFormedByJoiningTwoSeparateMatches_IsNotFound()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "mot hai ba bon nam", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            var hits = service.FindPassageHits(0, ["mot hai", "bon nam", "hai bon"]);
+
+            Assert.Equal([true, true, false], hits.Found);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
     [Fact]
     public void FindPassageHits_PageOutOfRange_FindsNothing()
     {

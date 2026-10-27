@@ -38,19 +38,22 @@ public sealed record SourcePassage(
     private static int WordCount(string fragment) => fragment.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
 
     /// <summary>Tìm vùng tô trên trang. <paramref name="findHits"/> tra một lượt cho nhiều cụm và báo cụm nào có mặt
-    /// (mỗi lượt là một lần xử lý cả trang trên UI thread nên câu trích chỉ được tra một lượt, #246). Các cụm khớp phủ đủ
+    /// (mỗi lượt là một lần xử lý cả trang trên UI thread nên câu trích chỉ được tra một lượt, #246);
+    /// <paramref name="findRects"/> chỉ lấy vùng, dùng khi tô cả chunk. Các cụm khớp phủ đủ
     /// <see cref="MinQuoteMatchRatio"/> số từ của câu trích thì tô các chỗ khớp của câu trích; ngược lại, hoặc khi không
     /// có câu trích, tra thêm cả chunk và tô nó.</summary>
-    public IReadOnlyList<MatchRect> Locate(Func<IReadOnlyList<string>, PassageHits> findHits)
+    public IReadOnlyList<MatchRect> Locate(
+        Func<IReadOnlyList<string>, PassageHits> findHits, Func<IReadOnlyList<string>, IReadOnlyList<MatchRect>> findRects)
     {
         ArgumentNullException.ThrowIfNull(findHits);
+        ArgumentNullException.ThrowIfNull(findRects);
         if (QuoteFragments is { Count: > 0 } quote)
         {
             var hits = findHits(quote);
             int matchedWords = quote.Where((_, i) => hits.Found[i]).Sum(WordCount);
             if (matchedWords >= quote.Sum(WordCount) * MinQuoteMatchRatio) return hits.Rects;
         }
-        return findHits(Fragments).Rects;
+        return findRects(Fragments);
     }
 
     /// <summary>Chẻ <paramref name="passage"/> thành các cụm <paramref name="wordsPerFragment"/> từ. Cụm cuối ngắn hơn
