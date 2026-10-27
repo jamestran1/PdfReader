@@ -393,6 +393,17 @@ public sealed class MainViewModelChatTests : IDisposable
     }
 
     [Fact]
+    public void OpenCitationSource_WithQuote_SetsQuoteFragmentsAndKeepsChunkAsFallback()
+    {
+        var (vm, _) = WorkspaceSessionWithDocA();
+
+        vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "cả đoạn nguồn dài"), "câu được trích");
+
+        Assert.Equal(["câu được trích"], vm.ActiveSourcePassage?.QuoteFragments);
+        Assert.Equal(["cả đoạn nguồn dài"], vm.ActiveSourcePassage?.Fragments);
+    }
+
+    [Fact]
     public void OpenCitationSource_SourceSavedWithoutPassage_ClearsPreviousSourcePassage()
     {
         var (vm, _) = WorkspaceSessionWithDocA();

@@ -79,7 +79,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         ChatWorkspace workspace,
         CitationOpener? openSource = null)
     {
-        _openSource = openSource ?? (_ => { });
+        _openSource = openSource ?? ((_, _) => { });
         _chatService = chatService;
         _chatHistory = chatHistory;
         _ragContext = ragContext;
@@ -98,7 +98,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 
     /// <summary>Bấm một trích dẫn <c>[n]</c> trong câu trả lời: Cross-doc jump tới Document và trang được trích, tô đoạn nguồn.</summary>
     [RelayCommand]
-    private void OpenCitation(RagSource source) => _openSource(source);
+    private void OpenCitation(CitationSpan citation) => _openSource(citation.Source!, citation.Quote);
 
     /// <summary>Đọc lại provider và model chat từ Settings; gọi sau khi lưu Settings.</summary>
     public void RefreshActiveModel() =>

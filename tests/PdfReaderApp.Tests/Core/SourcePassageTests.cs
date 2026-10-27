@@ -50,6 +50,90 @@ public class SourcePassageTests
         Assert.Null(SourcePassage.From(new RagSource(1, "doc", "Sách", 4)));
     }
 
+    [Fact]
+    public void From_SourceWithQuote_SplitsTheQuoteAndKeepsTheChunkAsFallback()
+    {
+        var source = new RagSource(1, "doc", "Sách", 4, "cả đoạn dài nguồn");
+
+        var passage = SourcePassage.From(source, "câu trích");
+
+        Assert.NotNull(passage);
+        Assert.Equal(["câu trích"], passage.QuoteFragments);
+        Assert.Equal(["cả đoạn dài nguồn"], passage.Fragments);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("   ")]
+    public void From_BlankQuote_HasNoQuoteFragments(string? quote)
+    {
+        var passage = SourcePassage.From(new RagSource(1, "doc", "Sách", 4, "đoạn"), quote);
+
+        Assert.Null(passage!.QuoteFragments);
+    }
+
+    [Fact]
+    public void From_QuoteOfSourceWithoutPassage_StillHighlightsTheQuote()
+    {
+        var passage = SourcePassage.From(new RagSource(1, "doc", "Sách", 4), "câu trích");
+
+        Assert.Equal(["câu trích"], passage!.QuoteFragments);
+        Assert.Empty(passage.Fragments);
+    }
+
+    private static readonly MatchRect RectA = new(1, 1, 1, 1);
+    private static readonly MatchRect RectB = new(2, 2, 2, 2);
+    private static readonly MatchRect RectChunk = new(9, 9, 9, 9);
+
+    private static IReadOnlyList<MatchRect> FakeFind(IReadOnlyList<string> fragments) =>
+        fragments.SelectMany<string, MatchRect>(f => f switch
+        {
+            "a" => [RectA],
+            "b" => [RectB],
+            "chunk" => [RectChunk],
+            _ => [],
+        }).ToList();
+
+    [Fact]
+    public void Locate_QuoteMatchesOnPage_ReturnsOnlyTheQuoteRects()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"], ["a", "b"]);
+
+        Assert.Equal([RectA, RectB], passage.Locate(FakeFind));
+    }
+
+    [Fact]
+    public void Locate_HalfOfQuoteFragmentsMatch_StillUsesTheQuote()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"], ["a", "lạ"]);
+
+        Assert.Equal([RectA], passage.Locate(FakeFind));
+    }
+
+    [Fact]
+    public void Locate_FewerThanHalfOfQuoteFragmentsMatch_FallsBackToTheWholeChunk()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"], ["a", "lạ", "xa"]);
+
+        Assert.Equal([RectChunk], passage.Locate(FakeFind));
+    }
+
+    [Fact]
+    public void Locate_NothingOfQuoteMatches_FallsBackToTheWholeChunk()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"], ["lạ"]);
+
+        Assert.Equal([RectChunk], passage.Locate(FakeFind));
+    }
+
+    [Fact]
+    public void Locate_NoQuote_HighlightsTheWholeChunk()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"]);
+
+        Assert.Equal([RectChunk], passage.Locate(FakeFind));
+    }
+
     // Mọi viewer theo tab bind cùng một đoạn nguồn: viewer ẩn của Document khác không được cuộn theo (AI review R1, #241).
     [Theory]
     [InlineData("doc", true)]

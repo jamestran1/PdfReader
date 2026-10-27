@@ -4,9 +4,14 @@ namespace PdfReaderApp.Core;
 
 /// <summary>Đoạn nguồn của một trích dẫn cần tô trên trang <see cref="PageIndex"/> (từ 0) của Document
 /// <see cref="DocumentId"/>, đã chẻ thành các cụm từ liên tiếp.</summary>
+/// <param name="DocumentId">Document chứa nguồn được trích.</param>
+/// <param name="PageIndex">Trang (từ 0) của nguồn.</param>
+/// <param name="Fragments">Cụm của cả chunk RAG; tô khi không có câu trích hoặc câu trích không tin được.</param>
+/// <param name="QuoteFragments">Cụm của câu AI trích nguyên văn; null khi link không kèm câu trích.</param>
 /// <remarks>Tô theo từng cụm thay vì cả đoạn: chữ của chunk và chữ iText dựng lại từ trang có thể lệch ở vài chỗ
 /// (gạch nối cuối dòng, header chen giữa, thứ tự cột). Lệch một chỗ chỉ làm mất cụm đó, các cụm còn lại vẫn được tô.</remarks>
-public sealed record SourcePassage(string DocumentId, int PageIndex, IReadOnlyList<string> Fragments)
+public sealed record SourcePassage(
+    string DocumentId, int PageIndex, IReadOnlyList<string> Fragments, IReadOnlyList<string>? QuoteFragments = null)
 {
     public const int WordsPerFragment = 8;
 
@@ -14,12 +19,41 @@ public sealed record SourcePassage(string DocumentId, int PageIndex, IReadOnlyLi
     /// nguồn, nên viewer chỉ tô và cuộn khi đoạn thuộc chính Document của nó.</summary>
     public bool BelongsTo(string? documentId) => string.Equals(DocumentId, documentId, StringComparison.Ordinal);
 
-    /// <summary>Vùng tô cho <paramref name="source"/>; null khi nguồn không mang chữ của đoạn (lịch sử chat bản cũ).</summary>
-    public static SourcePassage? From(RagSource source)
+    /// <summary>Tỉ lệ cụm của câu trích phải khớp trên trang để tin câu trích; dưới mức này lùi về tô cả chunk
+    /// (một cụm lẻ khớp rất dễ là khớp nhầm chỗ khác trên trang).</summary>
+    public const double MinQuoteMatchRatio = 0.5;
+
+    /// <summary>Vùng tô cho <paramref name="source"/>, ưu tiên <paramref name="quote"/> (câu AI dựa vào) và giữ cả chunk để lùi về;
+    /// null khi không có gì để tô: nguồn không mang chữ của đoạn (lịch sử chat bản cũ) và không có câu trích.</summary>
+    public static SourcePassage? From(RagSource source, string? quote = null)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (string.IsNullOrWhiteSpace(source.Passage)) return null;
-        return new SourcePassage(source.DocumentId, source.PageIndex, SplitFragments(source.Passage));
+        var quoteFragments = string.IsNullOrWhiteSpace(quote) ? null : SplitFragments(quote);
+        if (string.IsNullOrWhiteSpace(source.Passage) && quoteFragments is null) return null;
+        var chunkFragments = string.IsNullOrWhiteSpace(source.Passage) ? [] : SplitFragments(source.Passage);
+        return new SourcePassage(source.DocumentId, source.PageIndex, chunkFragments, quoteFragments);
+    }
+
+    /// <summary>Tìm vùng tô trên trang qua <paramref name="find"/> (một lần gọi cho mỗi cụm để biết cụm nào khớp).
+    /// Đủ <see cref="MinQuoteMatchRatio"/> cụm của câu trích khớp thì tô các cụm đó; ngược lại, hoặc khi không có câu trích,
+    /// tô cả chunk.</summary>
+    public IReadOnlyList<MatchRect> Locate(Func<IReadOnlyList<string>, IReadOnlyList<MatchRect>> find)
+    {
+        ArgumentNullException.ThrowIfNull(find);
+        if (QuoteFragments is { Count: > 0 } quote)
+        {
+            var rects = new List<MatchRect>();
+            int matched = 0;
+            foreach (string fragment in quote)
+            {
+                var found = find([fragment]);
+                if (found.Count == 0) continue;
+                matched++;
+                rects.AddRange(found);
+            }
+            if (matched >= quote.Count * MinQuoteMatchRatio) return rects;
+        }
+        return find(Fragments);
     }
 
     /// <summary>Chẻ <paramref name="passage"/> thành các cụm <paramref name="wordsPerFragment"/> từ. Cụm cuối ngắn hơn

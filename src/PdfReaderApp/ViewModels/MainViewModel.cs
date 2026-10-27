@@ -720,12 +720,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public partial SourcePassage? ActiveSourcePassage { get; set; }
 
     /// <summary>Mở nguồn của trích dẫn <c>[n]</c>: Cross-doc jump tới Document và trang được trích rồi tô đoạn nguồn.</summary>
-    public void OpenCitationSource(RagSource source)
+    public void OpenCitationSource(RagSource source, string? quote = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         // Nhảy trước rồi mới đặt đoạn nguồn: đổi tài liệu xoá đoạn nguồn cũ, nên đặt sau thì không bị xoá mất.
         // Tài liệu đã gỡ khỏi Library thì không nhảy được; không giữ đoạn của trích dẫn trước tô nhầm chỗ.
-        ActiveSourcePassage = TryOpenDocument(source.DocumentId, source.PageIndex) ? SourcePassage.From(source) : null;
+        ActiveSourcePassage = TryOpenDocument(source.DocumentId, source.PageIndex) ? SourcePassage.From(source, quote) : null;
     }
 
     /// <summary>Tắt tô Đoạn nguồn (phím Esc).</summary>

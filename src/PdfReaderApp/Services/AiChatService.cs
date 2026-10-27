@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text;
 using Microsoft.Extensions.AI;
+using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
@@ -12,7 +13,10 @@ public sealed class AiChatService : IDisposable
         "chỉ dựa trên nội dung tài liệu được cung cấp. Nếu chưa có tài liệu hoặc " +
         "nội dung không đủ, hãy nói rõ điều đó. Khi ngữ cảnh gồm các đoạn đánh số dạng [n] " +
         "(kèm tên tài liệu và trang), hãy trích dẫn nguồn bằng đúng số đó ngay sau ý lấy từ đoạn ấy, " +
-        "ví dụ [1] hoặc [2][3]; không bịa số không có trong ngữ cảnh.";
+        "và kèm câu nguyên văn bạn dựa vào theo dạng [n: \"câu\"]: chép đúng từng chữ và đúng ngôn ngữ của nguồn " +
+        "(nguồn tiếng Anh thì câu trích bằng tiếng Anh dù bạn trả lời tiếng Việt), chỉ một câu, tối đa khoảng 30 từ. " +
+        "Ý dựa vào nhiều câu thì trích nhiều lần, mỗi lần một câu, ví dụ [1: \"The system must log every request.\"][1: \"Logs are kept for 90 days.\"] " +
+        "hoặc [2: \"Điều 5. Bên B chịu phạt 5%.\"]; không bịa số không có trong ngữ cảnh.";
     public const string InterruptedSentinel = " ...[lỗi: phản hồi bị gián đoạn]";
     private const int MaxContextChars = ContextLimits.MaxChars;
 
@@ -51,7 +55,7 @@ public sealed class AiChatService : IDisposable
         foreach (var (role, content) in turns)
         {
             var chatRole = role == "AI" ? ChatRole.Assistant : ChatRole.User;
-            _history.Add(new ChatMessage(chatRole, content));
+            _history.Add(new ChatMessage(chatRole, chatRole == ChatRole.Assistant ? CitationParser.StripQuotes(content) : content));
         }
     }
 
@@ -93,7 +97,7 @@ public sealed class AiChatService : IDisposable
                 {
                     ThrowIfCancelled(userTurn, ct);
                     assistant.Append(InterruptedSentinel);
-                    _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
+                    _history.Add(new ChatMessage(ChatRole.Assistant, CitationParser.StripQuotes(assistant.ToString())));
                     yield return InterruptedSentinel;
                     yield break;
                 }
@@ -114,7 +118,8 @@ public sealed class AiChatService : IDisposable
         }
 
         ThrowIfCancelled(userTurn, ct);
-        _history.Add(new ChatMessage(ChatRole.Assistant, assistant.ToString()));
+        // Số [n] của lượt trước không khớp bảng nguồn của lượt mới, còn câu trích chỉ tốn ngân sách ký tự (#23).
+        _history.Add(new ChatMessage(ChatRole.Assistant, CitationParser.StripQuotes(assistant.ToString())));
     }
 
     // Nhà cung cấp có thể kết thúc stream bình thường dù token đã bị huỷ: vẫn coi là huỷ và bỏ lượt.

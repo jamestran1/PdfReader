@@ -473,6 +473,36 @@ public class AiChatServiceTests
     }
 
     [Fact]
+    public async Task SeedHistory_AssistantTurnWithQuotes_SendsOnlyBracketNumbers()
+    {
+        var client = new FakeChatClient(["ok"]);
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+        svc.SeedHistory([("User", "hỏi cũ [1: \"giữ nguyên\"]"), ("AI", "Đáp cũ [1: \"câu trích cũ\"] và [2].")]);
+
+        await Collect(svc.AskStreamingAsync("Hỏi mới", "ctx"));
+
+        var texts = client.LastMessages.Select(m => m.Text ?? "").ToList();
+        Assert.Contains(texts, t => string.Equals(t, "Đáp cũ [1] và [2].", StringComparison.Ordinal));
+        Assert.DoesNotContain(texts, t => t.Contains("câu trích cũ", StringComparison.Ordinal));
+        Assert.Contains(texts, t => string.Equals(t, "hỏi cũ [1: \"giữ nguyên\"]", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task AskStreamingAsync_PreviousAnswerWithQuotes_NextTurnSendsOnlyBracketNumbers()
+    {
+        var client = new FakeChatClient(["Kết luận [1: \"the system fails\"]."]);
+        var svc = new AiChatService(new FakeSettings("sk-x"), new FakeFactory(client));
+        string streamed = string.Concat(await Collect(svc.AskStreamingAsync("Hỏi một", "ctx")));
+
+        await Collect(svc.AskStreamingAsync("Hỏi hai", "ctx"));
+
+        Assert.Contains("the system fails", streamed, StringComparison.Ordinal);
+        var texts = client.LastMessages.Select(m => m.Text ?? "").ToList();
+        Assert.Contains(texts, t => string.Equals(t, "Kết luận [1].", StringComparison.Ordinal));
+        Assert.DoesNotContain(texts, t => t.Contains("the system fails", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SeedHistory_Empty_LeavesOnlySystemPrompt()
     {
         var client = new FakeChatClient(new[] { "ok" });
