@@ -132,7 +132,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     private static WorkspaceDocument Doc(string id, string title) => new(id, title, $"C:\\lib\\{id}.pdf");
 
     private readonly FakeHistory _history = new();
-    private readonly List<RagSource> _openedSources = [];
+    private readonly List<(RagSource Source, string? Quote)> _openedSources = [];
 
     private ChatViewModel CreateChat(string? currentDocumentId = "a", IReadOnlyList<TextBlock>? blocks = null)
     {
@@ -157,7 +157,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
             new RagContextService(new FakeIndex(this), new FakeEmbeddingFactory(this), settings),
             () => new ChatContext(currentDocumentId, "ws1", blocks ?? [], 1, "Sách A"),
             new ChatWorkspace(() => { _documentsRequested++; return _documents; }, runner),
-            _openedSources.Add);
+            (source, quote) => _openedSources.Add((source, quote)));
         _chats.Add(chat);
         return chat;
     }
@@ -318,9 +318,30 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         var chat = CreateChat();
         var source = new RagSource(2, "b", "Sách B", 2, "nội dung B");
 
-        chat.OpenCitationCommand.Execute(source);
+        chat.OpenCitationCommand.Execute(CitationSpan.ForSource(source));
 
-        Assert.Equal([source], _openedSources);
+        Assert.Equal([(source, (string?)null)], _openedSources);
+    }
+
+    [Fact]
+    public void OpenCitationCommand_PlainTextSpan_OpensNothing()
+    {
+        var chat = CreateChat();
+
+        chat.OpenCitationCommand.Execute(new CitationSpan("chữ thường"));
+
+        Assert.Empty(_openedSources);
+    }
+
+    [Fact]
+    public void OpenCitationCommand_PassesTheQuoteOfThatCitation()
+    {
+        var chat = CreateChat();
+        var source = new RagSource(2, "b", "Sách B", 2, "nội dung B");
+
+        chat.OpenCitationCommand.Execute(CitationSpan.ForSource(source, "câu trích"));
+
+        Assert.Equal([(source, "câu trích")], _openedSources);
     }
 
     [Fact]
@@ -332,6 +353,18 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
 
         string system = _sent[0][0].Text;
         Assert.Contains("[n]", system, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SystemPrompt_AsksModelToQuoteTheSentenceVerbatim()
+    {
+        var chat = CreateChat();
+
+        await AskAsync(chat, "câu hỏi");
+
+        string system = _sent[0][0].Text;
+        Assert.Contains("[n: \"", system, StringComparison.Ordinal);
+        Assert.Contains("nguyên văn", system, StringComparison.Ordinal);
     }
 
     [Fact]
