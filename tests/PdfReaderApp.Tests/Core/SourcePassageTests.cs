@@ -94,12 +94,66 @@ public class SourcePassageTests
             _ => [],
         }).ToList();
 
+    // Giả lập lượt tra: tra riêng từng cụm bằng hàm tìm theo danh sách cụm, gộp kết quả thành PassageHits.
+    private static Func<IReadOnlyList<string>, PassageHits> Hits(Func<IReadOnlyList<string>, IReadOnlyList<MatchRect>> find) =>
+        fragments =>
+        {
+            var perFragment = fragments.Select(fragment => find([fragment])).ToList();
+            return new PassageHits([.. perFragment.SelectMany(rects => rects)], [.. perFragment.Select(rects => rects.Count > 0)]);
+        };
+
+    [Fact]
+    public void Locate_QuoteWithManyFragments_LooksUpAllFragmentsInOneHitsCallAndNeverTheChunk()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"], ["a", "b", "c", "d"]);
+        int hitsCalls = 0;
+        int rectsCalls = 0;
+
+        var rects = passage.Locate(
+            fragments =>
+            {
+                hitsCalls++;
+                return Hits(FakeFind)(fragments);
+            },
+            fragments =>
+            {
+                rectsCalls++;
+                return FakeFind(fragments);
+            });
+
+        Assert.Equal([RectA, RectB], rects);
+        Assert.Equal((1, 0), (hitsCalls, rectsCalls));
+    }
+
+    [Fact]
+    public void Locate_QuoteFallsBackToChunk_UsesOneHitsCallThenOneRectsCall()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"], ["lạ"]);
+        int hitsCalls = 0;
+        int rectsCalls = 0;
+
+        var rects = passage.Locate(
+            fragments =>
+            {
+                hitsCalls++;
+                return Hits(FakeFind)(fragments);
+            },
+            fragments =>
+            {
+                rectsCalls++;
+                return FakeFind(fragments);
+            });
+
+        Assert.Equal([RectChunk], rects);
+        Assert.Equal((1, 1), (hitsCalls, rectsCalls));
+    }
+
     [Fact]
     public void Locate_QuoteMatchesOnPage_ReturnsOnlyTheQuoteRects()
     {
         var passage = new SourcePassage("doc", 0, ["chunk"], ["a", "b"]);
 
-        Assert.Equal([RectA, RectB], passage.Locate(FakeFind));
+        Assert.Equal([RectA, RectB], passage.Locate(Hits(FakeFind), FakeFind));
     }
 
     [Fact]
@@ -107,7 +161,7 @@ public class SourcePassageTests
     {
         var passage = new SourcePassage("doc", 0, ["chunk"], ["a", "lạ"]);
 
-        Assert.Equal([RectA], passage.Locate(FakeFind));
+        Assert.Equal([RectA], passage.Locate(Hits(FakeFind), FakeFind));
     }
 
     [Fact]
@@ -115,7 +169,7 @@ public class SourcePassageTests
     {
         var passage = new SourcePassage("doc", 0, ["chunk"], ["a", "lạ", "xa"]);
 
-        Assert.Equal([RectChunk], passage.Locate(FakeFind));
+        Assert.Equal([RectChunk], passage.Locate(Hits(FakeFind), FakeFind));
     }
 
     private static Func<IReadOnlyList<string>, IReadOnlyList<MatchRect>> FindOnly(string matching) =>
@@ -126,7 +180,7 @@ public class SourcePassageTests
     {
         var passage = new SourcePassage("doc", 0, ["chunk"], ["a b c d e f g h", "z"]);
 
-        Assert.Equal([RectChunk], passage.Locate(FindOnly("z")));
+        Assert.Equal([RectChunk], passage.Locate(Hits(FindOnly("z")), FindOnly("z")));
     }
 
     [Fact]
@@ -134,7 +188,7 @@ public class SourcePassageTests
     {
         var passage = new SourcePassage("doc", 0, ["chunk"], ["a b c d", "w x y z"]);
 
-        Assert.Equal([RectA], passage.Locate(FindOnly("w x y z")));
+        Assert.Equal([RectA], passage.Locate(Hits(FindOnly("w x y z")), FindOnly("w x y z")));
     }
 
     [Fact]
@@ -142,7 +196,7 @@ public class SourcePassageTests
     {
         var passage = new SourcePassage("doc", 0, ["chunk"], ["a b c d e", "x y z"]);
 
-        Assert.Equal([RectChunk], passage.Locate(FindOnly("x y z")));
+        Assert.Equal([RectChunk], passage.Locate(Hits(FindOnly("x y z")), FindOnly("x y z")));
     }
 
     [Fact]
@@ -150,7 +204,7 @@ public class SourcePassageTests
     {
         var passage = new SourcePassage("doc", 0, ["chunk"], ["lạ"]);
 
-        Assert.Equal([RectChunk], passage.Locate(FakeFind));
+        Assert.Equal([RectChunk], passage.Locate(Hits(FakeFind), FakeFind));
     }
 
     [Fact]
@@ -158,7 +212,7 @@ public class SourcePassageTests
     {
         var passage = new SourcePassage("doc", 0, ["chunk"]);
 
-        Assert.Equal([RectChunk], passage.Locate(FakeFind));
+        Assert.Equal([RectChunk], passage.Locate(Hits(FakeFind), FakeFind));
     }
 
     // Mọi viewer theo tab bind cùng một đoạn nguồn: viewer ẩn của Document khác không được cuộn theo (AI review R1, #241).
