@@ -10,12 +10,12 @@ public static partial class CitationParser
 {
     // Cả nhóm trong một cặp ngoặc vuông: "[1]", "[1, 2]" hoặc "[1: "câu"]" (nháy thẳng hoặc cong, dấu ':' tuỳ chọn).
     // "[Trang 3]" không khớp.
-    [GeneratedRegex(@"\[(?<numbers>\d+(?:\s*,\s*\d+)*)(?:\s*:?\s*[""“](?<quote>[^""”\[\]]*)[""”]?)?\s*\]", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 200)]
+    [GeneratedRegex(@"\[(?<numbers>\d+(?:\s*,\s*\d+)*)(?:\s*:?\s*[""“](?<quote>[^""”\[\]\r\n]*)[""”]?)?\s*\]", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 200)]
     private static partial Regex CitationGroup();
 
     // Đuôi câu trả lời đang stream dở: "[1:", "[1: "the sys", "[1: "câu"". Hiện chữ thô trông như lỗi nên ẩn đến khi đóng ngoặc.
     // Không chứa "[" hay "]": đuôi có ngoặc (vd thông báo gián đoạn "[lỗi: ...]") là chữ thật, không được nuốt.
-    [GeneratedRegex(@"\[(?<numbers>\d+(?:\s*,\s*\d+)*)\s*(?::\s*(?:[""“][^""”\[\]]*[""”]?\s*)?|[""“][^""”\[\]]*[""”]?\s*)$", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 200)]
+    [GeneratedRegex(@"\[(?<numbers>\d+(?:\s*,\s*\d+)*)\s*(?::\s*(?:[""“][^""”\[\]\r\n]*[""”]?\s*)?|[""“][^""”\[\]\r\n]*[""”]?\s*)$", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 200)]
     private static partial Regex UnclosedQuoteTail();
 
     /// <summary>Bỏ câu trích khỏi <paramref name="text"/>, giữ số <c>[n]</c>: lịch sử gửi model không cần câu trích

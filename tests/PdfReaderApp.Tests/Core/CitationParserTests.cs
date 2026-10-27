@@ -223,6 +223,20 @@ public class CitationParserTests
         Assert.DoesNotContain(spans, s => s.Source is not null);
     }
 
+    [Theory]
+    [InlineData("Theo [1: \"abc\n\nĐoạn hai không có ngoặc.")]
+    [InlineData("Theo [1: \"abc\r\nĐoạn hai không có ngoặc.")]
+    public void Parse_UnclosedQuoteFollowedByNewline_KeepsTheTextAfterIt(string text)
+    {
+        var span = Assert.Single(CitationParser.Parse(text, Sources));
+
+        Assert.Equal(text, span.Text);
+    }
+
+    [Fact]
+    public void StripQuotes_UnclosedQuoteFollowedByNewline_KeepsTheTextAfterIt() =>
+        Assert.Equal("Theo [1: \"abc\n\nĐoạn hai.", CitationParser.StripQuotes("Theo [1: \"abc\n\nĐoạn hai."));
+
     [Fact]
     public void Parse_QuoteWithoutClosingQuote_StillLinksAndKeepsTheRest()
     {
