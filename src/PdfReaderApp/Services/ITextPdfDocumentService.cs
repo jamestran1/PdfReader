@@ -2,6 +2,7 @@ using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Data;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using System.Text.RegularExpressions;
 using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
@@ -86,9 +87,42 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         return LocateRects(pageIndex, AccentInsensitiveRegex.BuildAlternation(fragments));
     }
 
-    private List<MatchRect> LocateRects(int pageIndex, string pattern)
+    public PassageHits FindPassageHits(int pageIndex, IReadOnlyList<string> fragments)
     {
-        var result = new List<MatchRect>();
+        if (_pdfDoc is null)
+            throw new InvalidOperationException("Call LoadFile before FindPassageHits.");
+
+        // Chi phí nằm ở việc strategy của iText gom chữ cho mỗi pattern (parse trang chỉ cỡ 1 ms), nên chạy MỘT strategy
+        // với alternation thay vì một strategy cho mỗi cụm; đo ở #246: 4 cụm giảm từ khoảng 75 ms xuống khoảng 16 ms.
+        var located = LocateRectsWithText(pageIndex, AccentInsensitiveRegex.BuildAlternation(fragments));
+
+        // Mỗi vùng iText trả mang CẢ chữ của lượt khớp (đã kiểm ở #246: lượt khớp vắt qua hai dòng cho hai vùng, mỗi vùng
+        // cùng một chữ đầy đủ), nên map ngược từng lượt khớp về cụm của nó bằng regex neo hai đầu. Alternation chọn nhánh
+        // đầu tiên khớp tại vị trí đó, và nhánh đầu tiên khớp nguyên văn chữ khớp được chính là nhánh ấy. Không nối chữ của
+        // nhiều lượt khớp lại vì cụm sẽ khớp sai qua chỗ nối.
+        var anchored = fragments
+            .Select(fragment => AccentInsensitiveRegex.BuildPattern(fragment) is { Length: > 0 } pattern
+                ? new Regex($"^(?:{pattern})$", RegexOptions.CultureInvariant, RegexTimeout)
+                : null)
+            .ToList();
+        var found = new bool[fragments.Count];
+        foreach (string matchText in located.Select(item => item.Text).Distinct(StringComparer.Ordinal))
+        {
+            // Mọi cụm khớp nguyên văn đều được đánh dấu: hai cụm trùng chữ sau khi bỏ dấu cùng có mặt.
+            for (int i = 0; i < anchored.Count; i++)
+                if (anchored[i]?.IsMatch(matchText) == true) found[i] = true;
+        }
+        return new PassageHits([.. located.Select(item => item.Rect)], found);
+    }
+
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
+
+    private List<MatchRect> LocateRects(int pageIndex, string pattern)
+        => [.. LocateRectsWithText(pageIndex, pattern).Select(item => item.Rect)];
+
+    private List<(MatchRect Rect, string Text)> LocateRectsWithText(int pageIndex, string pattern)
+    {
+        var result = new List<(MatchRect, string)>();
         if (pattern.Length == 0) return result;
         if (pageIndex < 0 || pageIndex >= _pdfDoc!.GetNumberOfPages()) return result;
 
@@ -106,7 +140,7 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         {
             var r = loc.GetRectangle();
             if (r is null) continue;
-            result.Add(new MatchRect(r.GetX() - crop.GetX(), r.GetY() - crop.GetY(), r.GetWidth(), r.GetHeight()));
+            result.Add((new MatchRect(r.GetX() - crop.GetX(), r.GetY() - crop.GetY(), r.GetWidth(), r.GetHeight()), loc.GetText() ?? ""));
         }
         return result;
     }

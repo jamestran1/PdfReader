@@ -20,4 +20,10 @@ public interface IPdfDocumentService : IDisposable
     /// skipped. Used to highlight the source passage of an AI citation.
     /// </summary>
     IReadOnlyList<MatchRect> FindPassageRects(int pageIndex, IReadOnlyList<string> fragments);
+
+    /// <summary>
+    /// Như <see cref="FindPassageRects"/> nhưng còn báo từng cụm có mặt trên trang hay không, trong một lần xử lý trang.
+    /// Dùng để biết câu trích khớp được bao nhiêu.
+    /// </summary>
+    PassageHits FindPassageHits(int pageIndex, IReadOnlyList<string> fragments);
 }

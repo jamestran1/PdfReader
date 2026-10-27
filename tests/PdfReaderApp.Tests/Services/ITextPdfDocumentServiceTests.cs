@@ -352,6 +352,85 @@ public class ITextPdfDocumentServiceTests : IDisposable
         }
     }
 
+    // Một lượt xử lý trang cho mọi cụm (#246) nhưng kết quả phải y như tra riêng từng cụm, kể cả cụm vắt qua hai dòng.
+    [Fact]
+    public void FindPassageHits_FragmentsAcrossLines_MatchesLookingEachUpAlone()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "Trước khi đi kinh hành ta phải\nxác định rõ mục tiêu của chuyến đi", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+            string[] fragments = ["kinh hanh ta phai xac dinh", "ky sinh trung", "muc tieu cua", "", "chuyen di"];
+
+            var hits = service.FindPassageHits(0, fragments);
+
+            Assert.Equal([true, false, true, false, true], hits.Found);
+            var alone = fragments.SelectMany(f => service.FindPassageRects(0, [f])).OrderBy(r => r.PdfY).ThenBy(r => r.PdfX);
+            Assert.Equal(alone, hits.Rects.OrderBy(r => r.PdfY).ThenBy(r => r.PdfX));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    // Hai chỗ khớp rời nhau không được ghép lại thành một cụm thứ ba: "hai ba" chỉ xuất hiện khi nối đuôi chỗ khớp
+    // thứ nhất với đầu chỗ khớp thứ hai, còn trên trang hai chữ đó cách nhau cả đoạn.
+    [Fact]
+    public void FindPassageHits_FragmentOnlyFormedByJoiningTwoSeparateMatches_IsNotFound()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "mot hai ba bon nam", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            var hits = service.FindPassageHits(0, ["mot hai", "bon nam", "hai bon"]);
+
+            Assert.Equal([true, true, false], hits.Found);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    // Câu trích lặp một cụm (sau khi bỏ dấu và hoa thường) vẫn phải tính số từ của cả hai cụm khi so với ngưỡng khớp.
+    [Fact]
+    public void FindPassageHits_TwoFragmentsWithTheSameText_BothAreFound()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "mot hai ba bon nam", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            var hits = service.FindPassageHits(0, ["mot hai", "bon nam", "MỘT hai"]);
+
+            Assert.Equal([true, true, true], hits.Found);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void FindPassageHits_PageOutOfRange_FindsNothing()
+    {
+        using var service = new ITextPdfDocumentService();
+        service.LoadFile(_tempPdf);
+
+        var hits = service.FindPassageHits(9, ["hello", "world"]);
+
+        Assert.Empty(hits.Rects);
+        Assert.Equal([false, false], hits.Found);
+    }
+
     [Fact]
     public void FindPassageRects_FooterAndHeaderInsideChunk_StillHighlightsBodyText()
     {

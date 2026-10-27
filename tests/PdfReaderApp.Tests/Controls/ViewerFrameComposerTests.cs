@@ -63,6 +63,15 @@ public sealed class ViewerFrameComposerTests : IDisposable
             return PassageFinder?.Invoke(fragments) ?? PassageRects;
         }
 
+        // Như service thật: một lượt cho mọi cụm, báo cụm nào có mặt.
+        public PassageHits FindPassageHits(int pageIndex, IReadOnlyList<string> fragments)
+        {
+            PassageCalls++;
+            PassageQueries.Add(fragments);
+            var perFragment = fragments.Select(fragment => PassageFinder?.Invoke([fragment]) ?? PassageRects).ToList();
+            return new PassageHits([.. perFragment.SelectMany(rects => rects)], [.. perFragment.Select(rects => rects.Count > 0)]);
+        }
+
         public void Dispose() { }
     }
 
