@@ -327,17 +327,20 @@ public class ITextPdfDocumentServiceTests : IDisposable
         string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
         try
         {
-            // Khe 3 pt nhỏ hơn nửa dòng (6 pt) nên PassageRectMerger dễ nối nhầm sang cột phải.
-            string[] left = ["kinh hành ta phải xác định", "rõ ràng trước khi bắt đầu"];
+            // Cụm 8 từ thật từ SplitFragments: cụm đầu vắt từ dòng 1 sang dòng 2 cột trái, mà iText xếp chữ theo
+            // dòng xuyên hai cột nên cụm đó có thể không khớp; cụm sau nằm gọn dòng 2 và phải được tô.
+            string[] left = ["kinh hành ta phải xác định rõ", "mục tiêu của chuyến đi trước khi bắt đầu thiền định"];
             float rightColumnX = 50f + left.Max(MeasureArial12) + columnGapPt;
             CreateLayoutPdf(
                 path,
-                (50, 700, left[0]), (rightColumnX, 700, "mục tiêu của chuyến đi"),
-                (50, 686, left[1]), (rightColumnX, 686, "thiền định mỗi sáng sớm"));
+                (50, 700, left[0]), (rightColumnX, 700, "chữ của cột phải"),
+                (50, 686, left[1]), (rightColumnX, 686, "không thuộc đoạn nguồn"));
             using var service = new ITextPdfDocumentService();
             service.LoadFile(path);
 
-            var found = service.FindPassageRects(0, ["kinh hanh ta phai xac dinh", "ro rang truoc khi bat dau"]);
+            var fragments = SourcePassage.SplitFragments(string.Join(' ', left));
+            Assert.Equal(2, fragments.Count);
+            var found = service.FindPassageRects(0, fragments);
             var rects = PassageRectMerger.MergeLineRects(found, PassageRectMerger.DefaultMaxGapPt(found));
 
             Assert.NotEmpty(rects);
