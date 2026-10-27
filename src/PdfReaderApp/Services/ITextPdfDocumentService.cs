@@ -2,6 +2,7 @@ using iText.Kernel.Pdf;
 using iText.Kernel.Pdf.Canvas.Parser;
 using iText.Kernel.Pdf.Canvas.Parser.Data;
 using iText.Kernel.Pdf.Canvas.Parser.Listener;
+using System.Text.RegularExpressions;
 using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
@@ -86,9 +87,34 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         return LocateRects(pageIndex, AccentInsensitiveRegex.BuildAlternation(fragments));
     }
 
-    private List<MatchRect> LocateRects(int pageIndex, string pattern)
+    public PassageHits FindPassageHits(int pageIndex, IReadOnlyList<string> fragments)
     {
-        var result = new List<MatchRect>();
+        if (_pdfDoc is null)
+            throw new InvalidOperationException("Call LoadFile before FindPassageHits.");
+
+        // Chi phí nằm ở việc strategy của iText gom chữ cho mỗi pattern (parse trang chỉ cỡ 1 ms), nên chạy MỘT strategy
+        // với alternation thay vì một strategy cho mỗi cụm; đo ở #246: 4 cụm giảm từ khoảng 75 ms xuống khoảng 16 ms.
+        var located = LocateRectsWithText(pageIndex, AccentInsensitiveRegex.BuildAlternation(fragments));
+
+        // Mỗi lượt khớp của alternation bị iText tách thành một đoạn chữ cho mỗi dòng và không cho biết nhánh nào khớp.
+        // Cụm nào có mặt thì chữ của nó nằm liền nhau trong các đoạn này, nên thử lại regex của từng cụm trên chuỗi nối
+        // các đoạn (khoảng trắng nối khớp \s+ của regex nên cụm vắt qua dòng vẫn khớp).
+        string joined = string.Join(' ', located.Select(item => item.Text));
+        var found = fragments
+            .Select(AccentInsensitiveRegex.BuildPattern)
+            .Select(pattern => pattern.Length > 0 && Regex.IsMatch(joined, pattern, RegexOptions.CultureInvariant, RegexTimeout))
+            .ToList();
+        return new PassageHits([.. located.Select(item => item.Rect)], found);
+    }
+
+    private static readonly TimeSpan RegexTimeout = TimeSpan.FromSeconds(2);
+
+    private List<MatchRect> LocateRects(int pageIndex, string pattern)
+        => [.. LocateRectsWithText(pageIndex, pattern).Select(item => item.Rect)];
+
+    private List<(MatchRect Rect, string Text)> LocateRectsWithText(int pageIndex, string pattern)
+    {
+        var result = new List<(MatchRect, string)>();
         if (pattern.Length == 0) return result;
         if (pageIndex < 0 || pageIndex >= _pdfDoc!.GetNumberOfPages()) return result;
 
@@ -106,7 +132,7 @@ public sealed class ITextPdfDocumentService : IPdfDocumentService
         {
             var r = loc.GetRectangle();
             if (r is null) continue;
-            result.Add(new MatchRect(r.GetX() - crop.GetX(), r.GetY() - crop.GetY(), r.GetWidth(), r.GetHeight()));
+            result.Add((new MatchRect(r.GetX() - crop.GetX(), r.GetY() - crop.GetY(), r.GetWidth(), r.GetHeight()), loc.GetText() ?? ""));
         }
         return result;
     }

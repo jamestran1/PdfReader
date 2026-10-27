@@ -37,26 +37,20 @@ public sealed record SourcePassage(
     // Tính theo số từ, không theo số cụm: cụm cuối có thể chỉ vài từ, khớp riêng nó không chứng minh được câu trích.
     private static int WordCount(string fragment) => fragment.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
 
-    /// <summary>Tìm vùng tô trên trang qua <paramref name="find"/> (một lần gọi cho mỗi cụm để biết cụm nào khớp).
-    /// Các cụm khớp phủ đủ <see cref="MinQuoteMatchRatio"/> số từ của câu trích thì tô các cụm đó; ngược lại, hoặc khi không
-    /// có câu trích, tô cả chunk.</summary>
-    public IReadOnlyList<MatchRect> Locate(Func<IReadOnlyList<string>, IReadOnlyList<MatchRect>> find)
+    /// <summary>Tìm vùng tô trên trang. <paramref name="findHits"/> tra một lượt cho nhiều cụm và báo cụm nào có mặt
+    /// (mỗi lượt là một lần xử lý cả trang trên UI thread nên câu trích chỉ được tra một lượt, #246). Các cụm khớp phủ đủ
+    /// <see cref="MinQuoteMatchRatio"/> số từ của câu trích thì tô các chỗ khớp của câu trích; ngược lại, hoặc khi không
+    /// có câu trích, tra thêm cả chunk và tô nó.</summary>
+    public IReadOnlyList<MatchRect> Locate(Func<IReadOnlyList<string>, PassageHits> findHits)
     {
-        ArgumentNullException.ThrowIfNull(find);
+        ArgumentNullException.ThrowIfNull(findHits);
         if (QuoteFragments is { Count: > 0 } quote)
         {
-            var rects = new List<MatchRect>();
-            int matchedWords = 0;
-            foreach (string fragment in quote)
-            {
-                var found = find([fragment]);
-                if (found.Count == 0) continue;
-                matchedWords += WordCount(fragment);
-                rects.AddRange(found);
-            }
-            if (matchedWords >= quote.Sum(WordCount) * MinQuoteMatchRatio) return rects;
+            var hits = findHits(quote);
+            int matchedWords = quote.Where((_, i) => hits.Found[i]).Sum(WordCount);
+            if (matchedWords >= quote.Sum(WordCount) * MinQuoteMatchRatio) return hits.Rects;
         }
-        return find(Fragments);
+        return findHits(Fragments).Rects;
     }
 
     /// <summary>Chẻ <paramref name="passage"/> thành các cụm <paramref name="wordsPerFragment"/> từ. Cụm cuối ngắn hơn
