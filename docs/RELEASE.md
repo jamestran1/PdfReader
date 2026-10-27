@@ -21,6 +21,7 @@ Làm một lần trước Submission đầu tiên (chi tiết: #99). Bước nà
 - [ ] Thay logo/tile placeholder trong `Assets/` (44x44, 150x150, 310x150, StoreLogo, SplashScreen) bằng bản thật, merge qua PR.
 - [ ] Viết `PRIVACY.md` (nội dung tài liệu chỉ gửi tới OpenAI khi người dùng chủ động chat bằng API key của chính họ; app không có server, không thu thập dữ liệu) và publish qua GitHub Pages; mở URL ở trình duyệt chưa đăng nhập để kiểm tra.
 - [ ] Nháp Store listing tiếng Việt, mở mọi thị trường: mô tả, screenshots (`pwsh scripts/snapshot.ps1 -Out x.png` cho ảnh cửa sổ chính), age rating questionnaire, privacy URL, khai báo license AGPL-3.0 + link mã nguồn.
+- [ ] Properties > Product declarations: tích "This product contains generative AI..." (chat AI tạo nội dung mới). Thiếu ô này thì certification từ chối theo chính sách 11.16 Live Generative AI Content.
 - [ ] Cài [winapp CLI](https://github.com/microsoft/winappCli) nếu muốn đóng gói ở local (`winapp --help` chạy được).
 
 Không có bước cài dev cert một lần: CI sinh dev cert mới ở mỗi lần chạy (`devcert.pfx` không nằm trong repo), nên cert được tin ở bước smoke test của từng Release.
