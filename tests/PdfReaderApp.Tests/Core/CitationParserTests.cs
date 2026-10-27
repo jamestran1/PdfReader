@@ -1,3 +1,4 @@
+using PdfReaderApp.Controls;
 using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 
@@ -196,14 +197,49 @@ public class CitationParserTests
         Assert.Equal(expected, CitationParser.StripQuotes(text));
 
     [Fact]
-    public void ForSource_WithQuote_TooltipHasTitlePageAndQuoteOnNewLine()
+    public void Tooltip_WithQuote_HasTitlePageAndQuoteOnNewLine()
     {
         var span = CitationSpan.ForSource(Sources[0], "câu nguyên văn");
 
-        Assert.Equal("Hợp đồng, trang 3\n“câu nguyên văn”", span.Tooltip);
+        Assert.Equal("Hợp đồng, trang 3\n“câu nguyên văn”", CitationTooltip.For(span));
     }
 
     [Fact]
-    public void ForSource_WithoutQuote_TooltipHasTitleAndPageOnly() =>
-        Assert.Equal("Hợp đồng, trang 3", CitationSpan.ForSource(Sources[0]).Tooltip);
+    public void Tooltip_WithoutQuote_HasTitleAndPageOnly() =>
+        Assert.Equal("Hợp đồng, trang 3", CitationTooltip.For(CitationSpan.ForSource(Sources[0])));
+
+    [Fact]
+    public void Tooltip_PlainText_IsNull() =>
+        Assert.Null(CitationTooltip.For(new CitationSpan("chữ thường")));
+
+    [Fact]
+    public void Parse_InterruptedStreamWithUnclosedQuote_KeepsTheNoticeVisible()
+    {
+        const string notice = " ...[lỗi: phản hồi bị gián đoạn]";
+
+        var spans = CitationParser.Parse("Theo [1: \"the sys" + notice, Sources);
+
+        Assert.Contains(spans, s => s.Text.Contains("[lỗi: phản hồi bị gián đoạn]", StringComparison.Ordinal));
+        Assert.DoesNotContain(spans, s => s.Source is not null);
+    }
+
+    [Fact]
+    public void Parse_QuoteWithoutClosingQuote_StillLinksAndKeepsTheRest()
+    {
+        var spans = CitationParser.Parse("Theo [1: \"abc] và phần sau.", Sources);
+
+        Assert.Equal(CitationSpan.ForSource(Sources[0], "abc"), spans[1]);
+        Assert.Equal(" và phần sau.", spans[^1].Text);
+    }
+
+    [Theory]
+    [InlineData("Ý [1: \"the system fails\"")]
+    [InlineData("Ý [1: \"the system fails\"  ")]
+    [InlineData("Ý [1 \"the system fails”")]
+    public void Parse_ClosedQuoteWaitingForBracketWhileStreaming_HidesTheTail(string text)
+    {
+        var span = Assert.Single(CitationParser.Parse(text, Sources));
+
+        Assert.Equal("Ý ", span.Text);
+    }
 }

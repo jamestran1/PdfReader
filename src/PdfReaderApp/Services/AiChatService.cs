@@ -55,7 +55,8 @@ public sealed class AiChatService : IDisposable
         foreach (var (role, content) in turns)
         {
             var chatRole = role == "AI" ? ChatRole.Assistant : ChatRole.User;
-            _history.Add(new ChatMessage(chatRole, chatRole == ChatRole.Assistant ? CitationParser.StripQuotes(content) : content));
+            if (chatRole == ChatRole.Assistant) AddAssistantTurn(content);
+            else _history.Add(new ChatMessage(chatRole, content));
         }
     }
 
@@ -97,7 +98,7 @@ public sealed class AiChatService : IDisposable
                 {
                     ThrowIfCancelled(userTurn, ct);
                     assistant.Append(InterruptedSentinel);
-                    _history.Add(new ChatMessage(ChatRole.Assistant, CitationParser.StripQuotes(assistant.ToString())));
+                    AddAssistantTurn(assistant.ToString());
                     yield return InterruptedSentinel;
                     yield break;
                 }
@@ -118,9 +119,12 @@ public sealed class AiChatService : IDisposable
         }
 
         ThrowIfCancelled(userTurn, ct);
-        // Số [n] của lượt trước không khớp bảng nguồn của lượt mới, còn câu trích chỉ tốn ngân sách ký tự (#23).
-        _history.Add(new ChatMessage(ChatRole.Assistant, CitationParser.StripQuotes(assistant.ToString())));
+        AddAssistantTurn(assistant.ToString());
     }
+
+    // Số [n] của lượt trước không khớp bảng nguồn của lượt mới, còn câu trích chỉ tốn ngân sách ký tự (#23).
+    private void AddAssistantTurn(string content) =>
+        _history.Add(new ChatMessage(ChatRole.Assistant, CitationParser.StripQuotes(content)));
 
     // Nhà cung cấp có thể kết thúc stream bình thường dù token đã bị huỷ: vẫn coi là huỷ và bỏ lượt.
     private void ThrowIfCancelled(ChatMessage userTurn, CancellationToken ct)

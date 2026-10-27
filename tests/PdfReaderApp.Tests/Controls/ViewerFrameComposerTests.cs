@@ -50,12 +50,17 @@ public sealed class ViewerFrameComposerTests : IDisposable
 
         public int PassageCalls { get; private set; }
 
+        public List<IReadOnlyList<string>> PassageQueries { get; } = [];
+
+        public Func<IReadOnlyList<string>, IReadOnlyList<MatchRect>>? PassageFinder { get; init; }
+
         public IReadOnlyList<MatchRect> PassageRects { get; init; } = [new MatchRect(5, 6, 7, 8)];
 
         public IReadOnlyList<MatchRect> FindPassageRects(int pageIndex, IReadOnlyList<string> fragments)
         {
             PassageCalls++;
-            return PassageRects;
+            PassageQueries.Add(fragments);
+            return PassageFinder?.Invoke(fragments) ?? PassageRects;
         }
 
         public void Dispose() { }
@@ -247,6 +252,29 @@ public sealed class ViewerFrameComposerTests : IDisposable
         var merged = Assert.Single(rects);
         Assert.Equal(72f, merged.PdfX, 0.01f);
         Assert.Equal(160.6f + 182.6f - 72f, merged.Width, 0.01f);
+    }
+
+    [Fact]
+    public void SourceRects_PassageWithQuote_SearchesTheQuoteFragmentsNotTheChunk()
+    {
+        var source = new CountingMatchSource { PassageFinder = f => f.Contains("câu trích", StringComparer.Ordinal) ? [new MatchRect(1, 1, 1, 1)] : [] };
+        var passage = new SourcePassage("doc1", 0, ["cả chunk"], ["câu trích"]);
+
+        var rects = Composer().Compose(_session, State(matches: source, source: passage), Info).Sources.GetSourceRects!(0);
+
+        Assert.Single(rects);
+        Assert.DoesNotContain(source.PassageQueries, q => q.Contains("cả chunk", StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void SourceRects_QuoteNotOnPage_SearchesTheChunk()
+    {
+        var source = new CountingMatchSource { PassageFinder = f => f.Contains("cả chunk", StringComparer.Ordinal) ? [new MatchRect(9, 9, 9, 9)] : [] };
+        var passage = new SourcePassage("doc1", 0, ["cả chunk"], ["câu lạ"]);
+
+        var rects = Composer().Compose(_session, State(matches: source, source: passage), Info).Sources.GetSourceRects!(0);
+
+        Assert.Equal(9f, Assert.Single(rects).PdfX, 0.01f);
     }
 
     [Fact]

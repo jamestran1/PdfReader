@@ -118,6 +118,33 @@ public class SourcePassageTests
         Assert.Equal([RectChunk], passage.Locate(FakeFind));
     }
 
+    private static Func<IReadOnlyList<string>, IReadOnlyList<MatchRect>> FindOnly(string matching) =>
+        fragments => fragments.Contains(matching, StringComparer.Ordinal) ? [RectA] : fragments.Contains("chunk", StringComparer.Ordinal) ? [RectChunk] : [];
+
+    [Fact]
+    public void Locate_OnlyAOneWordFragmentOfALongQuoteMatches_FallsBackToTheWholeChunk()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"], ["a b c d e f g h", "z"]);
+
+        Assert.Equal([RectChunk], passage.Locate(FindOnly("z")));
+    }
+
+    [Fact]
+    public void Locate_MatchedFragmentsCoverExactlyHalfTheQuoteWords_UsesTheQuote()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"], ["a b c d", "w x y z"]);
+
+        Assert.Equal([RectA], passage.Locate(FindOnly("w x y z")));
+    }
+
+    [Fact]
+    public void Locate_MatchedFragmentsCoverLessThanHalfTheQuoteWords_FallsBackToTheWholeChunk()
+    {
+        var passage = new SourcePassage("doc", 0, ["chunk"], ["a b c d e", "x y z"]);
+
+        Assert.Equal([RectChunk], passage.Locate(FindOnly("x y z")));
+    }
+
     [Fact]
     public void Locate_NothingOfQuoteMatches_FallsBackToTheWholeChunk()
     {

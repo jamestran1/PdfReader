@@ -19,7 +19,7 @@ public sealed record SourcePassage(
     /// nguồn, nên viewer chỉ tô và cuộn khi đoạn thuộc chính Document của nó.</summary>
     public bool BelongsTo(string? documentId) => string.Equals(DocumentId, documentId, StringComparison.Ordinal);
 
-    /// <summary>Tỉ lệ cụm của câu trích phải khớp trên trang để tin câu trích; dưới mức này lùi về tô cả chunk
+    /// <summary>Tỉ lệ số từ của câu trích phải khớp trên trang để tin câu trích; dưới mức này lùi về tô cả chunk
     /// (một cụm lẻ khớp rất dễ là khớp nhầm chỗ khác trên trang).</summary>
     public const double MinQuoteMatchRatio = 0.5;
 
@@ -34,24 +34,27 @@ public sealed record SourcePassage(
         return new SourcePassage(source.DocumentId, source.PageIndex, chunkFragments, quoteFragments);
     }
 
+    // Tính theo số từ, không theo số cụm: cụm cuối có thể chỉ vài từ, khớp riêng nó không chứng minh được câu trích.
+    private static int WordCount(string fragment) => fragment.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
+
     /// <summary>Tìm vùng tô trên trang qua <paramref name="find"/> (một lần gọi cho mỗi cụm để biết cụm nào khớp).
-    /// Đủ <see cref="MinQuoteMatchRatio"/> cụm của câu trích khớp thì tô các cụm đó; ngược lại, hoặc khi không có câu trích,
-    /// tô cả chunk.</summary>
+    /// Các cụm khớp phủ đủ <see cref="MinQuoteMatchRatio"/> số từ của câu trích thì tô các cụm đó; ngược lại, hoặc khi không
+    /// có câu trích, tô cả chunk.</summary>
     public IReadOnlyList<MatchRect> Locate(Func<IReadOnlyList<string>, IReadOnlyList<MatchRect>> find)
     {
         ArgumentNullException.ThrowIfNull(find);
         if (QuoteFragments is { Count: > 0 } quote)
         {
             var rects = new List<MatchRect>();
-            int matched = 0;
+            int matchedWords = 0;
             foreach (string fragment in quote)
             {
                 var found = find([fragment]);
                 if (found.Count == 0) continue;
-                matched++;
+                matchedWords += WordCount(fragment);
                 rects.AddRange(found);
             }
-            if (matched >= quote.Count * MinQuoteMatchRatio) return rects;
+            if (matchedWords >= quote.Sum(WordCount) * MinQuoteMatchRatio) return rects;
         }
         return find(Fragments);
     }

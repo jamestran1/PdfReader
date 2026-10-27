@@ -43,7 +43,7 @@ public static class CitationText
         {
             Command = command,
             CommandParameter = span,
-            ToolTip = span.Tooltip,
+            ToolTip = CitationTooltip.For(span),
         };
         link.SetResourceReference(TextElement.ForegroundProperty, "MaterialDesign.Brush.Primary");
         return link;

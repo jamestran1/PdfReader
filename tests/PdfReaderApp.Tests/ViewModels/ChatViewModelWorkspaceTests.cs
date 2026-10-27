@@ -285,6 +285,16 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     }
 
     [Fact]
+    public void OpenCitationCommand_PlainTextSpan_OpensNothing()
+    {
+        var chat = CreateChat();
+
+        chat.OpenCitationCommand.Execute(new CitationSpan("chữ thường"));
+
+        Assert.Empty(_openedSources);
+    }
+
+    [Fact]
     public void OpenCitationCommand_PassesTheQuoteOfThatCitation()
     {
         var chat = CreateChat();

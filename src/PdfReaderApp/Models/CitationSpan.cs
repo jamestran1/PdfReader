@@ -11,9 +11,4 @@ public sealed record CitationSpan(string Text, RagSource? Source = null, string?
     /// <summary>Nhãn của trích dẫn trong câu, vd "📖 Hợp đồng - Tr.3" (số trang tính từ 1).</summary>
     public static CitationSpan ForSource(RagSource source, string? quote = null) =>
         new($"📖 {source.Title} - Tr.{source.PageIndex + 1}", source, quote);
-
-    /// <summary>Chú giải khi rê chuột lên link: "Tên tài liệu, trang X", thêm câu trích ở dòng dưới khi có; null với chữ thường.</summary>
-    public string? Tooltip => Source is null
-        ? null
-        : $"{Source.Title}, trang {Source.PageIndex + 1}" + (Quote is null ? "" : $"\n“{Quote}”");
 }
