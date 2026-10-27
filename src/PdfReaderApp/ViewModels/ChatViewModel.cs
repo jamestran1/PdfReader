@@ -294,7 +294,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 #pragma warning restore CA1031
     }
 
-    // Ngữ cảnh gửi model và bảng nguồn [n] đi kèm (rỗng khi lùi về ngữ cảnh theo trang).
+    // Ngữ cảnh gửi model và bảng nguồn [n] đi kèm (rỗng khi lùi về ngữ cảnh liền khối vì không có DocumentId).
     private readonly record struct BuiltContext(string Text, IReadOnlyList<RagSource> Sources);
 
     private async Task<BuiltContext> BuildChatContextAsync(string question, CancellationToken ct)
@@ -316,7 +316,21 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             if (Scope == DocumentScope.Workspace) AppendScopeNotice(PageOnlyNotice);
         }
 #pragma warning restore CA1031
-        return rag ?? new BuiltContext(
+        return rag ?? BuildPageContext(context);
+    }
+
+    // Không có DocumentId thì CitationOpener không có nơi nhảy tới: giữ ngữ cảnh liền khối, không đánh số.
+    private static BuiltContext BuildPageContext(ChatContext context)
+    {
+        if (context.DocumentId is not null)
+        {
+            var document = new WorkspaceDocument(context.DocumentId, context.DocumentTitle, FilePath: string.Empty);
+            RagContext? numbered = PageContextBuilder.BuildNumberedAround(
+                document, context.Blocks, context.CurrentPage, ContextPageWindow);
+            if (numbered is not null) return new BuiltContext(numbered.Text, numbered.Sources);
+        }
+
+        return new BuiltContext(
             DocumentContextBuilder.BuildAround(context.Blocks, context.CurrentPage, ContextPageWindow), []);
     }
 

@@ -119,7 +119,7 @@ public sealed class RagContextService
     }
 
     // Hàm thuần: đánh số theo thứ tự đã sắp, dừng khi vượt ngân sách ký tự (nguồn bị bỏ cũng không vào bảng nguồn).
-    private static RagContext? FormatNumberedContext(
+    public static RagContext? FormatNumberedContext(
         IReadOnlyList<(WorkspaceDocument Document, Chunk Chunk)> ranked, int maxChars)
     {
         var sb = new StringBuilder();
