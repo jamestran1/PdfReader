@@ -104,7 +104,7 @@ internal sealed class ViewerFrameComposer
     {
         if (_sourceRects is null || !ReferenceEquals(_sourceCacheKey, passage))
         {
-            var found = source.FindPassageRects(passage.PageIndex, passage.Fragments);
+            var found = passage.Locate(fragments => source.FindPassageRects(passage.PageIndex, fragments));
             _sourceRects = PassageRectMerger.MergeLineRects(found, PassageRectMerger.DefaultMaxGapPt(found));
             _sourceCacheKey = passage;
         }

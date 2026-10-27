@@ -1,3 +1,4 @@
+using PdfReaderApp.Controls;
 using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 
@@ -112,5 +113,147 @@ public class CitationParserTests
         var span = Assert.Single(CitationParser.Parse("Có [1] đây", []));
 
         Assert.Equal("Có [1] đây", span.Text);
+    }
+
+    [Theory]
+    [InlineData("Ý [1: \"the system fails\"] hết.")]
+    [InlineData("Ý [1: “the system fails”] hết.")]
+    [InlineData("Ý [1 \"the system fails\"] hết.")]
+    [InlineData("Ý [1 : \"the system fails\" ] hết.")]
+    public void Parse_CitationWithQuote_KeepsQuoteOnTheSpan(string text)
+    {
+        var spans = CitationParser.Parse(text, Sources);
+
+        Assert.Equal(3, spans.Count);
+        Assert.Equal("Ý ", spans[0].Text);
+        Assert.Equal(CitationSpan.ForSource(Sources[0], "the system fails"), spans[1]);
+        Assert.Equal(" hết.", spans[2].Text);
+    }
+
+    [Fact]
+    public void Parse_SameSourceQuotedTwice_EachLinkKeepsItsOwnQuote()
+    {
+        var spans = CitationParser.Parse("[1: \"một câu\"][1: \"câu khác\"]", Sources);
+
+        var links = spans.Where(s => s.Source is not null).ToList();
+        Assert.Equal("một câu", links[0].Quote);
+        Assert.Equal("câu khác", links[1].Quote);
+    }
+
+    [Fact]
+    public void Parse_MultipleNumbersWithOneQuote_BecomeLinksWithoutQuote()
+    {
+        var spans = CitationParser.Parse("Ý [1, 2: \"câu\"] hết.", Sources);
+
+        var links = spans.Where(s => s.Source is not null).ToList();
+        Assert.Equal(2, links.Count);
+        Assert.All(links, s => Assert.Null(s.Quote));
+        Assert.DoesNotContain(spans, s => s.Text.Contains("câu", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("Ý [1: \"the sys")]
+    [InlineData("Ý [1: “the sys")]
+    [InlineData("Ý [1: ")]
+    [InlineData("Ý [1, 2: \"the")]
+    public void Parse_UnclosedQuoteWhileStreaming_HidesTheTail(string text)
+    {
+        var span = Assert.Single(CitationParser.Parse(text, Sources));
+
+        Assert.Equal("Ý ", span.Text);
+        Assert.Null(span.Source);
+    }
+
+    [Fact]
+    public void Parse_UnclosedQuoteOfUnknownNumber_StaysPlainText()
+    {
+        var span = Assert.Single(CitationParser.Parse("Ý [9: \"the sys", Sources));
+
+        Assert.Equal("Ý [9: \"the sys", span.Text);
+    }
+
+    [Fact]
+    public void Parse_QuoteOfUnknownNumber_StaysPlainText()
+    {
+        var span = Assert.Single(CitationParser.Parse("Ý [9: \"câu\"] hết.", Sources));
+
+        Assert.Equal("Ý [9: \"câu\"] hết.", span.Text);
+    }
+
+    [Fact]
+    public void Parse_EmptyQuote_IsLinkWithoutQuote()
+    {
+        var spans = CitationParser.Parse("[1: \"  \"]", Sources);
+
+        Assert.Equal(CitationSpan.ForSource(Sources[0]), Assert.Single(spans));
+    }
+
+    [Theory]
+    [InlineData("Ý [1: \"câu một\"] và [2, 3] nữa.", "Ý [1] và [2, 3] nữa.")]
+    [InlineData("Ý [1: “câu”][2: \"khác\"].", "Ý [1][2].")]
+    [InlineData("Không có trích dẫn [1].", "Không có trích dẫn [1].")]
+    [InlineData("Dở dang [1: \"câu chưa đó", "Dở dang ")]
+    public void StripQuotes_RemovesQuotesAndKeepsNumbers(string text, string expected) =>
+        Assert.Equal(expected, CitationParser.StripQuotes(text));
+
+    [Fact]
+    public void Tooltip_WithQuote_HasTitlePageAndQuoteOnNewLine()
+    {
+        var span = CitationSpan.ForSource(Sources[0], "câu nguyên văn");
+
+        Assert.Equal("Hợp đồng, trang 3\n“câu nguyên văn”", CitationTooltip.For(span));
+    }
+
+    [Fact]
+    public void Tooltip_WithoutQuote_HasTitleAndPageOnly() =>
+        Assert.Equal("Hợp đồng, trang 3", CitationTooltip.For(CitationSpan.ForSource(Sources[0])));
+
+    [Fact]
+    public void Tooltip_PlainText_IsNull() =>
+        Assert.Null(CitationTooltip.For(new CitationSpan("chữ thường")));
+
+    [Fact]
+    public void Parse_InterruptedStreamWithUnclosedQuote_KeepsTheNoticeVisible()
+    {
+        const string notice = " ...[lỗi: phản hồi bị gián đoạn]";
+
+        var spans = CitationParser.Parse("Theo [1: \"the sys" + notice, Sources);
+
+        Assert.Contains(spans, s => s.Text.Contains("[lỗi: phản hồi bị gián đoạn]", StringComparison.Ordinal));
+        Assert.DoesNotContain(spans, s => s.Source is not null);
+    }
+
+    [Theory]
+    [InlineData("Theo [1: \"abc\n\nĐoạn hai không có ngoặc.")]
+    [InlineData("Theo [1: \"abc\r\nĐoạn hai không có ngoặc.")]
+    public void Parse_UnclosedQuoteFollowedByNewline_KeepsTheTextAfterIt(string text)
+    {
+        var span = Assert.Single(CitationParser.Parse(text, Sources));
+
+        Assert.Equal(text, span.Text);
+    }
+
+    [Fact]
+    public void StripQuotes_UnclosedQuoteFollowedByNewline_KeepsTheTextAfterIt() =>
+        Assert.Equal("Theo [1: \"abc\n\nĐoạn hai.", CitationParser.StripQuotes("Theo [1: \"abc\n\nĐoạn hai."));
+
+    [Fact]
+    public void Parse_QuoteWithoutClosingQuote_StillLinksAndKeepsTheRest()
+    {
+        var spans = CitationParser.Parse("Theo [1: \"abc] và phần sau.", Sources);
+
+        Assert.Equal(CitationSpan.ForSource(Sources[0], "abc"), spans[1]);
+        Assert.Equal(" và phần sau.", spans[^1].Text);
+    }
+
+    [Theory]
+    [InlineData("Ý [1: \"the system fails\"")]
+    [InlineData("Ý [1: \"the system fails\"  ")]
+    [InlineData("Ý [1 \"the system fails”")]
+    public void Parse_ClosedQuoteWaitingForBracketWhileStreaming_HidesTheTail(string text)
+    {
+        var span = Assert.Single(CitationParser.Parse(text, Sources));
+
+        Assert.Equal("Ý ", span.Text);
     }
 }
