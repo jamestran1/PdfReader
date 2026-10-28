@@ -170,6 +170,46 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 #pragma warning restore CA1031
     }
 
+    /// <summary>Có Document đang đọc lẻ để promote (không ở named Workspace).</summary>
+    public bool CanPromote => !IsWorkspaceSession && DocumentId is not null;
+
+    /// <summary>
+    /// Intent: mở lẻ <paramref name="path"/> trong Default Workspace của Document. Thay Document đang đọc,
+    /// không tạo Tab; Default Workspace được lấy lại hoặc tạo khi chưa có. Nạp lỗi thì báo lỗi và không còn
+    /// Document hay Workspace đang hoạt động.
+    /// </summary>
+    public void Open(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        IsWorkspaceSession = false;
+        ReplaceCurrentDocument(path);
+    }
+
+    /// <summary>
+    /// Intent: biến Document đang đọc lẻ thành Tab đầu tiên và duy nhất của <paramref name="workspace"/> (named Workspace mới),
+    /// mang theo trang và zoom. Trả về false khi không có Document đọc lẻ để promote.
+    /// </summary>
+    /// <param name="workspace">Named Workspace mới, chưa lưu.</param>
+    /// <param name="documentTitle">Tiêu đề Tab của Document.</param>
+    public bool Promote(Workspace workspace, string documentTitle)
+    {
+        ArgumentNullException.ThrowIfNull(workspace);
+        if (!CanPromote || DocumentId is not { } documentId || FilePath is not { } path) return false;
+
+        // Đọc trang và zoom TRƯỚC khi chuyển sang phiên Workspace, vì sau đó chúng đọc từ Tab.
+        int page = CurrentPage;
+        double zoom = ZoomLevel;
+
+        _workspaceStore.Upsert(workspace);
+        _workspaceStore.AddDocument(workspace.Id, documentId);
+        ActiveWorkspaceId = workspace.Id;
+        IsWorkspaceSession = true;
+
+        var tab = Tabs.OpenOrActivate(documentId, documentTitle, path, initialPage: page);
+        tab.Zoom = zoom;   // sau khi kích hoạt: Tab mới có zoom mặc định
+        return true;
+    }
+
     /// <summary>Tạm thời: khoá khôi phục của Open Set cho <c>RestoreOrSeedOpenSet</c> của MainViewModel; biến mất khi
     /// intent RestoreOpenSet chuyển vào Phiên đọc.</summary>
     internal OpenSetPersistence OpenSet => _openSet;
