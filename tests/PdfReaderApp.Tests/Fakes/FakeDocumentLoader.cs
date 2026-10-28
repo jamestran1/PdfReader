@@ -16,6 +16,9 @@ internal sealed class FakeDocumentLoader : IDocumentLoader
 
     public Exception? ThrowOnLoad { get; set; }
 
+    /// <summary>Nếu đặt, mỗi lần nạp ghi "load:đường-dẫn" vào nhật ký chung để test kiểm thứ tự với các bên khác.</summary>
+    public CallLog? Log { get; init; }
+
     public IPdfDocumentService MatchSource { get; init; } = new NoMatchSource();
 
     public void Returns(string path, LoadedDocument document) => _byPath[path] = document;
@@ -23,6 +26,7 @@ internal sealed class FakeDocumentLoader : IDocumentLoader
     public LoadedDocument Load(string path)
     {
         LoadedPaths.Add(path);
+        Log?.Add($"load:{path}");
         if (ThrowOnLoad is not null) throw ThrowOnLoad;
         return _byPath.TryGetValue(path, out var document) ? document : new LoadedDocument(path, [], []);
     }
