@@ -101,6 +101,8 @@ public sealed partial class WorkspaceDocumentsViewModel : ObservableObject, IRea
     [RelayCommand]
     private void CloseModal() => IsModalOpen = false;
 
+    void IReadingSessionSurface.DismissModal() => IsModalOpen = false;
+
     [ObservableProperty] public partial bool IsRenaming { get; set; }
     [ObservableProperty] public partial string RenameDraft { get; set; } = string.Empty;
     [ObservableProperty] public partial string RenameError { get; set; } = string.Empty;

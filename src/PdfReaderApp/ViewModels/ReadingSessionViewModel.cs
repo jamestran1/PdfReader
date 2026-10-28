@@ -23,6 +23,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     private readonly Action<string> _notifyError;
     private readonly Func<string, LibraryItem?> _findDocument;
     private readonly OpenSetPersistence _openSet;
+    private readonly Action<string>? _markDocumentOpened;
     private JumpOrigin? _jumpOrigin;
 
     // Tab đang được theo dõi view-state để toolbar (trang, zoom, tổng trang) khớp với viewer của nó.
@@ -43,6 +44,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _surface = dependencies.Surface;
         _notifyError = dependencies.NotifyError;
         _findDocument = dependencies.FindDocument ?? (_ => null);
+        _markDocumentOpened = dependencies.MarkDocumentOpened;
 
         // Phiên đọc là bên nghe duy nhất việc đổi Tab active, và đăng ký TRƯỚC OpenSetPersistence trong cùng constructor,
         // nên thứ tự "xử lý đổi Tab rồi mới lưu Open Set" nằm ở một chỗ. Sự kiện còn cần vì OpenOrActivate, RestoreTabs và
@@ -192,6 +194,39 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(source);
         Jump(new JumpRequest(source.DocumentId, source.PageIndex, JumpOrigin.Citation, SourcePassage.From(source, quote)));
+    }
+
+    /// <summary>Intent: mở <paramref name="document"/> trong Workspace <paramref name="workspaceId"/> (Add hoặc click thành viên
+    /// trên surface). Đã có Tab thì kích hoạt Tab đó, chưa có thì mở Tab mới và nạp. Thời điểm mở ghi vào Library (best-effort).</summary>
+    public void OpenInWorkspace(string workspaceId, LibraryItem document)
+    {
+        ArgumentNullException.ThrowIfNull(workspaceId);
+        ArgumentNullException.ThrowIfNull(document);
+        // Phạm vi Workspace phải có trước khi Tab được kích hoạt và nạp.
+        ActiveWorkspaceId = workspaceId;
+        IsWorkspaceSession = true;
+        Tabs.OpenOrActivate(document.DocumentId, document.Title, document.StoredPath);
+        MarkOpenedBestEffort(document.DocumentId);
+    }
+
+    /// <summary>Intent: về trạng thái không có Workspace đang hoạt động (Workspace đang mở bị xoá). Open Set rỗng,
+    /// Notes trống, surface modal đóng, không Document nào được nạp. Bên gọi bỏ chọn Workspace trước để lần làm mới
+    /// surface do đóng Tab cuối không đọc dữ liệu của Workspace đã xoá.</summary>
+    public void Reset()
+    {
+        ActiveWorkspaceId = null;
+        IsWorkspaceSession = false;
+        _surface.DismissModal();
+        _notes.LoadFor(null);
+        Tabs.Reset();
+    }
+
+    private void MarkOpenedBestEffort(string documentId)
+    {
+#pragma warning disable CA1031 // best-effort: ghi thời điểm mở lỗi không chặn việc mở Document
+        try { _markDocumentOpened?.Invoke(documentId); }
+        catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"ReadingSessionViewModel: ghi thời điểm mở lỗi: {ex}"); }
+#pragma warning restore CA1031
     }
 
     /// <summary>Tạm thời: khoá khôi phục của Open Set cho <c>RestoreOrSeedOpenSet</c> của MainViewModel; biến mất khi
