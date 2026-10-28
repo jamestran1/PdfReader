@@ -300,7 +300,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var session = new MainViewModelSessionFactory(
             documentLoader, _workspaceStore, Search, Chat, Notes, Indexing, DocumentsSurface)
-            .Create(UpdateNotesDocumentContext, NotifyError);
+            .Create(UpdateNotesDocumentContext, NotifyError, id => Library.FirstOrDefault(i => i.DocumentId == id));
         session.PropertyChanged += OnSessionPropertyChanged;
         return session;
     }
@@ -627,11 +627,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     private void JumpToDocumentFromSearch(string documentId, int pageIndex)
-    {
-        Session.KeepSearchOnTabChange = true;
-        try { JumpToDocument(documentId, pageIndex); }
-        finally { Session.KeepSearchOnTabChange = false; }
-    }
+        => Session.JumpFromSearch(documentId, pageIndex);
 
     /// <summary>Đoạn nguồn của trích dẫn AI vừa mở, viewer của Document đó tô trên trang; null khi chưa mở trích dẫn
     /// nào hoặc nguồn không mang chữ của đoạn (lịch sử chat bản cũ).</summary>
@@ -645,40 +641,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public void OpenCitationSource(RagSource source, string? quote = null)
     {
         ArgumentNullException.ThrowIfNull(source);
-        // Nhảy trước rồi mới đặt đoạn nguồn: đổi tài liệu xoá đoạn nguồn cũ, nên đặt sau thì không bị xoá mất.
-        // Tài liệu đã gỡ khỏi Library thì không nhảy được; không giữ đoạn của trích dẫn trước tô nhầm chỗ.
-        ActiveSourcePassage = TryOpenDocument(source.DocumentId, source.PageIndex) ? SourcePassage.From(source, quote) : null;
+        Session.JumpFromCitation(source, quote);
     }
 
     /// <summary>Tắt tô Đoạn nguồn (phím Esc).</summary>
     [RelayCommand]
     private void ClearSourcePassage() => ActiveSourcePassage = null;
 
-    /// <summary>Cross-doc jump: mở hoặc kích hoạt tab của <paramref name="documentId"/> rồi cuộn tới trang
-    /// (<paramref name="pageIndex"/> tính từ 0). Dùng chung cho note, kết quả tìm kiếm và trích dẫn AI.</summary>
-    public void JumpToDocument(string documentId, int pageIndex) => OpenDocumentForNote(documentId, pageIndex);
-
-    // S3 / Tab S1: callback mở tài liệu khác trong cùng workspace khi bấm note cross-doc.
-    private void OpenDocumentForNote(string documentId, int? pageIndex) => TryOpenDocument(documentId, pageIndex);
-
-    // Cross-doc jump: activate-or-open tab, luôn điều hướng tới trang đích. false khi tài liệu không còn trong Library.
-    private bool TryOpenDocument(string documentId, int? pageIndex)
-    {
-        var item = Library.FirstOrDefault(i => i.DocumentId == documentId);
-        if (item is null) return false;
-        int targetPage = (pageIndex ?? 0) + 1;
-        if (IsWorkspaceSession)
-        {
-            // Activate-or-open + đặt trang đích TRƯỚC khi nạp (initialPage) -> viewer mở thẳng tại trang.
-            Tabs.OpenOrActivate(documentId, item.Title, item.StoredPath, targetPage);
-        }
-        else
-        {
-            // Standalone: giữ hành vi cũ.
-            Session.ReplaceCurrentDocument(item.StoredPath, Session.ActiveWorkspaceId, initialPage: targetPage);
-        }
-        return true;
-    }
+    // Bấm note ở tài liệu khác: Phiên đọc lo Cross-doc jump; note không mang trang thì mở trang đầu.
+    private void OpenDocumentForNote(string documentId, int? pageIndex) => Session.JumpFromNote(documentId, pageIndex);
 
     // S4: xóa một workspace (không được xóa default workspace)
     [RelayCommand]

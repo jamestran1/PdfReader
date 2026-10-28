@@ -23,7 +23,8 @@ internal sealed class ReadingSessionFixture
         Surface = new FakeSessionSurface(Log);
         Session = new ReadingSessionViewModel(new ReadingSessionDependencies(
             Loader, Store, Search, Chat, Notes, Indexing, Surface, Errors.Add,
-            DispatcherProvider: () => null));   // null: lưu Open Set ngay, tất định
+            DispatcherProvider: () => null,   // null: lưu Open Set ngay, tất định
+            FindDocument: id => Library.GetValueOrDefault(id)));
     }
 
     public CallLog Log { get; } = new();
@@ -35,6 +36,7 @@ internal sealed class ReadingSessionFixture
     public FakeSessionIndexing Indexing { get; }
     public FakeSessionSurface Surface { get; }
     public List<string> Errors { get; } = [];
+    public Dictionary<string, LibraryItem> Library { get; } = [];
     public ReadingSessionViewModel Session { get; }
 
     public static string PathOf(string documentId) => $"/docs/{documentId}.pdf";
@@ -54,5 +56,13 @@ internal sealed class ReadingSessionFixture
         var tab = Session.Tabs.OpenOrActivate(documentId, documentId, PathOf(documentId), page);
         Log.Clear();
         return tab;
+    }
+
+    /// <summary>Đưa <paramref name="documentId"/> vào Library để Jump tìm thấy, kèm kết quả nạp của nó.</summary>
+    public ReadingSessionFixture InLibrary(string documentId)
+    {
+        Loader.Returns(PathOf(documentId), new LoadedDocument(documentId, [], []));
+        Library[documentId] = new LibraryItem(documentId, documentId, PathOf(documentId), null, 10, 0, 0);
+        return this;
     }
 }
