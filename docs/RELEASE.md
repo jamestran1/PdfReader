@@ -21,6 +21,7 @@ Làm một lần trước Submission đầu tiên (chi tiết: #99). Bước nà
 - [ ] Thay logo/tile placeholder trong `Assets/` (44x44, 150x150, 310x150, StoreLogo, SplashScreen) bằng bản thật, merge qua PR.
 - [ ] Viết `PRIVACY.md` (nội dung tài liệu chỉ gửi tới OpenAI khi người dùng chủ động chat bằng API key của chính họ; app không có server, không thu thập dữ liệu) và publish qua GitHub Pages; mở URL ở trình duyệt chưa đăng nhập để kiểm tra.
 - [ ] Nháp Store listing tiếng Việt, mở mọi thị trường: mô tả, screenshots (`pwsh scripts/snapshot.ps1 -Out x.png` cho ảnh cửa sổ chính), age rating questionnaire, privacy URL, khai báo license AGPL-3.0 + link mã nguồn.
+- [ ] Properties > Product declarations: tích "This product contains generative AI..." (chat AI tạo nội dung mới). Thiếu ô này thì certification từ chối theo chính sách 11.16 Live Generative AI Content.
 - [ ] Cài [winapp CLI](https://github.com/microsoft/winappCli) nếu muốn đóng gói ở local (`winapp --help` chạy được).
 
 Không có bước cài dev cert một lần: CI sinh dev cert mới ở mỗi lần chạy (`devcert.pfx` không nằm trong repo), nên cert được tin ở bước smoke test của từng Release.
@@ -65,7 +66,9 @@ Chạy trong **Windows PowerShell 5.1** (`powershell.exe`, không phải `pwsh`:
   Import-Certificate -FilePath .\release-signer.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
   ```
 
-- [ ] Cài: `Add-AppxPackage .\PdfReaderApp_X.Y.Z.msix`, không báo lỗi.
+  Cách bằng giao diện (thay cho lệnh trên): chuột phải file `.msix` > Properties > Digital Signatures > Details > View Certificate > Install Certificate > Local Machine > Place all certificates in the following store > Trusted People. Bỏ qua bước này thì App Installer báo `0x800B010A` và nút Install bị mờ.
+
+- [ ] Cài: `Add-AppxPackage .\PdfReaderApp_X.Y.Z.msix` (hoặc nhấp đúp file `.msix`), không báo lỗi.
 - [ ] Mở "Trí Thư" từ Start menu: app chạy, không cần cài .NET runtime, chạy được khi chưa có API key (điều kiện certification).
 - [ ] Mở một PDF vào Library, mở từ Library: trang render đúng, cuộn và zoom được.
 - [ ] Tạo Workspace, thêm Document vào Workspace, mở vài Tab.
@@ -79,13 +82,19 @@ Chạy trong **Windows PowerShell 5.1** (`powershell.exe`, không phải `pwsh`:
   ```
 
 - [ ] Gỡ cài sạch: `$pkg | Remove-AppxPackage`. App biến mất khỏi Start menu và `Test-Path "$env:LOCALAPPDATA\Packages\$($pkg.PackageFamilyName)"` trả về `False`.
-- [ ] Dọn: bỏ tin cert của bản này (`Remove-Item "Cert:\LocalMachine\TrustedPeople\$thumb"`), xoá `release-signer.cer`, đổi tên `%APPDATA%\PdfReaderApp` về như cũ nếu đã đổi.
+- [ ] Dọn: bỏ tin cert của bản này (`Remove-Item "Cert:\LocalMachine\TrustedPeople\$thumb"`, hoặc xoá cert `CN=<Publisher>` trong `certlm.msc` > Trusted People > Certificates), xoá `release-signer.cer`, đổi tên `%APPDATA%\PdfReaderApp` về như cũ nếu đã đổi.
 
 ### 4. Tạo Submission trên Partner Center
 
 - [ ] Tạo Submission mới, upload `PdfReaderApp_X.Y.Z.msix` (package không cần ký lại: Store tự re-sign sau certification).
 - [ ] Viết tay "What's new" tiếng Việt, 3-5 gạch đầu dòng hướng người dùng (bản mới làm được gì). **Không** dán commit log hay notes của GitHub Release.
 - [ ] Listing còn khai báo AGPL-3.0 và link mã nguồn trỏ đúng tag: `https://github.com/jamestran1/PdfReader/tree/vX.Y.Z`.
+- [ ] Store listings phải Complete cho đúng ngôn ngữ package khai báo (`vi-VN`). Upload package có thể thêm listing Vietnamese trống: điền description + screenshot, bỏ ngôn ngữ thừa qua "Add/remove languages".
+- [ ] Submission options > Restricted capabilities: app WPF đóng gói MSIX luôn cần `runFullTrust`. Ô giải thích giới hạn độ dài, dán bản ngắn:
+
+  ```text
+  Trí Thư is a WPF desktop application (.NET 10) packaged as MSIX. As a classic Win32 desktop app, it requires runFullTrust to run outside the AppContainer; this is the standard capability for desktop apps packaged with MSIX.
+  ```
 
 ### 5. Submit và theo dõi certification
 

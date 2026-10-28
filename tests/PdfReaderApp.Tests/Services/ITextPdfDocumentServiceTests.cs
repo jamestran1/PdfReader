@@ -4,6 +4,7 @@ using iText.Kernel.Font;
 using iText.Kernel.Pdf;
 using iText.Layout;
 using iText.Layout.Element;
+using PdfReaderApp.Core;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.Tests.Services;
@@ -218,6 +219,275 @@ public class ITextPdfDocumentServiceTests : IDisposable
         {
             if (File.Exists(path)) File.Delete(path);
         }
+    }
+
+    [Fact]
+    public void FindPassageRects_FragmentWrappingOntoNextLine_ReturnsOneRectPerLine()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "Trước khi đi kinh hành ta phải\nxác định rõ mục tiêu", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            var rects = service.FindPassageRects(0, ["kinh hanh ta phai xac dinh"]);
+
+            // Một hộp bao cả hai dòng sẽ tô cả phần đầu dòng 1 và đuôi dòng 2 không thuộc đoạn nguồn.
+            Assert.Equal(2, rects.Count);
+            Assert.NotEqual(rects[0].PdfY, rects[1].PdfY);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void FindPassageRects_OneFragmentMissingFromPage_StillLocatesTheOthers()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "Trước khi đi kinh hành ta phải xác định", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            Assert.Single(service.FindPassageRects(0, ["ky sinh trung", "kinh hanh"]));
+            Assert.Empty(service.FindPassageRects(0, []));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void FindRects_PageWithCropBoxOffsetFromMediaBox_AreRelativeToCropBoxOrigin()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        string uncroppedPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateCroppedPdf(path, new iText.Kernel.Geom.Rectangle(20, 30, 500, 700));
+            CreateCroppedPdf(uncroppedPath, new iText.Kernel.Geom.Rectangle(0, 0, 600, 800));
+            using var cropped = new ITextPdfDocumentService();
+            cropped.LoadFile(path);
+            using var uncropped = new ITextPdfDocumentService();
+            uncropped.LoadFile(uncroppedPath);
+
+            var expected = Assert.Single(uncropped.FindMatchRects(0, "kinh hanh"));
+            var match = Assert.Single(cropped.FindMatchRects(0, "kinh hanh"));
+            var passage = Assert.Single(cropped.FindPassageRects(0, ["kinh hanh"]));
+
+            // PDFium vẽ theo CropBox, nên gốc toạ độ của hộp phải là góc dưới trái của CropBox (20, 30).
+            foreach (var r in new[] { match, passage })
+            {
+                Assert.Equal(expected.PdfX - 20f, r.PdfX, 0.01f);
+                Assert.Equal(expected.PdfY - 30f, r.PdfY, 0.01f);
+            }
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+            if (File.Exists(uncroppedPath)) File.Delete(uncroppedPath);
+        }
+    }
+
+    [Fact]
+    public void FindPassageRects_WordHyphenatedAtLineEnd_HighlightsBothHalves()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateLayoutPdf(path, (50, 700, "Hiệu suất của hệ thống perfor-"), (50, 686, "mance được cải thiện rõ rệt"));
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            // Chunk lấy từ trang có cả gạch nối lẫn ngắt dòng, nên đoạn nguồn mang nguyên "perfor-\nmance".
+            var fragments = SourcePassage.SplitFragments("hệ thống perfor-\nmance được cải thiện");
+            var found = service.FindPassageRects(0, fragments);
+            var rects = PassageRectMerger.MergeLineRects(found, PassageRectMerger.DefaultMaxGapPt(found));
+
+            Assert.Equal(2, rects.Count);
+            Assert.Contains(rects, r => Math.Abs(r.PdfY - 700f) < 3f);
+            Assert.Contains(rects, r => Math.Abs(r.PdfY - 686f) < 3f);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Theory]
+    [InlineData(150f)]
+    [InlineData(3f)]
+    public void FindPassageRects_PassageInLeftColumn_HasNoRectInRightColumn(float columnGapPt)
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            // Cụm 8 từ thật từ SplitFragments: cụm đầu vắt từ dòng 1 sang dòng 2 cột trái, mà iText xếp chữ theo
+            // dòng xuyên hai cột nên cụm đó có thể không khớp; cụm sau nằm gọn dòng 2 và phải được tô.
+            string[] left = ["kinh hành ta phải xác định rõ", "mục tiêu của chuyến đi trước khi bắt đầu thiền định"];
+            float rightColumnX = 50f + left.Max(MeasureArial12) + columnGapPt;
+            CreateLayoutPdf(
+                path,
+                (50, 700, left[0]), (rightColumnX, 700, "chữ của cột phải"),
+                (50, 686, left[1]), (rightColumnX, 686, "không thuộc đoạn nguồn"));
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            var fragments = SourcePassage.SplitFragments(string.Join(' ', left));
+            Assert.Equal(2, fragments.Count);
+            var found = service.FindPassageRects(0, fragments);
+            var rects = PassageRectMerger.MergeLineRects(found, PassageRectMerger.DefaultMaxGapPt(found));
+
+            Assert.NotEmpty(rects);
+            Assert.All(rects, r => Assert.True(r.PdfX + r.Width <= rightColumnX, $"ô tràn sang cột phải: {r}"));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    // Một lượt xử lý trang cho mọi cụm (#246) nhưng kết quả phải y như tra riêng từng cụm, kể cả cụm vắt qua hai dòng.
+    [Fact]
+    public void FindPassageHits_FragmentsAcrossLines_MatchesLookingEachUpAlone()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "Trước khi đi kinh hành ta phải\nxác định rõ mục tiêu của chuyến đi", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+            string[] fragments = ["kinh hanh ta phai xac dinh", "ky sinh trung", "muc tieu cua", "", "chuyen di"];
+
+            var hits = service.FindPassageHits(0, fragments);
+
+            Assert.Equal([true, false, true, false, true], hits.Found);
+            var alone = fragments.SelectMany(f => service.FindPassageRects(0, [f])).OrderBy(r => r.PdfY).ThenBy(r => r.PdfX);
+            Assert.Equal(alone, hits.Rects.OrderBy(r => r.PdfY).ThenBy(r => r.PdfX));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    // Hai chỗ khớp rời nhau không được ghép lại thành một cụm thứ ba: "hai ba" chỉ xuất hiện khi nối đuôi chỗ khớp
+    // thứ nhất với đầu chỗ khớp thứ hai, còn trên trang hai chữ đó cách nhau cả đoạn.
+    [Fact]
+    public void FindPassageHits_FragmentOnlyFormedByJoiningTwoSeparateMatches_IsNotFound()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "mot hai ba bon nam", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            var hits = service.FindPassageHits(0, ["mot hai", "bon nam", "hai bon"]);
+
+            Assert.Equal([true, true, false], hits.Found);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    // Câu trích lặp một cụm (sau khi bỏ dấu và hoa thường) vẫn phải tính số từ của cả hai cụm khi so với ngưỡng khớp.
+    [Fact]
+    public void FindPassageHits_TwoFragmentsWithTheSameText_BothAreFound()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateTwoPagePdf(path, "mot hai ba bon nam", "Thiền định");
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            var hits = service.FindPassageHits(0, ["mot hai", "bon nam", "MỘT hai"]);
+
+            Assert.Equal([true, true, true], hits.Found);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void FindPassageHits_PageOutOfRange_FindsNothing()
+    {
+        using var service = new ITextPdfDocumentService();
+        service.LoadFile(_tempPdf);
+
+        var hits = service.FindPassageHits(9, ["hello", "world"]);
+
+        Assert.Empty(hits.Rects);
+        Assert.Equal([false, false], hits.Found);
+    }
+
+    [Fact]
+    public void FindPassageRects_FooterAndHeaderInsideChunk_StillHighlightsBodyText()
+    {
+        string path = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".pdf");
+        try
+        {
+            CreateLayoutPdf(
+                path,
+                (50, 780, "Báo cáo thường niên"), (50, 700, "Trước khi đi kinh hành ta phải xác định rõ mục tiêu"),
+                (50, 686, "của chuyến đi và chuẩn bị đầy đủ hành trang"), (50, 40, "Trang 1"));
+            using var service = new ITextPdfDocumentService();
+            service.LoadFile(path);
+
+            // Chunk kéo qua hai trang nên footer trang 1 và header trang 2 chen vào giữa chữ thân bài.
+            var fragments = SourcePassage.SplitFragments(
+                "Trước khi đi kinh hành ta phải xác định rõ mục tiêu của chuyến đi và Trang 1 Báo cáo thường niên chuẩn bị đầy đủ hành trang");
+            var rects = service.FindPassageRects(0, fragments);
+
+            // Cụm chứa footer không khớp được, nhưng cụm thuần thân bài phải còn được tô và footer thì không.
+            Assert.NotEmpty(rects);
+            Assert.All(rects, r => Assert.InRange(r.PdfY, 600f, 750f));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    private static float MeasureArial12(string text) =>
+        PdfFontFactory.CreateFont(@"C:\Windows\Fonts\arial.ttf", PdfEncodings.IDENTITY_H).GetWidth(text, 12);
+
+    private static void CreateLayoutPdf(string path, params (float X, float Y, string Text)[] lines)
+    {
+        using var writer = new PdfWriter(path);
+        using var pdfDoc = new PdfDocument(writer);
+        var page = pdfDoc.AddNewPage(new iText.Kernel.Geom.PageSize(600, 800));
+        var font = PdfFontFactory.CreateFont(
+            @"C:\Windows\Fonts\arial.ttf",
+            PdfEncodings.IDENTITY_H,
+            PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
+        var canvas = new iText.Kernel.Pdf.Canvas.PdfCanvas(page);
+        foreach (var (x, y, text) in lines)
+            canvas.BeginText().SetFontAndSize(font, 12).MoveText(x, y).ShowText(text).EndText();
+    }
+
+    private static void CreateCroppedPdf(string path, iText.Kernel.Geom.Rectangle cropBox)
+    {
+        using var writer = new PdfWriter(path);
+        using var pdfDoc = new PdfDocument(writer);
+        var page = pdfDoc.AddNewPage(new iText.Kernel.Geom.PageSize(600, 800));
+        var font = PdfFontFactory.CreateFont(
+            @"C:\Windows\Fonts\arial.ttf",
+            PdfEncodings.IDENTITY_H,
+            PdfFontFactory.EmbeddingStrategy.PREFER_EMBEDDED);
+        new iText.Kernel.Pdf.Canvas.PdfCanvas(page)
+            .BeginText().SetFontAndSize(font, 12).MoveText(100, 200).ShowText("đi kinh hành").EndText();
+        page.SetCropBox(cropBox);
     }
 
     private static void CreateTwoPagePdf(string path, string page1Text, string page2Text)

@@ -39,12 +39,11 @@ public static class CitationText
 
     private static Hyperlink CreateLink(CitationSpan span, ICommand? command)
     {
-        RagSource source = span.Source!;
         var link = new Hyperlink(new Run(span.Text))
         {
             Command = command,
-            CommandParameter = source,
-            ToolTip = $"{source.Title}, trang {source.PageIndex + 1}",
+            CommandParameter = span,
+            ToolTip = CitationTooltip.For(span),
         };
         link.SetResourceReference(TextElement.ForegroundProperty, "MaterialDesign.Brush.Primary");
         return link;

@@ -37,4 +37,22 @@ public class AccentInsensitiveRegexTests
     {
         Assert.Equal("", AccentInsensitiveRegex.BuildPattern("   "));
     }
+
+    [Fact]
+    public void BuildAlternation_MatchesEachPhraseOnItsOwn()
+    {
+        var p = AccentInsensitiveRegex.BuildAlternation(["kinh hanh", "thien dinh"]);
+
+        var regex = new System.Text.RegularExpressions.Regex(p, System.Text.RegularExpressions.RegexOptions.None, TimeSpan.FromSeconds(1));
+
+        Assert.Equal(["kinh hành", "Thiền định"],
+            regex.Matches("Đi kinh hành rồi Thiền định.").Select(m => m.Value), StringComparer.Ordinal);
+    }
+
+    [Fact]
+    public void BuildAlternation_SkipsBlankPhrases_AndIsEmptyWhenNoneLeft()
+    {
+        Assert.Equal(AccentInsensitiveRegex.BuildPattern("kinh"), AccentInsensitiveRegex.BuildAlternation([" ", "kinh"]));
+        Assert.Equal("", AccentInsensitiveRegex.BuildAlternation([" "]));
+    }
 }

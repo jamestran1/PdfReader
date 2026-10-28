@@ -31,7 +31,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     private readonly RagContextService _ragContext;
     private readonly Func<ChatContext> _currentContext;
     private readonly ChatWorkspace _workspace;
-    private readonly CrossDocJump _jumpToDocument;
+    private readonly CitationOpener _openSource;
     private string? _currentChatOwnerId;
     // Yêu cầu chat đang chạy (RAG + stream). Mỗi yêu cầu tự dispose CTS của mình; trường này chỉ để huỷ.
     private CancellationTokenSource? _requestCts;
@@ -77,9 +77,9 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         RagContextService ragContext,
         Func<ChatContext> currentContext,
         ChatWorkspace workspace,
-        CrossDocJump? jumpToDocument = null)
+        CitationOpener? openSource = null)
     {
-        _jumpToDocument = jumpToDocument ?? ((_, _) => { });
+        _openSource = openSource ?? ((_, _) => { });
         _chatService = chatService;
         _chatHistory = chatHistory;
         _ragContext = ragContext;
@@ -96,9 +96,12 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         Scope = scope;
     }
 
-    /// <summary>Bấm một trích dẫn <c>[n]</c> trong câu trả lời: Cross-doc jump tới Document và trang được trích.</summary>
+    /// <summary>Bấm một trích dẫn <c>[n]</c> trong câu trả lời: Cross-doc jump tới Document và trang được trích, tô đoạn nguồn.</summary>
     [RelayCommand]
-    private void OpenCitation(RagSource source) => _jumpToDocument(source.DocumentId, source.PageIndex);
+    private void OpenCitation(CitationSpan citation)
+    {
+        if (citation.Source is { } source) _openSource(source, citation.Quote);
+    }
 
     /// <summary>Đọc lại provider và model chat từ Settings; gọi sau khi lưu Settings.</summary>
     public void RefreshActiveModel() =>
@@ -115,11 +118,11 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
     /// <param name="services">Các dịch vụ dùng chung của ứng dụng.</param>
     /// <param name="currentContext">Ảnh chụp trạng thái tài liệu đang mở mỗi lần nạp lịch sử hoặc gửi tin.</param>
     /// <param name="getWorkspaceDocuments">Document thuộc Workspace đang mở, cho hỏi đáp Toàn Workspace.</param>
-    /// <param name="jumpToDocument">Cross-doc jump khi bấm trích dẫn <c>[n]</c>: documentId và trang (từ 0).</param>
+    /// <param name="openSource">Mở nguồn khi bấm trích dẫn <c>[n]</c>: nhảy tới Document, trang và tô đoạn nguồn.</param>
     public static ChatViewModel Create(
         MainViewModelServices services, Func<ChatContext> currentContext,
         Func<IReadOnlyList<WorkspaceDocument>> getWorkspaceDocuments,
-        CrossDocJump jumpToDocument)
+        CitationOpener openSource)
     {
         services.ChatHistory.EnsureSchema();
         var workspaceIndexing = new WorkspaceIndexingService(
@@ -131,7 +134,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             new RagContextService(services.DocumentIndex, services.EmbeddingFactory, services.Settings),
             currentContext,
             new ChatWorkspace(getWorkspaceDocuments, new WorkspaceIndexingRunner(workspaceIndexing.IndexDocumentAsync, PostToApplicationDispatcher)),
-            jumpToDocument);
+            openSource);
     }
 
     // Nạp lại khung chat theo sách đang mở: hiện bong bóng cũ và dựng lại bộ nhớ LLM.
@@ -294,7 +297,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
 #pragma warning restore CA1031
     }
 
-    // Ngữ cảnh gửi model và bảng nguồn [n] đi kèm (rỗng ngoài chế độ Toàn Workspace).
+    // Ngữ cảnh gửi model và bảng nguồn [n] đi kèm (rỗng khi lùi về ngữ cảnh liền khối vì không có DocumentId).
     private readonly record struct BuiltContext(string Text, IReadOnlyList<RagSource> Sources);
 
     private async Task<BuiltContext> BuildChatContextAsync(string question, CancellationToken ct)
@@ -316,15 +319,31 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
             if (Scope == DocumentScope.Workspace) AppendScopeNotice(PageOnlyNotice);
         }
 #pragma warning restore CA1031
-        return rag ?? new BuiltContext(
+        return rag ?? BuildPageContext(context);
+    }
+
+    // Không có DocumentId thì CitationOpener không có nơi nhảy tới: giữ ngữ cảnh liền khối, không đánh số.
+    private static BuiltContext BuildPageContext(ChatContext context)
+    {
+        if (context.DocumentId is not null)
+        {
+            var document = new WorkspaceDocument(context.DocumentId, context.DocumentTitle, FilePath: string.Empty);
+            RagContext? numbered = PageContextBuilder.BuildNumberedAround(
+                document, context.Blocks, context.CurrentPage, ContextPageWindow);
+            if (numbered is not null) return new BuiltContext(numbered.Text, numbered.Sources);
+        }
+
+        return new BuiltContext(
             DocumentContextBuilder.BuildAround(context.Blocks, context.CurrentPage, ContextPageWindow), []);
     }
 
     private async Task<BuiltContext?> BuildSingleDocumentRagAsync(ChatContext context, string question, CancellationToken ct)
     {
         if (context.DocumentId is null) return null;
-        string? text = await _ragContext.BuildContextAsync(context.DocumentId, question, ct: ct);
-        return text is null ? null : new BuiltContext(text, []);
+        // FilePath chỉ dùng để lập chỉ mục nền, việc này không có ở phạm vi Tài liệu này.
+        var document = new WorkspaceDocument(context.DocumentId, context.DocumentTitle, FilePath: string.Empty);
+        RagContext? rag = await _ragContext.BuildDocumentContextAsync(document, question, ct: ct);
+        return rag is null ? null : new BuiltContext(rag.Text, rag.Sources);
     }
 
     private void AppendScopeNotice(string notice)

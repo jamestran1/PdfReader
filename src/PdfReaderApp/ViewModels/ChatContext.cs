@@ -7,8 +7,10 @@ namespace PdfReaderApp.ViewModels;
 /// <param name="OwnerId">Nơi lưu lịch sử chat: workspace trong phiên workspace, ngược lại là tài liệu.</param>
 /// <param name="Blocks">Khối văn bản của tài liệu, dùng làm ngữ cảnh dự phòng khi RAG không có kết quả.</param>
 /// <param name="CurrentPage">Trang đang xem (từ 1), tâm của cửa sổ ngữ cảnh dự phòng.</param>
+/// <param name="DocumentTitle">Tên tài liệu đang mở, hiện trong nhãn trích dẫn <c>[n]</c>.</param>
 public sealed record ChatContext(
     string? DocumentId,
     string? OwnerId,
     IReadOnlyList<TextBlock> Blocks,
-    int CurrentPage);
+    int CurrentPage,
+    string DocumentTitle = "");
