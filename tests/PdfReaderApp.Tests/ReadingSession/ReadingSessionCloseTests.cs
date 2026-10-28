@@ -66,4 +66,28 @@ public class ReadingSessionCloseTests
         var saved = f.Store.GetOpenTabs(ReadingSessionFixture.WorkspaceId);
         Assert.Equal("A", Assert.Single(saved).DocumentId);
     }
+
+    [Fact]
+    public void CloseDocument_DocumentWithOpenTab_ClosesThatTab()
+    {
+        var f = new ReadingSessionFixture().InWorkspace();
+        f.OpenTab("A");
+        f.OpenTab("B");
+
+        f.Session.CloseDocument("A");
+
+        Assert.Equal("B", Assert.Single(f.Session.Tabs.Tabs).DocumentId);
+    }
+
+    [Fact]
+    public void CloseDocument_DocumentWithoutOpenTab_ChangesNothing()
+    {
+        var f = new ReadingSessionFixture().InWorkspace();
+        f.OpenTab("A");
+
+        f.Session.CloseDocument("Z");
+
+        Assert.Equal("A", Assert.Single(f.Session.Tabs.Tabs).DocumentId);
+        Assert.False(f.Log.HasLoad());
+    }
 }

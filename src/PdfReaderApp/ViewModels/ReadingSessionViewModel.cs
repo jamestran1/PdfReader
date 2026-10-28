@@ -66,6 +66,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 
     /// <summary>Đang ở named Workspace (có Tab) thay vì đọc lẻ ở Default Workspace.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StandaloneDocumentSource))]
+    [NotifyPropertyChangedFor(nameof(CanPromote))]
     public partial bool IsWorkspaceSession { get; internal set; }
 
     /// <summary>Workspace đang hoạt động; null khi chưa có Document nào được nạp ở chế độ đọc lẻ.</summary>
@@ -74,7 +76,12 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 
     /// <summary>Đường dẫn file đang đọc; null khi nạp lỗi hoặc chưa có.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StandaloneDocumentSource))]
     public partial string? FilePath { get; internal set; }
+
+    // Nguồn cho viewer ĐỌC LẺ. Trong phiên Workspace: null để viewer đọc lẻ ngủ yên (không nạp lại, không ghi ngược
+    // zoom/trang qua binding TwoWay vào Tab active, bug #44). FilePath vẫn giữ nguyên cho lập chỉ mục.
+    public string? StandaloneDocumentSource => IsWorkspaceSession ? null : FilePath;
 
     /// <summary>Đoạn nguồn (trích dẫn AI) đang tô; null khi không có.</summary>
     [ObservableProperty]
@@ -82,6 +89,9 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 
     /// <summary>Id Document đang đọc; null khi chưa có hoặc nạp lỗi.</summary>
     public string? DocumentId { get; private set; }
+
+    /// <summary>Có Document đang đọc hay không (bật nút quay lại trình đọc).</summary>
+    public bool HasDocument => DocumentId is not null;
 
     public IReadOnlyList<TextBlock> DocumentBlocks { get; private set; } = [];
 
@@ -139,6 +149,13 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(tab);
         Tabs.Close(tab);
+    }
+
+    /// <summary>Intent: đóng Tab của <paramref name="documentId"/> nếu Document đang mở thành Tab; không thì không làm gì.</summary>
+    public void CloseDocument(string documentId)
+    {
+        var tab = Tabs.Tabs.FirstOrDefault(t => t.DocumentId == documentId);
+        if (tab is not null) Close(tab);
     }
 
     /// <summary>
@@ -346,13 +363,12 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         => explicitWorkspaceId ?? _workspaceStore.GetOrCreateDefaultForDocument(documentId, title, nowUnixMs).Id;
 
     /// <summary>
-    /// Bước dùng chung "thay Document đang đọc": mọi intent đổi Document đều đi qua đây. Tạm thời internal cho đến khi
-    /// các intent đọc lẻ và Jump chuyển vào Phiên đọc.
+    /// Bước dùng chung "thay Document đang đọc": mọi intent đổi Document đều đi qua đây.
     /// </summary>
     /// <param name="path">File cần nạp.</param>
     /// <param name="workspaceScopeId">Workspace chỉ định; null thì dùng Default Workspace của Document.</param>
     /// <param name="initialPage">Trang mở đầu (từ 1).</param>
-    internal void ReplaceCurrentDocument(string path, string? workspaceScopeId = null, int initialPage = 1)
+    private void ReplaceCurrentDocument(string path, string? workspaceScopeId = null, int initialPage = 1)
     {
         ActiveSourcePassage = null;   // đoạn nguồn thuộc tài liệu cũ; Jump(Citation) đặt lại sau khi nạp
         // Đặt trang đích TRƯỚC khi gán FilePath: gán FilePath làm viewer nạp và bố cục ngay theo CurrentPage,
@@ -406,6 +422,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     {
         DocumentId = documentId;
         OnPropertyChanged(nameof(DocumentId));
+        OnPropertyChanged(nameof(HasDocument));
+        OnPropertyChanged(nameof(CanPromote));
     }
 
     private void OnActiveTabChanged(OpenTab? incoming)
