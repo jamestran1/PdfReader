@@ -4,9 +4,9 @@ namespace PdfReaderApp.Models;
 /// <param name="Question">Câu hỏi của người dùng.</param>
 /// <param name="Scope">Phạm vi hỏi đáp.</param>
 /// <param name="Snapshot">Ảnh chụp tài liệu đang mở.</param>
-/// <param name="WorkspaceDocuments">Document của Workspace đang mở; chỉ dùng ở phạm vi Toàn Workspace.</param>
+/// <param name="LoadWorkspaceDocuments">Đọc Document của Workspace đang mở; chỉ được gọi ở phạm vi Toàn Workspace, trong đường dựng RAG nên lỗi đọc lùi về trang đang đọc.</param>
 public sealed record AnswerContextRequest(
     string Question,
     DocumentScope Scope,
     DocumentSnapshot Snapshot,
-    IReadOnlyList<WorkspaceDocument> WorkspaceDocuments);
+    Func<IReadOnlyList<WorkspaceDocument>> LoadWorkspaceDocuments);

@@ -53,7 +53,7 @@ internal sealed class AnswerContextBuilder
     {
         if (snapshot.DocumentId is not null)
         {
-            var document = new WorkspaceDocument(snapshot.DocumentId, snapshot.DocumentTitle, FilePath: string.Empty);
+            var document = snapshot.ToWorkspaceDocument();
             RagContext? numbered = PageContextBuilder.BuildNumberedAround(
                 document, snapshot.Blocks, snapshot.CurrentPage, ContextPageWindow);
             if (numbered is not null) return numbered;
@@ -67,8 +67,7 @@ internal sealed class AnswerContextBuilder
     {
         DocumentSnapshot snapshot = request.Snapshot;
         if (snapshot.DocumentId is null) return null;
-        // FilePath chỉ dùng để lập chỉ mục nền, việc này không có ở phạm vi Tài liệu này.
-        var document = new WorkspaceDocument(snapshot.DocumentId, snapshot.DocumentTitle, FilePath: string.Empty);
+        var document = snapshot.ToWorkspaceDocument();
         return await _retrieval.BuildDocumentContextAsync(document, request.Question, ct: ct);
     }
 
@@ -76,7 +75,7 @@ internal sealed class AnswerContextBuilder
     private async Task<RagContext?> BuildWorkspaceRagAsync(
         AnswerContextRequest request, List<AnswerContextNotice> notices, CancellationToken ct)
     {
-        var plan = _retrieval.PlanWorkspaceIndexing(request.WorkspaceDocuments);
+        var plan = _retrieval.PlanWorkspaceIndexing(request.LoadWorkspaceDocuments());
 
         // Xếp hàng lập chỉ mục TRƯỚC khi nhúng câu hỏi: nhúng lỗi (mạng, key) không được làm mất việc lập chỉ mục.
         if (plan.Unindexed.Count > 0) _indexingQueue.Enqueue(plan.Unindexed);

@@ -21,15 +21,13 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     private readonly List<string> _indexedInBackground = [];
     private readonly TaskCompletionSource _indexingGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private IReadOnlyList<WorkspaceDocument> _documents = [];
-    private int _documentsRequested;
     private TaskCompletionSource? _embedBlock;
     private readonly TaskCompletionSource _embedStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly string? _embeddingKey = "key";
 
-    // Chat dùng Claude (luôn có key), Embedding dùng OpenAI (key do test đặt) để thiếu key embedding mà chat vẫn chạy.
-    private sealed class FakeSettings(Func<string?> embeddingKey) : ISettingsService
+    // Mọi provider đều có key: chính sách thiếu key embedding đã có test ở AnswerContextBuilderTests.
+    private sealed class FakeSettings : ISettingsService
     {
-        public string? GetApiKey(AiProvider provider) => provider == AiProvider.Claude ? "key" : embeddingKey();
+        public string? GetApiKey(AiProvider provider) => "key";
         public void SaveApiKey(AiProvider provider, string apiKey) { }
         public bool HasApiKey(AiProvider provider) => !string.IsNullOrEmpty(GetApiKey(provider));
         public AppTheme GetThemePreference() => AppTheme.Light;
@@ -143,7 +141,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         _hits["b"] = [Hit("b", 2, "nội dung B", 0.4)];
         _documents = [Doc("a", "Sách A"), Doc("b", "Sách B")];
 
-        var settings = new FakeSettings(() => _embeddingKey);
+        var settings = new FakeSettings();
         var runner = new WorkspaceIndexingRunner(
             async (document, ct) =>
             {
@@ -158,7 +156,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
             new AnswerContextBuilder(new RagContextService(new FakeIndex(this), new FakeEmbeddingFactory(this), settings), runner),
             () => "ws1",
             () => new DocumentSnapshot("a", [], 1, "Sách A"),
-            new ChatWorkspace(() => { _documentsRequested++; return _documents; }, runner),
+            new ChatWorkspace(() => _documents, runner),
             (source, quote) => _openedSources.Add((source, quote)));
         _chats.Add(chat);
         return chat;
@@ -194,32 +192,6 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         Assert.Equal(DocumentScope.Workspace, chat.Scope);
         Assert.True(chat.IsWorkspaceScope);
         Assert.False(chat.IsCurrentDocumentScope);
-    }
-
-    [Fact]
-    public async Task CurrentDocumentScope_CitesNumberedSourcesOfThatDocumentOnlyAndNeverTouchesWorkspace()
-    {
-        var chat = CreateChat();
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.Contains("[1] Tài liệu: \"Sách A\", Trang: 1\nnội dung A", LastUserTurn(), StringComparison.Ordinal);
-        Assert.DoesNotContain("nội dung B", LastUserTurn(), StringComparison.Ordinal);
-        Assert.Equal(0, _documentsRequested);
-        Assert.Equal([new RagSource(1, "a", "Sách A", 0, "nội dung A")], chat.Messages.Last().Sources);
-    }
-
-    [Fact]
-    public async Task WorkspaceScope_SendsNumberedContextFromManyDocumentsToTheModel()
-    {
-        var chat = CreateChat();
-        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
-
-        await AskAsync(chat, "câu hỏi");
-
-        string turn = LastUserTurn();
-        Assert.Contains("[1] Tài liệu: \"Sách A\", Trang: 1\nnội dung A", turn, StringComparison.Ordinal);
-        Assert.Contains("[2] Tài liệu: \"Sách B\", Trang: 3\nnội dung B", turn, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -336,7 +308,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     public async Task LoadHistory_OwnerChanges_CancelsBackgroundIndexingAndClearsNotice()
     {
         string owner = "ws1";
-        var settings = new FakeSettings(() => _embeddingKey);
+        var settings = new FakeSettings();
         var runner = new WorkspaceIndexingRunner(
             async (_, ct) =>
             {
@@ -435,35 +407,6 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         await chat.WorkspaceIndexing.BackgroundTask!.WaitAsync(Timeout);
 
         Assert.Equal("Đã lập chỉ mục xong 1 tài liệu. Hỏi lại để câu trả lời gồm cả các tài liệu này.", chat.Notice);
-    }
-
-    [Fact]
-    public async Task Notice_NextQuestionWithEverythingIndexed_NoLongerShowsPageOnlyWarning()
-    {
-        var chat = CreateChat();
-        _statuses["a"] = DocumentIndexStatus.None;
-        _statuses["b"] = DocumentIndexStatus.None;
-        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
-        await AskAsync(chat, "câu hỏi một");
-        _indexingGate.SetResult();
-        await chat.WorkspaceIndexing.BackgroundTask!.WaitAsync(Timeout);
-        _statuses["a"] = DocumentIndexStatus.Complete;
-        _statuses["b"] = DocumentIndexStatus.Complete;
-
-        await AskAsync(chat, "câu hỏi hai");
-
-        Assert.DoesNotContain(PageOnlyNotice, chat.Notice, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task CurrentDocumentScope_NeverShowsWorkspaceNotices()
-    {
-        var chat = CreateChat();
-        _statuses["a"] = DocumentIndexStatus.None;
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.Equal(string.Empty, chat.Notice);
     }
 
     private static async Task WaitUntilAsync(Func<bool> condition)

@@ -125,12 +125,12 @@ public sealed class AnswerContextBuilderTests : IDisposable
 
     private Task<AnswerContext> BuildAsync(
         DocumentScope scope, DocumentSnapshot? snapshot = null,
-        IReadOnlyList<WorkspaceDocument>? workspaceDocuments = null, CancellationToken ct = default)
+        Func<IReadOnlyList<WorkspaceDocument>>? loadWorkspaceDocuments = null, CancellationToken ct = default)
     {
         var builder = new AnswerContextBuilder(
             new RagContextService(_index, _embeddings, new FakeSettings(_key)), _queue);
         return builder.BuildAsync(
-            new AnswerContextRequest("câu hỏi", scope, snapshot ?? Snapshot(), workspaceDocuments ?? []), ct);
+            new AnswerContextRequest("câu hỏi", scope, snapshot ?? Snapshot(), loadWorkspaceDocuments ?? (() => [])), ct);
     }
 
     private void AllowWorkspaceOf(params WorkspaceDocument[] documents)
@@ -141,7 +141,7 @@ public sealed class AnswerContextBuilderTests : IDisposable
     private IReadOnlyList<WorkspaceDocument> _workspaceDocuments = [Doc("a", "Sách A"), Doc("b", "Sách B")];
 
     private Task<AnswerContext> BuildWorkspaceAsync(CancellationToken ct = default)
-        => BuildAsync(DocumentScope.Workspace, workspaceDocuments: _workspaceDocuments, ct: ct);
+        => BuildAsync(DocumentScope.Workspace, loadWorkspaceDocuments: () => _workspaceDocuments, ct: ct);
 
     // Tài liệu này
 
@@ -323,7 +323,7 @@ public sealed class AnswerContextBuilderTests : IDisposable
         _embeddings.Throws = true;
 
         var context = await BuildAsync(
-            DocumentScope.Workspace, Snapshot(documentId: null), _workspaceDocuments);
+            DocumentScope.Workspace, Snapshot(documentId: null), () => _workspaceDocuments);
 
         Assert.Contains("chữ trang một", context.Text, StringComparison.Ordinal);
         Assert.Empty(context.Sources);
@@ -341,7 +341,28 @@ public sealed class AnswerContextBuilderTests : IDisposable
         await cts.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => BuildAsync(scope, workspaceDocuments: _workspaceDocuments, ct: cts.Token));
+            () => BuildAsync(scope, loadWorkspaceDocuments: () => _workspaceDocuments, ct: cts.Token));
+    }
+
+    [Fact]
+    public async Task Workspace_LoadingDocumentsFails_FallsBackToPageWindowWithPageOnlyNotice()
+    {
+        var context = await BuildAsync(
+            DocumentScope.Workspace,
+            loadWorkspaceDocuments: () => throw new InvalidOperationException("đọc workspace lỗi"));
+
+        Assert.Equal([PageSource], context.Sources);
+        Assert.Equal([new AnswerContextNotice.PageOnlyFallback()], context.Notices);
+    }
+
+    [Fact]
+    public async Task CurrentDocument_NeverLoadsWorkspaceDocuments()
+    {
+        int loads = 0;
+
+        await BuildAsync(DocumentScope.CurrentDocument, loadWorkspaceDocuments: () => { loads++; return []; });
+
+        Assert.Equal(0, loads);
     }
 
     public void Dispose() => _index.Dispose();

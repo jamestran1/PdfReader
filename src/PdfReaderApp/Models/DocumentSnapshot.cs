@@ -9,4 +9,10 @@ public sealed record DocumentSnapshot(
     string? DocumentId,
     IReadOnlyList<TextBlock> Blocks,
     int CurrentPage,
-    string DocumentTitle = "");
+    string DocumentTitle = "")
+{
+    /// <summary>Document đang mở dưới dạng <see cref="WorkspaceDocument"/> để truy hồi và đánh số nguồn.
+    /// FilePath để trống vì nó chỉ dùng để lập chỉ mục nền, việc này không có ở ngữ cảnh dựng từ ảnh chụp.</summary>
+    public WorkspaceDocument ToWorkspaceDocument()
+        => new(DocumentId ?? throw new InvalidOperationException("Chưa mở tài liệu nào."), DocumentTitle, FilePath: string.Empty);
+}

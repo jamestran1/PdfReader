@@ -306,7 +306,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable
         ScopeNotice = string.Empty;
         var request = new AnswerContextRequest(
             question, Scope, _currentSnapshot(),
-            Scope == DocumentScope.Workspace ? _workspace.GetDocuments() : []);
+            _workspace.GetDocuments);
         AnswerContext context = await _answerContext.BuildAsync(request, ct);
         ScopeNotice = AnswerContextNoticeFormatter.Format(context.Notices);
         return context;
