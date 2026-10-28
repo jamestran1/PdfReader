@@ -15,6 +15,7 @@ namespace PdfReaderApp.ViewModels;
 /// <param name="NotifyError">Báo lỗi cho người dùng.</param>
 /// <param name="FindLibraryItem">Tra Document trong Library theo id (khôi phục Open Set bỏ qua Document đã gỡ); null thì coi như Library rỗng.</param>
 /// <param name="DispatcherProvider">Dispatcher gộp ghi Open Set; null thì lưu ngay (test, headless). Mặc định dispatcher của app.</param>
+/// <param name="MarkDocumentOpened">Ghi thời điểm mở của Document vào Library; null thì bỏ qua (best-effort).</param>
 public sealed record ReadingSessionDependencies(
     IDocumentLoader Loader,
     IWorkspaceStore WorkspaceStore,
@@ -25,4 +26,5 @@ public sealed record ReadingSessionDependencies(
     IReadingSessionSurface Surface,
     Action<string> NotifyError,
     Func<Dispatcher?>? DispatcherProvider = null,
-    Func<string, LibraryItem?>? FindLibraryItem = null);
+    Func<string, LibraryItem?>? FindLibraryItem = null,
+    Action<string>? MarkDocumentOpened = null);

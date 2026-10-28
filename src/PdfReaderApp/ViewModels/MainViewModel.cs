@@ -300,7 +300,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var session = new MainViewModelSessionFactory(
             documentLoader, _workspaceStore, Search, Chat, Notes, Indexing, DocumentsSurface)
-            .Create(UpdateNotesDocumentContext, NotifyError, id => Library.FirstOrDefault(i => i.DocumentId == id));
+            .Create(UpdateNotesDocumentContext, NotifyError,
+                id => Library.FirstOrDefault(i => i.DocumentId == id),
+                documentId => _library.MarkOpened(documentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()));
         session.PropertyChanged += OnSessionPropertyChanged;
         return session;
     }
@@ -627,12 +629,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _workspaceStore.Delete(ws.Id);
         if (Session.ActiveWorkspaceId == ws.Id)
         {
-            Session.ActiveWorkspaceId = null;
-            IsWorkspaceSession = false;
-            DocumentsSurface.IsModalOpen = false;
-            Notes.LoadFor(null);
-            SelectedWorkspace = null;   // null trước Tabs.Reset() — tránh Refresh stale qua OnActiveTabChanged
-            Tabs.Reset();
+            SelectedWorkspace = null;   // null trước Reset() — tránh Refresh stale qua đóng Tab cuối
+            Session.Reset();
         }
         else if (SelectedWorkspace?.Id == ws.Id)
         {
@@ -673,13 +671,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (item is null || SelectedWorkspace is null) return;
         // Tab S1: đảm bảo workspace scope được thiết lập trước khi tab được kích hoạt và nạp.
-        Session.ActiveWorkspaceId = SelectedWorkspace.Id;
-        IsWorkspaceSession = true;
-        var tab = Tabs.OpenOrActivate(item.DocumentId, item.Title, item.StoredPath);
-        // best-effort: cập nhật thời điểm mở
-#pragma warning disable CA1031 // best-effort: cập nhật thời điểm mở, lỗi không chặn việc mở tài liệu
-        try { _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()); } catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.OpenWorkspaceItem: cập nhật thời điểm mở lỗi: {ex}"); }
-#pragma warning restore CA1031
+        Session.OpenInWorkspace(SelectedWorkspace.Id, item);
         ShowWorkspaces = false;
     }
 
