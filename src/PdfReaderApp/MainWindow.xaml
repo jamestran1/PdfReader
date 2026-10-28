@@ -561,7 +561,8 @@
             </controls:PdfViewerControl>
 
             <!-- Viewer-per-tab host (IsWorkspaceSession=true): một PdfViewerControl cho mỗi tab,
-                 chỉ tab active Visible, còn lại Collapsed (không render). -->
+                 chỉ tab active Visible, còn lại Collapsed (không render). Viewer chỉ giữ tài liệu khi
+                 OpenTab.IsHydrated (active + nhóm MRU ấm), tab ngoài nhóm bị evict (#48). -->
             <Border Grid.Row="2"
                     Visibility="{Binding IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
@@ -582,7 +583,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <controls:PdfViewerControl
-                                    DocumentSource="{Binding Path}"
+                                    DocumentSource="{Binding ViewerSource}"
                                     CurrentPage="{Binding Page, Mode=TwoWay}"
                                     TotalPages="{Binding TotalPages, Mode=OneWayToSource}"
                                     ZoomLevel="{Binding Zoom, Mode=TwoWay}"

@@ -29,5 +29,14 @@
                 </Canvas>
             </Grid>
         </ScrollViewer>
+
+        <!-- Trạng thái đang nạp tài liệu (hydrate tab, #48) -->
+        <Grid x:Name="LoadingOverlay" Visibility="Collapsed"
+              Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}">
+            <ProgressBar Style="{StaticResource MaterialDesignCircularProgressBar}"
+                         IsIndeterminate="True" Width="40" Height="40"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                         ToolTip="Đang mở tài liệu..."/>
+        </Grid>
     </Grid>
 </UserControl>

@@ -20,6 +20,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     private readonly Viewer.ViewerLifecycle _lifecycle = new();
 
     private PdfDocument? _currentDocument => _session?.Document;
+    private readonly Viewer.ViewerZoomOnLoad _zoomOnLoad = new();
     private readonly List<Core.PageSlot> _slots = [];
 
     public static readonly DependencyProperty DocumentSourceProperty =
@@ -210,6 +211,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         InitializeComponent();
         this.Loaded += PdfViewerControl_Loaded;
         this.Unloaded += PdfViewerControl_Unloaded;
+        this.IsVisibleChanged += PdfViewerControl_IsVisibleChanged;
         AttachInput();
     }
 
@@ -325,16 +327,47 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
 
     private static void OnDocumentSourceChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        if (d is PdfViewerControl control && e.NewValue is string path && !string.IsNullOrEmpty(path))
+        if (d is not PdfViewerControl control) return;
+
+        if (e.NewValue is string path && !string.IsNullOrEmpty(path))
         {
+            // Lớp phủ đang nạp được vẽ trước vì lượt Render có độ ưu tiên cao hơn lượt nạp (Loaded) bên dưới.
+            control.LoadingOverlay.Visibility = Visibility.Visible;
             // Hoãn nạp tới khi MỌI binding của control đã gắn (CurrentPage/TotalPages/Zoom).
             // Trong DataTemplate per-tab, DocumentSource có thể gắn TRƯỚC các binding kia -> LoadDocument
             // sẽ kẹp CurrentPage về 1 (mất trang đích cross-doc) và set TotalPages vào DP chưa-bound
             // (mất tổng trang). Hoãn ở mức Loaded đảm bảo đọc đúng OpenTab.Page/đẩy đúng TotalPages.
             _ = control.Dispatcher.BeginInvoke(
-                new Action(() => { if ((control.DocumentSource as string) == path) control.LoadDocument(path); }),
+                new Action(() =>
+                {
+                    // Nguồn đã đổi thì lượt nạp mới (hoặc EvictDocument) tự lo lớp phủ.
+                    if ((control.DocumentSource as string) != path) return;
+                    control.LoadDocument(path);
+                    control.LoadingOverlay.Visibility = Visibility.Collapsed;
+                }),
                 System.Windows.Threading.DispatcherPriority.Loaded);
         }
+        else if (e.OldValue is string oldPath && !string.IsNullOrEmpty(oldPath))
+        {
+            control.EvictDocument(oldPath);
+        }
+    }
+
+    // Tab bị evict theo LRU (#48): nhả handle PDFium và bitmap; view-state vẫn nằm trên OpenTab qua binding.
+    private void EvictDocument(string path)
+    {
+        DisposeCurrentDocument();
+        _slots.Clear();
+        _zoomOnLoad.OnEvicted(path);
+        LoadingOverlay.Visibility = Visibility.Collapsed;
+        skiaCanvas.InvalidateVisual();
+    }
+
+    // Tab inactive không giữ bitmap trang (#48); khi hiện lại, lượt vẽ kế tiếp render lại từ PDFium.
+    private void PdfViewerControl_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible) skiaCanvas.InvalidateVisual();
+        else _pageCache.Clear();
     }
 
     private static void OnCurrentPageChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -377,7 +410,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             ArmPendingScrollGuard();
 
             _session.ResetEditState();
-            FitToViewport();   // zoom trang đầu vừa khung trước khi layout
+            if (_zoomOnLoad.ShouldFitOnLoad(path)) FitToViewport();
             RefreshLayout();
 
             // Phát cuộn-đích SAU khi RefreshLayout xong: nếu cuộn giữa chừng rồi RefreshLayout chạy sau sẽ
