@@ -56,7 +56,7 @@ Lý do: nuốt lỗi im lặng che lỗi thật và làm bug không tái hiện 
 **CS-5** 🔵 Chuỗi hoặc số mang nghĩa miền dùng ở nhiều nơi (vai trò chat, key setting, tên bảng) là `const` PascalCase hoặc `enum`, không lặp literal. Chuỗi UI và giá trị chỉ dùng một lần được miễn.
 Lý do: sửa một chỗ mà quên chỗ khác thì build vẫn xanh, lỗi chỉ lộ khi chạy.
 
-**CS-6** 🟡 Tên nói đúng việc làm và dùng thuật ngữ trong `CONTEXT.md`; một khái niệm một từ (không xen kẽ `Load` / `Fetch` / `Get` cho cùng một việc); tránh tên mơ hồ như `Handle`, `DoWork`, `Process`, `data`, `x`.
+**CS-6** 🟡 Tên nói đúng việc làm và dùng thuật ngữ trong `GLOSSARY.md`; một khái niệm một từ (không xen kẽ `Load` / `Fetch` / `Get` cho cùng một việc); tránh tên mơ hồ như `Handle`, `DoWork`, `Process`, `data`, `x`.
 Lý do: analyzer chỉ kiểm cách viết hoa; tên lệch glossary làm người và agent hiểu sai mô hình miền.
 
 **CS-7** 🔵 Comment giải thích "vì sao" (ràng buộc, bẫy, issue dẫn tới quyết định), không kể lại code đang làm gì, không ghi nhãn tiến độ (`Tab S1`, `SP2 Task 8`). Xoá code đã comment-out.

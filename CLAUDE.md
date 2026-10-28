@@ -58,7 +58,7 @@ Repo dùng bộ skill **Matt Pocock** (`grilling`, `domain-modeling`, `to-spec`,
 
 - **Artifact bền, commit vào repo:**
   - `CODING_STANDARDS.md`: quy tắc code cho agent viết code và AI review.
-  - `CONTEXT.md` (gốc repo): glossary / ngôn ngữ miền (do `domain-modeling` duy trì). Chỉ là từ điển, không phải spec.
+  - `GLOSSARY.md` (gốc repo): glossary / ngôn ngữ miền (do `domain-modeling` duy trì). Chỉ là từ điển, không phải spec.
   - `docs/adr/`: Architecture Decision Records (vd `0001-workspace-architecture`, `0002-per-feature-sqlite-databases`, `0003-multi-document-tabs`).
 - **PRD & task:** sống trên GitHub issues (gắn nhãn triage `ready-for-agent`), không ở file local.
 - **Quy trình tính năng mới:** `grilling` (+ `domain-modeling`) → `to-spec` (publish PRD lên issue) → `to-tickets` (chẻ thành vertical-slice issues) → `plan-to-issue <issue>` (viết plan TDD chi tiết lên body issue, idempotent qua marker `<!-- plan:start/end -->`, có cổng review+approve) → `/tdd` (implement task-by-task từ issue).
