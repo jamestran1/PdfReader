@@ -21,8 +21,10 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     private readonly IReadingSessionIndexing _indexing;
     private readonly IReadingSessionSurface _surface;
     private readonly Action<string> _notifyError;
+    private readonly Func<string, LibraryItem?> _findDocument;
     private readonly OpenSetPersistence _openSet;
     private readonly Action<string>? _markDocumentOpened;
+    private JumpOrigin? _jumpOrigin;
 
     // Tab đang được theo dõi view-state để toolbar (trang, zoom, tổng trang) khớp với viewer của nó.
     private OpenTab? _subscribedTab;
@@ -41,6 +43,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _indexing = dependencies.Indexing;
         _surface = dependencies.Surface;
         _notifyError = dependencies.NotifyError;
+        _findDocument = dependencies.FindDocument ?? (_ => null);
         _markDocumentOpened = dependencies.MarkDocumentOpened;
 
         // Phiên đọc là bên nghe duy nhất việc đổi Tab active, và đăng ký TRƯỚC OpenSetPersistence trong cùng constructor,
@@ -84,8 +87,9 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 
     internal IReadOnlyList<PageText> PageTexts { get; private set; } = [];
 
-    /// <summary>Tạm thời: cờ giữ Search khi Tab đổi do kết quả tìm Toàn Workspace. Bị thay bằng origin của intent Jump.</summary>
-    internal bool KeepSearchOnTabChange { get; set; }
+    // Origin của Jump đang chạy (null ngoài Jump): Tab đổi và nạp chạy lồng bên trong Jump nên đọc được nó ở đó,
+    // không phụ thuộc cờ do bên ngoài đặt.
+    private bool KeepsSearch => _jumpOrigin == JumpOrigin.Search;
 
     private OpenTab? ActiveViewTab => IsWorkspaceSession ? Tabs.ActiveTab : null;
 
@@ -135,6 +139,61 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     {
         ArgumentNullException.ThrowIfNull(tab);
         Tabs.Close(tab);
+    }
+
+    /// <summary>
+    /// Intent: Cross-doc jump tới trang của một Document trong Library. Đang ở Workspace thì kích hoạt hoặc mở Tab của
+    /// Document; đọc lẻ thì Document thay Document đang đọc (không tạo Tab). Theo <see cref="JumpRequest.Origin"/>: Search
+    /// giữ ô tìm, kết quả và Phạm vi, Note và Citation reset Search; Citation đặt Đoạn nguồn sau khi nạp thành công,
+    /// và nhảy tới Document đã gỡ khỏi Library thì không nhảy và không có Đoạn nguồn nào được tô.
+    /// </summary>
+    public void Jump(JumpRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        bool isCitation = request.Origin == JumpOrigin.Citation;
+        var item = _findDocument(request.DocumentId);
+        if (item is null)
+        {
+            if (isCitation) ActiveSourcePassage = null;   // đoạn của trích dẫn trước không được tô nhầm chỗ
+            return;
+        }
+
+        int targetPage = request.PageIndex + 1;
+        _jumpOrigin = request.Origin;
+        try
+        {
+            if (IsWorkspaceSession)
+            {
+                // Activate-or-open + đặt trang đích TRƯỚC khi nạp (initialPage) -> viewer mở thẳng tại trang.
+                Tabs.OpenOrActivate(request.DocumentId, item.Title, item.StoredPath, targetPage);
+            }
+            else
+            {
+                ReplaceCurrentDocument(item.StoredPath, ActiveWorkspaceId, targetPage);
+            }
+        }
+        finally
+        {
+            _jumpOrigin = null;
+        }
+
+        // Nạp xoá Đoạn nguồn cũ nên đặt sau. Giữ hành vi hiện có: nạp lỗi vẫn đặt Đoạn nguồn (viewer không có gì để tô).
+        if (isCitation) ActiveSourcePassage = request.SourcePassage;
+    }
+
+    /// <summary>Jump từ một Note; Note không mang trang thì mở trang đầu.</summary>
+    public void JumpFromNote(string documentId, int? pageIndex)
+        => Jump(new JumpRequest(documentId, pageIndex ?? 0, JumpOrigin.Note));
+
+    /// <summary>Jump từ kết quả tìm (<paramref name="pageIndex"/> tính từ 0).</summary>
+    public void JumpFromSearch(string documentId, int pageIndex)
+        => Jump(new JumpRequest(documentId, pageIndex, JumpOrigin.Search));
+
+    /// <summary>Jump từ trích dẫn AI: Đoạn nguồn lấy từ <paramref name="source"/> và <paramref name="quote"/>.</summary>
+    public void JumpFromCitation(RagSource source, string? quote)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        Jump(new JumpRequest(source.DocumentId, source.PageIndex, JumpOrigin.Citation, SourcePassage.From(source, quote)));
     }
 
     /// <summary>Intent: mở <paramref name="document"/> trong Workspace <paramref name="workspaceId"/> (Add hoặc click thành viên
@@ -260,8 +319,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _chat.LoadHistory();
         _notes.LoadFor(ActiveWorkspaceId);
         _notes.RefreshDocumentContext();
-        // Nạp chạy đồng bộ trong lúc đổi Tab nên cờ nhảy-từ-kết-quả-tìm vẫn còn hiệu lực ở đây.
-        if (!KeepSearchOnTabChange) _search.ClearResults();
+        if (!KeepsSearch) _search.ClearResults();
         _indexing.StartBackgroundIndexing();
     }
 
@@ -292,7 +350,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         SwapNotesPanelState(incoming);
 
         // Nhảy từ kết quả tìm Toàn Workspace: giữ ô tìm, kết quả và Phạm vi để bấm tiếp kết quả khác.
-        if (!KeepSearchOnTabChange) _search.Reset();
+        if (!KeepsSearch) _search.Reset();
 
         // Tab mới (hoặc không còn Tab) thì Đoạn nguồn của tài liệu trước không còn nghĩa.
         ActiveSourcePassage = null;

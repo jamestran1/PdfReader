@@ -13,10 +13,13 @@ internal sealed record MainViewModelSessionFactory(
     /// <param name="refreshNotesDocumentContext">Cập nhật ngữ cảnh chip tài liệu của Notes (cần Library và surface của MainViewModel).</param>
     /// <param name="notifyError">Báo lỗi cho người dùng.</param>
     /// <param name="markDocumentOpened">Ghi thời điểm mở của Document vào Library.</param>
+    /// <param name="findDocument">Tìm Document trong Library của MainViewModel theo id.</param>
     public ReadingSessionViewModel Create(
-        Action refreshNotesDocumentContext, Action<string> notifyError, Action<string> markDocumentOpened)
+        Action refreshNotesDocumentContext, Action<string> notifyError,
+        Action<string> markDocumentOpened, Func<string, Models.LibraryItem?> findDocument)
         => new(new ReadingSessionDependencies(
             DocumentLoader, WorkspaceStore, Search, Chat,
             new NotesReadingSessionPort(Notes, refreshNotesDocumentContext),
-            Indexing, Surface, notifyError, MarkDocumentOpened: markDocumentOpened));
+            Indexing, Surface, notifyError,
+            MarkDocumentOpened: markDocumentOpened, FindDocument: findDocument));
 }
