@@ -376,22 +376,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     internal void SaveOpenSetNow() => Session.SaveOpenSetNow();
 
-    /// <summary>
-    /// Tài liệu đang đọc lẻ để promote (null nếu không có). Mặc định đọc state thật;
-    /// test override để khỏi nạp PDF thật.
-    /// </summary>
-    protected virtual StandaloneDocument? CurrentStandaloneDocument()
-    {
-        if (Session.DocumentId is null) return null;
-        var item = Library.FirstOrDefault(libraryItem => libraryItem.DocumentId == Session.DocumentId);
-        return new StandaloneDocument(
-            Session.DocumentId,
-            item?.Title ?? System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty),
-            item?.StoredPath ?? FilePath ?? string.Empty,
-            Session.CurrentPage,
-            Session.ZoomLevel);
-    }
-
     // #68: chỉ hiện affordance promote khi đang đọc lẻ một tài liệu (Default Workspace).
     public bool CanPromoteToWorkspace => IsReadingDocument && !IsWorkspaceSession && HasDocument;
 
@@ -400,8 +384,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void PromoteToWorkspace(string? name)
     {
-        if (IsWorkspaceSession) return;
-        if (CurrentStandaloneDocument() is not { } document) return;
+        if (!Session.CanPromote) return;
         if (string.IsNullOrWhiteSpace(name))
         {
             WorkspaceNameError = "Tên workspace không được để trống.";
@@ -411,15 +394,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var workspace = new Workspace(Guid.NewGuid().ToString("N"), name.Trim(), false, null, now, now);
-        _workspaceStore.Upsert(workspace);
-        _workspaceStore.AddDocument(workspace.Id, document.DocumentId);
-
         SelectedWorkspace = workspace;
-        Session.ActiveWorkspaceId = workspace.Id;
-        IsWorkspaceSession = true;
-
-        var tab = Tabs.OpenOrActivate(document.DocumentId, document.Title, document.Path, initialPage: document.Page);
-        tab.Zoom = document.Zoom;
+        var item = Library.FirstOrDefault(libraryItem => libraryItem.DocumentId == Session.DocumentId);
+        string title = item?.Title ?? System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty);
+        Session.Promote(workspace, title);
 
         // Nạp danh sách tài liệu thành viên của workspace mới (giống OpenWorkspace), để surface "+" hiển thị đúng.
         RefreshWorkspaceDocumentsSurface();
@@ -752,8 +730,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (item is null) return;
         // Tab S1: standalone open -> không tích lũy tab; giữ hành vi thay thế cũ.
-        IsWorkspaceSession = false;
-        Session.ReplaceCurrentDocument(item.StoredPath);
+        Session.Open(item.StoredPath);
         if (Session.DocumentId != null)
         {
             _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
