@@ -23,7 +23,20 @@ internal sealed class ReadingSessionFixture
         Surface = new FakeSessionSurface(Log);
         Session = new ReadingSessionViewModel(new ReadingSessionDependencies(
             Loader, Store, Search, Chat, Notes, Indexing, Surface, Errors.Add,
-            DispatcherProvider: () => null));   // null: lưu Open Set ngay, tất định
+            DispatcherProvider: () => null,   // null: lưu Open Set ngay, tất định
+            MarkDocumentOpened: RecordOpened));
+    }
+
+    /// <summary>Id Document đã được ghi thời điểm mở vào Library.</summary>
+    public List<string> Opened { get; } = [];
+
+    /// <summary>Bắt việc ghi thời điểm mở ném lỗi (best-effort không được chặn việc mở).</summary>
+    public bool FailMarkOpened { get; set; }
+
+    private void RecordOpened(string documentId)
+    {
+        if (FailMarkOpened) throw new InvalidOperationException("Library không ghi được");
+        Opened.Add(documentId);
     }
 
     public CallLog Log { get; } = new();
