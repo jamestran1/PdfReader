@@ -42,7 +42,7 @@ public sealed class OpenSetPersistence
     internal Func<Dispatcher?> DispatcherProvider { get; init; } = () => System.Windows.Application.Current?.Dispatcher;
 
     /// <summary>Khoá ghi trong lúc reset/khôi phục để wiring auto-save không ghi đè state đang dựng.</summary>
-    public bool IsRestoring { get; set; }
+    internal bool IsRestoring { get; set; }
 
     /// <summary>Thu thập Open Set hiện tại và lưu (thay thế) cho workspace đang hoạt động.</summary>
     public void SaveNow()

@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
 namespace PdfReaderApp.ViewModels;
@@ -12,6 +13,7 @@ namespace PdfReaderApp.ViewModels;
 /// <param name="Indexing">Lập chỉ mục nền.</param>
 /// <param name="Surface">Workspace Documents surface.</param>
 /// <param name="NotifyError">Báo lỗi cho người dùng.</param>
+/// <param name="FindLibraryItem">Tra Document trong Library theo id (khôi phục Open Set bỏ qua Document đã gỡ); null thì coi như Library rỗng.</param>
 /// <param name="DispatcherProvider">Dispatcher gộp ghi Open Set; null thì lưu ngay (test, headless). Mặc định dispatcher của app.</param>
 public sealed record ReadingSessionDependencies(
     IDocumentLoader Loader,
@@ -22,4 +24,5 @@ public sealed record ReadingSessionDependencies(
     IReadingSessionIndexing Indexing,
     IReadingSessionSurface Surface,
     Action<string> NotifyError,
-    Func<Dispatcher?>? DispatcherProvider = null);
+    Func<Dispatcher?>? DispatcherProvider = null,
+    Func<string, LibraryItem?>? FindLibraryItem = null);

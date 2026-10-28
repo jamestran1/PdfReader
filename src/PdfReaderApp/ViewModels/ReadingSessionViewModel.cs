@@ -22,6 +22,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     private readonly IReadingSessionSurface _surface;
     private readonly Action<string> _notifyError;
     private readonly OpenSetPersistence _openSet;
+    private readonly Func<string, LibraryItem?> _findLibraryItem;
 
     // Tab đang được theo dõi view-state để toolbar (trang, zoom, tổng trang) khớp với viewer của nó.
     private OpenTab? _subscribedTab;
@@ -40,6 +41,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _indexing = dependencies.Indexing;
         _surface = dependencies.Surface;
         _notifyError = dependencies.NotifyError;
+        _findLibraryItem = dependencies.FindLibraryItem ?? (_ => null);
 
         // Phiên đọc là bên nghe duy nhất việc đổi Tab active, và đăng ký TRƯỚC OpenSetPersistence trong cùng constructor,
         // nên thứ tự "xử lý đổi Tab rồi mới lưu Open Set" nằm ở một chỗ. Sự kiện còn cần vì OpenOrActivate, RestoreTabs và
@@ -135,9 +137,74 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         Tabs.Close(tab);
     }
 
-    /// <summary>Tạm thời: khoá khôi phục của Open Set cho <c>RestoreOrSeedOpenSet</c> của MainViewModel; biến mất khi
-    /// intent RestoreOpenSet chuyển vào Phiên đọc.</summary>
-    internal OpenSetPersistence OpenSet => _openSet;
+    /// <summary>
+    /// Intent: vào Workspace <paramref name="workspaceId"/>. Lưu Open Set của Workspace đang rời, rồi khôi phục lười Open Set
+    /// đã lưu (chỉ Tab active nạp Document, Document đã gỡ khỏi Library bị bỏ qua) hoặc seed một Tab khi chưa có state
+    /// (Document mặc định, rồi thành viên đầu). Workspace rỗng thì Open Set rỗng. Trong lúc dựng không ghi Open Set;
+    /// chỉ ghi đúng một lần khi xong.
+    /// </summary>
+    public void RestoreOpenSet(string workspaceId)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(workspaceId);
+        if (IsWorkspaceSession && ActiveWorkspaceId is not null) _openSet.SaveNow();
+
+        // Đọc state đã lưu TRƯỚC khi Reset để việc xoá Open Set cũ không ghi đè nó.
+        var savedTabs = _workspaceStore.GetOpenTabs(workspaceId);
+
+        _openSet.IsRestoring = true;
+        try
+        {
+            Tabs.Reset();   // bắt đầu từ Open Set rỗng: không tích luỹ, không trùng Tab
+            ActiveWorkspaceId = workspaceId;
+            IsWorkspaceSession = true;
+
+            var restored = RestoreSavedTabs(savedTabs);
+            if (restored.Count > 0)
+            {
+                string? activeId = savedTabs.LastOrDefault(s => s.IsActive && restored.Any(t => t.DocumentId == s.DocumentId))?.DocumentId;
+                Tabs.RestoreTabs(restored, activeId ?? restored[0].DocumentId);
+            }
+            else
+            {
+                SeedFirstTab(workspaceId);
+            }
+        }
+        finally
+        {
+            _openSet.IsRestoring = false;
+            _openSet.SaveNow();   // đúng một lần ghi Open Set mới (đặc biệt khi seed tạo Tab)
+        }
+    }
+
+    private List<OpenTab> RestoreSavedTabs(IReadOnlyList<OpenTabState> savedTabs)
+    {
+        var restored = new List<OpenTab>(savedTabs.Count);
+        foreach (var state in savedTabs)
+        {
+            if (_findLibraryItem(state.DocumentId) is not { } item) continue;   // Document đã gỡ khỏi Library
+            restored.Add(new OpenTab(state.DocumentId, item.Title, item.StoredPath)
+            {
+                Page = state.Page,
+                Zoom = state.Zoom,
+                ScrollNorm = state.ScrollNorm,
+            });
+        }
+
+        return restored;
+    }
+
+    // Chưa có Open Set đã lưu: Document mặc định, rồi thành viên đầu. Không có (hoặc đã gỡ khỏi Library) thì Open Set rỗng
+    // và canvas hiện Workspace Documents surface inline.
+    private void SeedFirstTab(string workspaceId)
+    {
+        var workspace = _workspaceStore.Get(workspaceId);
+        var memberIds = _workspaceStore.GetDocumentIds(workspaceId);
+        string? seedId = workspace?.DefaultDocumentId is { Length: > 0 } defaultId
+            ? defaultId
+            : memberIds.Count > 0 ? memberIds[0] : null;
+        if (seedId is not null && _findLibraryItem(seedId) is { } item)
+            Tabs.OpenOrActivate(item.DocumentId, item.Title, item.StoredPath);
+    }
 
     /// <summary>Lưu Open Set ngay (đóng cửa sổ).</summary>
     internal void SaveOpenSetNow() => _openSet.SaveNow();
