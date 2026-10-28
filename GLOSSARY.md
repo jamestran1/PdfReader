@@ -56,6 +56,10 @@ _Avoid_: Embedding table, index (trơn, dễ lẫn với chỉ mục FTS tìm ki
 
 ## Tab đa tài liệu (multi-document tabs)
 
+**Phiên đọc**:
+Document đang được đọc cùng những gì suy ra từ nó (cấu trúc, chữ từng trang, Đoạn nguồn) và ngữ cảnh đi kèm (UI panel notes của Tab, trạng thái Search). Mỗi lúc chỉ có một Phiên đọc, giống nhau ở Default Workspace và named Workspace. Kích hoạt Tab, Cross-doc jump, khôi phục Open Set hay mở lẻ một Document đều là thay Document của Phiên đọc. Phiên đọc không phải Workspace, cũng không phải Open Set.
+_Avoid_: Session (trơn), active document state, "vào phiên đọc" theo nghĩa rời màn Workspaces.
+
 **Tab**:
 Một Document đang mở để đọc trong phiên Workspace hiện tại, kèm view-state riêng (trang, zoom, scroll). Tab chỉ tồn tại trong Workspace có tên; đọc lẻ luôn một tab.
 _Avoid_: Window, pane, view.
