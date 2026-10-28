@@ -273,6 +273,8 @@ public sealed class MainViewModelChatTests : IDisposable
         Assert.Null(vm.Session.ActiveWorkspaceId);
     }
 
+    private static readonly LibraryItem DocB = new("docB", "B", "/lib/b.pdf", ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1);
+
     private (MainViewModel vm, FakeWorkspaceStore store) WorkspaceSessionWithDocA()
     {
         var wsStore = new FakeWorkspaceStore();
@@ -291,7 +293,7 @@ public sealed class MainViewModelChatTests : IDisposable
     {
         var (vm, store) = WorkspaceSessionWithDocA();
 
-        vm.Session.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        vm.Session.OpenInWorkspace("ws-tabs", DocB);
 
         var saved = store.OpenSets["ws-tabs"];
         Assert.Contains(saved, t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal));
@@ -303,10 +305,10 @@ public sealed class MainViewModelChatTests : IDisposable
     {
         var (vm, store) = WorkspaceSessionWithDocA();
         var tabA = vm.Session.Tabs.Tabs.First(t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal));
-        vm.Session.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        vm.Session.OpenInWorkspace("ws-tabs", DocB);
         store.OpenSets.Clear();
 
-        vm.Session.Tabs.ActivateTab(tabA);
+        vm.Session.Activate(tabA);
 
         var saved = store.OpenSets["ws-tabs"];
         Assert.True(saved.Single(t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal)).IsActive);
@@ -317,10 +319,11 @@ public sealed class MainViewModelChatTests : IDisposable
     public void OpenSet_IsSaved_WhenTabClosed()
     {
         var (vm, store) = WorkspaceSessionWithDocA();
-        var tabB = vm.Session.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        vm.Session.OpenInWorkspace("ws-tabs", DocB);
+        var tabB = vm.Session.Tabs.ActiveTab!;
         store.OpenSets.Clear();
 
-        vm.Session.Tabs.Close(tabB);
+        vm.Session.Close(tabB);
 
         var saved = store.OpenSets["ws-tabs"];
         Assert.DoesNotContain(saved, t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal));
@@ -454,7 +457,7 @@ public sealed class MainViewModelChatTests : IDisposable
         var (vm, _) = WorkspaceSessionWithDocA();
         vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "đoạn nguồn"));
 
-        vm.Session.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        vm.Session.OpenInWorkspace("ws-tabs", DocB);
 
         Assert.Null(vm.Session.ActiveSourcePassage);
     }

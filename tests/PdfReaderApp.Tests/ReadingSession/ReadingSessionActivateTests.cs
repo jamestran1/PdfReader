@@ -102,6 +102,25 @@ public class ReadingSessionActivateTests
     }
 
     [Fact]
+    public void SwitchTabAndBack_PreservesPerTabPageAndZoom()
+    {
+        var f = new ReadingSessionFixture().InWorkspace();
+        var tabA = f.OpenTab("A");
+        tabA.Zoom = 2.0;   // viewer ghi OpenTab.Zoom khi Ctrl+cuộn
+        tabA.Page = 12;    // viewer ghi OpenTab.Page khi cuộn trang
+        var tabB = f.OpenTab("B");
+
+        f.Session.Activate(tabA);
+        Assert.Equal((12, 2.0), (f.Session.CurrentPage, f.Session.ZoomLevel));
+
+        f.Session.Activate(tabB);
+        Assert.Equal((1, 1.0), (f.Session.CurrentPage, f.Session.ZoomLevel));
+
+        f.Session.Activate(tabA);
+        Assert.Equal((12, 2.0), (f.Session.CurrentPage, f.Session.ZoomLevel));
+    }
+
+    [Fact]
     public void Activate_PersistsOpenSetAfterTheSwitch()
     {
         var f = new ReadingSessionFixture().InWorkspace();

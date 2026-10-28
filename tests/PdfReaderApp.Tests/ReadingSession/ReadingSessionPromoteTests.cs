@@ -73,4 +73,27 @@ public class ReadingSessionPromoteTests
         Assert.Empty(f.Store.All);
         Assert.Single(f.Session.Tabs.Tabs);
     }
+
+    [Fact]
+    public void Promote_ThenSwitchTabsBackAndForth_SessionPageZoomAndTotalPagesFollowTheActiveTab()
+    {
+        var f = Reading("D").InLibrary("E");
+        f.Session.CurrentPage = 12;
+        f.Session.ZoomLevel = 1.5;
+        f.Session.Promote(NewWorkspace("Luận văn"), "Tài liệu D");
+        var tabD = f.Session.Tabs.ActiveTab!;
+        tabD.TotalPages = 30;   // viewer của Tab ghi tổng trang sau khi bố cục
+        f.Session.OpenInWorkspace("ws-luan-van", f.Library["E"]);
+        var tabE = f.Session.Tabs.ActiveTab!;
+        tabE.TotalPages = 5;
+
+        f.Session.Activate(tabD);
+        Assert.Equal((12, 1.5, 30), (f.Session.CurrentPage, f.Session.ZoomLevel, f.Session.TotalPages));
+
+        f.Session.Activate(tabE);
+        Assert.Equal((1, 1.0, 5), (f.Session.CurrentPage, f.Session.ZoomLevel, f.Session.TotalPages));
+
+        f.Session.Activate(tabD);
+        Assert.Equal((12, 1.5, 30), (f.Session.CurrentPage, f.Session.ZoomLevel, f.Session.TotalPages));
+    }
 }

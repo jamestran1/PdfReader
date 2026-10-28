@@ -77,7 +77,7 @@ public class MainViewModelDocumentLoaderTests
     }
 
     [Fact]
-    public void PdfService_ExposesMatchSourceOfLoader()
+    public void Session_ExposesMatchSourceOfLoader()
     {
         var (vm, loader, _) = MakeVm();
 

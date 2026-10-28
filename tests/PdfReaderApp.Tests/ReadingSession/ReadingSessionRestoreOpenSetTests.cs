@@ -46,6 +46,7 @@ public class ReadingSessionRestoreOpenSetTests
         Assert.Equal("B", f.Session.Tabs.ActiveTab?.DocumentId);
         Assert.Equal([ReadingSessionFixture.PathOf("B")], f.Loader.LoadedPaths);
         Assert.Equal(7, f.Session.CurrentPage);
+        Assert.Equal([false, true, false], f.Session.Tabs.Tabs.Select(t => t.IsHydrated));   // chỉ Tab active nạp
         Assert.True(f.Session.IsWorkspaceSession);
         Assert.Equal(Target, f.Session.ActiveWorkspaceId);
     }
