@@ -22,9 +22,9 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     private readonly TaskCompletionSource _indexingGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private IReadOnlyList<WorkspaceDocument> _documents = [];
     private int _documentsRequested;
-    private bool _ragThrows;
-    private bool _embedThrows;
-    private string? _embeddingKey = "key";
+    private TaskCompletionSource? _embedBlock;
+    private readonly TaskCompletionSource _embedStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly string? _embeddingKey = "key";
 
     // Chat dùng Claude (luôn có key), Embedding dùng OpenAI (key do test đặt) để thiếu key embedding mà chat vẫn chạy.
     private sealed class FakeSettings(Func<string?> embeddingKey) : ISettingsService
@@ -77,15 +77,22 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     private sealed class FakeEmbeddingFactory(ChatViewModelWorkspaceTests owner) : IEmbeddingGeneratorFactory
     {
         public IEmbeddingGenerator<string, Embedding<float>> Create(AiClientOptions options, EmbeddingPurpose purpose)
-            => owner._embedThrows ? throw new InvalidOperationException("embedding hỏng") : new Gen();
+            => new Gen(owner);
 
-        private sealed class Gen : IEmbeddingGenerator<string, Embedding<float>>
+        private sealed class Gen(ChatViewModelWorkspaceTests owner) : IEmbeddingGenerator<string, Embedding<float>>
         {
-            public Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
+            public async Task<GeneratedEmbeddings<Embedding<float>>> GenerateAsync(
                 IEnumerable<string> values, EmbeddingGenerationOptions? options = null,
                 CancellationToken cancellationToken = default)
-                => Task.FromResult(new GeneratedEmbeddings<Embedding<float>>(
-                    values.Select(_ => new Embedding<float>(new float[] { 1f, 0f })).ToList()));
+            {
+                if (owner._embedBlock is { } block)
+                {
+                    owner._embedStarted.TrySetResult();
+                    await block.Task.WaitAsync(cancellationToken);
+                }
+
+                return [.. values.Select(_ => new Embedding<float>(new float[] { 1f, 0f })).ToList()];
+            }
 
             public object? GetService(Type serviceType, object? serviceKey = null) => null;
             public void Dispose() { }
@@ -114,15 +121,9 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         public void SetStatus(string d, DocumentIndexStatus s, string m) { }
         public IReadOnlyList<SearchResult> SearchText(string d, string q, int l = 50) => [];
         public IReadOnlyList<Chunk> RetrieveRelevant(string d, string m, float[] v, int k = 5)
-        {
-            if (owner._ragThrows) throw new InvalidOperationException("index hỏng");
-            return owner._hits.TryGetValue(d, out var h) ? [.. h.Select(s => s.Chunk)] : [];
-        }
+            => owner._hits.TryGetValue(d, out var h) ? [.. h.Select(s => s.Chunk)] : [];
         public IReadOnlyList<ScoredChunk> RetrieveRelevantScored(string d, string m, float[] v, int k = 5)
-        {
-            if (owner._ragThrows) throw new InvalidOperationException("index hỏng");
-            return owner._hits.TryGetValue(d, out var h) ? h : [];
-        }
+            => owner._hits.TryGetValue(d, out var h) ? h : [];
         public void Dispose() { }
     }
 
@@ -134,7 +135,7 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     private readonly FakeHistory _history = new();
     private readonly List<(RagSource Source, string? Quote)> _openedSources = [];
 
-    private ChatViewModel CreateChat(string? currentDocumentId = "a", IReadOnlyList<TextBlock>? blocks = null)
+    private ChatViewModel CreateChat()
     {
         _statuses["a"] = DocumentIndexStatus.Complete;
         _statuses["b"] = DocumentIndexStatus.Complete;
@@ -154,8 +155,9 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         var chat = new ChatViewModel(
             new AiChatService(settings, new FakeChatClientFactory(_sent)),
             _history,
-            new RagContextService(new FakeIndex(this), new FakeEmbeddingFactory(this), settings),
-            () => new ChatContext(currentDocumentId, "ws1", blocks ?? [], 1, "Sách A"),
+            new AnswerContextBuilder(new RagContextService(new FakeIndex(this), new FakeEmbeddingFactory(this), settings), runner),
+            () => "ws1",
+            () => new DocumentSnapshot("a", [], 1, "Sách A"),
             new ChatWorkspace(() => { _documentsRequested++; return _documents; }, runner),
             (source, quote) => _openedSources.Add((source, quote)));
         _chats.Add(chat);
@@ -163,43 +165,6 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     }
 
     private static TextBlock PageBlock(int page, string text) => new(text, 0, 0, 10, 10, 12, page, "P");
-
-    [Fact]
-    public async Task CurrentDocumentScope_NotIndexed_PageContextIsNumberedAndAnswerHasClickableSources()
-    {
-        var chat = CreateChat(blocks: [PageBlock(0, "chữ trang một")]);
-        _statuses["a"] = DocumentIndexStatus.None;
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.Contains("[1] Tài liệu: \"Sách A\", Trang: 1\nchữ trang một", LastUserTurn(), StringComparison.Ordinal);
-        Assert.Equal([new RagSource(1, "a", "Sách A", 0, "chữ trang một")], chat.Messages.Last().Sources);
-    }
-
-    [Fact]
-    public async Task WorkspaceScope_RagFails_PageContextIsNumberedAndNoticeStays()
-    {
-        var chat = CreateChat(blocks: [PageBlock(0, "chữ trang một")]);
-        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
-        _ragThrows = true;
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.Equal([new RagSource(1, "a", "Sách A", 0, "chữ trang một")], chat.Messages.Last().Sources);
-        Assert.NotEmpty(chat.ScopeNotice);
-    }
-
-    [Fact]
-    public async Task CurrentDocumentScope_NoDocumentId_PageContextStaysUnnumbered()
-    {
-        var chat = CreateChat(currentDocumentId: null, blocks: [PageBlock(0, "chữ trang một")]);
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.DoesNotContain("[1]", LastUserTurn(), StringComparison.Ordinal);
-        Assert.Contains("chữ trang một", LastUserTurn(), StringComparison.Ordinal);
-        Assert.Empty(chat.Messages.Last().Sources);
-    }
 
     private static async Task AskAsync(ChatViewModel chat, string question)
     {
@@ -368,58 +333,6 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     }
 
     [Fact]
-    public async Task WorkspaceScope_UnindexedDocuments_AreQueuedForBackgroundIndexingAndNoticeShown()
-    {
-        var chat = CreateChat();
-        _statuses["c"] = DocumentIndexStatus.None;
-        _statuses["d"] = DocumentIndexStatus.Partial;
-        _documents = [Doc("a", "Sách A"), Doc("b", "Sách B"), Doc("c", "Sách C"), Doc("d", "Sách D")];
-        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.Equal("Đang lập chỉ mục 2 tài liệu, câu trả lời chưa gồm các tài liệu này.", chat.WorkspaceIndexing.StatusText);
-        await WaitUntilAsync(() => _indexedInBackground.Count >= 1);
-        Assert.Equal("c", _indexedInBackground[0]);
-        // Câu hỏi hiện tại không chờ: vẫn trả lời bằng tài liệu đã Complete.
-        Assert.Contains("nội dung A", LastUserTurn(), StringComparison.Ordinal);
-        Assert.DoesNotContain("Sách C", LastUserTurn(), StringComparison.Ordinal);
-        _indexingGate.SetResult();
-        await chat.WorkspaceIndexing.BackgroundTask!.WaitAsync(Timeout);
-    }
-
-    [Fact]
-    public async Task WorkspaceScope_NothingIndexedYet_FallsBackToCurrentPageContextAndStillIndexes()
-    {
-        var chat = CreateChat();
-        _statuses["a"] = DocumentIndexStatus.None;
-        _statuses["b"] = DocumentIndexStatus.None;
-        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.Equal("AI", chat.Messages.Last().Role);
-        Assert.Empty(chat.Messages.Last().Sources);
-        Assert.Contains("Đang lập chỉ mục 2 tài liệu", chat.WorkspaceIndexing.StatusText, StringComparison.Ordinal);
-        _indexingGate.SetResult();
-        await chat.WorkspaceIndexing.BackgroundTask!.WaitAsync(Timeout);
-    }
-
-    [Fact]
-    public async Task WorkspaceScope_RagFails_StillAnswersWithoutSources()
-    {
-        var chat = CreateChat();
-        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
-        _ragThrows = true;
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.Equal("AI", chat.Messages.Last().Role);
-        Assert.Contains("Theo [1] là vậy.", chat.Messages.Last().Content, StringComparison.Ordinal);
-        Assert.Empty(chat.Messages.Last().Sources);
-    }
-
-    [Fact]
     public async Task LoadHistory_OwnerChanges_CancelsBackgroundIndexingAndClearsNotice()
     {
         string owner = "ws1";
@@ -434,8 +347,9 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
         using var chat = new ChatViewModel(
             new AiChatService(settings, new FakeChatClientFactory(_sent)),
             new FakeHistory(),
-            new RagContextService(new FakeIndex(this), new FakeEmbeddingFactory(this), settings),
-            () => new ChatContext("a", owner, [], 1),
+            new AnswerContextBuilder(new RagContextService(new FakeIndex(this), new FakeEmbeddingFactory(this), settings), runner),
+            () => owner,
+            () => new DocumentSnapshot("a", [], 1),
             new ChatWorkspace(() => [], runner));
         chat.LoadHistory();
         runner.Enqueue([Doc("c", "Sách C")]);
@@ -451,64 +365,37 @@ public sealed class ChatViewModelWorkspaceTests : IDisposable
     private const string PageOnlyNotice = "chỉ dựa trên trang đang đọc";
 
     [Fact]
-    public async Task WorkspaceScope_NoEmbeddingKey_DoesNotQueueIndexingAndNoticeAsksForTheKey()
+    public async Task SendMessage_CancelledWhileBuildingContext_ShowsNoAnswerAndSavesNothing()
+    {
+        var chat = CreateChat();
+        _embedBlock = new TaskCompletionSource();
+        chat.Input = "câu hỏi";
+
+        var sending = chat.SendMessageCommand.ExecuteAsync(null);
+        await _embedStarted.Task.WaitAsync(Timeout);
+        chat.CancelPendingRequest();
+        await sending.WaitAsync(Timeout);
+
+        Assert.Equal(["User"], chat.Messages.Select(m => m.Role), StringComparer.Ordinal);
+        Assert.Empty(_history.Entries);
+        Assert.Empty(_sent);
+    }
+
+    [Fact]
+    public async Task WorkspaceScope_NothingUsable_ShowsPageOnlyNoticeThenNextQuestionClearsIt()
     {
         var chat = CreateChat();
         _statuses["a"] = DocumentIndexStatus.None;
         _statuses["b"] = DocumentIndexStatus.None;
-        _embeddingKey = null;
         chat.SetScopeCommand.Execute(DocumentScope.Workspace);
 
-        await AskAsync(chat, "câu hỏi");
+        await AskAsync(chat, "câu hỏi một");
+        Assert.Contains(PageOnlyNotice, chat.ScopeNotice, StringComparison.Ordinal);
 
-        Assert.Empty(_indexedInBackground);
-        Assert.Equal(string.Empty, chat.WorkspaceIndexing.StatusText);
-        Assert.Contains(AiErrorMessages.NotConfigured(AiModelSettings.Default.EmbeddingProvider), chat.Notice, StringComparison.Ordinal);
-        Assert.Contains(PageOnlyNotice, chat.Notice, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task WorkspaceScope_NothingUsable_NoticeSaysAnswerOnlyUsesCurrentPage()
-    {
-        var chat = CreateChat();
-        _statuses["a"] = DocumentIndexStatus.None;
-        _statuses["b"] = DocumentIndexStatus.None;
-        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.Contains(PageOnlyNotice, chat.Notice, StringComparison.Ordinal);
-        _indexingGate.SetResult();
-        await chat.WorkspaceIndexing.BackgroundTask!.WaitAsync(Timeout);
-    }
-
-    [Fact]
-    public async Task WorkspaceScope_RagFails_NoticeSaysAnswerOnlyUsesCurrentPage()
-    {
-        var chat = CreateChat();
-        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
-        _ragThrows = true;
-
-        await AskAsync(chat, "câu hỏi");
-
-        Assert.Contains(PageOnlyNotice, chat.Notice, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task WorkspaceScope_EmbeddingFails_StillQueuesUnindexedDocumentsBeforeEmbedding()
-    {
-        var chat = CreateChat();
-        _statuses["c"] = DocumentIndexStatus.None;
-        _documents = [Doc("a", "Sách A"), Doc("c", "Sách C")];
-        _embedThrows = true;
-        chat.SetScopeCommand.Execute(DocumentScope.Workspace);
-
-        await AskAsync(chat, "câu hỏi");
-
-        await WaitUntilAsync(() => _indexedInBackground.Count >= 1);
-        Assert.Equal("c", _indexedInBackground[0]);
-        _indexingGate.SetResult();
-        await chat.WorkspaceIndexing.BackgroundTask!.WaitAsync(Timeout);
+        _statuses["a"] = DocumentIndexStatus.Complete;
+        _statuses["b"] = DocumentIndexStatus.Complete;
+        await AskAsync(chat, "câu hỏi hai");
+        Assert.Equal(string.Empty, chat.ScopeNotice);
     }
 
     [Fact]

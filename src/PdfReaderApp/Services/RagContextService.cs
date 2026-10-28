@@ -3,7 +3,7 @@ using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
 
-public sealed class RagContextService
+internal sealed class RagContextService
 {
     private const string EntrySeparator = "\n\n";
 
