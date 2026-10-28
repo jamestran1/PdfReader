@@ -23,5 +23,5 @@ status: accepted
 - `IsWorkspaceSession=false` dùng viewer đọc-lẻ (single); `true` dùng viewer-per-tab (ADR 0003). **Không đổi kiến trúc viewer** — #48 chỉ thêm gate-nạp-theo-hiển-thị + LRU eviction (không chuyển sang một-viewer-swap).
 - Promote Default → named Workspace (mang doc hiện tại sang làm Tab đầu) là một affordance riêng (issue follow-up).
 - Bỏ màn chi tiết Workspace cũ (rename / docs list / add-remove); add/remove dời vào surface hai vùng (#47).
-- Cập nhật `CONTEXT.md`: chat = per-Workspace (gỡ khỏi per-tab view-state); "Workspace Documents surface" thay "Thumbnail Gallery"; Default Workspace là tạm + không tab chrome.
+- Cập nhật `GLOSSARY.md`: chat = per-Workspace (gỡ khỏi per-tab view-state); "Workspace Documents surface" thay "Thumbnail Gallery"; Default Workspace là tạm + không tab chrome.
 - Phần đổi nghĩa: ADR 0003 mục "Chat per-tab" và term "Thumbnail Gallery" được ADR này thay thế.

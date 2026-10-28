@@ -1,6 +1,6 @@
 # Runbook phát hành Trí Thư
 
-Quy trình đưa một Release lên Microsoft Store (ADR 0005, ADR 0006). Thuật ngữ Release, Package Identity, Submission, MSIX smoke test: xem `CONTEXT.md` mục "Phát hành (Release)".
+Quy trình đưa một Release lên Microsoft Store (ADR 0005, ADR 0006). Thuật ngữ Release, Package Identity, Submission, MSIX smoke test: xem `GLOSSARY.md` mục "Phát hành (Release)".
 
 Thành phần trong repo:
 

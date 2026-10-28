@@ -23,4 +23,4 @@ Trí Thư phát hành tới người dùng **chỉ qua Microsoft Store** (grilli
 - Bước 0 một lần: đăng ký individual account **free** tại storedeveloper.microsoft.com (xác minh ID + selfie), reserve tên "Trí Thư", đưa Package Identity vào `Package.appxmanifest`; tạo `PRIVACY.md` publish qua GitHub Pages (bắt buộc cho listing — app gửi nội dung tài liệu tới OpenAI bằng key user tự nhập); listing tiếng Việt, mọi thị trường; dev cert local (`winapp cert generate` + install) cho smoke test.
 - Dữ liệu bản unpackaged hiện tại (`%AppData%\PdfReaderApp`) **không tự sang** bản MSIX (AppData ảo hóa) — user hiện hữu (tác giả) bắt đầu với library rỗng hoặc copy tay.
 - Danh tính app, user base và kênh update gắn với Store; rời Store sau này = mất kênh update lẫn danh tính đã ký.
-- Glossary: xem CONTEXT.md mục "Phát hành (Release)" (Release, Package Identity, Submission, MSIX smoke test).
+- Glossary: xem GLOSSARY.md mục "Phát hành (Release)" (Release, Package Identity, Submission, MSIX smoke test).
