@@ -1,46 +1,28 @@
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
+using PdfReaderApp.Tests.Fakes;
 using PdfReaderApp.ViewModels;
 
 namespace PdfReaderApp.Tests;
 
 /// <summary>
 /// TDD vertical slices cho phần wiring Tab S1 trong MainViewModel (hành vi 8-10).
-/// Dùng TestableMainViewModel (override HydrateTab = no-op) để không nạp PDF thật.
+/// Dùng bộ nạp giả (FakeDocumentLoader) để không nạp PDF thật.
 /// </summary>
 public class MainViewModelTabTests
 {
     // --- Test seam: no-op HydrateTab ---
 
-    private sealed class TestableMainViewModel : MainViewModel
-    {
-        public int HydrateCallCount { get; private set; }
-        public List<OpenTab> HydratedTabs { get; } = [];
-
-        public TestableMainViewModel(
-            IWorkspaceStore wsStore,
-            INoteStore? noteStore = null)
-            : base(
-                new ITextPdfDocumentService(),
-                new WindowsSettingsService(),
-                new AiChatClientFactory(),
-                new PdfReaderApp.Services.SqliteDocumentIndex(
-                    System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
-                    System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-                new AiEmbeddingGeneratorFactory(),
-                workspaceStore: wsStore,
-                noteStore: noteStore)
-        { }
-
-        protected override void HydrateTab(OpenTab tab)
-        {
-            // No-op: không nạp PDF thật.
-            HydrateCallCount++;
-            HydratedTabs.Add(tab);
-            // Giữ đúng bước dọn kết quả tìm của LoadActiveDocument thật.
-            ClearSearchResultsForLoadedDocument();
-        }
-    }
+    private static MainViewModel NewVm(IWorkspaceStore wsStore, FakeDocumentLoader loader) => new(
+        new ITextPdfDocumentService(),
+        new WindowsSettingsService(),
+        new AiChatClientFactory(),
+        new PdfReaderApp.Services.SqliteDocumentIndex(
+            System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
+            System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
+        new AiEmbeddingGeneratorFactory(),
+        workspaceStore: wsStore,
+        documentLoader: loader);
 
     private sealed class FakeWorkspaceStore : IWorkspaceStore
     {
@@ -96,10 +78,10 @@ public class MainViewModelTabTests
             => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : [];
     }
 
-    private static (TestableMainViewModel vm, FakeWorkspaceStore wsStore) MakeVm()
+    private static (MainViewModel vm, FakeWorkspaceStore wsStore) MakeVm(FakeDocumentLoader? loader = null)
     {
         var wsStore = new FakeWorkspaceStore();
-        var vm = new TestableMainViewModel(wsStore);
+        var vm = NewVm(wsStore, loader ?? new FakeDocumentLoader());
         return (vm, wsStore);
     }
 
@@ -268,7 +250,8 @@ public class MainViewModelTabTests
     [Fact]
     public void OpenWorkspace_WithSavedOpenSet_RestoresOrderAndActive_HydratesOnlyActiveTab()
     {
-        var (vm, wsStore) = MakeVm();
+        var loader = new FakeDocumentLoader();
+        var (vm, wsStore) = MakeVm(loader);
         var workspace = new Workspace("ws-restore", "R", false, null, 1, 1);
         wsStore.Upsert(workspace);
         wsStore.AddDocument(workspace.Id, "docA");
@@ -288,7 +271,7 @@ public class MainViewModelTabTests
         Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
         Assert.Equal(8, vm.Tabs.ActiveTab!.Page);
         Assert.Equal(2.5, vm.Tabs.ActiveTab!.Zoom);
-        Assert.Equal(1, vm.HydrateCallCount);
+        Assert.Single(loader.LoadedPaths);
         Assert.False(vm.Tabs.Tabs.Single(t => t.DocumentId == "docA").IsHydrated);
         Assert.True(vm.Tabs.ActiveTab!.IsHydrated);
     }
@@ -328,7 +311,8 @@ public class MainViewModelTabTests
     [Fact]
     public void OpenWorkspace_NoSavedState_SeedsSingleTabFromFirstMember()
     {
-        var (vm, wsStore) = MakeVm();
+        var loader = new FakeDocumentLoader();
+        var (vm, wsStore) = MakeVm(loader);
         var workspace = new Workspace("ws-seed", "Seed", false, null, 1, 1);
         wsStore.Upsert(workspace);
         wsStore.AddDocument(workspace.Id, "docOnly");
@@ -339,7 +323,7 @@ public class MainViewModelTabTests
         Assert.True(vm.IsWorkspaceSession);
         Assert.Single(vm.Tabs.Tabs);
         Assert.Equal("docOnly", vm.Tabs.ActiveTab!.DocumentId);
-        Assert.Equal(1, vm.HydrateCallCount);
+        Assert.Single(loader.LoadedPaths);
     }
 
     // =========================================================

@@ -16,4 +16,5 @@ public sealed record MainViewModelServices(
     INoteStore NoteStore,
     IWorkspaceStore WorkspaceStore,
     IThemeService ThemeService,
-    LibraryService Library);
+    LibraryService Library,
+    IDocumentLoader? DocumentLoader = null);

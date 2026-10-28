@@ -13,7 +13,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IPdfDocumentService _documentService;
     private readonly ISettingsService _settingsService;
     private readonly IThemeService _themeService;
-    private readonly PdfStructureAnalyzer _analyzer;
+    private readonly IDocumentLoader _documentLoader;
 
     // Tab S1: Open Set
     public TabSetViewModel Tabs { get; }
@@ -47,7 +47,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
 
     // Exposed so PdfViewerControl can ask iText for exact keyword match rectangles to highlight.
-    public IPdfDocumentService PdfService => _documentService;
+    public IPdfDocumentService PdfService => _documentLoader.MatchSource;
 
     private IReadOnlyList<PageText> _pageTexts = [];
 
@@ -259,7 +259,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         IChatHistoryStore? chatHistory = null,
         INoteStore? noteStore = null,
         IWorkspaceStore? workspaceStore = null,
-        IThemeService? themeService = null)
+        IThemeService? themeService = null,
+        IDocumentLoader? documentLoader = null)
         : this(new MainViewModelServices(
             documentService,
             settingsService,
@@ -270,7 +271,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             noteStore ?? DefaultServices.CreateNoteStore(AppDataDirectory.Current()),
             workspaceStore ?? DefaultServices.CreateWorkspaceStore(AppDataDirectory.Current()),
             themeService ?? DefaultServices.CreateThemeService(),
-            DefaultServices.CreateLibrary(AppDataDirectory.Current())))
+            DefaultServices.CreateLibrary(AppDataDirectory.Current()),
+            documentLoader))
     { }
 
     public MainViewModel(MainViewModelServices services)
@@ -280,7 +282,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _settingsService = services.Settings;
         _themeService = services.ThemeService;
         IsDarkMode = _settingsService.GetThemePreference() == AppTheme.Dark;
-        _analyzer = new PdfStructureAnalyzer(_documentService);
+        _documentLoader = services.DocumentLoader ?? new PdfDocumentLoader(_documentService);
 
         _documentIndex = services.DocumentIndex;
         _documentIndex.EnsureSchema();
@@ -389,7 +391,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ActiveSourcePassage = null;
 
         if (incoming is not null)
-            HydrateTab(incoming);
+            LoadActiveDocument(incoming.Path, _activeWorkspaceId, incoming.Page);
         else if (!_openSet.IsRestoring)
             RefreshWorkspaceDocumentsSurface();   // đóng tab cuối -> surface inline cần dữ liệu mới
 
@@ -437,26 +439,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(CanPromoteToWorkspace));
     }
 
-    // Seam của phần dọn kết quả tìm khi nạp tài liệu: test gọi lại để đi qua đúng đường nạp thật mà không cần PDF.
-    // Nạp tài liệu chạy đồng bộ trong lúc đổi tab nên cờ nhảy-từ-kết-quả-tìm vẫn còn hiệu lực ở đây.
-    protected void ClearSearchResultsForLoadedDocument()
-    {
-        if (!_keepSearchOnTabChange) Search.ClearResults();
-    }
-
-    /// <summary>
-    /// Seam có thể ghi đè trong test: nạp tài liệu cho tab được kích hoạt.
-    /// Cài đặt mặc định gọi LoadActiveDocument (nạp PDFium thật).
-    /// Test subclass override thành no-op để không nạp PDF thật.
-    /// </summary>
-    protected virtual void HydrateTab(OpenTab tab)
-    {
-        LoadActiveDocument(tab.Path, _activeWorkspaceId, tab.Page);
-    }
-
     /// <summary>
     /// Tài liệu đang đọc lẻ để promote (null nếu không có). Mặc định đọc state thật;
-    /// test override để khỏi nạp PDF thật (giống seam HydrateTab).
+    /// test override để khỏi nạp PDF thật.
     /// </summary>
     protected virtual StandaloneDocument? CurrentStandaloneDocument()
     {
@@ -814,7 +799,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void OpenWorkspaceDocument(LibraryItem? item)
     {
         if (item is null || SelectedWorkspace is null) return;
-        // Tab S1: đảm bảo workspace scope được thiết lập trước khi HydrateTab chạy.
+        // Tab S1: đảm bảo workspace scope được thiết lập trước khi tab được kích hoạt và nạp.
         _activeWorkspaceId = SelectedWorkspace.Id;
         IsWorkspaceSession = true;
         var tab = Tabs.OpenOrActivate(item.DocumentId, item.Title, item.StoredPath);
@@ -896,12 +881,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         FilePath = path;
         try
         {
-            _documentService.LoadFile(path);
-            _documentBlocks = _analyzer.AnalyzeRich();
+            var loaded = _documentLoader.Load(path);
+            _documentBlocks = loaded.Blocks;
             OnPropertyChanged(nameof(DocumentBlocks));
-            _pageTexts = _documentService.ExtractPageTexts();
+            _pageTexts = loaded.PageTexts;
 
-            _documentId = DocumentId.FromFile(path);
+            _documentId = loaded.DocumentId;
             OnPropertyChanged(nameof(CurrentDocumentId));
             OnPropertyChanged(nameof(HasDocument));
             OnPropertyChanged(nameof(CanPromoteToWorkspace));
@@ -913,7 +898,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             Notes.LoadFor(_activeWorkspaceId);
             UpdateNotesDocumentContext();
             OnPropertyChanged(nameof(ActiveWorkspaceId));
-            ClearSearchResultsForLoadedDocument();
+            // Nạp chạy đồng bộ trong lúc đổi tab nên cờ nhảy-từ-kết-quả-tìm vẫn còn hiệu lực ở đây.
+            if (!_keepSearchOnTabChange) Search.ClearResults();
             Indexing.StartBackgroundIndexing();
         }
 #pragma warning disable CA1031 // ranh giới [RelayCommand]: nạp tài liệu lỗi thì báo cho người dùng

@@ -6,11 +6,10 @@ namespace PdfReaderApp.Tests;
 
 /// <summary>
 /// TDD cho ActivateTabCommand và CloseTabCommand trên MainViewModel (Tab S1 UI layer).
-/// Dùng TestableMainViewModel (override HydrateTab = no-op) -- kế thừa pattern từ MainViewModelTabTests.
+/// Dùng bộ nạp giả (FakeDocumentLoader) để không nạp PDF thật; subclass chỉ còn seam CurrentStandaloneDocument.
 /// </summary>
 public class MainViewModelTabCommandTests
 {
-    // --- Test seam: no-op HydrateTab (giống MainViewModelTabTests) ---
 
     private sealed class TestableMainViewModel : MainViewModel
     {
@@ -23,10 +22,9 @@ public class MainViewModelTabCommandTests
                     System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
                     System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
                 new AiEmbeddingGeneratorFactory(),
-                workspaceStore: wsStore)
+                workspaceStore: wsStore,
+                documentLoader: new PdfReaderApp.Tests.Fakes.FakeDocumentLoader())
         { }
-
-        protected override void HydrateTab(OpenTab tab) { /* no-op */ }
 
         public PdfReaderApp.ViewModels.StandaloneDocument? FakeStandaloneDocument;
         protected override PdfReaderApp.ViewModels.StandaloneDocument? CurrentStandaloneDocument()

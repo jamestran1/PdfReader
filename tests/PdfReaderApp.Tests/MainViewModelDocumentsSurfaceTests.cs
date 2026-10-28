@@ -8,34 +8,28 @@ namespace PdfReaderApp.Tests;
 /// <summary>#47: surface Tài liệu Workspace qua seam MainViewModel (AC test seam).</summary>
 public class MainViewModelDocumentsSurfaceTests
 {
-    private sealed class TestableMainViewModel : MainViewModel
-    {
-        public TestableMainViewModel(IWorkspaceStore wsStore)
-            : base(
-                new ITextPdfDocumentService(),
-                new WindowsSettingsService(),
-                new AiChatClientFactory(),
-                new SqliteDocumentIndex(
-                    System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
-                    System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-                new AiEmbeddingGeneratorFactory(),
-                workspaceStore: wsStore)
-        { }
+    private static MainViewModel NewVm(IWorkspaceStore wsStore) => new(
+        new ITextPdfDocumentService(),
+        new WindowsSettingsService(),
+        new AiChatClientFactory(),
+        new SqliteDocumentIndex(
+            System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
+            System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
+        new AiEmbeddingGeneratorFactory(),
+        workspaceStore: wsStore,
+        documentLoader: new FakeDocumentLoader());
 
-        protected override void HydrateTab(OpenTab tab) { /* không nạp PDF thật */ }
-    }
-
-    private static (TestableMainViewModel vm, FakeWorkspaceStore wsStore, Workspace ws) MakeVmInWorkspace()
+    private static (MainViewModel vm, FakeWorkspaceStore wsStore, Workspace ws) MakeVmInWorkspace()
     {
         var wsStore = new FakeWorkspaceStore();
         var ws = new Workspace("ws1", "Nghiên cứu", false, null, 1, 1);
         wsStore.Upsert(ws);
-        var vm = new TestableMainViewModel(wsStore);
+        var vm = NewVm(wsStore);
         vm.SelectedWorkspace = ws;
         return (vm, wsStore, ws);
     }
 
-    private static LibraryItem Seed(TestableMainViewModel vm, string docId, string title)
+    private static LibraryItem Seed(MainViewModel vm, string docId, string title)
     {
         var item = new LibraryItem(docId, title, $"/lib/{docId}.pdf", null, 5, 1, 1);
         vm.Library.Add(item);
@@ -153,7 +147,7 @@ public class MainViewModelDocumentsSurfaceTests
     public void RemoveLibraryItem_WhenDocInActiveWorkspace_WithOpenTab_ClosesTab()
     {
         var wsStore = new FakeWorkspaceStore();
-        var vm = new TestableMainViewModel(wsStore);
+        var vm = NewVm(wsStore);
         var ws = new Workspace("ws1", "Dự án", false, null, 1, 1);
         wsStore.Upsert(ws);
         var item = new LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 5, 1, 1);
@@ -172,7 +166,7 @@ public class MainViewModelDocumentsSurfaceTests
     public void RemoveLibraryItem_WhenDocInActiveWorkspace_NoOpenTab_DoesNotCrash()
     {
         var wsStore = new FakeWorkspaceStore();
-        var vm = new TestableMainViewModel(wsStore);
+        var vm = NewVm(wsStore);
         var ws = new Workspace("ws1", "Dự án", false, null, 1, 1);
         wsStore.Upsert(ws);
         var item = new LibraryItem("docA", "Sách A", "/lib/a.pdf", null, 5, 1, 1);
