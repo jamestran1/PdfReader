@@ -346,7 +346,7 @@ public class MainViewModelTabTests
         vm.Session.Tabs.ActiveTab!.Page = 9;
         vm.Session.Tabs.ActiveTab!.Zoom = 1.5;
 
-        vm.SaveOpenSetNow();
+        vm.Session.SaveOpenSetNow();
 
         var saved = wsStore.GetOpenTabs(workspace.Id);
         Assert.Equal(vm.Session.Tabs.Tabs.Count, saved.Count);

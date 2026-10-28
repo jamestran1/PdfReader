@@ -18,10 +18,13 @@ public sealed class TabSetViewModel : ObservableObject
     public TabSetViewModel(int maxWarmInactiveTabs = DefaultMaxWarmInactiveTabs)
     {
         _maxWarmInactiveTabs = maxWarmInactiveTabs;
+        Tabs = new ReadOnlyObservableCollection<OpenTab>(_tabItems);
     }
 
-    // Danh sách tab theo thứ tự hiển thị (Tab Strip order).
-    public ObservableCollection<OpenTab> Tabs { get; } = [];
+    private readonly ObservableCollection<OpenTab> _tabItems = [];
+
+    /// <summary>Danh sách tab theo thứ tự hiển thị (Tab Strip order). Chỉ đọc: mọi thay đổi đi qua Phiên đọc.</summary>
+    public ReadOnlyObservableCollection<OpenTab> Tabs { get; }
 
     private OpenTab? _activeTab;
 
@@ -40,7 +43,7 @@ public sealed class TabSetViewModel : ObservableObject
     }
 
     /// <summary>True khi có ít nhất một tab.</summary>
-    public bool HasTabs => Tabs.Count > 0;
+    public bool HasTabs => _tabItems.Count > 0;
 
     /// <summary>Phát khi ActiveTab thay đổi (kể cả khi thành null).</summary>
 #pragma warning disable MA0046 // Sự kiện nội bộ dùng với lambda ở ViewModel và test; giữ chữ ký Action để không đổi hành vi
@@ -55,10 +58,10 @@ public sealed class TabSetViewModel : ObservableObject
     /// - Tab đã tồn tại: kích hoạt (đẩy lên đầu MRU), trả về tab đó.
     /// - Tab mới: chèn ngay sau ActiveTab hiện tại (hoặc cuối nếu không có), kích hoạt, trả về.
     /// </summary>
-    public OpenTab OpenOrActivate(string documentId, string title, string path, int? initialPage = null)
+    internal OpenTab OpenOrActivate(string documentId, string title, string path, int? initialPage = null)
     {
         // Kiểm tra tab đã tồn tại theo documentId.
-        foreach (var existing in Tabs)
+        foreach (var existing in _tabItems)
         {
             if (existing.DocumentId == documentId)
             {
@@ -73,8 +76,8 @@ public sealed class TabSetViewModel : ObservableObject
         // để viewer mở thẳng tại trang đích (cross-doc jump), tránh cuộn-sau-khi-nạp không ổn định.
         var tab = new OpenTab(documentId, title, path);
         if (initialPage is int ip) tab.Page = ip;
-        int insertAt = _activeTab is null ? Tabs.Count : Tabs.IndexOf(_activeTab) + 1;
-        Tabs.Insert(insertAt, tab);
+        int insertAt = _activeTab is null ? _tabItems.Count : _tabItems.IndexOf(_activeTab) + 1;
+        _tabItems.Insert(insertAt, tab);
         Activate(tab);
         return tab;
     }
@@ -83,10 +86,10 @@ public sealed class TabSetViewModel : ObservableObject
     /// Đóng <paramref name="tab"/>: gỡ khỏi Tabs và MRU.
     /// Nếu là ActiveTab, kích hoạt tab MRU tiếp theo (hoặc null nếu không còn).
     /// </summary>
-    public void Close(OpenTab tab)
+    internal void Close(OpenTab tab)
     {
         bool wasActive = _activeTab == tab;
-        Tabs.Remove(tab);
+        _tabItems.Remove(tab);
         _mru.Remove(tab);
 
         if (wasActive)
@@ -107,41 +110,41 @@ public sealed class TabSetViewModel : ObservableObject
     /// Kích hoạt tab đã tồn tại trong Open Set (dùng cho ActivateTabCommand).
     /// Không làm gì nếu tab không nằm trong Tabs.
     /// </summary>
-    public void ActivateTab(OpenTab tab)
+    internal void ActivateTab(OpenTab tab)
     {
-        if (!Tabs.Contains(tab)) return;
+        if (!_tabItems.Contains(tab)) return;
         Activate(tab);
     }
 
     /// <summary>
-    /// S2: dựng lại Open Set từ trạng thái đã lưu. Thêm mọi tab theo thứ tự nhưng KHÔNG hydrate;
-    /// chỉ kích hoạt tab active được chỉ định -> đúng một ActiveTabChanged -> đúng một HydrateTab.
+    /// Dựng lại Open Set từ trạng thái đã lưu. Thêm mọi tab theo thứ tự nhưng KHÔNG hydrate;
+    /// chỉ kích hoạt tab active được chỉ định -> đúng một ActiveTabChanged -> đúng một lần nạp Document.
     /// Dùng khi vào lại Workspace. Gọi khi Open Set đang rỗng.
     /// </summary>
-    public void RestoreTabs(IReadOnlyList<OpenTab> tabs, string? activeDocumentId)
+    internal void RestoreTabs(IReadOnlyList<OpenTab> tabs, string? activeDocumentId)
     {
         foreach (var tab in tabs)
         {
-            Tabs.Add(tab);
+            _tabItems.Add(tab);
             _mru.Add(tab);   // MRU tạm theo thứ tự khôi phục; Activate sẽ đẩy tab active lên đầu
         }
         OnPropertyChanged(nameof(HasTabs));
 
         var tabToActivate = activeDocumentId is null
             ? null
-            : Tabs.FirstOrDefault(t => t.DocumentId == activeDocumentId);
+            : _tabItems.FirstOrDefault(t => t.DocumentId == activeDocumentId);
         if (tabToActivate is not null)
             Activate(tabToActivate);
     }
 
     /// <summary>
-    /// S2: xoá toàn bộ Open Set (tabs + MRU + tab active) khi rời/đổi Workspace,
+    /// Xoá toàn bộ Open Set (tabs + MRU + tab active) khi rời/đổi Workspace,
     /// để khôi phục/seed bắt đầu từ trạng thái rỗng — không tích lũy, không trùng tab.
     /// </summary>
-    public void Reset()
+    internal void Reset()
     {
         _mru.Clear();
-        Tabs.Clear();
+        _tabItems.Clear();
         ActiveTab = null;   // ActiveTabChanged(null): không hydrate
         OnPropertyChanged(nameof(HasTabs));
     }

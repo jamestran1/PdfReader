@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfReaderApp.Core;
@@ -21,7 +22,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     private readonly IReadingSessionIndexing _indexing;
     private readonly IReadingSessionSurface _surface;
     private readonly Action<string> _notifyError;
-    private readonly Func<string, LibraryItem?> _findDocument;
+    private readonly LibraryDocumentLookup _findDocument;
+    private readonly TimeProvider _clock;
     private readonly OpenSetPersistence _openSet;
     private readonly Action<string>? _markDocumentOpened;
     private JumpOrigin? _jumpOrigin;
@@ -45,17 +47,18 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _notifyError = dependencies.NotifyError;
         _findDocument = dependencies.FindDocument ?? (_ => null);
         _markDocumentOpened = dependencies.MarkDocumentOpened;
+        _clock = dependencies.Clock ?? TimeProvider.System;
 
-        // Phiên đọc là bên nghe duy nhất việc đổi Tab active, và đăng ký TRƯỚC OpenSetPersistence trong cùng constructor,
-        // nên thứ tự "xử lý đổi Tab rồi mới lưu Open Set" nằm ở một chỗ. Sự kiện còn cần vì OpenOrActivate, RestoreTabs và
-        // Reset của TabSetViewModel vẫn đổi Tab active từ các intent chưa chuyển vào Phiên đọc.
+        // Phiên đọc là bên nghe duy nhất việc đổi Tab và gọi OpenSetPersistence: thứ tự "xử lý đổi Tab rồi mới lập lịch lưu
+        // Open Set" nằm trong OnActiveTabChanged và OnTabsCollectionChanged, không phụ thuộc thứ tự đăng ký sự kiện.
         Tabs = new TabSetViewModel();
-        Tabs.ActiveTabChanged += OnActiveTabChanged;
         _openSet = new OpenSetPersistence(
             _workspaceStore, Tabs, () => ActiveWorkspaceId, () => IsWorkspaceSession)
         {
-            DispatcherProvider = dependencies.DispatcherProvider ?? (() => System.Windows.Application.Current?.Dispatcher),
+            DispatcherProvider = dependencies.DispatcherProvider ?? (() => null),
         };
+        Tabs.ActiveTabChanged += OnActiveTabChanged;
+        ((INotifyCollectionChanged)Tabs.Tabs).CollectionChanged += (_, _) => _openSet.Schedule();
     }
 
     /// <summary>Tập Tab (Open Set). Tab Strip chỉ đọc; mọi thao tác ghi đi qua Phiên đọc.</summary>
@@ -68,16 +71,16 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StandaloneDocumentSource))]
     [NotifyPropertyChangedFor(nameof(CanPromote))]
-    public partial bool IsWorkspaceSession { get; internal set; }
+    public partial bool IsWorkspaceSession { get; private set; }
 
     /// <summary>Workspace đang hoạt động; null khi chưa có Document nào được nạp ở chế độ đọc lẻ.</summary>
     [ObservableProperty]
-    public partial string? ActiveWorkspaceId { get; internal set; }
+    public partial string? ActiveWorkspaceId { get; private set; }
 
     /// <summary>Đường dẫn file đang đọc; null khi nạp lỗi hoặc chưa có.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StandaloneDocumentSource))]
-    public partial string? FilePath { get; internal set; }
+    public partial string? FilePath { get; private set; }
 
     // Nguồn cho viewer ĐỌC LẺ. Trong phiên Workspace: null để viewer đọc lẻ ngủ yên (không nạp lại, không ghi ngược
     // zoom/trang qua binding TwoWay vào Tab active, bug #44). FilePath vẫn giữ nguyên cho lập chỉ mục.
@@ -356,11 +359,20 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     }
 
     /// <summary>Lưu Open Set ngay (đóng cửa sổ).</summary>
-    internal void SaveOpenSetNow() => _openSet.SaveNow();
+    public void SaveOpenSetNow() => _openSet.SaveNow();
+
+    /// <summary>Document vừa nạp cần Workspace phạm vi: <paramref name="ExplicitWorkspaceId"/> nếu có, không thì Default Workspace của nó.</summary>
+    private sealed record WorkspaceScopeRequest(string? ExplicitWorkspaceId, string DocumentId, string Title);
+
+    /// <summary>Mục tiêu lập chỉ mục của Document đang đọc; null khi chưa có Document.</summary>
+    public IndexingTarget? CurrentIndexingTarget
+        => DocumentId is null ? null : new IndexingTarget(DocumentId, FilePath, PageTexts);
 
     /// <summary>Lấy Workspace phạm vi khi nạp: Workspace chỉ định (mở trong Workspace) hoặc Default Workspace của Document.</summary>
-    private string ResolveWorkspaceScope(string? explicitWorkspaceId, string documentId, string title, long nowUnixMs)
-        => explicitWorkspaceId ?? _workspaceStore.GetOrCreateDefaultForDocument(documentId, title, nowUnixMs).Id;
+    private string ResolveWorkspaceScope(WorkspaceScopeRequest request)
+        => request.ExplicitWorkspaceId
+            ?? _workspaceStore.GetOrCreateDefaultForDocument(
+                request.DocumentId, request.Title, _clock.GetUtcNow().ToUnixTimeMilliseconds()).Id;
 
     /// <summary>
     /// Bước dùng chung "thay Document đang đọc": mọi intent đổi Document đều đi qua đây.
@@ -389,14 +401,11 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 
     private void ApplyLoaded(LoadedDocument loaded, string path, string? workspaceScopeId)
     {
-        DocumentBlocks = loaded.Blocks;
-        OnPropertyChanged(nameof(DocumentBlocks));
         PageTexts = loaded.PageTexts;
-        SetDocumentId(loaded.DocumentId);
+        SetDocumentState(loaded.DocumentId, loaded.Blocks);
 
-        long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         string title = System.IO.Path.GetFileNameWithoutExtension(path);
-        ActiveWorkspaceId = ResolveWorkspaceScope(workspaceScopeId, loaded.DocumentId, title, nowMs);
+        ActiveWorkspaceId = ResolveWorkspaceScope(new WorkspaceScopeRequest(workspaceScopeId, loaded.DocumentId, title));
         _chat.LoadHistory();
         _notes.LoadFor(ActiveWorkspaceId);
         _notes.RefreshDocumentContext();
@@ -406,9 +415,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 
     private void ApplyLoadFailure(Exception ex, string? workspaceScopeId)
     {
-        DocumentBlocks = [];
-        OnPropertyChanged(nameof(DocumentBlocks));
-        SetDocumentId(null);
+        SetDocumentState(null, []);
         // Mở trong Workspace (workspaceScopeId có giá trị) thì giữ Workspace để scope không mất khi file tạm thời không đọc được.
         if (workspaceScopeId is null) ActiveWorkspaceId = null;
         _chat.LoadHistory();
@@ -418,8 +425,11 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         FilePath = null;
     }
 
-    private void SetDocumentId(string? documentId)
+    // Trạng thái Document đang đọc (id và khối text) đổi cùng lúc ở nạp thành công lẫn nạp lỗi.
+    private void SetDocumentState(string? documentId, IReadOnlyList<TextBlock> blocks)
     {
+        DocumentBlocks = blocks;
+        OnPropertyChanged(nameof(DocumentBlocks));
         DocumentId = documentId;
         OnPropertyChanged(nameof(DocumentId));
         OnPropertyChanged(nameof(HasDocument));
@@ -444,6 +454,9 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
             RefreshSurface();   // đóng Tab cuối -> surface inline cần dữ liệu mới
 
         RaiseViewStateChanged();
+
+        // Lưu Open Set sau khi mọi bước xử lý đổi Tab ở trên xong (thứ tự do Phiên đọc quyết định).
+        _openSet.Schedule();
     }
 
     // View-state của UI panel notes sống trên OpenTab: lưu vào Tab cũ, khôi phục từ Tab mới; đồng thời theo dõi view-state

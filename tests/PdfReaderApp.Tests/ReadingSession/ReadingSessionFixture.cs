@@ -54,11 +54,10 @@ internal sealed class ReadingSessionFixture
 
     public static string PathOf(string documentId) => $"/docs/{documentId}.pdf";
 
-    /// <summary>Vào named Workspace <see cref="WorkspaceId"/> (đến khi các intent mở Workspace chuyển vào Phiên đọc).</summary>
+    /// <summary>Vào named Workspace <see cref="WorkspaceId"/> (Open Set trống).</summary>
     public ReadingSessionFixture InWorkspace()
     {
-        Session.ActiveWorkspaceId = WorkspaceId;
-        Session.IsWorkspaceSession = true;
+        Session.RestoreOpenSet(WorkspaceId);   // Open Set trống: chỉ vào phiên Workspace
         return this;
     }
 
@@ -66,7 +65,10 @@ internal sealed class ReadingSessionFixture
     public OpenTab OpenTab(string documentId, int page = 1)
     {
         Loader.Returns(PathOf(documentId), new LoadedDocument(documentId, [], []));
-        var tab = Session.Tabs.OpenOrActivate(documentId, documentId, PathOf(documentId), page);
+        Session.OpenInWorkspace(WorkspaceId, new LibraryItem(documentId, documentId, PathOf(documentId), null, 10, 0, 0));
+        var tab = Session.Tabs.ActiveTab!;
+        tab.Page = page;
+        Opened.Clear();
         Log.Clear();
         return tab;
     }

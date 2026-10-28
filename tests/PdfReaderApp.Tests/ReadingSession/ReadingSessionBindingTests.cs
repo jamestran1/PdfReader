@@ -28,7 +28,7 @@ public class ReadingSessionBindingTests
         var f = WithDocument("D");
         f.Session.Open(ReadingSessionFixture.PathOf("D"));
 
-        f.Session.IsWorkspaceSession = true;
+        f.InWorkspace();
 
         Assert.Null(f.Session.StandaloneDocumentSource);
     }
@@ -41,7 +41,7 @@ public class ReadingSessionBindingTests
         f.Session.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
 
         f.Session.Open(ReadingSessionFixture.PathOf("D"));
-        f.Session.IsWorkspaceSession = true;
+        f.InWorkspace();
 
         Assert.Equal(2, raised.Count(name => name == nameof(ReadingSessionViewModel.StandaloneDocumentSource)));
     }

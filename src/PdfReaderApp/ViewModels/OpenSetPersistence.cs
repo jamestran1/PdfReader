@@ -16,7 +16,7 @@ public sealed class OpenSetPersistence
     private DispatcherTimer? _debounce;
 
     /// <param name="workspaceStore">Nơi lưu Open Set.</param>
-    /// <param name="tabs">Tập tab cần lưu; lớp này tự đăng ký sự kiện đổi tab.</param>
+    /// <param name="tabs">Tập tab cần lưu. Lớp này không tự nghe sự kiện: bên sở hữu gọi <see cref="Schedule"/> đúng thứ tự.</param>
     /// <param name="activeWorkspaceId">Id workspace đang hoạt động, null khi chưa có.</param>
     /// <param name="isWorkspaceSession">Đang ở phiên workspace (không phải đọc lẻ).</param>
     public OpenSetPersistence(
@@ -29,17 +29,13 @@ public sealed class OpenSetPersistence
         _tabs = tabs;
         _activeWorkspaceId = activeWorkspaceId;
         _isWorkspaceSession = isWorkspaceSession;
-
-        // Lập lịch lưu khi danh sách tab thay đổi hoặc tab active đổi.
-        _tabs.Tabs.CollectionChanged += (_, _) => Schedule();
-        _tabs.ActiveTabChanged += _ => Schedule();
     }
 
     /// <summary>
     /// Dispatcher để gộp ghi; trả về null (test/headless) thì lưu ngay để hành vi tất định.
     /// Tách khỏi constructor để nơi dựng không phải biết kiểu <see cref="Dispatcher"/>.
     /// </summary>
-    internal Func<Dispatcher?> DispatcherProvider { get; init; } = () => System.Windows.Application.Current?.Dispatcher;
+    internal Func<Dispatcher?> DispatcherProvider { get; init; } = () => null;
 
     /// <summary>Khoá ghi trong lúc reset/khôi phục để wiring auto-save không ghi đè state đang dựng.</summary>
     internal bool IsRestoring { get; set; }

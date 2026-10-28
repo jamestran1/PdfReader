@@ -160,10 +160,11 @@ public class ReadingSessionJumpTests
         // Hành vi hiện có được ghim (không sửa): Document nhảy tới thừa hưởng id Default Workspace của Document trước
         // thay vì có Default Workspace riêng của nó.
         var f = new ReadingSessionFixture().InLibrary("B");
-        f.Session.ActiveWorkspaceId = "default-of-A";
+        f.InLibrary("A").Session.Open(ReadingSessionFixture.PathOf("A"));
+        string scopeOfA = f.Session.ActiveWorkspaceId!;
 
         f.Session.Jump(To("B", 0, JumpOrigin.Note));
 
-        Assert.Equal("default-of-A", f.Session.ActiveWorkspaceId);
+        Assert.Equal(scopeOfA, f.Session.ActiveWorkspaceId);
     }
 }

@@ -124,7 +124,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         set => SetValue(AddNoteFromSelectionCommandProperty, value);
     }
 
-    // S3: DependencyProperty lọc highlight theo tài liệu đang mở (bound từ ReadingSessionViewModel.DocumentId)
+    // DependencyProperty lọc highlight theo tài liệu đang mở (bound từ ReadingSessionViewModel.DocumentId)
     public static readonly DependencyProperty CurrentDocumentIdProperty =
         DependencyProperty.Register(nameof(CurrentDocumentId), typeof(string),
             typeof(PdfViewerControl), new PropertyMetadata(null, OnCurrentDocumentIdChanged));

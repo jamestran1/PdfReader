@@ -1,3 +1,5 @@
+using System.Windows;
+
 namespace PdfReaderApp.ViewModels;
 
 /// <summary>Ráp Phiên đọc từ các ViewModel con của MainViewModel; tách ra để MainViewModel không phải biết kiểu cầu nối và record phụ thuộc.</summary>
@@ -10,16 +12,12 @@ internal sealed record MainViewModelSessionFactory(
     IndexingViewModel Indexing,
     WorkspaceDocumentsViewModel Surface)
 {
-    /// <param name="refreshNotesDocumentContext">Cập nhật ngữ cảnh chip tài liệu của Notes (cần Library và surface của MainViewModel).</param>
-    /// <param name="notifyError">Báo lỗi cho người dùng.</param>
-    /// <param name="markDocumentOpened">Ghi thời điểm mở của Document vào Library.</param>
-    /// <param name="findDocument">Tìm Document trong Library của MainViewModel theo id.</param>
-    public ReadingSessionViewModel Create(
-        Action refreshNotesDocumentContext, Action<string> notifyError,
-        Action<string> markDocumentOpened, Func<string, Models.LibraryItem?> findDocument)
+    public ReadingSessionViewModel Create(SessionHostCallbacks host)
         => new(new ReadingSessionDependencies(
             DocumentLoader, WorkspaceStore, Search, Chat,
-            new NotesReadingSessionPort(Notes, refreshNotesDocumentContext),
-            Indexing, Surface, notifyError,
-            MarkDocumentOpened: markDocumentOpened, FindDocument: findDocument));
+            new NotesReadingSessionPort(Notes, host.RefreshNotesDocumentContext),
+            Indexing, Surface, host.NotifyError,
+            DispatcherProvider: () => Application.Current?.Dispatcher,
+            MarkDocumentOpened: host.MarkDocumentOpened,
+            FindDocument: host.FindDocument));
 }

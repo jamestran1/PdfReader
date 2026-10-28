@@ -215,7 +215,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Indexing = new IndexingViewModel(
             _documentIndex,
             new DocumentIndexingService(_documentIndex, services.EmbeddingFactory, _settingsService),
-            () => Session.DocumentId is null ? null : new IndexingTarget(Session.DocumentId, Session.FilePath, Session.PageTexts));
+            () => Session.CurrentIndexingTarget);
 
         _library = services.Library;
         ReloadLibrary();
@@ -252,9 +252,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var session = new MainViewModelSessionFactory(
             documentLoader, _workspaceStore, Search, Chat, Notes, Indexing, DocumentsSurface)
-            .Create(UpdateNotesDocumentContext, NotifyError,
+            .Create(new SessionHostCallbacks(UpdateNotesDocumentContext, NotifyError,
                 documentId => _library.MarkOpened(documentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
-                id => Library.FirstOrDefault(i => i.DocumentId == id));
+                id => Library.FirstOrDefault(i => i.DocumentId == id)));
         session.PropertyChanged += OnSessionPropertyChanged;
         return session;
     }
@@ -306,8 +306,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         UpdateNotesDocumentContext();
     }
 
-    internal void SaveOpenSetNow() => Session.SaveOpenSetNow();
-
     // #68: chỉ hiện affordance promote khi đang đọc lẻ một tài liệu (Default Workspace).
     public bool CanPromoteToWorkspace => IsReadingDocument && Session.CanPromote;
 
@@ -327,9 +325,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         var workspace = new Workspace(Guid.NewGuid().ToString("N"), name.Trim(), false, null, now, now);
         SelectedWorkspace = workspace;
-        var item = Library.FirstOrDefault(libraryItem => libraryItem.DocumentId == Session.DocumentId);
-        string title = item?.Title ?? System.IO.Path.GetFileNameWithoutExtension(Session.FilePath ?? string.Empty);
-        Session.Promote(workspace, title);
+        Session.Promote(workspace, CurrentDocumentTitle());
 
         // Nạp danh sách tài liệu thành viên của workspace mới (giống OpenWorkspace), để surface "+" hiển thị đúng.
         RefreshWorkspaceDocumentsSurface();
@@ -511,7 +507,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ReloadWorkspaces();
     }
 
-    // Tab S1: kích hoạt tab được chọn trên Tab Strip.
+    // Kích hoạt tab được chọn trên Tab Strip.
     [RelayCommand]
     private void ActivateTab(Models.OpenTab? tab)
     {
@@ -519,7 +515,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Session.Activate(tab);
     }
 
-    // Tab S1: đóng tab (chỉ gỡ khỏi Open Set, KHÔNG gỡ khỏi workspace membership).
+    // Đóng tab (chỉ gỡ khỏi Open Set, KHÔNG gỡ khỏi workspace membership).
     [RelayCommand]
     private void CloseTab(Models.OpenTab? tab)
     {
@@ -527,7 +523,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Session.Close(tab);
     }
 
-    // Tab S3 (#62) / #47: nút "+" mở Workspace Documents surface dạng modal (DialogHost).
+    // #62, #47: nút "+" mở Workspace Documents surface dạng modal (DialogHost).
     [RelayCommand]
     private void ShowWorkspaceDocuments()
     {
@@ -536,12 +532,12 @@ public partial class MainViewModel : ObservableObject, IDisposable
         DocumentsSurface.IsModalOpen = true;
     }
 
-    // S2 / Tab S1: mở tài liệu trong ngữ cảnh workspace -> route qua Open Set.
+    // Mở tài liệu trong ngữ cảnh workspace -> route qua Open Set.
     [RelayCommand]
     private void OpenWorkspaceDocument(LibraryItem? item)
     {
         if (item is null || SelectedWorkspace is null) return;
-        // Tab S1: đảm bảo workspace scope được thiết lập trước khi tab được kích hoạt và nạp.
+        // Phạm vi workspace được thiết lập trước khi tab được kích hoạt và nạp.
         Session.OpenInWorkspace(SelectedWorkspace.Id, item);
         ShowWorkspaces = false;
     }
@@ -550,7 +546,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void OpenLibraryItem(LibraryItem? item)
     {
         if (item is null) return;
-        // Tab S1: standalone open -> không tích lũy tab; giữ hành vi thay thế cũ.
+        // Mở lẻ -> không tích lũy tab; giữ hành vi thay thế cũ.
         Session.Open(item.StoredPath);
         if (Session.DocumentId != null)
         {
