@@ -12,7 +12,7 @@ public partial class SearchViewModel(
     Func<string?> getDocumentId,
     Action<int> goToPage,
     Action<string> notifyError,
-    SearchWorkspaceContext? workspace = null) : ObservableObject
+    SearchWorkspaceContext? workspace = null) : ObservableObject, IReadingSessionSearch
 {
     // Số kết quả tối đa mỗi Document khi quét cả Workspace, để một sách không chiếm hết danh sách.
     private const int WorkspacePerDocumentLimit = 20;

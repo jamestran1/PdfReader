@@ -61,7 +61,7 @@ public class ReadingSessionActivateTests
 
         f.Session.Activate(tabA);
 
-        Assert.Contains("search.reset", f.Log.Entries);
+        Assert.True(f.Log.Has("search.reset"));
         Assert.Null(f.Session.ActiveSourcePassage);
     }
 

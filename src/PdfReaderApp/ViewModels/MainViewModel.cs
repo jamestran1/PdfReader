@@ -13,13 +13,17 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private readonly IPdfDocumentService _documentService;
     private readonly ISettingsService _settingsService;
     private readonly IThemeService _themeService;
-    private readonly IDocumentLoader _documentLoader;
 
-    // Tab S1: Open Set
-    public TabSetViewModel Tabs { get; }
+    /// <summary>Phiên đọc: nơi duy nhất thay Document đang đọc, sở hữu tập Tab và Open Set.</summary>
+    public ReadingSessionViewModel Session { get; private set; } = null!;   // dựng cuối constructor, sau mọi bên cộng tác
 
-    [ObservableProperty]
-    public partial bool IsWorkspaceSession { get; set; }
+    public TabSetViewModel Tabs => Session.Tabs;
+
+    public bool IsWorkspaceSession
+    {
+        get => Session.IsWorkspaceSession;
+        private set => Session.IsWorkspaceSession = value;
+    }
 
     [ObservableProperty]
     public partial bool IsDarkMode { get; set; }
@@ -40,69 +44,40 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // Workspace
     private readonly IWorkspaceStore _workspaceStore;
     private readonly INoteStore _noteStore;
-    private string? _activeWorkspaceId;
-    private OpenSetPersistence _openSet = null!;   // dựng trong WireTabEvents (cần Tabs và _workspaceStore)
-
-    private IReadOnlyList<TextBlock> _documentBlocks = [];
-    public IReadOnlyList<TextBlock> DocumentBlocks => _documentBlocks;
+    public IReadOnlyList<TextBlock> DocumentBlocks => Session.DocumentBlocks;
 
     // Exposed so PdfViewerControl can ask iText for exact keyword match rectangles to highlight.
-    public IPdfDocumentService PdfService => _documentLoader.MatchSource;
+    public IPdfDocumentService PdfService => Session.MatchSource;
 
-    private IReadOnlyList<PageText> _pageTexts = [];
-
-    private string? _documentId;
     public SearchViewModel Search { get; }
 
     [ObservableProperty]
     public partial string WindowTitle { get; set; } = "Trí Thư";
 
-    [ObservableProperty]
-    public partial string? FilePath { get; set; }
-
-    // Tab S1 (fix #44): trang/zoom/tổng-trang là MỘT nguồn sự thật với tab active.
-    // Trong phiên Workspace có tab active: proxy thẳng vào OpenTab (viewer per-tab bind cùng OpenTab)
-    // nên toolbar và viewer luôn đồng bộ. Ngoài phiên (đọc lẻ): dùng backing field như cũ.
-    private OpenTab? ActiveViewTab => IsWorkspaceSession ? Tabs.ActiveTab : null;
+    public string? FilePath => Session.FilePath;
 
     // Nguồn tài liệu cho viewer ĐỌC LẺ. Trong phiên Workspace: null để viewer đọc-lẻ ngủ yên
     // (không nạp lại, không ghi-ngược zoom/trang qua binding TwoWay vào tab active — bug #44).
     // FilePath vẫn giữ nguyên cho lập chỉ mục/nội bộ.
     public string? StandaloneDocumentSource => IsWorkspaceSession ? null : FilePath;
 
-    partial void OnFilePathChanged(string? value) => OnPropertyChanged(nameof(StandaloneDocumentSource));
-
-    private int _currentPage = 1;
+    // Toolbar: trang, zoom, tổng trang là state của Phiên đọc (một nguồn sự thật với Tab active, fix #44).
     public int CurrentPage
     {
-        get => ActiveViewTab is { } t ? t.Page : _currentPage;
-        set
-        {
-            if (ActiveViewTab is { } t) { t.Page = value; }            // OpenTab.PropertyChanged -> re-raise
-            else if (_currentPage != value) { _currentPage = value; OnPropertyChanged(); }
-        }
+        get => Session.CurrentPage;
+        set => Session.CurrentPage = value;
     }
 
-    private int _totalPages = 1;
     public int TotalPages
     {
-        get => ActiveViewTab is { } t ? t.TotalPages : _totalPages;
-        set
-        {
-            if (ActiveViewTab is { } t) { t.TotalPages = value; }
-            else if (_totalPages != value) { _totalPages = value; OnPropertyChanged(); }
-        }
+        get => Session.TotalPages;
+        set => Session.TotalPages = value;
     }
 
-    private double _zoomLevel = 1.0;
     public double ZoomLevel
     {
-        get => ActiveViewTab is { } t ? t.Zoom : _zoomLevel;
-        set
-        {
-            if (ActiveViewTab is { } t) { t.Zoom = value; }
-            else if (_zoomLevel != value) { _zoomLevel = value; OnPropertyChanged(); }
-        }
+        get => Session.ZoomLevel;
+        set => Session.ZoomLevel = value;
     }
 
     [ObservableProperty]
@@ -203,13 +178,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public partial Workspace? SelectedWorkspace { get; set; }
 
     // S2: expose activeWorkspaceId cho test
-    public string? ActiveWorkspaceId => _activeWorkspaceId;
+    public string? ActiveWorkspaceId => Session.ActiveWorkspaceId;
 
     // S3: expose documentId hiện tại để bind vào PdfViewerControl.CurrentDocumentId (lọc highlight)
-    public string? CurrentDocumentId => _documentId;
+    public string? CurrentDocumentId => Session.DocumentId;
 
     // #38: có tài liệu đang mở hay không -> bật nút quay lại trình đọc trên nav rail.
-    public bool HasDocument => _documentId != null;
+    public bool HasDocument => Session.DocumentId != null;
 
     // Cập nhật chat column khi ShowWorkspaces thay đổi
     partial void OnShowWorkspacesChanged(bool value)
@@ -277,19 +252,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public MainViewModel(MainViewModelServices services)
     {
-        Tabs = new TabSetViewModel();
         _documentService = services.DocumentService;
         _settingsService = services.Settings;
         _themeService = services.ThemeService;
         IsDarkMode = _settingsService.GetThemePreference() == AppTheme.Dark;
-        _documentLoader = services.DocumentLoader ?? new PdfDocumentLoader(_documentService);
+        var documentLoader = services.DocumentLoader ?? new PdfDocumentLoader(_documentService);
 
         _documentIndex = services.DocumentIndex;
         _documentIndex.EnsureSchema();
         Indexing = new IndexingViewModel(
             _documentIndex,
             new DocumentIndexingService(_documentIndex, services.EmbeddingFactory, _settingsService),
-            () => _documentId is null ? null : new IndexingTarget(_documentId, FilePath, _pageTexts));
+            () => Session.DocumentId is null ? null : new IndexingTarget(Session.DocumentId, FilePath, Session.PageTexts));
 
         _library = services.Library;
         ReloadLibrary();
@@ -299,13 +273,13 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _noteStore = services.NoteStore;
         _noteStore.EnsureSchema();
         Notes = new NotesViewModel(_noteStore,
-            () => _documentId is null ? (int?)null : CurrentPage - 1,
+            () => Session.DocumentId is null ? (int?)null : CurrentPage - 1,
             idx => CurrentPage = idx + 1,
-            () => _documentId,
+            () => Session.DocumentId,
             OpenDocumentForNote,
             NotifyError);
         Search = new SearchViewModel(
-            _documentIndex, () => _documentId, page => CurrentPage = page, NotifyError,
+            _documentIndex, () => Session.DocumentId, page => CurrentPage = page, NotifyError,
             new SearchWorkspaceContext(GetSearchDocuments, JumpToDocumentFromSearch));
 
         _workspaceStore = services.WorkspaceStore;
@@ -313,12 +287,51 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         MigrateLegacyNotesToDefaultWorkspace();
 
-        ReloadWorkspaces();
-        Chat.LoadHistory();
-
         DocumentsSurface = CreateDocumentsSurface();
 
-        WireTabEvents();
+        // Dựng Phiên đọc sau mọi bên cộng tác; các lambda ở trên chỉ chạy sau khi Session đã có.
+        Session = CreateSession(documentLoader);
+
+        ReloadWorkspaces();
+        Chat.LoadHistory();
+    }
+
+    private ReadingSessionViewModel CreateSession(IDocumentLoader documentLoader)
+    {
+        var session = new MainViewModelSessionFactory(
+            documentLoader, _workspaceStore, Search, Chat, Notes, Indexing, DocumentsSurface)
+            .Create(UpdateNotesDocumentContext, NotifyError);
+        session.PropertyChanged += OnSessionPropertyChanged;
+        return session;
+    }
+
+    // Báo lại cho XAML các property của MainViewModel phụ thuộc state của Phiên đọc.
+    private void OnSessionPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(ReadingSessionViewModel.DocumentId):
+                OnPropertyChanged(nameof(CurrentDocumentId));
+                OnPropertyChanged(nameof(HasDocument));
+                OnPropertyChanged(nameof(CanPromoteToWorkspace));
+                break;
+            case nameof(ReadingSessionViewModel.DocumentBlocks): OnPropertyChanged(nameof(DocumentBlocks)); break;
+            case nameof(ReadingSessionViewModel.ActiveWorkspaceId): OnPropertyChanged(nameof(ActiveWorkspaceId)); break;
+            case nameof(ReadingSessionViewModel.FilePath):
+                OnPropertyChanged(nameof(FilePath));
+                OnPropertyChanged(nameof(StandaloneDocumentSource));
+                break;
+            case nameof(ReadingSessionViewModel.ActiveSourcePassage): OnPropertyChanged(nameof(ActiveSourcePassage)); break;
+            case nameof(ReadingSessionViewModel.CurrentPage): OnPropertyChanged(nameof(CurrentPage)); break;
+            case nameof(ReadingSessionViewModel.TotalPages): OnPropertyChanged(nameof(TotalPages)); break;
+            case nameof(ReadingSessionViewModel.ZoomLevel): OnPropertyChanged(nameof(ZoomLevel)); break;
+            case nameof(ReadingSessionViewModel.IsWorkspaceSession):
+                OnPropertyChanged(nameof(IsWorkspaceSession));
+                OnPropertyChanged(nameof(StandaloneDocumentSource));
+                OnPropertyChanged(nameof(IsDocumentTabStripVisible));
+                OnPropertyChanged(nameof(CanPromoteToWorkspace));
+                break;
+        }
     }
 
     private void MigrateLegacyNotesToDefaultWorkspace()
@@ -342,64 +355,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
             closeTabForDocument: documentId =>
             {
                 var openTab = Tabs.Tabs.FirstOrDefault(t => t.DocumentId == documentId);
-                if (openTab is not null) Tabs.Close(openTab);
+                if (openTab is not null) Session.Close(openTab);
             },
             notify: NotifySuccess,
             stateChanged: OnDocumentsSurfaceStateChanged);
-
-    private void WireTabEvents()
-    {
-        // Khi ActiveTab thay đổi -> lưu view-state của tab cũ, hydrate tab mới.
-        Tabs.ActiveTabChanged += OnActiveTabChanged;
-
-        // Dựng sau khi đăng ký OnActiveTabChanged để thứ tự xử lý ActiveTabChanged không đổi.
-        _openSet = new OpenSetPersistence(
-            _workspaceStore, Tabs, () => _activeWorkspaceId, () => IsWorkspaceSession);
-    }
-
-    // OpenTab đang được theo dõi PropertyChanged để re-raise toolbar bindings.
-    private OpenTab? _subscribedTab;
-
-    private void OnActiveTabChanged(OpenTab? incoming)
-    {
-        // Đổi hoặc đóng tab: câu trả lời đang chạy thuộc tài liệu của tab cũ (kể cả khi đóng tab cuối, không nạp lại chat).
-        Chat.CancelPendingRequest();
-
-        // View-state sống trên OpenTab (một nguồn sự thật). Theo dõi tab active để khi viewer
-        // ghi Page/Zoom/TotalPages thì toolbar (bind vm.CurrentPage/ZoomLevel/TotalPages) cập nhật.
-        if (_subscribedTab is not null)
-        {
-            _subscribedTab.PropertyChanged -= OnActiveTabViewStateChanged;
-            _subscribedTab.NotesScroll = Notes.NotesScroll;
-            _subscribedTab.SelectedNoteId = Notes.SelectedNoteId;
-            _subscribedTab.FilterCurrentDocumentOnly = Notes.FilterCurrentDocumentOnly;
-        }
-
-        _subscribedTab = incoming;
-        if (incoming is not null)
-        {
-            incoming.PropertyChanged += OnActiveTabViewStateChanged;
-            Notes.NotesScroll = incoming.NotesScroll;
-            Notes.SelectedNoteId = incoming.SelectedNoteId;
-            Notes.FilterCurrentDocumentOnly = incoming.FilterCurrentDocumentOnly;
-        }
-
-        // Nhảy từ kết quả tìm Toàn Workspace: giữ ô tìm, kết quả và phạm vi để bấm tiếp kết quả khác.
-        if (!_keepSearchOnTabChange) Search.Reset();
-
-        // Tab mới (hoặc không còn tab) thì đoạn nguồn của tài liệu trước không còn nghĩa.
-        ActiveSourcePassage = null;
-
-        if (incoming is not null)
-            LoadActiveDocument(incoming.Path, _activeWorkspaceId, incoming.Page);
-        else if (!_openSet.IsRestoring)
-            RefreshWorkspaceDocumentsSurface();   // đóng tab cuối -> surface inline cần dữ liệu mới
-
-        // Tab active đổi -> toolbar phải đọc lại view-state của tab mới.
-        OnPropertyChanged(nameof(CurrentPage));
-        OnPropertyChanged(nameof(ZoomLevel));
-        OnPropertyChanged(nameof(TotalPages));
-    }
 
     private void OnDocumentsSurfaceStateChanged()
     {
@@ -415,29 +374,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         UpdateNotesDocumentContext();
     }
 
-    private void OnActiveTabViewStateChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        switch (e.PropertyName)
-        {
-            case nameof(OpenTab.Page): OnPropertyChanged(nameof(CurrentPage)); break;
-            case nameof(OpenTab.Zoom): OnPropertyChanged(nameof(ZoomLevel)); break;
-            case nameof(OpenTab.TotalPages): OnPropertyChanged(nameof(TotalPages)); break;
-        }
-        _openSet.Schedule();
-    }
-
-    internal void SaveOpenSetNow() => _openSet.SaveNow();
-
-    // Đổi giữa chế độ workspace (proxy theo tab) và đọc lẻ (backing field) -> toolbar đọc lại nguồn.
-    partial void OnIsWorkspaceSessionChanged(bool value)
-    {
-        OnPropertyChanged(nameof(CurrentPage));
-        OnPropertyChanged(nameof(ZoomLevel));
-        OnPropertyChanged(nameof(TotalPages));
-        OnPropertyChanged(nameof(StandaloneDocumentSource));
-        OnPropertyChanged(nameof(IsDocumentTabStripVisible));
-        OnPropertyChanged(nameof(CanPromoteToWorkspace));
-    }
+    internal void SaveOpenSetNow() => Session.SaveOpenSetNow();
 
     /// <summary>
     /// Tài liệu đang đọc lẻ để promote (null nếu không có). Mặc định đọc state thật;
@@ -445,14 +382,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// </summary>
     protected virtual StandaloneDocument? CurrentStandaloneDocument()
     {
-        if (_documentId is null) return null;
-        var item = Library.FirstOrDefault(libraryItem => libraryItem.DocumentId == _documentId);
+        if (Session.DocumentId is null) return null;
+        var item = Library.FirstOrDefault(libraryItem => libraryItem.DocumentId == Session.DocumentId);
         return new StandaloneDocument(
-            _documentId,
+            Session.DocumentId,
             item?.Title ?? System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty),
             item?.StoredPath ?? FilePath ?? string.Empty,
-            _currentPage,
-            _zoomLevel);
+            Session.CurrentPage,
+            Session.ZoomLevel);
     }
 
     // #68: chỉ hiện affordance promote khi đang đọc lẻ một tài liệu (Default Workspace).
@@ -478,7 +415,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _workspaceStore.AddDocument(workspace.Id, document.DocumentId);
 
         SelectedWorkspace = workspace;
-        _activeWorkspaceId = workspace.Id;
+        Session.ActiveWorkspaceId = workspace.Id;
         IsWorkspaceSession = true;
 
         var tab = Tabs.OpenOrActivate(document.DocumentId, document.Title, document.Path, initialPage: document.Page);
@@ -591,16 +528,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void RestoreOrSeedOpenSet(string workspaceId)
     {
         // Lưu Open Set của workspace đang rời (nếu có) trước khi reset, để quay lại còn nguyên phiên đọc.
-        if (IsWorkspaceSession && _activeWorkspaceId is not null) SaveOpenSetNow();
+        if (IsWorkspaceSession && Session.ActiveWorkspaceId is not null) SaveOpenSetNow();
 
         // Đọc state đã lưu TRƯỚC khi reset (tránh wiring auto-save ghi đè khi xoá Open Set cũ).
         var savedTabs = _workspaceStore.GetOpenTabs(workspaceId);
 
-        _openSet.IsRestoring = true;
+        Session.OpenSet.IsRestoring = true;
         try
         {
             Tabs.Reset();   // bắt đầu từ Open Set rỗng -> không tích lũy / không trùng tab (#bug 2,3)
-            _activeWorkspaceId = workspaceId;
+            Session.ActiveWorkspaceId = workspaceId;
             IsWorkspaceSession = true;
 
             if (savedTabs.Count > 0)
@@ -638,7 +575,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            _openSet.IsRestoring = false;
+            Session.OpenSet.IsRestoring = false;
             SaveOpenSetNow();   // ghi lại Open Set mới (đặc biệt khi seed tạo tab mới)
         }
     }
@@ -672,15 +609,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // Cùng danh sách cho tìm kiếm và hỏi đáp Toàn Workspace; kèm đường dẫn file để lập chỉ mục nền tài liệu chưa mở.
     private List<WorkspaceDocument> GetWorkspaceDocuments()
     {
-        if (_activeWorkspaceId is null)
+        if (Session.ActiveWorkspaceId is null)
         {
-            return _documentId is null
+            return Session.DocumentId is null
                 ? []
-                : [new WorkspaceDocument(_documentId, CurrentDocumentTitle(), FilePath ?? string.Empty)];
+                : [new WorkspaceDocument(Session.DocumentId, CurrentDocumentTitle(), FilePath ?? string.Empty)];
         }
 
         var documents = new List<WorkspaceDocument>();
-        foreach (string id in _workspaceStore.GetDocumentIds(_activeWorkspaceId))
+        foreach (string id in _workspaceStore.GetDocumentIds(Session.ActiveWorkspaceId))
         {
             var item = Library.FirstOrDefault(i => i.DocumentId == id);
             if (item is not null) documents.Add(new WorkspaceDocument(id, item.Title, item.StoredPath));
@@ -689,20 +626,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
         return documents;
     }
 
-    // Tab đổi do chính kết quả tìm kiếm gây ra thì không xoá trạng thái tìm kiếm (xem OnActiveTabChanged).
-    private bool _keepSearchOnTabChange;
-
     private void JumpToDocumentFromSearch(string documentId, int pageIndex)
     {
-        _keepSearchOnTabChange = true;
+        Session.KeepSearchOnTabChange = true;
         try { JumpToDocument(documentId, pageIndex); }
-        finally { _keepSearchOnTabChange = false; }
+        finally { Session.KeepSearchOnTabChange = false; }
     }
 
     /// <summary>Đoạn nguồn của trích dẫn AI vừa mở, viewer của Document đó tô trên trang; null khi chưa mở trích dẫn
     /// nào hoặc nguồn không mang chữ của đoạn (lịch sử chat bản cũ).</summary>
-    [ObservableProperty]
-    public partial SourcePassage? ActiveSourcePassage { get; set; }
+    public SourcePassage? ActiveSourcePassage
+    {
+        get => Session.ActiveSourcePassage;
+        set => Session.ActiveSourcePassage = value;
+    }
 
     /// <summary>Mở nguồn của trích dẫn <c>[n]</c>: Cross-doc jump tới Document và trang được trích rồi tô đoạn nguồn.</summary>
     public void OpenCitationSource(RagSource source, string? quote = null)
@@ -738,7 +675,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         else
         {
             // Standalone: giữ hành vi cũ.
-            LoadActiveDocument(item.StoredPath, _activeWorkspaceId, initialPage: targetPage);
+            Session.ReplaceCurrentDocument(item.StoredPath, Session.ActiveWorkspaceId, initialPage: targetPage);
         }
         return true;
     }
@@ -752,9 +689,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (ws.IsDefault) return;
         _noteStore.DeleteForOwner(ws.Id);
         _workspaceStore.Delete(ws.Id);
-        if (_activeWorkspaceId == ws.Id)
+        if (Session.ActiveWorkspaceId == ws.Id)
         {
-            _activeWorkspaceId = null;
+            Session.ActiveWorkspaceId = null;
             IsWorkspaceSession = false;
             DocumentsSurface.IsModalOpen = false;
             Notes.LoadFor(null);
@@ -774,7 +711,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void ActivateTab(Models.OpenTab? tab)
     {
         if (tab is null) return;
-        Tabs.ActivateTab(tab);
+        Session.Activate(tab);
     }
 
     // Tab S1: đóng tab (chỉ gỡ khỏi Open Set, KHÔNG gỡ khỏi workspace membership).
@@ -782,7 +719,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void CloseTab(Models.OpenTab? tab)
     {
         if (tab is null) return;
-        Tabs.Close(tab);
+        Session.Close(tab);
     }
 
     // Tab S3 (#62) / #47: nút "+" mở Workspace Documents surface dạng modal (DialogHost).
@@ -800,7 +737,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         if (item is null || SelectedWorkspace is null) return;
         // Tab S1: đảm bảo workspace scope được thiết lập trước khi tab được kích hoạt và nạp.
-        _activeWorkspaceId = SelectedWorkspace.Id;
+        Session.ActiveWorkspaceId = SelectedWorkspace.Id;
         IsWorkspaceSession = true;
         var tab = Tabs.OpenOrActivate(item.DocumentId, item.Title, item.StoredPath);
         // best-effort: cập nhật thời điểm mở
@@ -816,8 +753,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (item is null) return;
         // Tab S1: standalone open -> không tích lũy tab; giữ hành vi thay thế cũ.
         IsWorkspaceSession = false;
-        LoadActiveDocument(item.StoredPath);
-        if (_documentId != null)
+        Session.ReplaceCurrentDocument(item.StoredPath);
+        if (Session.DocumentId != null)
         {
             _library.MarkOpened(item.DocumentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             ShowLibrary = false;
@@ -846,10 +783,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 // Workspace dùng chung: chỉ gỡ tài liệu ra, GIỮ các note neo tài liệu đó (mục 3)
                 _workspaceStore.RemoveDocument(wsId, docId);
                 // Bất biến Open Set ⊆ membership (#88): gỡ khỏi Library → gỡ membership → đóng Tab nếu workspace đang active.
-                if (wsId == _activeWorkspaceId)
+                if (wsId == Session.ActiveWorkspaceId)
                 {
                     var openTab = Tabs.Tabs.FirstOrDefault(t => t.DocumentId == docId);
-                    if (openTab is not null) Tabs.Close(openTab);
+                    if (openTab is not null) Session.Close(openTab);
                 }
             }
         }
@@ -870,74 +807,16 @@ public partial class MainViewModel : ObservableObject, IDisposable
         foreach (var i in _library.GetAll()) Library.Add(i);
     }
 
-    // Nạp tài liệu đang hoạt động từ đường dẫn (đã copy trong thư viện). Tái dùng cho cả OpenFile lẫn mở từ thư viện.
-    // workspaceScopeId: truyền workspace cụ thể (S2 - mở trong workspace); null = dùng default workspace như cũ.
-    private void LoadActiveDocument(string path, string? workspaceScopeId = null, int initialPage = 1)
-    {
-        ActiveSourcePassage = null;   // đoạn nguồn thuộc tài liệu cũ; OpenCitationSource đặt lại sau khi nhảy
-        // Đặt trang đích TRƯỚC khi gán FilePath: việc gán FilePath kích hoạt control nạp tài liệu
-        // và bố cục ngay theo CurrentPage, nên mở thẳng tại trang neo (tránh nạp-rồi-nhảy bị reset ghi đè).
-        CurrentPage = initialPage;
-        FilePath = path;
-        try
-        {
-            var loaded = _documentLoader.Load(path);
-            _documentBlocks = loaded.Blocks;
-            OnPropertyChanged(nameof(DocumentBlocks));
-            _pageTexts = loaded.PageTexts;
-
-            _documentId = loaded.DocumentId;
-            OnPropertyChanged(nameof(CurrentDocumentId));
-            OnPropertyChanged(nameof(HasDocument));
-            OnPropertyChanged(nameof(CanPromoteToWorkspace));
-            // S2: dùng seam ResolveWorkspaceScope để quyết định scope (workspace cụ thể hoặc default)
-            long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            string title = System.IO.Path.GetFileNameWithoutExtension(path);
-            _activeWorkspaceId = ResolveWorkspaceScope(workspaceScopeId, _documentId, title, nowMs);
-            Chat.LoadHistory();
-            Notes.LoadFor(_activeWorkspaceId);
-            UpdateNotesDocumentContext();
-            OnPropertyChanged(nameof(ActiveWorkspaceId));
-            // Nạp chạy đồng bộ trong lúc đổi tab nên cờ nhảy-từ-kết-quả-tìm vẫn còn hiệu lực ở đây.
-            if (!_keepSearchOnTabChange) Search.ClearResults();
-            Indexing.StartBackgroundIndexing();
-        }
-#pragma warning disable CA1031 // ranh giới [RelayCommand]: nạp tài liệu lỗi thì báo cho người dùng
-        catch (Exception ex)
-        {
-            _documentBlocks = [];
-            OnPropertyChanged(nameof(DocumentBlocks));
-            _documentId = null;
-            // S2: nếu mở trong workspace (workspaceScopeId có giá trị), giữ nguyên _activeWorkspaceId
-            // để scope workspace không bị xoá khi file tạm thời không đọc được.
-            if (workspaceScopeId is null) _activeWorkspaceId = null;
-            OnPropertyChanged(nameof(CurrentDocumentId));
-            OnPropertyChanged(nameof(HasDocument));
-            OnPropertyChanged(nameof(CanPromoteToWorkspace));
-            Chat.LoadHistory();
-            Notes.LoadFor(null);
-            UpdateNotesDocumentContext();
-            NotifyError($"Không thể mở file PDF: {ex.Message}");
-            FilePath = null;
-        }
-#pragma warning restore CA1031
-    }
-
-    // S2: seam quyết định workspace scope khi mở tài liệu.
-    // Nếu explicitWorkspaceId != null: dùng ngay (mở trong workspace). Ngược lại: lấy/tạo default.
-    internal string ResolveWorkspaceScope(string? explicitWorkspaceId, string documentId, string title, long nowUnixMs)
-        => explicitWorkspaceId ?? _workspaceStore.GetOrCreateDefaultForDocument(documentId, title, nowUnixMs).Id;
-
     private ChatContext GetChatContext() => new(
-        _documentId,
-        IsWorkspaceSession ? _activeWorkspaceId : _documentId,
-        _documentBlocks,
+        Session.DocumentId,
+        IsWorkspaceSession ? Session.ActiveWorkspaceId : Session.DocumentId,
+        Session.DocumentBlocks,
         CurrentPage,
         CurrentDocumentTitle());
 
     // Tên trong Library (người dùng có thể đã đổi tên); chưa có trong Library thì lấy tên file.
     private string CurrentDocumentTitle()
-        => Library.FirstOrDefault(i => i.DocumentId == _documentId)?.Title
+        => Library.FirstOrDefault(i => i.DocumentId == Session.DocumentId)?.Title
             ?? System.IO.Path.GetFileNameWithoutExtension(FilePath ?? string.Empty);
 
     [RelayCommand]

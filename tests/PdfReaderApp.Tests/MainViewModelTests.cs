@@ -573,7 +573,7 @@ public class MainViewModelTests
         var wsStore = new FakeWorkspaceStore();
         var vm = VmWithWorkspaceStore(wsStore);
 
-        var result = vm.ResolveWorkspaceScope("ws-1", "docA", "A", 1);
+        var result = vm.Session.ResolveWorkspaceScope("ws-1", "docA", "A", 1);
 
         Assert.Equal("ws-1", result);
     }
@@ -584,13 +584,13 @@ public class MainViewModelTests
         var wsStore = new FakeWorkspaceStore();
         var vm = VmWithWorkspaceStore(wsStore);
 
-        var id1 = vm.ResolveWorkspaceScope(null, "docA", "A", 1);
+        var id1 = vm.Session.ResolveWorkspaceScope(null, "docA", "A", 1);
         // Không truyền workspace tường minh -> dùng default workspace của tài liệu
         var def = wsStore.All.Single(w => w.IsDefault && w.DefaultDocumentId == "docA");
         Assert.Equal(def.Id, id1);
 
         // Idempotent: gọi lần hai cùng docId trả về cùng id
-        var id2 = vm.ResolveWorkspaceScope(null, "docA", "A", 2);
+        var id2 = vm.Session.ResolveWorkspaceScope(null, "docA", "A", 2);
         Assert.Equal(id1, id2);
     }
 

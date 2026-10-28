@@ -8,7 +8,7 @@ namespace PdfReaderApp.ViewModels;
 
 /// <summary>Lập chỉ mục nền cho tài liệu đang mở: trạng thái hiển thị, lập chỉ mục lại và huỷ khi đổi
 /// tài liệu hoặc Dispose (CS-13). Tách khỏi MainViewModel để test trọn vẹn.</summary>
-public sealed partial class IndexingViewModel : ObservableObject, IDisposable
+public sealed partial class IndexingViewModel : ObservableObject, IDisposable, IReadingSessionIndexing
 {
     /// <summary>Báo khi lượt này không giành được claim vì lượt khác (vd hàng đợi Workspace) đang lập chỉ mục đúng tài liệu.</summary>
     internal const string IndexingElsewhereMessage = "Tài liệu đang được lập chỉ mục ở nền, kết quả AI sẽ dùng được khi xong.";

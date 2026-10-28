@@ -8,7 +8,7 @@ namespace PdfReaderApp.ViewModels;
 
 /// <summary>Khung chat với AI: tin nhắn hiển thị, gửi tin (RAG + stream), nạp và lưu lịch sử theo owner.
 /// Tách khỏi MainViewModel để test riêng; sở hữu và dispose <see cref="AiChatService"/>.</summary>
-public sealed partial class ChatViewModel : ObservableObject, IDisposable
+public sealed partial class ChatViewModel : ObservableObject, IDisposable, IReadingSessionChat
 {
     private const int ContextPageWindow = 2;
     private const string PageOnlyNotice =

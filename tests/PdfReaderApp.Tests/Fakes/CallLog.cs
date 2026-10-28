@@ -11,5 +11,9 @@ internal sealed class CallLog
 
     public int IndexOf(string entry) => _entries.IndexOf(entry);
 
+    public bool Has(string entry) => _entries.Contains(entry, StringComparer.Ordinal);
+
+    public bool HasLoad() => _entries.Any(e => e.StartsWith("load:", StringComparison.Ordinal));
+
     public void Clear() => _entries.Clear();
 }
