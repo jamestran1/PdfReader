@@ -55,8 +55,8 @@ public class MainViewModelDocumentLoaderTests
 
         vm.OpenWorkspaceDocumentCommand.Execute(a);
 
-        Assert.Equal("doc-from-loader", vm.CurrentDocumentId);
-        Assert.Equal([block], vm.DocumentBlocks);
+        Assert.Equal("doc-from-loader", vm.Session.DocumentId);
+        Assert.Equal([block], vm.Session.DocumentBlocks);
         Assert.Equal(["/a.pdf"], loader.LoadedPaths);
     }
 
@@ -70,8 +70,8 @@ public class MainViewModelDocumentLoaderTests
 
         vm.OpenWorkspaceDocumentCommand.Execute(a);
 
-        Assert.False(vm.HasDocument);
-        Assert.Empty(vm.DocumentBlocks);
+        Assert.False(vm.Session.HasDocument);
+        Assert.Empty(vm.Session.DocumentBlocks);
         Assert.True(vm.Notifications.Current?.IsError);
         Assert.Contains("hỏng", vm.Notifications.Current!.Message, StringComparison.Ordinal);
     }
@@ -81,6 +81,6 @@ public class MainViewModelDocumentLoaderTests
     {
         var (vm, loader, _) = MakeVm();
 
-        Assert.Same(loader.MatchSource, vm.PdfService);
+        Assert.Same(loader.MatchSource, vm.Session.MatchSource);
     }
 }

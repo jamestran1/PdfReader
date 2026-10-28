@@ -61,7 +61,7 @@ public class MainViewModelDocumentsSurfaceTests
         vm.DocumentsSurface.AddFromLibraryCommand.Execute(item);
 
         Assert.Contains("docB", wsStore.GetDocumentIds("ws1"), StringComparer.Ordinal);
-        Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("docB", vm.Session.Tabs.ActiveTab!.DocumentId);
         Assert.Contains(wsStore.OpenSets["ws1"], t => t.DocumentId == "docB" && t.IsActive);
         Assert.False(vm.DocumentsSurface.IsModalOpen);
     }
@@ -81,8 +81,8 @@ public class MainViewModelDocumentsSurfaceTests
         vm.DocumentsSurface.RemoveMemberCommand.Execute(itemB);
 
         Assert.DoesNotContain("docB", wsStore.GetDocumentIds("ws1"), StringComparer.Ordinal);
-        Assert.DoesNotContain(vm.Tabs.Tabs, t => t.DocumentId == "docB");
-        Assert.Equal("docA", vm.Tabs.ActiveTab!.DocumentId);   // MRU promote
+        Assert.DoesNotContain(vm.Session.Tabs.Tabs, t => t.DocumentId == "docB");
+        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.DocumentId);   // MRU promote
     }
 
     [Fact]
@@ -95,8 +95,8 @@ public class MainViewModelDocumentsSurfaceTests
 
         vm.DocumentsSurface.RemoveMemberCommand.Execute(item);
 
-        Assert.False(vm.Tabs.HasTabs);
-        Assert.True(vm.IsWorkspaceSession);   // canvas hiện surface inline, không rơi về màn nào khác
+        Assert.False(vm.Session.Tabs.HasTabs);
+        Assert.True(vm.Session.IsWorkspaceSession);   // canvas hiện surface inline, không rơi về màn nào khác
     }
 
     [Fact]
@@ -110,8 +110,8 @@ public class MainViewModelDocumentsSurfaceTests
 
         vm.DocumentsSurface.OpenMemberCommand.Execute(item);
 
-        Assert.Single(vm.Tabs.Tabs);
-        Assert.Equal("docA", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Single(vm.Session.Tabs.Tabs);
+        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.DocumentId);
         Assert.False(vm.DocumentsSurface.IsModalOpen);
     }
 
@@ -122,8 +122,8 @@ public class MainViewModelDocumentsSurfaceTests
 
         vm.OpenWorkspaceCommand.Execute(ws);
 
-        Assert.True(vm.IsWorkspaceSession);
-        Assert.False(vm.Tabs.HasTabs);
+        Assert.True(vm.Session.IsWorkspaceSession);
+        Assert.False(vm.Session.Tabs.HasTabs);
         Assert.False(vm.ShowWorkspaces);
     }
 
@@ -154,11 +154,11 @@ public class MainViewModelDocumentsSurfaceTests
         vm.Library.Add(item);
         wsStore.AddDocument("ws1", "docA");
         vm.OpenWorkspaceCommand.Execute(ws);   // seed docA tab, _activeWorkspaceId = "ws1"
-        Assert.True(vm.Tabs.HasTabs, "precondition: tab docA phai ton tai truoc khi xoa");
+        Assert.True(vm.Session.Tabs.HasTabs, "precondition: tab docA phai ton tai truoc khi xoa");
 
         vm.RemoveLibraryItemCommand.Execute(item);
 
-        Assert.DoesNotContain(vm.Tabs.Tabs, t => t.DocumentId == "docA");
+        Assert.DoesNotContain(vm.Session.Tabs.Tabs, t => t.DocumentId == "docA");
     }
 
     // #88 edge case: không crash khi doc không có Tab đang mở.
@@ -173,13 +173,13 @@ public class MainViewModelDocumentsSurfaceTests
         vm.Library.Add(item);
         wsStore.AddDocument("ws1", "docA");
         vm.OpenWorkspaceCommand.Execute(ws);
-        vm.CloseTabCommand.Execute(vm.Tabs.ActiveTab);   // đóng tab trước
-        Assert.False(vm.Tabs.HasTabs, "precondition: khong co tab");
+        vm.CloseTabCommand.Execute(vm.Session.Tabs.ActiveTab);   // đóng tab trước
+        Assert.False(vm.Session.Tabs.HasTabs, "precondition: khong co tab");
 
         var ex = Record.Exception(() => vm.RemoveLibraryItemCommand.Execute(item));
 
         Assert.Null(ex);
-        Assert.False(vm.Tabs.HasTabs);
+        Assert.False(vm.Session.Tabs.HasTabs);
     }
 
     // Reproduce test: DeleteWorkspace khi active phải không để lại library items
@@ -207,14 +207,14 @@ public class MainViewModelDocumentsSurfaceTests
         wsStore.AddDocument("ws1", "docA");
         vm.OpenWorkspaceDocumentCommand.Execute(doc);     // enters session, opens tab
         vm.ShowWorkspaceDocumentsCommand.Execute(null);   // opens modal
-        Assert.True(vm.Tabs.HasTabs);
-        Assert.True(vm.IsWorkspaceSession);
+        Assert.True(vm.Session.Tabs.HasTabs);
+        Assert.True(vm.Session.IsWorkspaceSession);
         Assert.True(vm.DocumentsSurface.IsModalOpen);
 
         vm.DeleteWorkspaceCommand.Execute(ws);
 
-        Assert.False(vm.Tabs.HasTabs, "tabs phai dong het");
-        Assert.False(vm.IsWorkspaceSession, "phai thoat workspace session");
+        Assert.False(vm.Session.Tabs.HasTabs, "tabs phai dong het");
+        Assert.False(vm.Session.IsWorkspaceSession, "phai thoat workspace session");
         Assert.False(vm.DocumentsSurface.IsModalOpen, "modal phai tat");
     }
 }

@@ -77,7 +77,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     private static void OnHighlightChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         => ((PdfViewerControl)d).skiaCanvas.InvalidateVisual();
 
-    // MatchSource: text engine that locates exact keyword rectangles (bound to MainViewModel.PdfService).
+    // MatchSource: text engine that locates exact keyword rectangles (bound to ReadingSessionViewModel.MatchSource).
     public static readonly DependencyProperty MatchSourceProperty =
         DependencyProperty.Register(nameof(MatchSource), typeof(Services.IPdfDocumentService), typeof(PdfViewerControl),
             new PropertyMetadata(null, OnHighlightChanged));
@@ -88,7 +88,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         set => SetValue(MatchSourceProperty, value);
     }
 
-    // Đoạn nguồn của trích dẫn AI vừa mở (bound tới MainViewModel.ActiveSourcePassage); chỉ tô ở viewer của đúng Document.
+    // Đoạn nguồn của trích dẫn AI vừa mở (bound tới ReadingSessionViewModel.ActiveSourcePassage); chỉ tô ở viewer của đúng Document.
     public static readonly DependencyProperty SourcePassageProperty =
         DependencyProperty.Register(nameof(SourcePassage), typeof(Core.SourcePassage), typeof(PdfViewerControl),
             new PropertyMetadata(null, OnSourcePassageChanged));
@@ -124,7 +124,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         set => SetValue(AddNoteFromSelectionCommandProperty, value);
     }
 
-    // S3: DependencyProperty lọc highlight theo tài liệu đang mở (bound từ MainViewModel.CurrentDocumentId)
+    // S3: DependencyProperty lọc highlight theo tài liệu đang mở (bound từ ReadingSessionViewModel.DocumentId)
     public static readonly DependencyProperty CurrentDocumentIdProperty =
         DependencyProperty.Register(nameof(CurrentDocumentId), typeof(string),
             typeof(PdfViewerControl), new PropertyMetadata(null, OnCurrentDocumentIdChanged));

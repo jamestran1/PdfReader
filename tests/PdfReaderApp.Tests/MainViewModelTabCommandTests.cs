@@ -29,8 +29,8 @@ public class MainViewModelTabCommandTests
         var item = MakeItem(path, title, path);
         vm.Library.Add(item);
         vm.OpenLibraryItemCommand.Execute(item);
-        vm.CurrentPage = page;
-        vm.ZoomLevel = zoom;
+        vm.Session.CurrentPage = page;
+        vm.Session.ZoomLevel = zoom;
     }
 
     private sealed class FakeWorkspaceStore : IWorkspaceStore
@@ -114,7 +114,7 @@ public class MainViewModelTabCommandTests
         vm.OpenWorkspaceDocumentCommand.Execute(itemA);
         vm.OpenWorkspaceDocumentCommand.Execute(itemB);
 
-        return (vm.Tabs.Tabs[0], vm.Tabs.Tabs[1]);
+        return (vm.Session.Tabs.Tabs[0], vm.Session.Tabs.Tabs[1]);
     }
 
     // =========================================================
@@ -129,7 +129,7 @@ public class MainViewModelTabCommandTests
         // tabB đang active (mở sau). Kích hoạt lại tabA.
         vm.ActivateTabCommand.Execute(tabA);
 
-        Assert.Equal(tabA, vm.Tabs.ActiveTab);
+        Assert.Equal(tabA, vm.Session.Tabs.ActiveTab);
     }
 
     // =========================================================
@@ -159,8 +159,8 @@ public class MainViewModelTabCommandTests
 
         vm.CloseTabCommand.Execute(tabB);
 
-        Assert.Single(vm.Tabs.Tabs);
-        Assert.DoesNotContain(tabB, vm.Tabs.Tabs);
+        Assert.Single(vm.Session.Tabs.Tabs);
+        Assert.DoesNotContain(tabB, vm.Session.Tabs.Tabs);
     }
 
     // =========================================================
@@ -190,7 +190,7 @@ public class MainViewModelTabCommandTests
         // tabB là active; đóng nó -> tabA trở thành active
         vm.CloseTabCommand.Execute(tabB);
 
-        Assert.Equal(tabA, vm.Tabs.ActiveTab);
+        Assert.Equal(tabA, vm.Session.Tabs.ActiveTab);
     }
 
     // =========================================================
@@ -215,7 +215,7 @@ public class MainViewModelTabCommandTests
 
         vm.ShowWorkspaceDocumentsCommand.Execute(null);
 
-        Assert.Equal(2, vm.Tabs.Tabs.Count);
+        Assert.Equal(2, vm.Session.Tabs.Tabs.Count);
     }
 
     [Fact]
@@ -227,10 +227,10 @@ public class MainViewModelTabCommandTests
         vm.ShowWorkspaceDocumentsCommand.Execute(null);
         vm.DocumentsSurface.OpenMemberCommand.Execute(MakeItem("docA", "Tài liệu A", "/path/a.pdf"));
 
-        Assert.True(vm.IsWorkspaceSession);
+        Assert.True(vm.Session.IsWorkspaceSession);
         Assert.False(vm.DocumentsSurface.IsModalOpen);
-        Assert.Equal(2, vm.Tabs.Tabs.Count);                 // không tạo tab trùng
-        Assert.Equal("docA", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal(2, vm.Session.Tabs.Tabs.Count);                 // không tạo tab trùng
+        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.DocumentId);
     }
 
     // =========================================================
@@ -245,7 +245,7 @@ public class MainViewModelTabCommandTests
 
         vm.ShowLibrary = true;                    // điều hướng sang Thư viện
 
-        Assert.True(vm.IsWorkspaceSession);       // phiên vẫn còn
+        Assert.True(vm.Session.IsWorkspaceSession);       // phiên vẫn còn
         Assert.False(vm.IsDocumentTabStripVisible);
     }
 
@@ -260,13 +260,13 @@ public class MainViewModelTabCommandTests
 
         vm.PromoteToWorkspaceCommand.Execute("Dự án A");
 
-        Assert.True(vm.IsWorkspaceSession);
+        Assert.True(vm.Session.IsWorkspaceSession);
         var workspace = Assert.Single(wsStore.All, w => !w.IsDefault);
         Assert.Equal("Dự án A", workspace.Name);
-        Assert.Equal(workspace.Id, vm.ActiveWorkspaceId);
+        Assert.Equal(workspace.Id, vm.Session.ActiveWorkspaceId);
         Assert.Contains("/lib/a.pdf", wsStore.GetDocumentIds(workspace.Id), StringComparer.Ordinal);
 
-        var tab = Assert.Single(vm.Tabs.Tabs);
+        var tab = Assert.Single(vm.Session.Tabs.Tabs);
         Assert.Equal("/lib/a.pdf", tab.DocumentId);
         Assert.Equal(7, tab.Page);
         Assert.Equal(1.5, tab.Zoom);
@@ -280,7 +280,7 @@ public class MainViewModelTabCommandTests
 
         vm.PromoteToWorkspaceCommand.Execute("   ");
 
-        Assert.False(vm.IsWorkspaceSession);
+        Assert.False(vm.Session.IsWorkspaceSession);
         Assert.DoesNotContain(wsStore.All, w => !w.IsDefault);
         Assert.False(string.IsNullOrEmpty(vm.WorkspaceNameError));
     }
@@ -295,7 +295,7 @@ public class MainViewModelTabCommandTests
         vm.PromoteToWorkspaceCommand.Execute("Khác");
 
         Assert.Equal(workspaceCountBefore, wsStore.All.Count);
-        Assert.Equal(2, vm.Tabs.Tabs.Count);      // Open Set không đổi
+        Assert.Equal(2, vm.Session.Tabs.Tabs.Count);      // Open Set không đổi
     }
 
     // #68 bug: sau promote rồi mở surface tài liệu, tài liệu vừa promote phải là member (không rỗng).

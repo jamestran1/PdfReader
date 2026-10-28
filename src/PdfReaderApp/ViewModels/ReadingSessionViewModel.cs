@@ -359,7 +359,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     internal void SaveOpenSetNow() => _openSet.SaveNow();
 
     /// <summary>Lấy Workspace phạm vi khi nạp: Workspace chỉ định (mở trong Workspace) hoặc Default Workspace của Document.</summary>
-    internal string ResolveWorkspaceScope(string? explicitWorkspaceId, string documentId, string title, long nowUnixMs)
+    private string ResolveWorkspaceScope(string? explicitWorkspaceId, string documentId, string title, long nowUnixMs)
         => explicitWorkspaceId ?? _workspaceStore.GetOrCreateDefaultForDocument(documentId, title, nowUnixMs).Id;
 
     /// <summary>

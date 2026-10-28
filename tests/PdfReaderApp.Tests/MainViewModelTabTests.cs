@@ -111,7 +111,7 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceDocumentCommand.Execute(item);
 
         // Chỉ một tab
-        Assert.Single(vm.Tabs.Tabs);
+        Assert.Single(vm.Session.Tabs.Tabs);
         // Membership không bị sửa (AddDocument hay RemoveDocument không được gọi thêm)
         Assert.Contains("docA", wsStore.GetDocumentIds(W.Id), StringComparer.Ordinal);
         Assert.Equal(0, wsStore.RemoveDocumentCallCount);
@@ -135,8 +135,8 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceDocumentCommand.Execute(item);
 
         // Đóng tab vừa mở
-        var tab = vm.Tabs.Tabs[0];
-        vm.Tabs.Close(tab);
+        var tab = vm.Session.Tabs.Tabs[0];
+        vm.Session.Tabs.Close(tab);
 
         // Membership phải nguyên vẹn - đóng tab != gỡ tài liệu khỏi workspace
         Assert.Equal(0, wsStore.RemoveDocumentCallCount);
@@ -159,15 +159,15 @@ public class MainViewModelTabTests
         // Mở standalone (OpenLibraryItem)
         vm.OpenLibraryItemCommand.Execute(itemA);
 
-        Assert.False(vm.IsWorkspaceSession);
+        Assert.False(vm.Session.IsWorkspaceSession);
         // Standalone không tích lũy tab qua OpenOrActivate -> Tabs.Tabs rỗng
-        Assert.Empty(vm.Tabs.Tabs);
+        Assert.Empty(vm.Session.Tabs.Tabs);
 
         // Mở standalone lần hai -> vẫn không tích lũy tab
         vm.OpenLibraryItemCommand.Execute(itemB);
 
-        Assert.False(vm.IsWorkspaceSession);
-        Assert.Empty(vm.Tabs.Tabs);
+        Assert.False(vm.Session.IsWorkspaceSession);
+        Assert.Empty(vm.Session.Tabs.Tabs);
     }
 
     // =========================================================
@@ -188,10 +188,10 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceDocumentCommand.Execute(item);
 
         // Mô phỏng Ctrl+scroll: per-tab viewer ghi OpenTab.Zoom qua binding TwoWay.
-        vm.Tabs.ActiveTab!.Zoom = 2.0;
+        vm.Session.Tabs.ActiveTab!.Zoom = 2.0;
 
-        // Toolbar bind vm.ZoomLevel -> phải phản ánh zoom của tab active.
-        Assert.Equal(2.0, vm.ZoomLevel);
+        // Toolbar bind vm.Session.ZoomLevel -> phải phản ánh zoom của tab active.
+        Assert.Equal(2.0, vm.Session.ZoomLevel);
     }
 
     // Triệu chứng 2: chuyển tab rồi quay lại làm mất zoom state.
@@ -210,13 +210,13 @@ public class MainViewModelTabTests
 
         vm.OpenWorkspaceCommand.Execute(W);
         vm.OpenWorkspaceDocumentCommand.Execute(a); // tab A active
-        vm.Tabs.ActiveTab!.Zoom = 2.0;              // scroll-zoom tab A
+        vm.Session.Tabs.ActiveTab!.Zoom = 2.0;              // scroll-zoom tab A
         vm.OpenWorkspaceDocumentCommand.Execute(b); // chuyển sang tab B
-        var tabA = vm.Tabs.Tabs.First(t => t.DocumentId == "docA");
+        var tabA = vm.Session.Tabs.Tabs.First(t => t.DocumentId == "docA");
         vm.ActivateTabCommand.Execute(tabA);        // quay lại tab A
 
         Assert.Equal(2.0, tabA.Zoom);
-        Assert.Equal(2.0, vm.ZoomLevel);
+        Assert.Equal(2.0, vm.Session.ZoomLevel);
     }
 
     // Tương tự cho trang: tab active là một nguồn sự thật với toolbar.
@@ -235,13 +235,13 @@ public class MainViewModelTabTests
 
         vm.OpenWorkspaceCommand.Execute(W);
         vm.OpenWorkspaceDocumentCommand.Execute(a);
-        vm.Tabs.ActiveTab!.Page = 12;               // viewer ghi OpenTab.Page khi cuộn trang
+        vm.Session.Tabs.ActiveTab!.Page = 12;               // viewer ghi OpenTab.Page khi cuộn trang
         vm.OpenWorkspaceDocumentCommand.Execute(b);
-        var tabA = vm.Tabs.Tabs.First(t => t.DocumentId == "docA");
+        var tabA = vm.Session.Tabs.Tabs.First(t => t.DocumentId == "docA");
         vm.ActivateTabCommand.Execute(tabA);
 
         Assert.Equal(12, tabA.Page);
-        Assert.Equal(12, vm.CurrentPage);
+        Assert.Equal(12, vm.Session.CurrentPage);
     }
 
     // =========================================================
@@ -266,14 +266,14 @@ public class MainViewModelTabTests
 
         vm.OpenWorkspaceCommand.Execute(workspace);
 
-        Assert.True(vm.IsWorkspaceSession);
-        Assert.Equal(new[] { "docA", "docB" }, vm.Tabs.Tabs.Select(t => t.DocumentId), StringComparer.Ordinal);
-        Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
-        Assert.Equal(8, vm.Tabs.ActiveTab!.Page);
-        Assert.Equal(2.5, vm.Tabs.ActiveTab!.Zoom);
+        Assert.True(vm.Session.IsWorkspaceSession);
+        Assert.Equal(new[] { "docA", "docB" }, vm.Session.Tabs.Tabs.Select(t => t.DocumentId), StringComparer.Ordinal);
+        Assert.Equal("docB", vm.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal(8, vm.Session.Tabs.ActiveTab!.Page);
+        Assert.Equal(2.5, vm.Session.Tabs.ActiveTab!.Zoom);
         Assert.Single(loader.LoadedPaths);
-        Assert.False(vm.Tabs.Tabs.Single(t => t.DocumentId == "docA").IsHydrated);
-        Assert.True(vm.Tabs.ActiveTab!.IsHydrated);
+        Assert.False(vm.Session.Tabs.Tabs.Single(t => t.DocumentId == "docA").IsHydrated);
+        Assert.True(vm.Session.Tabs.ActiveTab!.IsHydrated);
     }
 
     // =========================================================
@@ -300,12 +300,12 @@ public class MainViewModelTabTests
         // doc0 vừa được dùng lại nên victim phải là doc1, tab inactive ít dùng nhất.
         for (int i = 1; i < tabCount - 1; i++)
             vm.OpenWorkspaceDocumentCommand.Execute(items[i]);
-        vm.ActivateTabCommand.Execute(vm.Tabs.Tabs.Single(t => t.DocumentId == "doc0"));
+        vm.ActivateTabCommand.Execute(vm.Session.Tabs.Tabs.Single(t => t.DocumentId == "doc0"));
         vm.OpenWorkspaceDocumentCommand.Execute(items[tabCount - 1]);
 
-        Assert.False(vm.Tabs.Tabs.Single(t => t.DocumentId == "doc1").IsHydrated);
-        Assert.True(vm.Tabs.Tabs.Single(t => t.DocumentId == "doc0").IsHydrated);
-        Assert.Equal(TabSetViewModel.DefaultMaxWarmInactiveTabs + 1, vm.Tabs.Tabs.Count(t => t.IsHydrated));
+        Assert.False(vm.Session.Tabs.Tabs.Single(t => t.DocumentId == "doc1").IsHydrated);
+        Assert.True(vm.Session.Tabs.Tabs.Single(t => t.DocumentId == "doc0").IsHydrated);
+        Assert.Equal(TabSetViewModel.DefaultMaxWarmInactiveTabs + 1, vm.Session.Tabs.Tabs.Count(t => t.IsHydrated));
     }
 
     [Fact]
@@ -320,9 +320,9 @@ public class MainViewModelTabTests
 
         vm.OpenWorkspaceCommand.Execute(workspace);
 
-        Assert.True(vm.IsWorkspaceSession);
-        Assert.Single(vm.Tabs.Tabs);
-        Assert.Equal("docOnly", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.True(vm.Session.IsWorkspaceSession);
+        Assert.Single(vm.Session.Tabs.Tabs);
+        Assert.Equal("docOnly", vm.Session.Tabs.ActiveTab!.DocumentId);
         Assert.Single(loader.LoadedPaths);
     }
 
@@ -343,19 +343,19 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceCommand.Execute(workspace);
         vm.OpenWorkspaceDocumentCommand.Execute(MakeItem("docA", "A", "/a.pdf"));
         vm.OpenWorkspaceDocumentCommand.Execute(MakeItem("docB", "B", "/b.pdf")); // docB active
-        vm.Tabs.ActiveTab!.Page = 9;
-        vm.Tabs.ActiveTab!.Zoom = 1.5;
+        vm.Session.Tabs.ActiveTab!.Page = 9;
+        vm.Session.Tabs.ActiveTab!.Zoom = 1.5;
 
         vm.SaveOpenSetNow();
 
         var saved = wsStore.GetOpenTabs(workspace.Id);
-        Assert.Equal(vm.Tabs.Tabs.Count, saved.Count);
+        Assert.Equal(vm.Session.Tabs.Tabs.Count, saved.Count);
         var activeRow = saved.Single(t => t.IsActive);
         Assert.Equal("docB", activeRow.DocumentId);
         Assert.Equal(9, activeRow.Page);
         Assert.Equal(1.5, activeRow.Zoom);
         for (int order = 0; order < saved.Count; order++)
-            Assert.Equal(vm.Tabs.Tabs[order].DocumentId, saved[order].DocumentId);
+            Assert.Equal(vm.Session.Tabs.Tabs[order].DocumentId, saved[order].DocumentId);
     }
 
     // =========================================================
@@ -373,11 +373,11 @@ public class MainViewModelTabTests
         wsStore.SaveOpenTabs(workspace.Id, new[] { new OpenTabState("docA", 0, true, 1, 1.0, 0, 1) });
 
         vm.OpenWorkspaceCommand.Execute(workspace);
-        int afterFirstEntry = vm.Tabs.Tabs.Count;
+        int afterFirstEntry = vm.Session.Tabs.Tabs.Count;
         vm.OpenWorkspaceCommand.Execute(workspace);
 
-        Assert.Equal(afterFirstEntry, vm.Tabs.Tabs.Count);
-        Assert.Single(vm.Tabs.Tabs, t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal));
+        Assert.Equal(afterFirstEntry, vm.Session.Tabs.Tabs.Count);
+        Assert.Single(vm.Session.Tabs.Tabs, t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal));
     }
 
     // REGRESSION (S2): chuyển sang Workspace khác phải THAY THẾ Open Set, không tích lũy tab cũ.
@@ -399,8 +399,8 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceCommand.Execute(workspaceA);
         vm.OpenWorkspaceCommand.Execute(workspaceB);
 
-        Assert.Single(vm.Tabs.Tabs);
-        Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Single(vm.Session.Tabs.Tabs);
+        Assert.Equal("docB", vm.Session.Tabs.ActiveTab!.DocumentId);
     }
 
     // =========================================================
@@ -431,8 +431,8 @@ public class MainViewModelTabTests
 
         vm.Search.SelectResultCommand.Execute(hitB);
 
-        Assert.Equal("docB", vm.Tabs.ActiveTab!.DocumentId);
-        Assert.Equal(5, vm.CurrentPage);
+        Assert.Equal("docB", vm.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal(5, vm.Session.CurrentPage);
         Assert.Equal("hành", vm.Search.Query);
         Assert.Equal("hành", vm.Search.SelectedQuery);
         Assert.Equal(DocumentScope.Workspace, vm.Search.Scope);
