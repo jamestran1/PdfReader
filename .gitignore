@@ -495,3 +495,7 @@ devcert.pfx
 
 # AI review/fix: file tạm của workflow (.github/workflows/ai-*.yml)
 .ai-review/
+
+# Agent skills (loaded globally, do not commit to repo)
+.agents/
+skills-lock.json
