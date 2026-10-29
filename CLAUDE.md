@@ -55,7 +55,7 @@ Hai lớp render/logic chạy song song:
 
 ## Tài liệu thiết kế & quy trình (workflow Matt Pocock)
 
-Repo dùng bộ skill **Matt Pocock** (đặt tại `.agents/skills/`, xem `npx skills list`). Nguyên tắc: **issue tracker (GitHub) là source of truth** cho PRD và task, KHÔNG lưu PRD/plan trùng lặp vào repo.
+Repo dùng bộ skill **Matt Pocock** (nạp global trên máy, xem `npx skills list -g`, không lưu thư mục skills vào repo). Nguyên tắc: **issue tracker (GitHub) là source of truth** cho PRD và task, KHÔNG lưu PRD/plan trùng lặp vào repo.
 
 - **Artifact bền, commit vào repo:**
   - `CODING_STANDARDS.md`: quy tắc code cho agent viết code và AI review.
