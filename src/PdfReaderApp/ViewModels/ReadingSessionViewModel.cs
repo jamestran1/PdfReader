@@ -307,6 +307,9 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _surface.DismissModal();
         _notes.LoadFor(null);
         Tabs.Reset();
+        SetDocumentState(null, []);
+        FilePath = null;
+        PageTexts = [];
     }
 
     private void MarkOpenedBestEffort(string documentId)
