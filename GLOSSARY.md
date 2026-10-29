@@ -36,6 +36,14 @@ _Avoid_: Search scope / chat scope (một khái niệm, một từ), mode.
 Một dòng của bảng nguồn do RAG trả về (cả phạm vi Tài liệu này lẫn Toàn Workspace): số tham chiếu `[n]` trong ngữ cảnh và câu trả lời của AI ↔ (Document, Title, trang, Đoạn nguồn). AI chỉ chép số `[n]`, không chép `documentId` (hash dài); #108 biến `[n]` thành link nhảy sang Document và trang đó, #27 tô Đoạn nguồn trên trang.
 _Avoid_: Citation (dành cho phần hiển thị ở #108), reference.
 
+**Ngữ cảnh trả lời** (`AnswerContext`):
+Phần chữ gửi kèm một câu hỏi cho AI, dựng theo **Phạm vi**, cùng bảng **Nguồn trích dẫn** và các thông báo cho người dùng về những gì câu trả lời chưa gồm (tài liệu đang lập chỉ mục, thiếu key, chỉ dùng được các trang quanh trang đang xem).
+_Avoid_: RAG context, prompt context.
+
+**Ảnh chụp tài liệu** (`DocumentSnapshot`):
+Trạng thái của Document đang mở ở thời điểm hỏi (định danh, tên, khối chữ, trang đang xem), làm đầu vào cho Ngữ cảnh trả lời.
+_Avoid_: ChatContext, document state.
+
 **Đoạn nguồn** (`RagSource.Passage`, tô qua `SourcePassage`):
 Chữ của chunk mà AI dựa vào cho một trích dẫn `[n]`. Bấm trích dẫn thì viewer nhảy tới trang và cuộn tới đúng đoạn này, tô màu cam (khác vàng của kết quả tìm), giữ tới khi mở trích dẫn khác, đổi Document đang xem hoặc bấm Esc. Nguồn lưu từ bản trước #27 không có Đoạn nguồn: vẫn nhảy trang, không tô.
 _Avoid_: span, highlight (dành cho ghi chú người dùng tô).

@@ -292,7 +292,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _library = services.Library;
         ReloadLibrary();
 
-        Chat = ChatViewModel.Create(services, GetChatContext, GetWorkspaceDocuments, OpenCitationSource);
+        Chat = ChatViewModel.Create(services, GetChatOwnerId, GetDocumentSnapshot, GetWorkspaceDocuments, OpenCitationSource);
 
         _noteStore = services.NoteStore;
         _noteStore.EnsureSchema();
@@ -942,9 +942,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     internal string ResolveWorkspaceScope(string? explicitWorkspaceId, string documentId, string title, long nowUnixMs)
         => explicitWorkspaceId ?? _workspaceStore.GetOrCreateDefaultForDocument(documentId, title, nowUnixMs).Id;
 
-    private ChatContext GetChatContext() => new(
+    private string? GetChatOwnerId() => IsWorkspaceSession ? _activeWorkspaceId : _documentId;
+
+    private DocumentSnapshot GetDocumentSnapshot() => new(
         _documentId,
-        IsWorkspaceSession ? _activeWorkspaceId : _documentId,
         _documentBlocks,
         CurrentPage,
         CurrentDocumentTitle());

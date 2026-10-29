@@ -1,12 +1,13 @@
 using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfReaderApp.Models;
+using PdfReaderApp.Services;
 
 namespace PdfReaderApp.ViewModels;
 
 /// <summary>Hàng đợi lập chỉ mục nền cho các Document của Workspace mà câu hỏi Toàn Workspace chưa dùng được.
 /// Chạy tuần tự từng tài liệu, huỷ được (CS-13), và đưa tiến độ thành <see cref="StatusText"/> cho khung chat.</summary>
-public sealed partial class WorkspaceIndexingRunner : ObservableObject, IDisposable
+public sealed partial class WorkspaceIndexingRunner : ObservableObject, IIndexingQueue, IDisposable
 {
     private readonly Func<WorkspaceDocument, CancellationToken, Task<DocumentIndexStatus>> _indexDocumentAsync;
     private readonly Action<Action> _postToUiThread;
