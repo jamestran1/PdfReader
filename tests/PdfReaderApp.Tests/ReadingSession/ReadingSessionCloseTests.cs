@@ -44,6 +44,22 @@ public class ReadingSessionCloseTests
     }
 
     [Fact]
+    public void Close_LastTab_ClearsDocumentState()
+    {
+        var f = new ReadingSessionFixture().InWorkspace();
+        var tabA = f.OpenTab("A");
+        Assert.True(f.Session.HasDocument);
+        Assert.Equal("A", f.Session.DocumentId);
+
+        f.Session.Close(tabA);
+
+        Assert.False(f.Session.HasDocument);
+        Assert.Null(f.Session.DocumentId);
+        Assert.Null(f.Session.FilePath);
+        Assert.Empty(f.Session.DocumentBlocks);
+    }
+
+    [Fact]
     public void Close_LastTab_CancelsPendingChat()
     {
         var f = new ReadingSessionFixture().InWorkspace();

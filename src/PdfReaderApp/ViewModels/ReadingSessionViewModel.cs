@@ -451,9 +451,18 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         ActiveSourcePassage = null;
 
         if (incoming is not null)
+        {
             ReplaceCurrentDocument(incoming.Path, ActiveWorkspaceId, incoming.Page);
-        else if (!_openSet.IsRestoring)
-            RefreshSurface();   // đóng Tab cuối -> surface inline cần dữ liệu mới
+        }
+        else
+        {
+            SetDocumentState(null, []);
+            FilePath = null;
+            PageTexts = [];
+            if (!_openSet.IsRestoring)
+                RefreshSurface();   // đóng Tab cuối -> surface inline cần dữ liệu mới
+
+        }
 
         RaiseViewStateChanged();
 
