@@ -10,6 +10,7 @@ Hướng dẫn cho Claude Code khi làm việc trong repo này: bản đồ dự
 
 - **Framework:** WPF, .NET `net10.0-windows`, mô hình MVVM.
 - **Ngôn ngữ giao tiếp / UI:** tiếng Việt (chuỗi UI, message AI mặc định bằng tiếng Việt).
+- **Mã hóa CLI trên Windows:** luôn đặt `[Console]::OutputEncoding = $OutputEncoding = [System.Text.Encoding]::UTF8` khi chạy script/CLI có text tiếng Việt. Khi tạo/sửa PR qua `gh`, luôn dùng file UTF-8 (`--body-file`), không pipe trực tiếp qua stdin để tránh biến chữ tiếng Việt thành `?`.
 
 ## Build & Test
 
@@ -54,14 +55,14 @@ Hai lớp render/logic chạy song song:
 
 ## Tài liệu thiết kế & quy trình (workflow Matt Pocock)
 
-Repo dùng bộ skill **Matt Pocock** (`grilling`, `domain-modeling`, `to-spec`, `to-tickets`). Nguyên tắc: **issue tracker (GitHub) là source of truth** cho PRD và task, KHÔNG lưu PRD/plan trùng lặp vào repo.
+Repo dùng bộ skill **Matt Pocock** (đặt tại `.agents/skills/`, xem `npx skills list`). Nguyên tắc: **issue tracker (GitHub) là source of truth** cho PRD và task, KHÔNG lưu PRD/plan trùng lặp vào repo.
 
 - **Artifact bền, commit vào repo:**
   - `CODING_STANDARDS.md`: quy tắc code cho agent viết code và AI review.
   - `GLOSSARY.md` (gốc repo): glossary / ngôn ngữ miền (do `domain-modeling` duy trì). Chỉ là từ điển, không phải spec.
   - `docs/adr/`: Architecture Decision Records (vd `0001-workspace-architecture`, `0002-per-feature-sqlite-databases`, `0003-multi-document-tabs`).
 - **PRD & task:** sống trên GitHub issues (gắn nhãn triage `ready-for-agent`), không ở file local.
-- **Quy trình tính năng mới:** `grilling` (+ `domain-modeling`) → `to-spec` (publish PRD lên issue) → `to-tickets` (chẻ thành vertical-slice issues) → `plan-to-issue <issue>` (viết plan TDD chi tiết lên body issue, idempotent qua marker `<!-- plan:start/end -->`, có cổng review+approve) → `/tdd` (implement task-by-task từ issue).
+- **Quy trình tính năng mới:** `grill-with-docs` → (việc nhiều session: `to-spec` publish PRD lên issue → `to-tickets` chẻ thành vertical-slice issues) → `/implement <issue>` (chạy `/tdd` tại seam đã thống nhất, rồi `/code-review`) → PR (`/pr`) → `/retro` (tổng kết session, đề xuất guardrail và chuẩn code). Hỏi `/ask-matt` khi không chắc bước tiếp theo.
 - **Góp ý về code:** góp ý bền về code (C#, XAML, test, giao diện) thêm vào `CODING_STANDARDS.md` qua PR, không lưu vào memory của agent. Memory chỉ giữ sở thích cá nhân và quy trình.
 - **Model selection:** brainstorm, planning và review dùng **Opus** (bản mới nhất, hiện Opus 5.5); code (implement) dùng **Sonnet** (bản mới nhất, hiện Sonnet 5.5), không dùng Haiku.
 - **Legacy:** `docs/superpowers/specs|plans/` là của workflow `superpowers` cũ; các file `2026-06-04-*` là design gốc Gemini, giữ làm lịch sử, KHÔNG thêm file mới vào đây.
