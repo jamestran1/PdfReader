@@ -161,7 +161,7 @@
                     <!-- #38: quay lại tài liệu đang mở (chỉ bật khi có tài liệu) -->
                     <ToggleButton Style="{StaticResource TriThu.NavRailItem}" Tag="Tài liệu" ToolTip="Tài liệu đang mở"
                                   Command="{Binding ShowReaderViewCommand}"
-                                  Visibility="{Binding HasDocument, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                  Visibility="{Binding Session.HasDocument, Converter={StaticResource BooleanToVisibilityConverter}}"
                                   IsChecked="{Binding ActiveNavDestination, Converter={StaticResource NavDestinationToBoolConverter}, ConverterParameter=Reader, Mode=OneWay}">
                         <materialDesign:PackIcon Kind="FileDocument" Width="22" Height="22"/>
                     </ToggleButton>
@@ -224,13 +224,13 @@
                                 <materialDesign:PackIcon Kind="Minus" Width="20" Height="20"/>
                             </Button>
                             <Slider Width="120" VerticalAlignment="Center" Minimum="0.4" Maximum="4.0"
-                                    Value="{Binding ZoomLevel, Mode=TwoWay}"
+                                    Value="{Binding Session.ZoomLevel, Mode=TwoWay}"
                                     IsMoveToPointEnabled="True" SmallChange="0.1" LargeChange="0.5"
                                     Margin="6,0" ToolTip="Zoom"/>
                             <Button Style="{StaticResource TriThu.TopBar.IconButton}" Command="{Binding ZoomInCommand}" ToolTip="Phóng to">
                                 <materialDesign:PackIcon Kind="Plus" Width="20" Height="20"/>
                             </Button>
-                            <TextBlock Text="{Binding ZoomLevel, StringFormat={}{0:P0}}" VerticalAlignment="Center"
+                            <TextBlock Text="{Binding Session.ZoomLevel, StringFormat={}{0:P0}}" VerticalAlignment="Center"
                                        Margin="6,0,0,0" MinWidth="42" TextAlignment="Center" FontSize="13" FontWeight="Medium"
                                        Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
                         </StackPanel>
@@ -463,7 +463,7 @@
                     Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
-                        <ItemsControl ItemsSource="{Binding Tabs.Tabs}">
+                        <ItemsControl ItemsSource="{Binding Session.Tabs.Tabs}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal"/>
@@ -480,7 +480,7 @@
                                                         <DataTrigger.Binding>
                                                             <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
                                                                 <Binding/>
-                                                                <Binding Path="DataContext.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                                                <Binding Path="DataContext.Session.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
                                                             </MultiBinding>
                                                         </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
@@ -532,18 +532,18 @@
             <!-- PDF Viewer Surface — standalone (IsWorkspaceSession=false).
                  Hiện khi: không phải workspace session VÀ không đang ở thư viện. -->
             <controls:PdfViewerControl Grid.Row="2" x:Name="PdfViewer"
-                                       DocumentSource="{Binding StandaloneDocumentSource}"
-                                       CurrentPage="{Binding CurrentPage, Mode=TwoWay}"
-                                       TotalPages="{Binding TotalPages, Mode=TwoWay}"
-                                       ZoomLevel="{Binding ZoomLevel, Mode=TwoWay}"
+                                       DocumentSource="{Binding Session.StandaloneDocumentSource}"
+                                       CurrentPage="{Binding Session.CurrentPage, Mode=TwoWay}"
+                                       TotalPages="{Binding Session.TotalPages, Mode=TwoWay}"
+                                       ZoomLevel="{Binding Session.ZoomLevel, Mode=TwoWay}"
                                        HighlightQuery="{Binding Search.SelectedQuery}"
-                                       MatchSource="{Binding PdfService}"
-                                       SourcePassage="{Binding ActiveSourcePassage}"
+                                       MatchSource="{Binding Session.MatchSource, Mode=OneWay}"
+                                       SourcePassage="{Binding Session.ActiveSourcePassage}"
                                        ViewMode="{Binding ViewMode}"
                                        ShowCover="{Binding ShowCoverSeparately}"
                                        AddNoteFromSelectionCommand="{Binding AddNoteFromSelectionCommand}"
                                        Highlights="{Binding Notes.Highlights}"
-                                       CurrentDocumentId="{Binding CurrentDocumentId}"
+                                       CurrentDocumentId="{Binding Session.DocumentId, Mode=OneWay}"
                                        LoadFailed="PdfViewer_LoadFailed">
                 <controls:PdfViewerControl.Style>
                     <Style TargetType="controls:PdfViewerControl">
@@ -552,7 +552,7 @@
                             <DataTrigger Binding="{Binding ShowLibrary}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
-                            <DataTrigger Binding="{Binding IsWorkspaceSession}" Value="True">
+                            <DataTrigger Binding="{Binding Session.IsWorkspaceSession}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                         </Style.Triggers>
@@ -564,17 +564,17 @@
                  chỉ tab active Visible, còn lại Collapsed (không render). Viewer chỉ giữ tài liệu khi
                  OpenTab.IsHydrated (active + nhóm MRU ấm), tab ngoài nhóm bị evict (#48). -->
             <Border Grid.Row="2"
-                    Visibility="{Binding IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
                     <!-- Hint khi Open Set rỗng (#62 AC2): inline WorkspaceDocumentsView khi chưa có tab -->
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  Visibility="{Binding Tabs.HasTabs, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                  Visibility="{Binding Session.Tabs.HasTabs, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                         <controls:WorkspaceDocumentsView DataContext="{Binding DataContext.DocumentsSurface, RelativeSource={RelativeSource AncestorType=Window}}"
                                                          MaxWidth="760" Margin="22" VerticalAlignment="Top"/>
                     </ScrollViewer>
 
                     <!-- Một PdfViewerControl trên mỗi tab, xếp chồng, chỉ active visible -->
-                    <ItemsControl ItemsSource="{Binding Tabs.Tabs}">
+                    <ItemsControl ItemsSource="{Binding Session.Tabs.Tabs}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <Grid/>
@@ -589,8 +589,8 @@
                                     ZoomLevel="{Binding Zoom, Mode=TwoWay}"
                                     CurrentDocumentId="{Binding DocumentId}"
                                     HighlightQuery="{Binding DataContext.Search.SelectedQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    MatchSource="{Binding DataContext.PdfService, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    SourcePassage="{Binding DataContext.ActiveSourcePassage, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    MatchSource="{Binding DataContext.Session.MatchSource, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    SourcePassage="{Binding DataContext.Session.ActiveSourcePassage, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     ViewMode="{Binding DataContext.ViewMode, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     ShowCover="{Binding DataContext.ShowCoverSeparately, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     AddNoteFromSelectionCommand="{Binding DataContext.AddNoteFromSelectionCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -599,7 +599,7 @@
                                     <controls:PdfViewerControl.Visibility>
                                         <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
                                             <Binding/>
-                                            <Binding Path="DataContext.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                            <Binding Path="DataContext.Session.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
                                         </MultiBinding>
                                     </controls:PdfViewerControl.Visibility>
                                 </controls:PdfViewerControl>
@@ -867,8 +867,8 @@
                                    Foreground="{DynamicResource TriThu.Brush.InverseSurface.On}">
                             <TextBlock.Text>
                                 <MultiBinding StringFormat="{}{0} / {1}">
-                                    <Binding Path="CurrentPage"/>
-                                    <Binding Path="TotalPages"/>
+                                    <Binding Path="Session.CurrentPage"/>
+                                    <Binding Path="Session.TotalPages"/>
                                 </MultiBinding>
                             </TextBlock.Text>
                         </TextBlock>

@@ -264,14 +264,16 @@ public sealed class MainViewModelChatTests : IDisposable
         var wsStore = new FakeWorkspaceStore();
         var vm = BuildVm(hasKey: false, () => Tokens("x"), new FakeChatHistoryStore(), wsStore);
 
-        Assert.NotNull(vm.Tabs);
+        Assert.NotNull(vm.Session.Tabs);
         Assert.NotNull(vm.Notes);
         Assert.NotNull(vm.DocumentsSurface);
         Assert.False(vm.IsDarkMode);
         Assert.Single(vm.Chat.Messages); // lời chào
         Assert.Equal("AI", vm.Chat.Messages[0].Role);
-        Assert.Null(vm.ActiveWorkspaceId);
+        Assert.Null(vm.Session.ActiveWorkspaceId);
     }
+
+    private static readonly LibraryItem DocB = new("docB", "B", "/lib/b.pdf", ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1);
 
     private (MainViewModel vm, FakeWorkspaceStore store) WorkspaceSessionWithDocA()
     {
@@ -291,22 +293,22 @@ public sealed class MainViewModelChatTests : IDisposable
     {
         var (vm, store) = WorkspaceSessionWithDocA();
 
-        vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        vm.Session.OpenInWorkspace("ws-tabs", DocB);
 
         var saved = store.OpenSets["ws-tabs"];
         Assert.Contains(saved, t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal));
-        Assert.Equal(vm.Tabs.Tabs.Count, saved.Count);
+        Assert.Equal(vm.Session.Tabs.Tabs.Count, saved.Count);
     }
 
     [Fact]
     public void OpenSet_IsSaved_WhenActiveTabChanges()
     {
         var (vm, store) = WorkspaceSessionWithDocA();
-        var tabA = vm.Tabs.Tabs.First(t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal));
-        vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        var tabA = vm.Session.Tabs.Tabs.First(t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal));
+        vm.Session.OpenInWorkspace("ws-tabs", DocB);
         store.OpenSets.Clear();
 
-        vm.Tabs.ActivateTab(tabA);
+        vm.Session.Activate(tabA);
 
         var saved = store.OpenSets["ws-tabs"];
         Assert.True(saved.Single(t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal)).IsActive);
@@ -317,10 +319,11 @@ public sealed class MainViewModelChatTests : IDisposable
     public void OpenSet_IsSaved_WhenTabClosed()
     {
         var (vm, store) = WorkspaceSessionWithDocA();
-        var tabB = vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        vm.Session.OpenInWorkspace("ws-tabs", DocB);
+        var tabB = vm.Session.Tabs.ActiveTab!;
         store.OpenSets.Clear();
 
-        vm.Tabs.Close(tabB);
+        vm.Session.Close(tabB);
 
         var saved = store.OpenSets["ws-tabs"];
         Assert.DoesNotContain(saved, t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal));
@@ -356,7 +359,7 @@ public sealed class MainViewModelChatTests : IDisposable
         DocumentIndexStatus indexStatus)
     {
         var (vm, chat) = OpenedDocumentVm(indexStatus);
-        string? documentId = vm.CurrentDocumentId;
+        string? documentId = vm.Session.DocumentId;
         Assert.NotNull(documentId);
         vm.Chat.Input = "Hỏi";
 
@@ -387,10 +390,10 @@ public sealed class MainViewModelChatTests : IDisposable
 
         vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "đoạn nguồn được trích"));
 
-        Assert.NotNull(vm.ActiveSourcePassage);
-        Assert.Equal("docA", vm.ActiveSourcePassage.DocumentId);
-        Assert.Equal(2, vm.ActiveSourcePassage.PageIndex);
-        Assert.Equal(["đoạn nguồn được trích"], vm.ActiveSourcePassage.Fragments);
+        Assert.NotNull(vm.Session.ActiveSourcePassage);
+        Assert.Equal("docA", vm.Session.ActiveSourcePassage.DocumentId);
+        Assert.Equal(2, vm.Session.ActiveSourcePassage.PageIndex);
+        Assert.Equal(["đoạn nguồn được trích"], vm.Session.ActiveSourcePassage.Fragments);
     }
 
     [Fact]
@@ -400,8 +403,8 @@ public sealed class MainViewModelChatTests : IDisposable
 
         vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "cả đoạn nguồn dài"), "câu được trích");
 
-        Assert.Equal(["câu được trích"], vm.ActiveSourcePassage?.QuoteFragments);
-        Assert.Equal(["cả đoạn nguồn dài"], vm.ActiveSourcePassage?.Fragments);
+        Assert.Equal(["câu được trích"], vm.Session.ActiveSourcePassage?.QuoteFragments);
+        Assert.Equal(["cả đoạn nguồn dài"], vm.Session.ActiveSourcePassage?.Fragments);
     }
 
     [Fact]
@@ -412,7 +415,7 @@ public sealed class MainViewModelChatTests : IDisposable
 
         vm.OpenCitationSource(new RagSource(2, "docA", "Sách A", 5));
 
-        Assert.Null(vm.ActiveSourcePassage);
+        Assert.Null(vm.Session.ActiveSourcePassage);
     }
 
     [Fact]
@@ -423,7 +426,7 @@ public sealed class MainViewModelChatTests : IDisposable
 
         vm.OpenCitationSource(new RagSource(2, "đã-xoá", "Sách đã xoá", 1, "đoạn khác"));
 
-        Assert.Null(vm.ActiveSourcePassage);
+        Assert.Null(vm.Session.ActiveSourcePassage);
     }
 
     [Fact]
@@ -434,7 +437,7 @@ public sealed class MainViewModelChatTests : IDisposable
 
         vm.OpenCitationSource(new RagSource(2, "docA", "Sách A", 3, "đoạn hai"));
 
-        Assert.Equal(3, vm.ActiveSourcePassage?.PageIndex);
+        Assert.Equal(3, vm.Session.ActiveSourcePassage?.PageIndex);
     }
 
     [Fact]
@@ -445,7 +448,7 @@ public sealed class MainViewModelChatTests : IDisposable
 
         vm.OpenCitationSource(new RagSource(1, "docB", "Sách B", 4, "đoạn của B"));
 
-        Assert.Equal("docB", vm.ActiveSourcePassage?.DocumentId);
+        Assert.Equal("docB", vm.Session.ActiveSourcePassage?.DocumentId);
     }
 
     [Fact]
@@ -454,21 +457,21 @@ public sealed class MainViewModelChatTests : IDisposable
         var (vm, _) = WorkspaceSessionWithDocA();
         vm.OpenCitationSource(new RagSource(1, "docA", "Sách A", 2, "đoạn nguồn"));
 
-        vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
+        vm.Session.OpenInWorkspace("ws-tabs", DocB);
 
-        Assert.Null(vm.ActiveSourcePassage);
+        Assert.Null(vm.Session.ActiveSourcePassage);
     }
 
     [Fact]
     public void OpeningAnotherFileStandalone_ClearsSourcePassage()
     {
         var (vm, _) = OpenedDocumentVm(DocumentIndexStatus.None);
-        vm.ActiveSourcePassage = new SourcePassage("docOpen", 1, ["đoạn"]);
+        vm.Session.ActiveSourcePassage = new SourcePassage("docOpen", 1, ["đoạn"]);
 
         vm.OpenLibraryItemCommand.Execute(
-            new LibraryItem("docOpen", "Sách mở", vm.FilePath!, ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1));
+            new LibraryItem("docOpen", "Sách mở", vm.Session.FilePath!, ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1));
 
-        Assert.Null(vm.ActiveSourcePassage);
+        Assert.Null(vm.Session.ActiveSourcePassage);
     }
 
     [Fact]
@@ -479,6 +482,6 @@ public sealed class MainViewModelChatTests : IDisposable
 
         vm.ClearSourcePassageCommand.Execute(parameter: null);
 
-        Assert.Null(vm.ActiveSourcePassage);
+        Assert.Null(vm.Session.ActiveSourcePassage);
     }
 }

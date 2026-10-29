@@ -11,7 +11,7 @@ public partial class MainWindow : Window
         try
         {
             InitializeComponent();
-            Closing += (_, _) => (DataContext as ViewModels.MainViewModel)?.SaveOpenSetNow();
+            Closing += (_, _) => (DataContext as ViewModels.MainViewModel)?.Session.SaveOpenSetNow();
         }
 #pragma warning disable CA1031 // ranh giới khởi tạo cửa sổ: ghi log và hiện lỗi cho người dùng rồi tắt app; ghi log là best-effort
         catch (Exception ex)

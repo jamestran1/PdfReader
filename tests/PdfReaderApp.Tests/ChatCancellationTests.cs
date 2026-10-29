@@ -178,7 +178,7 @@ public sealed class ChatCancellationTests : IDisposable
         _tempFiles.Add(path);
         vm.OpenLibraryItemCommand.Execute(
             new LibraryItem(id, "Sách " + id, path, ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1));
-        return vm.CurrentDocumentId!;
+        return vm.Session.DocumentId!;
     }
 
     public void Dispose()

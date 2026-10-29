@@ -119,7 +119,7 @@ public sealed class MainViewModelIndexingTests : IDisposable
         var index = new RecordingIndex();
         var vm = BuildVm(index);
         OpenFakeDocument(vm);
-        string documentId = vm.CurrentDocumentId!;
+        string documentId = vm.Session.DocumentId!;
         index.Deleted.Clear();
 
         vm.Indexing.ReindexDocumentCommand.Execute(parameter: null);

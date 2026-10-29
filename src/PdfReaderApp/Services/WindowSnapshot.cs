@@ -87,7 +87,7 @@ internal static class WindowSnapshot
         // đặt sau khi đã nạp thì đồng bộ cuộn kéo trang về chỗ đang hiển thị.
         if (request.Page is { } page)
         {
-            vm.CurrentPage = page;
+            vm.Session.CurrentPage = page;
         }
         // ImportAndOpen báo lỗi bằng notification trên UI; đưa nó ra stderr để script thấy nguyên nhân.
         if (vm.Notifications.Current is { IsError: true } error)
@@ -105,7 +105,7 @@ internal static class WindowSnapshot
 
         if (request.Zoom is { } zoom)
         {
-            vm.ZoomLevel = zoom;
+            vm.Session.ZoomLevel = zoom;
         }
 
         if (request.RightTabIndex is { } tab)

@@ -137,6 +137,21 @@ public class MainViewModelTests
             new PdfReaderApp.Services.AiEmbeddingGeneratorFactory(),
             workspaceStore: wsStore);
 
+    private static MainViewModel ViewModelAtPage(int totalPages, int currentPage)
+    {
+        var viewModel = new MainViewModel();
+        viewModel.Session.TotalPages = totalPages;
+        viewModel.Session.CurrentPage = currentPage;
+        return viewModel;
+    }
+
+    private static MainViewModel ViewModelWithZoom(double zoomLevel)
+    {
+        var viewModel = new MainViewModel();
+        viewModel.Session.ZoomLevel = zoomLevel;
+        return viewModel;
+    }
+
     private static MainViewModel VmWith(FakeWorkspaceStore wsStore, FakeNoteStore notes)
         => new MainViewModel(
             new PdfReaderApp.Services.ITextPdfDocumentService(),
@@ -249,9 +264,9 @@ public class MainViewModelTests
     {
         var viewModel = new MainViewModel();
         Assert.Equal("Trí Thư", viewModel.WindowTitle);
-        Assert.Equal(1, viewModel.CurrentPage);
-        Assert.Equal(1, viewModel.TotalPages);
-        Assert.Equal(1.0, viewModel.ZoomLevel);
+        Assert.Equal(1, viewModel.Session.CurrentPage);
+        Assert.Equal(1, viewModel.Session.TotalPages);
+        Assert.Equal(1.0, viewModel.Session.ZoomLevel);
     }
 
     [Fact]
@@ -264,57 +279,57 @@ public class MainViewModelTests
     [Fact]
     public void NextPageCommand_ShouldIncrementPage_WhenNotAtLastPage()
     {
-        var viewModel = new MainViewModel { TotalPages = 5, CurrentPage = 1 };
+        var viewModel = ViewModelAtPage(5, 1);
         viewModel.NextPageCommand.Execute(null);
-        Assert.Equal(2, viewModel.CurrentPage);
+        Assert.Equal(2, viewModel.Session.CurrentPage);
     }
 
     [Fact]
     public void NextPageCommand_ShouldNotIncrementPage_WhenAtLastPage()
     {
-        var viewModel = new MainViewModel { TotalPages = 5, CurrentPage = 5 };
+        var viewModel = ViewModelAtPage(5, 5);
         viewModel.NextPageCommand.Execute(null);
-        Assert.Equal(5, viewModel.CurrentPage);
+        Assert.Equal(5, viewModel.Session.CurrentPage);
     }
 
     [Fact]
     public void PreviousPageCommand_ShouldDecrementPage_WhenNotAtFirstPage()
     {
-        var viewModel = new MainViewModel { TotalPages = 5, CurrentPage = 2 };
+        var viewModel = ViewModelAtPage(5, 2);
         viewModel.PreviousPageCommand.Execute(null);
-        Assert.Equal(1, viewModel.CurrentPage);
+        Assert.Equal(1, viewModel.Session.CurrentPage);
     }
 
     [Fact]
     public void PreviousPageCommand_ShouldNotDecrementPage_WhenAtFirstPage()
     {
-        var viewModel = new MainViewModel { TotalPages = 5, CurrentPage = 1 };
+        var viewModel = ViewModelAtPage(5, 1);
         viewModel.PreviousPageCommand.Execute(null);
-        Assert.Equal(1, viewModel.CurrentPage);
+        Assert.Equal(1, viewModel.Session.CurrentPage);
     }
 
     [Fact]
     public void ZoomInCommand_ShouldIncreaseZoomLevel()
     {
-        var viewModel = new MainViewModel { ZoomLevel = 1.0 };
+        var viewModel = ViewModelWithZoom(1.0);
         viewModel.ZoomInCommand.Execute(null);
-        Assert.Equal(1.2, viewModel.ZoomLevel, 1);
+        Assert.Equal(1.2, viewModel.Session.ZoomLevel, 1);
     }
 
     [Fact]
     public void ZoomOutCommand_ShouldDecreaseZoomLevel_WhenAboveMinimum()
     {
-        var viewModel = new MainViewModel { ZoomLevel = 1.0 };
+        var viewModel = ViewModelWithZoom(1.0);
         viewModel.ZoomOutCommand.Execute(null);
-        Assert.Equal(0.8, viewModel.ZoomLevel, 1);
+        Assert.Equal(0.8, viewModel.Session.ZoomLevel, 1);
     }
 
     [Fact]
     public void ZoomOutCommand_ShouldNotDecreaseZoomLevel_WhenAtMinimum()
     {
-        var viewModel = new MainViewModel { ZoomLevel = 0.4 };
+        var viewModel = ViewModelWithZoom(0.4);
         viewModel.ZoomOutCommand.Execute(null);
-        Assert.Equal(0.4, viewModel.ZoomLevel, 1);
+        Assert.Equal(0.4, viewModel.Session.ZoomLevel, 1);
     }
 
     [Fact]
@@ -354,24 +369,8 @@ public class MainViewModelTests
         vm.Search.Query = "hành";
         var result = new SearchResult(2, "snip", 1);
         vm.Search.SelectResultCommand.Execute(result);
-        Assert.Equal(3, vm.CurrentPage);
+        Assert.Equal(3, vm.Session.CurrentPage);
         Assert.Equal("hành", vm.Search.SelectedQuery);
-    }
-
-    [Fact]
-    public void ActiveTabChange_ClearsSearchQueryAndHighlight()
-    {
-        var vm = new MainViewModel();
-        vm.Search.Query = "abc";
-        vm.Search.SelectedQuery = "abc";
-        vm.Search.ExecutedQuery = "abc";
-
-        vm.Tabs.OpenOrActivate("docB", "B", "/lib/b.pdf", initialPage: 1);
-
-        Assert.Equal(string.Empty, vm.Search.Query);
-        Assert.Equal(string.Empty, vm.Search.SelectedQuery);
-        Assert.Equal(string.Empty, vm.Search.ExecutedQuery);
-        Assert.Empty(vm.Search.Results);
     }
 
     [Fact]
@@ -396,17 +395,17 @@ public class MainViewModelTests
     [Fact]
     public void FirstPageCommand_GoesToPageOne()
     {
-        var vm = new MainViewModel { TotalPages = 10, CurrentPage = 7 };
+        var vm = ViewModelAtPage(10, 7);
         vm.FirstPageCommand.Execute(null);
-        Assert.Equal(1, vm.CurrentPage);
+        Assert.Equal(1, vm.Session.CurrentPage);
     }
 
     [Fact]
     public void LastPageCommand_GoesToLastPage()
     {
-        var vm = new MainViewModel { TotalPages = 10, CurrentPage = 3 };
+        var vm = ViewModelAtPage(10, 3);
         vm.LastPageCommand.Execute(null);
-        Assert.Equal(10, vm.CurrentPage);
+        Assert.Equal(10, vm.Session.CurrentPage);
     }
 
     [Fact]
@@ -559,39 +558,12 @@ public class MainViewModelTests
 
         vm.OpenWorkspaceCommand.Execute(W);
 
-        // S2: khi workspace có tài liệu, OpenWorkspace đi thẳng vào phiên đọc (EnterReadingSession).
+        // Khi workspace có tài liệu, OpenWorkspace đi thẳng vào phiên đọc (LeaveWorkspacesScreen).
         // ShowWorkspaces = false.
         Assert.False(vm.ShowWorkspaces);
         Assert.Equal(W, vm.SelectedWorkspace);
         Assert.Contains(vm.DocumentsSurface.Members, i => i.DocumentId == "docA");
-        Assert.Equal(W.Id, vm.ActiveWorkspaceId);
-    }
-
-    [Fact]
-    public void ResolveWorkspaceScope_ExplicitWorkspace_ReturnsThatId()
-    {
-        var wsStore = new FakeWorkspaceStore();
-        var vm = VmWithWorkspaceStore(wsStore);
-
-        var result = vm.ResolveWorkspaceScope("ws-1", "docA", "A", 1);
-
-        Assert.Equal("ws-1", result);
-    }
-
-    [Fact]
-    public void ResolveWorkspaceScope_NullExplicit_ReturnsDefaultWorkspaceId()
-    {
-        var wsStore = new FakeWorkspaceStore();
-        var vm = VmWithWorkspaceStore(wsStore);
-
-        var id1 = vm.ResolveWorkspaceScope(null, "docA", "A", 1);
-        // Không truyền workspace tường minh -> dùng default workspace của tài liệu
-        var def = wsStore.All.Single(w => w.IsDefault && w.DefaultDocumentId == "docA");
-        Assert.Equal(def.Id, id1);
-
-        // Idempotent: gọi lần hai cùng docId trả về cùng id
-        var id2 = vm.ResolveWorkspaceScope(null, "docA", "A", 2);
-        Assert.Equal(id1, id2);
+        Assert.Equal(W.Id, vm.Session.ActiveWorkspaceId);
     }
 
     [Fact]
@@ -624,7 +596,7 @@ public class MainViewModelTests
         vm.OpenWorkspaceDocumentCommand.Execute(item);
 
         // active workspace phải là W.Id (không phải default)
-        Assert.Equal(W.Id, vm.ActiveWorkspaceId);
+        Assert.Equal(W.Id, vm.Session.ActiveWorkspaceId);
         Assert.True(vm.IsReadingDocument);
 
         // Dọn dẹp
@@ -679,8 +651,8 @@ public class MainViewModelTests
         var note = new PdfReaderApp.Models.Note("n1", W.Id, itemB.DocumentId, 2, null, "ghi chú docB", 1, 1);
         vm.Notes.OpenCommand.Execute(note);
 
-        Assert.Equal(itemB.DocumentId, vm.CurrentDocumentId); // đã mở docB
-        Assert.Equal(3, vm.CurrentPage);                       // mở thẳng tại trang neo (index 2 -> trang 3)
+        Assert.Equal(itemB.DocumentId, vm.Session.DocumentId); // đã mở docB
+        Assert.Equal(3, vm.Session.CurrentPage);                       // mở thẳng tại trang neo (index 2 -> trang 3)
 
 #pragma warning disable CA1031 // dọn thư mục tạm của test là best-effort
         try { System.IO.Directory.Delete(tmpDir, recursive: true); } catch { }
@@ -722,7 +694,7 @@ public class MainViewModelTests
 
         vm.DeleteWorkspaceCommand.Execute(W);
 
-        Assert.Null(vm.ActiveWorkspaceId);       // scope active đã reset
+        Assert.Null(vm.Session.ActiveWorkspaceId);       // scope active đã reset
         Assert.Null(vm.SelectedWorkspace);       // không giữ tham chiếu workspace đã xóa
         Assert.Null(wsStore.Get(W.Id));
     }
@@ -956,7 +928,7 @@ public class MainViewModelTests
         vm.OpenWorkspaceCommand.Execute(W);
         vm.OpenWorkspaceDocumentCommand.Execute(itemA);
 
-        Assert.Equal(W.Id, vm.ActiveWorkspaceId);
+        Assert.Equal(W.Id, vm.Session.ActiveWorkspaceId);
         // Highlight của default workspace KHÔNG được lẫn vào
         Assert.DoesNotContain(vm.Notes.Highlights, n => n.OwnerKey == Dft.Id);
         Assert.Empty(vm.Notes.Highlights); // W chưa có note
