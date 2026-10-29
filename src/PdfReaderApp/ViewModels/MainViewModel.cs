@@ -252,9 +252,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         var session = new MainViewModelSessionFactory(
             documentLoader, _workspaceStore, Search, Chat, Notes, Indexing, DocumentsSurface)
-            .Create(new SessionHostCallbacks(UpdateNotesDocumentContext, NotifyError,
-                documentId => _library.MarkOpened(documentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
-                id => Library.FirstOrDefault(i => i.DocumentId == id)));
+            .Create(new SessionHostCallbacks(
+                RefreshNotesDocumentContext: UpdateNotesDocumentContext,
+                NotifyError: NotifyError,
+                MarkDocumentOpened: documentId => _library.MarkOpened(documentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
+                FindDocument: id => Library.FirstOrDefault(i => i.DocumentId == id)));
         session.PropertyChanged += OnSessionPropertyChanged;
         return session;
     }
@@ -310,7 +312,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     public bool CanPromoteToWorkspace => IsReadingDocument && Session.CanPromote;
 
     // #68: promote Default Workspace -> named Workspace từ tài liệu đang đọc lẻ.
-    // Tái dùng tạo workspace + AddDocument + OpenOrActivate; mang theo trang/zoom.
+    // Tái dùng tạo workspace + AddDocument + mở qua Phiên đọc; mang theo trang/zoom.
     [RelayCommand]
     private void PromoteToWorkspace(string? name)
     {
@@ -507,7 +509,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         ReloadWorkspaces();
     }
 
-    // Kích hoạt tab được chọn trên Tab Strip.
     [RelayCommand]
     private void ActivateTab(Models.OpenTab? tab)
     {
@@ -532,7 +533,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         DocumentsSurface.IsModalOpen = true;
     }
 
-    // Mở tài liệu trong ngữ cảnh workspace -> route qua Open Set.
     [RelayCommand]
     private void OpenWorkspaceDocument(LibraryItem? item)
     {

@@ -1,4 +1,3 @@
-using System.Collections.Specialized;
 using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfReaderApp.Core;
@@ -50,7 +49,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _clock = dependencies.Clock ?? TimeProvider.System;
 
         // Phiên đọc là bên nghe duy nhất việc đổi Tab và gọi OpenSetPersistence: thứ tự "xử lý đổi Tab rồi mới lập lịch lưu
-        // Open Set" nằm trong OnActiveTabChanged và OnTabsCollectionChanged, không phụ thuộc thứ tự đăng ký sự kiện.
+        // Open Set" nằm trong OnActiveTabChanged và handler TabsChanged, không phụ thuộc thứ tự đăng ký sự kiện.
         Tabs = new TabSetViewModel();
         _openSet = new OpenSetPersistence(
             _workspaceStore, Tabs, () => ActiveWorkspaceId, () => IsWorkspaceSession)
@@ -58,7 +57,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
             DispatcherProvider = dependencies.DispatcherProvider ?? (() => null),
         };
         Tabs.ActiveTabChanged += OnActiveTabChanged;
-        ((INotifyCollectionChanged)Tabs.Tabs).CollectionChanged += (_, _) => _openSet.Schedule();
+        Tabs.TabsChanged += _openSet.Schedule;
     }
 
     /// <summary>Tập Tab (Open Set). Tab Strip chỉ đọc; mọi thao tác ghi đi qua Phiên đọc.</summary>
@@ -405,7 +404,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         SetDocumentState(loaded.DocumentId, loaded.Blocks);
 
         string title = System.IO.Path.GetFileNameWithoutExtension(path);
-        ActiveWorkspaceId = ResolveWorkspaceScope(new WorkspaceScopeRequest(workspaceScopeId, loaded.DocumentId, title));
+        ActiveWorkspaceId = ResolveWorkspaceScope(new WorkspaceScopeRequest(ExplicitWorkspaceId: workspaceScopeId, DocumentId: loaded.DocumentId, Title: title));
         _chat.LoadHistory();
         _notes.LoadFor(ActiveWorkspaceId);
         _notes.RefreshDocumentContext();

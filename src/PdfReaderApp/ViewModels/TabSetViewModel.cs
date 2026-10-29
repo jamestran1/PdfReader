@@ -19,6 +19,7 @@ public sealed class TabSetViewModel : ObservableObject
     {
         _maxWarmInactiveTabs = maxWarmInactiveTabs;
         Tabs = new ReadOnlyObservableCollection<OpenTab>(_tabItems);
+        _tabItems.CollectionChanged += (_, _) => TabsChanged?.Invoke();
     }
 
     private readonly ObservableCollection<OpenTab> _tabItems = [];
@@ -48,6 +49,11 @@ public sealed class TabSetViewModel : ObservableObject
     /// <summary>Phát khi ActiveTab thay đổi (kể cả khi thành null).</summary>
 #pragma warning disable MA0046 // Sự kiện nội bộ dùng với lambda ở ViewModel và test; giữ chữ ký Action để không đổi hành vi
     public event Action<OpenTab?>? ActiveTabChanged;
+#pragma warning restore MA0046
+
+    /// <summary>Phát khi tập Tab đổi (thêm, bỏ, xoá hết); không phát khi chỉ đổi Tab active. Che kiểu collection bên trong khỏi người nghe.</summary>
+#pragma warning disable MA0046 // cùng lý do với ActiveTabChanged
+    public event Action? TabsChanged;
 #pragma warning restore MA0046
 
     // Danh sách MRU (most-recently-activated): phần tử đầu = được kích hoạt gần nhất.

@@ -13,6 +13,30 @@ public class TabSetViewModelTests
 
     private static TabSetViewModel Make() => new TabSetViewModel();
 
+    // TabsChanged: Phiên đọc dựa vào sự kiện này để lập lịch lưu Open Set khi tập Tab đổi (thêm, bỏ, xoá hết).
+    [Fact]
+    public void TabsChanged_RaisedOnAddRemoveAndReset_NotOnActivateOfExistingTab()
+    {
+        var vm = Make();
+        int raised = 0;
+        vm.TabsChanged += () => raised++;
+
+        var first = vm.OpenOrActivate("doc1", "Tài liệu 1", "/path/doc1.pdf");
+        Assert.Equal(1, raised);
+
+        var second = vm.OpenOrActivate("doc2", "Tài liệu 2", "/path/doc2.pdf");
+        Assert.Equal(2, raised);
+
+        vm.ActivateTab(first);   // chỉ đổi Tab active, tập Tab không đổi
+        Assert.Equal(2, raised);
+
+        vm.Close(second);
+        Assert.Equal(3, raised);
+
+        vm.Reset();
+        Assert.Equal(4, raised);
+    }
+
     // =========================================================
     // Hành vi 1: OpenOrActivate tài liệu mới -> nằm trong Tabs và là ActiveTab
     // =========================================================
