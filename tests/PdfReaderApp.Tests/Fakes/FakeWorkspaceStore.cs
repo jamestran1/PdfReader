@@ -50,8 +50,13 @@ public sealed class FakeWorkspaceStore : IWorkspaceStore
     public void Delete(string id) { All.RemoveAll(w => w.Id == id); Membership.Remove(id); }
     public readonly Dictionary<string, List<OpenTabState>> OpenSets = [];
 
+    public List<string> SavedWorkspaceIds { get; } = [];
+
     public void SaveOpenTabs(string workspaceId, IReadOnlyList<OpenTabState> tabs)
-        => OpenSets[workspaceId] = tabs.OrderBy(t => t.TabOrder).ToList();
+    {
+        SavedWorkspaceIds.Add(workspaceId);
+        OpenSets[workspaceId] = tabs.OrderBy(t => t.TabOrder).ToList();
+    }
 
     public IReadOnlyList<OpenTabState> GetOpenTabs(string workspaceId)
         => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : [];

@@ -6,31 +6,31 @@ namespace PdfReaderApp.Tests;
 
 /// <summary>
 /// TDD cho ActivateTabCommand và CloseTabCommand trên MainViewModel (Tab S1 UI layer).
-/// Dùng TestableMainViewModel (override HydrateTab = no-op) -- kế thừa pattern từ MainViewModelTabTests.
+/// Dùng bộ nạp giả (FakeDocumentLoader) để không nạp PDF thật.
 /// </summary>
 public class MainViewModelTabCommandTests
 {
-    // --- Test seam: no-op HydrateTab (giống MainViewModelTabTests) ---
 
-    private sealed class TestableMainViewModel : MainViewModel
+    private static MainViewModel CreateVm(IWorkspaceStore wsStore)
+        => new(
+            new ITextPdfDocumentService(),
+            new WindowsSettingsService(),
+            new AiChatClientFactory(),
+            new PdfReaderApp.Services.SqliteDocumentIndex(
+                System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
+                System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
+            new AiEmbeddingGeneratorFactory(),
+            workspaceStore: wsStore,
+            documentLoader: new PdfReaderApp.Tests.Fakes.FakeDocumentLoader());
+
+    // Đọc lẻ một tài liệu qua Phiên đọc; bộ nạp giả lấy DocumentId bằng chính đường dẫn nên item dùng đường dẫn làm id.
+    private static void OpenStandalone(MainViewModel vm, string path, string title, int page, double zoom)
     {
-        public TestableMainViewModel(IWorkspaceStore wsStore)
-            : base(
-                new ITextPdfDocumentService(),
-                new WindowsSettingsService(),
-                new AiChatClientFactory(),
-                new PdfReaderApp.Services.SqliteDocumentIndex(
-                    System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".db"),
-                    System.IO.Path.Combine(System.AppContext.BaseDirectory, "vec0.dll")),
-                new AiEmbeddingGeneratorFactory(),
-                workspaceStore: wsStore)
-        { }
-
-        protected override void HydrateTab(OpenTab tab) { /* no-op */ }
-
-        public PdfReaderApp.ViewModels.StandaloneDocument? FakeStandaloneDocument;
-        protected override PdfReaderApp.ViewModels.StandaloneDocument? CurrentStandaloneDocument()
-            => FakeStandaloneDocument;
+        var item = MakeItem(path, title, path);
+        vm.Library.Add(item);
+        vm.OpenLibraryItemCommand.Execute(item);
+        vm.Session.CurrentPage = page;
+        vm.Session.ZoomLevel = zoom;
     }
 
     private sealed class FakeWorkspaceStore : IWorkspaceStore
@@ -87,10 +87,10 @@ public class MainViewModelTabCommandTests
             => OpenSets.TryGetValue(workspaceId, out var s) ? s.ToList() : [];
     }
 
-    private static (TestableMainViewModel vm, FakeWorkspaceStore wsStore) MakeVm()
+    private static (MainViewModel vm, FakeWorkspaceStore wsStore) MakeVm()
     {
         var wsStore = new FakeWorkspaceStore();
-        var vm = new TestableMainViewModel(wsStore);
+        var vm = CreateVm(wsStore);
         return (vm, wsStore);
     }
 
@@ -98,7 +98,7 @@ public class MainViewModelTabCommandTests
         => new LibraryItem(docId, title, path, null, 0, 1, 1);
 
     // Mở workspace và hai tài liệu -> trả về cả hai tab để test.
-    private static (OpenTab tabA, OpenTab tabB) OpenTwoTabs(TestableMainViewModel vm, FakeWorkspaceStore wsStore)
+    private static (OpenTab tabA, OpenTab tabB) OpenTwoTabs(MainViewModel vm, FakeWorkspaceStore wsStore)
     {
         var W = new Workspace("ws-cmd", "Dự án", false, null, 1, 1);
         wsStore.Upsert(W);
@@ -114,7 +114,7 @@ public class MainViewModelTabCommandTests
         vm.OpenWorkspaceDocumentCommand.Execute(itemA);
         vm.OpenWorkspaceDocumentCommand.Execute(itemB);
 
-        return (vm.Tabs.Tabs[0], vm.Tabs.Tabs[1]);
+        return (vm.Session.Tabs.Tabs[0], vm.Session.Tabs.Tabs[1]);
     }
 
     // =========================================================
@@ -129,7 +129,7 @@ public class MainViewModelTabCommandTests
         // tabB đang active (mở sau). Kích hoạt lại tabA.
         vm.ActivateTabCommand.Execute(tabA);
 
-        Assert.Equal(tabA, vm.Tabs.ActiveTab);
+        Assert.Equal(tabA, vm.Session.Tabs.ActiveTab);
     }
 
     // =========================================================
@@ -159,8 +159,8 @@ public class MainViewModelTabCommandTests
 
         vm.CloseTabCommand.Execute(tabB);
 
-        Assert.Single(vm.Tabs.Tabs);
-        Assert.DoesNotContain(tabB, vm.Tabs.Tabs);
+        Assert.Single(vm.Session.Tabs.Tabs);
+        Assert.DoesNotContain(tabB, vm.Session.Tabs.Tabs);
     }
 
     // =========================================================
@@ -190,7 +190,7 @@ public class MainViewModelTabCommandTests
         // tabB là active; đóng nó -> tabA trở thành active
         vm.CloseTabCommand.Execute(tabB);
 
-        Assert.Equal(tabA, vm.Tabs.ActiveTab);
+        Assert.Equal(tabA, vm.Session.Tabs.ActiveTab);
     }
 
     // =========================================================
@@ -215,7 +215,7 @@ public class MainViewModelTabCommandTests
 
         vm.ShowWorkspaceDocumentsCommand.Execute(null);
 
-        Assert.Equal(2, vm.Tabs.Tabs.Count);
+        Assert.Equal(2, vm.Session.Tabs.Tabs.Count);
     }
 
     [Fact]
@@ -227,10 +227,10 @@ public class MainViewModelTabCommandTests
         vm.ShowWorkspaceDocumentsCommand.Execute(null);
         vm.DocumentsSurface.OpenMemberCommand.Execute(MakeItem("docA", "Tài liệu A", "/path/a.pdf"));
 
-        Assert.True(vm.IsWorkspaceSession);
+        Assert.True(vm.Session.IsWorkspaceSession);
         Assert.False(vm.DocumentsSurface.IsModalOpen);
-        Assert.Equal(2, vm.Tabs.Tabs.Count);                 // không tạo tab trùng
-        Assert.Equal("docA", vm.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal(2, vm.Session.Tabs.Tabs.Count);                 // không tạo tab trùng
+        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.DocumentId);
     }
 
     // =========================================================
@@ -245,7 +245,7 @@ public class MainViewModelTabCommandTests
 
         vm.ShowLibrary = true;                    // điều hướng sang Thư viện
 
-        Assert.True(vm.IsWorkspaceSession);       // phiên vẫn còn
+        Assert.True(vm.Session.IsWorkspaceSession);       // phiên vẫn còn
         Assert.False(vm.IsDocumentTabStripVisible);
     }
 
@@ -256,19 +256,18 @@ public class MainViewModelTabCommandTests
     public void PromoteToWorkspace_FromStandalone_CreatesNamedWorkspaceWithDocFirstTabAndSession()
     {
         var (vm, wsStore) = MakeVm();
-        vm.FakeStandaloneDocument =
-            new PdfReaderApp.ViewModels.StandaloneDocument("docA", "Tài liệu A", "/lib/a.pdf", 7, 1.5);
+        OpenStandalone(vm, "/lib/a.pdf", "Tài liệu A", 7, 1.5);
 
         vm.PromoteToWorkspaceCommand.Execute("Dự án A");
 
-        Assert.True(vm.IsWorkspaceSession);
+        Assert.True(vm.Session.IsWorkspaceSession);
         var workspace = Assert.Single(wsStore.All, w => !w.IsDefault);
         Assert.Equal("Dự án A", workspace.Name);
-        Assert.Equal(workspace.Id, vm.ActiveWorkspaceId);
-        Assert.Contains("docA", wsStore.GetDocumentIds(workspace.Id), StringComparer.Ordinal);
+        Assert.Equal(workspace.Id, vm.Session.ActiveWorkspaceId);
+        Assert.Contains("/lib/a.pdf", wsStore.GetDocumentIds(workspace.Id), StringComparer.Ordinal);
 
-        var tab = Assert.Single(vm.Tabs.Tabs);
-        Assert.Equal("docA", tab.DocumentId);
+        var tab = Assert.Single(vm.Session.Tabs.Tabs);
+        Assert.Equal("/lib/a.pdf", tab.DocumentId);
         Assert.Equal(7, tab.Page);
         Assert.Equal(1.5, tab.Zoom);
     }
@@ -277,12 +276,11 @@ public class MainViewModelTabCommandTests
     public void PromoteToWorkspace_EmptyName_SetsErrorAndCreatesNothing()
     {
         var (vm, wsStore) = MakeVm();
-        vm.FakeStandaloneDocument =
-            new PdfReaderApp.ViewModels.StandaloneDocument("docA", "Tài liệu A", "/lib/a.pdf", 1, 1.0);
+        OpenStandalone(vm, "/lib/a.pdf", "Tài liệu A", 1, 1.0);
 
         vm.PromoteToWorkspaceCommand.Execute("   ");
 
-        Assert.False(vm.IsWorkspaceSession);
+        Assert.False(vm.Session.IsWorkspaceSession);
         Assert.DoesNotContain(wsStore.All, w => !w.IsDefault);
         Assert.False(string.IsNullOrEmpty(vm.WorkspaceNameError));
     }
@@ -293,13 +291,11 @@ public class MainViewModelTabCommandTests
         var (vm, wsStore) = MakeVm();
         OpenTwoTabs(vm, wsStore);                 // đang ở phiên workspace (IsWorkspaceSession=true)
         int workspaceCountBefore = wsStore.All.Count;
-        vm.FakeStandaloneDocument =
-            new PdfReaderApp.ViewModels.StandaloneDocument("docZ", "Z", "/lib/z.pdf", 1, 1.0);
 
         vm.PromoteToWorkspaceCommand.Execute("Khác");
 
         Assert.Equal(workspaceCountBefore, wsStore.All.Count);
-        Assert.Equal(2, vm.Tabs.Tabs.Count);      // Open Set không đổi
+        Assert.Equal(2, vm.Session.Tabs.Tabs.Count);      // Open Set không đổi
     }
 
     // #68 bug: sau promote rồi mở surface tài liệu, tài liệu vừa promote phải là member (không rỗng).
@@ -307,13 +303,11 @@ public class MainViewModelTabCommandTests
     public void PromoteThenShowWorkspaceDocuments_ListsThePromotedDocumentAsMember()
     {
         var (vm, wsStore) = MakeVm();
-        vm.Library.Add(MakeItem("docA", "Tài liệu A", "/lib/a.pdf"));
-        vm.FakeStandaloneDocument =
-            new PdfReaderApp.ViewModels.StandaloneDocument("docA", "Tài liệu A", "/lib/a.pdf", 3, 1.0);
+        OpenStandalone(vm, "/lib/a.pdf", "Tài liệu A", 3, 1.0);
 
         vm.PromoteToWorkspaceCommand.Execute("Dự án A");
         vm.ShowWorkspaceDocumentsCommand.Execute(null);
 
-        Assert.Contains(vm.DocumentsSurface.Members, d => d.DocumentId == "docA");
+        Assert.Contains(vm.DocumentsSurface.Members, d => d.DocumentId == "/lib/a.pdf");
     }
 }

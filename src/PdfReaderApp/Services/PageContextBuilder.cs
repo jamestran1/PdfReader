@@ -2,7 +2,7 @@ using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
 
-public static class PageContextBuilder
+internal static class PageContextBuilder
 {
     /// <summary>Ngữ cảnh theo trang nhưng đánh số <c>[n]</c> như RAG, để câu trả lời lúc RAG không dùng được vẫn bấm được.
     /// Dùng chung bộ định dạng với RAG nên bấm <c>[n]</c> hành xử giống hệt. Null khi cửa sổ trang không có chữ.</summary>

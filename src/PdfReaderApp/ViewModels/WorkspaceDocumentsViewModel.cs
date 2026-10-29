@@ -11,7 +11,7 @@ namespace PdfReaderApp.ViewModels;
 /// render ở 2 host (modal DialogHost và inline khi Open Set rỗng), cùng bind một instance này.
 /// Tách khỏi MainViewModel (pattern NotesViewModel) để test trọn vẹn bằng delegate.
 /// </summary>
-public sealed partial class WorkspaceDocumentsViewModel : ObservableObject
+public sealed partial class WorkspaceDocumentsViewModel : ObservableObject, IReadingSessionSurface
 {
     private readonly IWorkspaceStore _workspaceStore;
     private readonly Func<Workspace?> _activeWorkspace;
@@ -100,6 +100,8 @@ public sealed partial class WorkspaceDocumentsViewModel : ObservableObject
 
     [RelayCommand]
     private void CloseModal() => IsModalOpen = false;
+
+    void IReadingSessionSurface.DismissModal() => IsModalOpen = false;
 
     [ObservableProperty] public partial bool IsRenaming { get; set; }
     [ObservableProperty] public partial string RenameDraft { get; set; } = string.Empty;

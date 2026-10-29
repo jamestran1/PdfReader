@@ -49,6 +49,7 @@ public sealed class OpenSetPersistenceTests
         persistence.IsRestoring = true;
 
         tabs.OpenOrActivate("docA", "A", "/a.pdf");
+        persistence.Schedule();
 
         Assert.Empty(store.OpenSets);
     }
@@ -56,9 +57,10 @@ public sealed class OpenSetPersistenceTests
     [Fact]
     public void Schedule_DoesNothing_WhenNotWorkspaceSession()
     {
-        var (_, tabs, store) = Create(() => null, isWorkspaceSession: false);
+        var (persistence, tabs, store) = Create(() => null, isWorkspaceSession: false);
 
         tabs.OpenOrActivate("docA", "A", "/a.pdf");
+        persistence.Schedule();
 
         Assert.Empty(store.OpenSets);
     }
