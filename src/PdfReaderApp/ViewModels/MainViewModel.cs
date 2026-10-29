@@ -1,4 +1,4 @@
-﻿using System.Collections.ObjectModel;
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -220,7 +220,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         _library = services.Library;
         ReloadLibrary();
 
-        Chat = ChatViewModel.Create(services, GetChatContext, GetWorkspaceDocuments, OpenCitationSource);
+        Chat = ChatViewModel.Create(services, GetChatOwnerId, GetDocumentSnapshot, GetWorkspaceDocuments, OpenCitationSource);
 
         _noteStore = services.NoteStore;
         _noteStore.EnsureSchema();
@@ -600,9 +600,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
         foreach (var i in _library.GetAll()) Library.Add(i);
     }
 
-    private ChatContext GetChatContext() => new(
+    private string? GetChatOwnerId() => Session.IsWorkspaceSession ? Session.ActiveWorkspaceId : Session.DocumentId;
+
+    private DocumentSnapshot GetDocumentSnapshot() => new(
         Session.DocumentId,
-        Session.IsWorkspaceSession ? Session.ActiveWorkspaceId : Session.DocumentId,
         Session.DocumentBlocks,
         Session.CurrentPage,
         CurrentDocumentTitle());

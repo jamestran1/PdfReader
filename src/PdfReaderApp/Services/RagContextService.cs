@@ -3,7 +3,7 @@ using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
 
-public sealed class RagContextService
+internal sealed class RagContextService
 {
     private const string EntrySeparator = "\n\n";
 
@@ -45,7 +45,7 @@ public sealed class RagContextService
         CancellationToken ct = default)
         => BuildWorkspaceContextAsync(PlanWorkspaceIndexing(documents), question, options, ct);
 
-    /// <summary>Dựng ngữ cảnh từ <paramref name="plan"/> đã phân loại. Tách khỏi việc phân loại để nơi gọi đưa tài liệu thiếu
+    /// <summary>Dựng ngữ cảnh từ <paramref name="plan"/> đã phân loại. Tách khỏi việc phân loại để <c>AnswerContextBuilder</c> đưa tài liệu thiếu
     /// index vào hàng đợi nền TRƯỚC khi nhúng câu hỏi: nhúng lỗi không được làm mất việc lập chỉ mục.</summary>
     public async Task<WorkspaceRagResult> BuildWorkspaceContextAsync(
         WorkspaceIndexPlan plan, string question, WorkspaceRagOptions? options = null, CancellationToken ct = default)
