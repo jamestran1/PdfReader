@@ -558,7 +558,7 @@ public class MainViewModelTests
 
         vm.OpenWorkspaceCommand.Execute(W);
 
-        // S2: khi workspace có tài liệu, OpenWorkspace đi thẳng vào phiên đọc (LeaveWorkspacesScreen).
+        // Khi workspace có tài liệu, OpenWorkspace đi thẳng vào phiên đọc (LeaveWorkspacesScreen).
         // ShowWorkspaces = false.
         Assert.False(vm.ShowWorkspaces);
         Assert.Equal(W, vm.SelectedWorkspace);
