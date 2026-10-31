@@ -94,6 +94,9 @@ Lý do: phần lớn lỗi khó nằm trong code-behind WPF, chỉ test được
 **ARCH-1** 🟡 Thay đổi kiến trúc phải theo ADR trong `docs/adr/`; đi ngược hoặc mở rộng một quyết định thì viết ADR mới.
 Lý do: ADR là chỗ duy nhất ghi lại đánh đổi đã chọn; đổi kiến trúc âm thầm làm các quyết định cũ mất nghĩa.
 
+**ARCH-2** 🟡 ADR mở rộng hoặc tạo ngoại lệ cho một ADR cũ thì ghi ở Consequences những hành vi code hiện có bị đổi, kèm tên class hoặc bảng (vd `OpenSetPersistence` bỏ qua Default Workspace).
+Lý do: reviewer chỉ đọc diff tài liệu nên không thấy ADR mâu thuẫn với code; ở #284, bốn câu hỏi về Default Workspace chỉ lộ ra khi đối chiếu code, sau khi ADR 0009 đã viết xong.
+
 ## REPO: những thứ thấy được trong diff
 
 **REPO-1** 🔴 Không commit secret hay API key; đọc từ biến môi trường hoặc user-secrets. (máy kiểm: GitHub secret scanning + push protection)
