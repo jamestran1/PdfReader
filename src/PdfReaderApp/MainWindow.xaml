@@ -38,6 +38,7 @@
         <local:DocumentIdToTitleConverter x:Key="DocumentIdToTitleConverter"/>
         <local:IsActiveTabConverter x:Key="IsActiveTabConverter"/>
         <local:NavDestinationToBoolConverter x:Key="NavDestinationToBoolConverter" />
+        <converters:NoteIsSelectedConverter x:Key="NoteIsSelectedConverter"/>
         <converters:LibraryCoverBrushConverter x:Key="LibraryCoverBrushConverter"/>
         <converters:HasThumbnailToVisibilityConverter x:Key="HasThumbnailToVisibilityConverter"/>
         <converters:WindowStateToContentMarginConverter x:Key="WindowStateToContentMarginConverter"/>
@@ -1089,6 +1090,22 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <materialDesign:Card Margin="0,0,0,8" Padding="8" UniformCornerRadius="8">
+                                            <materialDesign:Card.Style>
+                                                <!-- Note được chọn (bấm [n] của Bản soạn, #295) -->
+                                                <Style TargetType="materialDesign:Card" BasedOn="{StaticResource {x:Type materialDesign:Card}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Value="True">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource NoteIsSelectedConverter}">
+                                                                    <Binding Path="Id"/>
+                                                                    <Binding Path="DataContext.Notes.SelectedNoteId" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </materialDesign:Card.Style>
                                             <Grid>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto"/>

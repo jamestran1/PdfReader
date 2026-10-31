@@ -1,7 +1,9 @@
 <UserControl x:Class="PdfReaderApp.Controls.CompositionView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:PdfReaderApp.Controls"
              xmlns:core="clr-namespace:PdfReaderApp.Core"
+             xmlns:models="clr-namespace:PdfReaderApp.Models"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
     <!-- Tab Bản soạn (#291): Markdown chỉ đọc trên tờ giấy 680 px (prototype #252-B). DataContext là CompositionTab. -->
     <UserControl.Resources>
@@ -13,17 +15,17 @@
             <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.OnSurface}"/>
         </Style>
         <DataTemplate x:Key="HeadingTemplate">
-            <TextBlock Text="{Binding Text}" Style="{StaticResource TriThu.Composition.Block}"
+            <TextBlock controls:CitationText.Spans="{Binding Spans}" controls:CitationText.Command="{Binding DataContext.Compositions.Sources.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=Window}}" Style="{StaticResource TriThu.Composition.Block}"
                        FontSize="17" FontWeight="Bold" Margin="0,10,0,8"/>
         </DataTemplate>
         <DataTemplate x:Key="ListItemTemplate">
             <DockPanel Margin="8,0,0,0">
                 <TextBlock DockPanel.Dock="Left" Text="•" Style="{StaticResource TriThu.Composition.Block}" Margin="0,0,10,10"/>
-                <TextBlock Text="{Binding Text}" Style="{StaticResource TriThu.Composition.Block}"/>
+                <TextBlock controls:CitationText.Spans="{Binding Spans}" controls:CitationText.Command="{Binding DataContext.Compositions.Sources.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=Window}}" Style="{StaticResource TriThu.Composition.Block}"/>
             </DockPanel>
         </DataTemplate>
         <DataTemplate x:Key="ParagraphTemplate">
-            <TextBlock Text="{Binding Text}" Style="{StaticResource TriThu.Composition.Block}"/>
+            <TextBlock controls:CitationText.Spans="{Binding Spans}" controls:CitationText.Command="{Binding DataContext.Compositions.Sources.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=Window}}" Style="{StaticResource TriThu.Composition.Block}"/>
         </DataTemplate>
     </UserControl.Resources>
 
@@ -42,9 +44,9 @@
                            Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
                 <TextBlock Text="{Binding MetaText}" FontSize="12.5" Margin="0,0,0,20"
                            Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
-                <ItemsControl ItemsSource="{Binding Blocks}">
+                <ItemsControl ItemsSource="{Binding RenderedBlocks}">
                     <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type core:MarkdownBlock}">
+                        <DataTemplate DataType="{x:Type models:CompositionBlockView}">
                             <ContentControl Content="{Binding}">
                                 <ContentControl.Style>
                                     <Style TargetType="ContentControl">
@@ -63,6 +65,50 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <!-- Danh sách nguồn (#295): theo Note hiện tại, Note đã xoá ghi rõ -->
+                <Separator Margin="0,18,0,12" Background="{DynamicResource TriThu.Brush.OutlineVariant}"/>
+                <TextBlock Text="Nguồn" FontSize="15" FontWeight="Bold" Margin="0,0,0,8"
+                           Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
+                <ItemsControl ItemsSource="{Binding Sources}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type core:CompositionSourceEntry}">
+                            <DockPanel Margin="0,0,0,10">
+                                <TextBlock DockPanel.Dock="Left" Text="{Binding Label}" Width="32" FontSize="13" FontWeight="Medium"
+                                           Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Location}" FontSize="12.5" FontWeight="Medium" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDeleted}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Content}" FontSize="13.5" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TriThu.Brush.OnSurface}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsDeleted}" Value="True">
+                                                        <Setter Property="FontStyle" Value="Italic"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </DockPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding GeneratedText}" FontSize="12.5" Margin="0,8,0,0"
+                           Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
             </StackPanel>
         </Border>
     </ScrollViewer>
