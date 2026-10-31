@@ -40,7 +40,7 @@ public sealed class SqliteCompositionStoreTests : IDisposable
         _store.Add(Make("mid", createdAt: 20));
         _store.Add(Make("other", owner: "ws2", createdAt: 99));
 
-        Assert.Equal(["new", "mid", "old"], _store.GetForOwner("ws").Select(c => c.Id));
+        Assert.Equal(["new", "mid", "old"], [.. _store.GetForOwner("ws").Select(c => c.Id)]);
     }
 
     [Fact]

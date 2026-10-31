@@ -8,7 +8,11 @@ using PdfReaderApp.Services;
 
 namespace PdfReaderApp.ViewModels;
 
+// MainViewModel là host ghép các ViewModel con; thêm CompositionsViewModel (#291) đẩy ghép nối lên đúng ngưỡng. Tách tiếp
+// phần host (rail, Workspace) thuộc dọn dẹp #133, không thuộc ticket này.
+#pragma warning disable CA1506
 public partial class MainViewModel : ObservableObject, IDisposable
+#pragma warning restore CA1506
 {
     private readonly IPdfDocumentService _documentService;
     private readonly ISettingsService _settingsService;
@@ -36,7 +40,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // Workspace
     private readonly IWorkspaceStore _workspaceStore;
     private readonly INoteStore _noteStore;
-    private readonly ICompositionStore _compositionStore;
     public SearchViewModel Search { get; }
 
     [ObservableProperty]
@@ -113,6 +116,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ChatColumnWidth = new System.Windows.GridLength(_savedChatWidthPx);
         }
         OnPropertyChanged(nameof(IsReadingDocument));
+        OnPropertyChanged(nameof(IsPagePillVisible));
         OnPropertyChanged(nameof(ActiveNavDestination));
         OnPropertyChanged(nameof(IsRightPanelExpanded));
         OnPropertyChanged(nameof(IsRightPanelStripVisible));
@@ -122,6 +126,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // Đang đọc tài liệu (không ở Thư viện cũng không ở Workspaces) -> hiện các nút đọc trên toolbar.
     public bool IsReadingDocument => !ShowLibrary && !ShowWorkspaces;
+
+    /// <summary>Nút chuyển trang nổi chỉ hiện khi đang đọc và tab active là Tab Document.</summary>
+    public bool IsPagePillVisible => IsReadingDocument && !Session.IsCompositionTabActive;
 
     // #64: Tab Strip tài liệu chỉ hiện khi đang đọc trong phiên workspace (ẩn ở Thư viện/Workspaces).
     public bool IsDocumentTabStripVisible => Session.IsWorkspaceSession && IsReadingDocument;
@@ -191,9 +198,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         INoteStore? noteStore = null,
         IWorkspaceStore? workspaceStore = null,
         IThemeService? themeService = null,
-        IDocumentLoader? documentLoader = null,
-        ICompositionStore? compositionStore = null,
-        ICompositionGenerator? compositionGenerator = null)
+        IDocumentLoader? documentLoader = null)
         : this(new MainViewModelServices(
             documentService,
             settingsService,
@@ -205,9 +210,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             workspaceStore ?? DefaultServices.CreateWorkspaceStore(AppDataDirectory.Current()),
             themeService ?? DefaultServices.CreateThemeService(),
             DefaultServices.CreateLibrary(AppDataDirectory.Current()),
-            documentLoader,
-            compositionStore ?? DefaultServices.CreateCompositionStore(AppDataDirectory.Current()),
-            compositionGenerator))
+            documentLoader))
     { }
 
     public MainViewModel(MainViewModelServices services)
@@ -238,14 +241,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             () => Session.DocumentId,
             OpenDocumentForNote,
             NotifyError);
-        _compositionStore = services.CompositionStore ?? DefaultServices.CreateCompositionStore(AppDataDirectory.Current());
-        _compositionStore.EnsureSchema();
-        Compositions = new CompositionsViewModel(
-            _compositionStore, _noteStore,
-            services.CompositionGenerator ?? new AiCompositionGenerator(_settingsService, services.ChatClientFactory),
-            GetCompositionSourceDocuments,
-            composition => Session.OpenComposition(composition),
-            NotifyError);
+        Compositions = CompositionsViewModel.Create(services, this);
         Search = new SearchViewModel(
             _documentIndex, () => Session.DocumentId, page => Session.CurrentPage = page, NotifyError,
             new SearchWorkspaceContext(GetSearchDocuments, JumpToDocumentFromSearch));
@@ -286,7 +282,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             case nameof(ReadingSessionViewModel.CanPromote): OnPropertyChanged(nameof(CanPromoteToWorkspace)); break;
             case nameof(ReadingSessionViewModel.IsWorkspaceSession): OnPropertyChanged(nameof(IsDocumentTabStripVisible)); ReloadCompositionsIfWorkspaceChanged(); break;
             case nameof(ReadingSessionViewModel.ActiveWorkspaceId): ReloadCompositionsIfWorkspaceChanged(); break;
-            case nameof(ReadingSessionViewModel.IsCompositionTabActive): OnPropertyChanged(nameof(IsSearchAvailable)); break;
+            case nameof(ReadingSessionViewModel.IsCompositionTabActive): OnPropertyChanged(nameof(IsSearchAvailable)); OnPropertyChanged(nameof(IsPagePillVisible)); break;
         }
     }
 
@@ -297,14 +293,6 @@ public partial class MainViewModel : ObservableObject, IDisposable
         if (ownerKey == Compositions.OwnerKey) return;
         Compositions.CancelGeneration();
         Compositions.LoadFor(ownerKey);
-    }
-
-    // Document của Workspace hoạt động theo thứ tự trong Workspace (cùng thứ tự với surface Workspace Documents: thứ tự Library).
-    private List<CompositionSourceDocument> GetCompositionSourceDocuments()
-    {
-        if (Session.ActiveWorkspaceId is not { } workspaceId) return [];
-        var memberIds = new HashSet<string>(_workspaceStore.GetDocumentIds(workspaceId), StringComparer.Ordinal);
-        return [.. Library.Where(i => memberIds.Contains(i.DocumentId)).Select(i => new CompositionSourceDocument(i.DocumentId, i.Title))];
     }
 
     /// <summary>Search của viewer chỉ dùng được khi tab active là Tab Document (tắt ở Tab Bản soạn).</summary>
@@ -533,7 +521,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Chặn xóa default workspace (default được ẩn khỏi danh sách; đây là phòng vệ)
         if (ws.IsDefault) return;
         _noteStore.DeleteForOwner(ws.Id);
-        _compositionStore.DeleteForOwner(ws.Id);
+        Compositions.DeleteForOwner(ws.Id);
         _workspaceStore.Delete(ws.Id);
         if (Session.ActiveWorkspaceId == ws.Id)
         {

@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
@@ -40,6 +41,37 @@ public sealed partial class CompositionsViewModel : ObservableObject
         _openComposition = openComposition;
         _notifyError = notifyError;
         _clock = clock ?? TimeProvider.System;
+    }
+
+    /// <summary>Dựng bản mặc định từ <see cref="MainViewModelServices"/>: store compositions.db và generator theo Chat Model đang chọn.</summary>
+    internal static CompositionsViewModel Create(
+        MainViewModelServices services,
+        MainViewModel host)
+    {
+        var store = services.CompositionStore ?? DefaultServices.CreateCompositionStore(AppDataDirectory.Current());
+        store.EnsureSchema();
+        return new CompositionsViewModel(
+            store, services.NoteStore,
+            services.CompositionGenerator ?? new AiCompositionGenerator(services.Settings, services.ChatClientFactory),
+            () => DocumentsInWorkspace(services.WorkspaceStore, host.Library, host.Session.ActiveWorkspaceId),
+            composition => host.Session.OpenComposition(composition),
+            host.NotifyError);
+    }
+
+    // Document của Workspace theo thứ tự Library, cùng thứ tự với surface Workspace Documents.
+    private static List<CompositionSourceDocument> DocumentsInWorkspace(
+        IWorkspaceStore workspaceStore, IEnumerable<LibraryItem> library, string? workspaceId)
+    {
+        if (workspaceId is null) return [];
+        var memberIds = new HashSet<string>(workspaceStore.GetDocumentIds(workspaceId), StringComparer.Ordinal);
+        return [.. library.Where(i => memberIds.Contains(i.DocumentId)).Select(i => new CompositionSourceDocument(i.DocumentId, i.Title))];
+    }
+
+    /// <summary>Xoá mọi Bản soạn của Workspace (khi xoá Workspace).</summary>
+    public void DeleteForOwner(string ownerKey)
+    {
+        _store.DeleteForOwner(ownerKey);
+        if (OwnerKey == ownerKey) Items.Clear();
     }
 
     /// <summary>Bản soạn của Workspace đang hoạt động, mới nhất trước.</summary>

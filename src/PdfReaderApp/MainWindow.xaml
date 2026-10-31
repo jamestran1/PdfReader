@@ -186,6 +186,15 @@
             </Grid>
         </Border>
 
+        <!-- Vùng giữa: rail trái của Workspace có tên (DOCUMENT, BẢN SOẠN) + nội dung chính -->
+        <Grid Grid.Column="1">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <controls:WorkspaceRailView Grid.Column="0"
+                                    Visibility="{Binding IsDocumentTabStripVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
         <!-- Main Content Area -->
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
@@ -332,7 +341,7 @@
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right"
                                 Width="360" Margin="8,0,0,0"
                                 Visibility="{Binding IsReadingDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Border x:Name="SearchBar" Height="44" CornerRadius="22" Padding="16,0,6,0" Width="360"
+                        <Border x:Name="SearchBar" IsEnabled="{Binding IsSearchAvailable}" Height="44" CornerRadius="22" Padding="16,0,6,0" Width="360"
                                 Background="{DynamicResource TriThu.Brush.SurfaceTonalHigh}" BorderThickness="2" BorderBrush="Transparent">
                             <Border.Style>
                                 <Style TargetType="Border">
@@ -580,8 +589,19 @@
                                 <Grid/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
+                        <ItemsControl.Resources>
+                            <!-- Tab Bản soạn: Markdown chỉ đọc, chỉ tab active hiện -->
+                            <DataTemplate DataType="{x:Type models:CompositionTab}">
+                                <controls:CompositionView>
+                                    <controls:CompositionView.Visibility>
+                                        <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
+                                            <Binding/>
+                                            <Binding Path="DataContext.Session.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                        </MultiBinding>
+                                    </controls:CompositionView.Visibility>
+                                </controls:CompositionView>
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type models:DocumentTab}">
                                 <controls:PdfViewerControl
                                     DocumentSource="{Binding ViewerSource}"
                                     CurrentPage="{Binding Page, Mode=TwoWay}"
@@ -604,7 +624,7 @@
                                     </controls:PdfViewerControl.Visibility>
                                 </controls:PdfViewerControl>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
+                        </ItemsControl.Resources>
                     </ItemsControl>
                 </Grid>
             </Border>
@@ -858,7 +878,7 @@
                         Height="44" Padding="5" CornerRadius="22" Panel.ZIndex="15"
                         Background="{DynamicResource TriThu.Brush.InverseSurface}"
                         Effect="{DynamicResource TriThu.Elevation.E3}"
-                        Visibility="{Binding IsReadingDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        Visibility="{Binding IsPagePillVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource TriThu.PagePill.Button}" Command="{Binding PreviousPageCommand}" ToolTip="Trang trước">
                             <materialDesign:PackIcon Kind="ChevronLeft" Width="18" Height="18"/>
@@ -877,6 +897,7 @@
                         </Button>
                     </StackPanel>
                 </Border>
+        </Grid>
         </Grid>
 
         <!-- Thanh kéo chỉnh bề rộng panel chat (ẩn khi panel thu gọn hoặc ở thư viện/workspaces) -->

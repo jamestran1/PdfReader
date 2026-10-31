@@ -134,10 +134,10 @@ public sealed class CompositionsViewModelTests
         f.Store.Add(new Composition("c-other", "ws2", "Khác", CompositionKind.Summary, "x", "m", [], 30));
 
         f.Vm.LoadFor("ws");
-        Assert.Equal(["c-new", "c-old"], f.Vm.Items.Select(c => c.Id));
+        Assert.Equal(["c-new", "c-old"], [.. f.Vm.Items.Select(c => c.Id)]);
 
         f.Vm.LoadFor("ws2");
-        Assert.Equal(["c-other"], f.Vm.Items.Select(c => c.Id));
+        Assert.Equal(["c-other"], [.. f.Vm.Items.Select(c => c.Id)]);
 
         f.Vm.LoadFor(null);
         Assert.Empty(f.Vm.Items);

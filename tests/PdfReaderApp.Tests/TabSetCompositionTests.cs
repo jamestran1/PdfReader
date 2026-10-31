@@ -21,7 +21,7 @@ public class TabSetCompositionTests
         var again = tabSet.OpenOrActivateComposition(CompositionOf("c1"));
 
         Assert.Same(composition, again);
-        Assert.Equal(["docA", "c1", "docB"], tabSet.Tabs.Select(t => t.ItemId));
+        Assert.Equal(["docA", "c1", "docB"], [.. tabSet.Tabs.Select(t => t.ItemId)]);
         Assert.Same(composition, tabSet.ActiveTab);
     }
 

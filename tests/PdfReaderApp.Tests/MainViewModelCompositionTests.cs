@@ -7,7 +7,7 @@ using PdfReaderApp.ViewModels;
 namespace PdfReaderApp.Tests;
 
 /// <summary>Đường xuyên suốt Bản soạn ở Workspace có tên (#291): rail, sinh, lưu bền, mở thành Tab Bản soạn.</summary>
-public sealed class MainViewModelCompositionTests
+public sealed class MainViewModelCompositionTests : IDisposable
 {
     private sealed class MemoryCompositionStore : ICompositionStore
     {
@@ -47,24 +47,21 @@ public sealed class MainViewModelCompositionTests
     private readonly MemoryNoteStore _notes = new();
     private readonly RecordingGenerator _generator = new();
     private readonly FakeWorkspaceStore _workspaces = new();
+    private readonly string _dataDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
     private readonly MainViewModel _vm;
     private readonly Workspace _ws = new("ws-1", "Dự án 1", false, null, 1, 1);
 
     public MainViewModelCompositionTests()
     {
-        _vm = new MainViewModel(
-            new ITextPdfDocumentService(),
-            new WindowsSettingsService(),
-            new AiChatClientFactory(),
-            new SqliteDocumentIndex(
-                Path.Combine(Path.GetTempPath(), Path.GetRandomFileName() + ".db"),
-                Path.Combine(AppContext.BaseDirectory, "vec0.dll")),
-            new AiEmbeddingGeneratorFactory(),
-            noteStore: _notes,
-            workspaceStore: _workspaces,
-            documentLoader: new FakeDocumentLoader(),
-            compositionStore: _compositions,
-            compositionGenerator: _generator);
+        // Dữ liệu mặc định (Library, chat, index) nằm trong thư mục tạm; chỉ các store liên quan được thay bằng bộ nhớ.
+        _vm = new MainViewModel(DefaultServices.Create(_dataDir) with
+        {
+            NoteStore = _notes,
+            WorkspaceStore = _workspaces,
+            DocumentLoader = new FakeDocumentLoader(),
+            CompositionStore = _compositions,
+            CompositionGenerator = _generator,
+        });
 
         _workspaces.Upsert(_ws);
         foreach (string id in new[] { "docA", "docB" })
@@ -72,6 +69,14 @@ public sealed class MainViewModelCompositionTests
             _workspaces.AddDocument(_ws.Id, id);
             _vm.Library.Add(new LibraryItem(id, $"Sách {id}", $"/{id}.pdf", null, 0, 1, 1));
         }
+    }
+
+    public void Dispose()
+    {
+        _vm.Dispose();
+#pragma warning disable CA1031 // dọn thư mục tạm best-effort
+        try { Directory.Delete(_dataDir, true); } catch (Exception) { /* SQLite có thể còn giữ file; hệ điều hành sẽ dọn */ }
+#pragma warning restore CA1031
     }
 
     private void AddNote(string id, string? doc, int? page, string content)
