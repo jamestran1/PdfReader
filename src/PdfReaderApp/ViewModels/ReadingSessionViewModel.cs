@@ -115,10 +115,10 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 
     /// <summary>Intent: mở <paramref name="composition"/> thành Tab Bản soạn active (đã mở thì kích hoạt, không tạo tab trùng).
     /// Không đổi Phiên đọc.</summary>
-    public CompositionTab OpenComposition(Composition composition)
+    public CompositionTab OpenComposition(Composition composition, string? afterCompositionId = null)
     {
         ArgumentNullException.ThrowIfNull(composition);
-        return Tabs.OpenOrActivateComposition(composition);
+        return Tabs.OpenOrActivateComposition(composition, afterCompositionId);
     }
 
     // Trong phiên Workspace có Tab active: trang, zoom, tổng trang là MỘT nguồn sự thật với OpenTab (viewer per-tab bind cùng

@@ -33,11 +33,19 @@
                 BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="1"
                 Effect="{DynamicResource TriThu.Elevation.E1}">
             <StackPanel>
-                <Border HorizontalAlignment="Left" Padding="10,3" CornerRadius="8"
-                        Background="{DynamicResource TriThu.Brush.SecondaryContainer}">
-                    <TextBlock Text="{Binding KindLabel}" FontSize="12" FontWeight="Medium"
-                               Foreground="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
-                </Border>
+                <DockPanel>
+                    <!-- #293: Sinh lại; lệnh nằm ở CompositionsViewModel của MainViewModel (DataContext của Window) -->
+                    <Button DockPanel.Dock="Right" Content="Sinh lại" Height="32" Padding="12,0"
+                            Style="{StaticResource MaterialDesignOutlinedButton}"
+                            materialDesign:ButtonAssist.CornerRadius="12"
+                            Command="{Binding DataContext.Compositions.RegenerateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                            CommandParameter="{Binding Composition}"/>
+                    <Border HorizontalAlignment="Left" Padding="10,3" CornerRadius="8"
+                            Background="{DynamicResource TriThu.Brush.SecondaryContainer}">
+                        <TextBlock Text="{Binding KindLabel}" FontSize="12" FontWeight="Medium"
+                                   Foreground="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
+                    </Border>
+                </DockPanel>
                 <TextBlock Text="{Binding Title}" FontSize="26" TextWrapping="Wrap" Margin="0,14,0,4"
                            Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
                 <TextBlock Text="{Binding MetaText}" FontSize="12.5" Margin="0,0,0,20"
