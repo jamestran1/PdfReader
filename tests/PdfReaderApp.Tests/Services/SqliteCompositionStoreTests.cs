@@ -65,6 +65,53 @@ public sealed class SqliteCompositionStoreTests : IDisposable
         Assert.Single(_store.GetForOwner("ws"));
     }
 
+    [Fact]
+    public void Update_PersistsTitleContentAndEditTime_KeepingSourcesAndCreatedAt()
+    {
+        _store.Add(Make("c1", createdAt: 7, sources: ["z", "a"]));
+
+        int rows = _store.Update("c1", "Ôn tập chương 3", "Nội dung mới [2]", 99);
+
+        var loaded = Assert.Single(_store.GetForOwner("ws"));
+        Assert.Equal(1, rows);
+        Assert.Equal(("Ôn tập chương 3", "Nội dung mới [2]", 7L, (long?)99), (loaded.Title, loaded.Content, loaded.CreatedAtUnixMs, loaded.UpdatedAtUnixMs));
+        Assert.Equal(["z", "a"], loaded.SourceNoteIds);
+    }
+
+    [Fact]
+    public void Delete_RemovesOnlyThatComposition()
+    {
+        _store.Add(Make("keep"));
+        _store.Add(Make("gone"));
+
+        int rows = _store.Delete("gone");
+
+        Assert.Equal(1, rows);
+        Assert.Equal("keep", Assert.Single(_store.GetForOwner("ws")).Id);
+    }
+
+    [Fact]
+    public void EnsureSchema_OnDatabaseCreatedBeforeEditTime_AddsColumnAndKeepsRows()
+    {
+        string path = Path.Combine(_dir, "old.db");
+        using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"CREATE TABLE composition (id TEXT PRIMARY KEY, owner_key TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL,
+content TEXT NOT NULL, chat_model TEXT NOT NULL, source_note_ids TEXT NOT NULL, created_at INTEGER NOT NULL);
+INSERT INTO composition VALUES ('o1','ws','Cũ','Summary','x','m','[]',5); PRAGMA user_version = 1;";
+            cmd.ExecuteNonQuery();
+        }
+
+        var store = new SqliteCompositionStore(path);
+        store.EnsureSchema();
+        store.Update("o1", "Mới", "y", 8);
+
+        var loaded = Assert.Single(store.GetForOwner("ws"));
+        Assert.Equal(("Mới", "y", (long?)8), (loaded.Title, loaded.Content, loaded.UpdatedAtUnixMs));
+    }
+
     public void Dispose()
     {
 #pragma warning disable CA1031 // dọn thư mục tạm best-effort

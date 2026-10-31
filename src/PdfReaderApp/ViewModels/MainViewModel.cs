@@ -282,7 +282,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             case nameof(ReadingSessionViewModel.CanPromote): OnPropertyChanged(nameof(CanPromoteToWorkspace)); break;
             case nameof(ReadingSessionViewModel.IsWorkspaceSession): OnPropertyChanged(nameof(IsDocumentTabStripVisible)); ReloadCompositionsIfWorkspaceChanged(); break;
             case nameof(ReadingSessionViewModel.ActiveWorkspaceId): ReloadCompositionsIfWorkspaceChanged(); break;
-            case nameof(ReadingSessionViewModel.IsCompositionTabActive): OnPropertyChanged(nameof(IsSearchAvailable)); OnPropertyChanged(nameof(IsPagePillVisible)); break;
+            case nameof(ReadingSessionViewModel.IsCompositionTabActive): Compositions.FlushPendingEdits(); OnPropertyChanged(nameof(IsSearchAvailable)); OnPropertyChanged(nameof(IsPagePillVisible)); break;
         }
     }
 
@@ -291,6 +291,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     {
         string? ownerKey = Session.IsWorkspaceSession ? Session.ActiveWorkspaceId : null;
         if (ownerKey == Compositions.OwnerKey) return;
+        Compositions.FlushPendingEdits();
         Compositions.CancelGeneration();
         Compositions.LoadFor(ownerKey);
     }
@@ -548,6 +549,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     private void CloseTab(Models.OpenTab? tab)
     {
         if (tab is null) return;
+        Compositions.FlushPendingEdits();
         Session.Close(tab);
     }
 

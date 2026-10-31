@@ -16,6 +16,15 @@ public sealed class MainViewModelCompositionTests : IDisposable
         public void Add(Composition composition) => _rows.Add(composition);
         public IReadOnlyList<Composition> GetForOwner(string ownerKey)
             => [.. _rows.Where(c => c.OwnerKey == ownerKey).OrderByDescending(c => c.CreatedAtUnixMs)];
+        public int Update(string id, string title, string content, long updatedAtUnixMs)
+        {
+            int i = _rows.FindIndex(c => c.Id == id);
+            if (i < 0) return 0;
+            _rows[i] = _rows[i] with { Title = title, Content = content, UpdatedAtUnixMs = updatedAtUnixMs };
+            return 1;
+        }
+
+        public int Delete(string id) => _rows.RemoveAll(c => c.Id == id);
         public int DeleteForOwner(string ownerKey) => _rows.RemoveAll(c => c.OwnerKey == ownerKey);
     }
 
@@ -173,5 +182,54 @@ public sealed class MainViewModelCompositionTests : IDisposable
         _vm.DeleteWorkspaceCommand.Execute(_ws);
 
         Assert.Empty(_compositions.GetForOwner(_ws.Id));
+    }
+
+    private CompositionTab OpenCompositionTab(string content = "Nội dung [1]")
+    {
+        _vm.OpenWorkspaceCommand.Execute(_ws);
+        var composition = new Composition("c1", _ws.Id, "T", CompositionKind.Summary, content, "m", ["n1"], 1);
+        _compositions.Add(composition);
+        _vm.Compositions.LoadFor(_ws.Id);
+        _vm.Compositions.OpenCommand.Execute(_vm.Compositions.Items.Single());
+        return Assert.IsType<CompositionTab>(_vm.Session.Tabs.ActiveTab);
+    }
+
+    [Fact]
+    public void ClosingATabWhileEditing_SavesTheTypedTextWithoutWaitingForAutoSave()
+    {
+        var tab = OpenCompositionTab();
+        _vm.Compositions.ToggleEditCommand.Execute(tab);
+        tab.EditText = "Gõ rồi đóng ngay";
+
+        _vm.CloseTabCommand.Execute(tab);
+
+        Assert.Equal("Gõ rồi đóng ngay", _compositions.GetForOwner(_ws.Id).Single().Content);
+    }
+
+    [Fact]
+    public void SwitchingToAnotherTabWhileEditing_SavesTheTypedText()
+    {
+        var tab = OpenCompositionTab();
+        _vm.Compositions.ToggleEditCommand.Execute(tab);
+        tab.EditText = "Gõ rồi chuyển tab";
+
+        _vm.Session.Activate(_vm.Session.OpenComposition(new Composition("c2", _ws.Id, "T2", CompositionKind.Summary, "y", "m", [], 2)));
+
+        Assert.Equal("Gõ rồi chuyển tab", _compositions.GetForOwner(_ws.Id).Single(c => c.Id == "c1").Content);
+    }
+
+    [Fact]
+    public void DeletingAnOpenComposition_ClosesItsTabAndActivatesThePreviousTab()
+    {
+        var tab = OpenCompositionTab();
+        var other = _vm.Session.OpenComposition(new Composition("c2", _ws.Id, "T2", CompositionKind.Summary, "y", "m", [], 2));
+        _vm.Session.Activate(tab);
+        _vm.Compositions.ConfirmDelete = _ => true;
+
+        _vm.Compositions.DeleteCommand.Execute(tab.Composition);
+
+        Assert.Empty(_compositions.GetForOwner(_ws.Id));
+        Assert.DoesNotContain(tab, _vm.Session.Tabs.Tabs);
+        Assert.Same(other, _vm.Session.Tabs.ActiveTab);
     }
 }

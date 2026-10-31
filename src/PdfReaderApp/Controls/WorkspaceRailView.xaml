@@ -60,6 +60,7 @@
                     <ItemsControl ItemsSource="{Binding Compositions.Items}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
+                              <Grid>
                                 <Button ToolTip="{Binding Title}"
                                         Command="{Binding DataContext.Compositions.OpenCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}">
@@ -85,6 +86,23 @@
                                                    VerticalAlignment="Center" FontSize="13"/>
                                     </StackPanel>
                                 </Button>
+                                <!-- Xoá từ rail (#294): hiện khi rê chuột vào hàng, có hộp xác nhận -->
+                                <Button HorizontalAlignment="Right" Width="26" Height="26" Margin="0,0,4,0" ToolTip="Xoá"
+                                        Command="{Binding DataContext.Compositions.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignIconButton}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Grid}}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <materialDesign:PackIcon Kind="Delete" Width="15" Height="15"/>
+                                </Button>
+                              </Grid>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>

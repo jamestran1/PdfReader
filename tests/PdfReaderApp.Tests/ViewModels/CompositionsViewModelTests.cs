@@ -13,6 +13,15 @@ public sealed class CompositionsViewModelTests
         public void Add(Composition composition) => Rows.Add(composition);
         public IReadOnlyList<Composition> GetForOwner(string ownerKey)
             => [.. Rows.Where(c => c.OwnerKey == ownerKey).OrderByDescending(c => c.CreatedAtUnixMs)];
+        public int Update(string id, string title, string content, long updatedAtUnixMs)
+        {
+            int i = Rows.FindIndex(c => c.Id == id);
+            if (i < 0) return 0;
+            Rows[i] = Rows[i] with { Title = title, Content = content, UpdatedAtUnixMs = updatedAtUnixMs };
+            return 1;
+        }
+
+        public int Delete(string id) => Rows.RemoveAll(c => c.Id == id);
         public int DeleteForOwner(string ownerKey) => Rows.RemoveAll(c => c.OwnerKey == ownerKey);
     }
 
