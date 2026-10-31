@@ -38,7 +38,7 @@ internal static class CompositionContextBuilder
         return new CompositionContext(text.ToString(), [.. ordered.Select(n => n.Id)]);
     }
 
-    private static bool HasText(Note note) => !string.IsNullOrWhiteSpace(note.Quote) || !string.IsNullOrWhiteSpace(note.Content);
+    internal static bool HasText(Note note) => !string.IsNullOrWhiteSpace(note.Quote) || !string.IsNullOrWhiteSpace(note.Content);
 
     private static void AppendNote(
         StringBuilder text, int number, Note note,

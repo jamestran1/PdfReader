@@ -42,7 +42,7 @@
                     <TextBlock Text="BẢN SOẠN" Style="{StaticResource TriThu.Rail.SectionHeader}"/>
                     <Button HorizontalAlignment="Right" Style="{StaticResource MaterialDesignIconButton}"
                             Width="32" Height="32" ToolTip="Tạo Bản soạn"
-                            Command="{Binding Compositions.CreateSummaryCommand}">
+                            Command="{Binding Compositions.ShowCreateDialogCommand}">
                         <materialDesign:PackIcon Kind="Plus" Width="18" Height="18"/>
                     </Button>
                 </Grid>

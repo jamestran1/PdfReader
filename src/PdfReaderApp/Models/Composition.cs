@@ -12,4 +12,5 @@ public sealed record Composition(
     string Content,
     string ChatModel,
     IReadOnlyList<string> SourceNoteIds,
-    long CreatedAtUnixMs);
+    long CreatedAtUnixMs,
+    string? AdditionalRequest = null);

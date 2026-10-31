@@ -65,6 +65,44 @@ public sealed class SqliteCompositionStoreTests : IDisposable
         Assert.Single(_store.GetForOwner("ws"));
     }
 
+    [Fact]
+    public void Add_ThenGetForOwner_RoundTripsKindAndAdditionalRequest()
+    {
+        _store.Add(Make("c1") with { Kind = CompositionKind.Outline, AdditionalRequest = "viết bằng tiếng Anh" });
+        _store.Add(Make("c2", createdAt: 0) with { Kind = CompositionKind.Draft });
+
+        var loaded = _store.GetForOwner("ws").ToDictionary(c => c.Id, StringComparer.Ordinal);
+
+        Assert.Equal((CompositionKind.Outline, "viết bằng tiếng Anh"), (loaded["c1"].Kind, loaded["c1"].AdditionalRequest));
+        Assert.Equal((CompositionKind.Draft, (string?)null), (loaded["c2"].Kind, loaded["c2"].AdditionalRequest));
+    }
+
+    [Fact]
+    public void EnsureSchema_OnDatabaseCreatedBeforeAdditionalRequest_AddsTheColumnAndKeepsRows()
+    {
+        string path = Path.Combine(_dir, "old.db");
+        using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+CREATE TABLE composition (id TEXT PRIMARY KEY, owner_key TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL,
+  content TEXT NOT NULL, chat_model TEXT NOT NULL, source_note_ids TEXT NOT NULL, created_at INTEGER NOT NULL);
+INSERT INTO composition VALUES ('old', 'ws', 'Cũ', 'Summary', 'x', 'm', '[""n1""]', 5);
+PRAGMA user_version = 1;";
+            cmd.ExecuteNonQuery();
+        }
+
+        var store = new SqliteCompositionStore(path);
+        store.EnsureSchema();
+        store.Add(Make("new", createdAt: 9) with { AdditionalRequest = "r" });
+
+        var all = store.GetForOwner("ws");
+        Assert.Equal(["new", "old"], [.. all.Select(c => c.Id)]);
+        Assert.Null(all[1].AdditionalRequest);
+        Assert.Equal("r", all[0].AdditionalRequest);
+    }
+
     public void Dispose()
     {
 #pragma warning disable CA1031 // dọn thư mục tạm best-effort
