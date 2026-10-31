@@ -13,7 +13,7 @@ Một ngữ cảnh nghiên cứu tham chiếu **nhiều Document** theo quan h�
 _Avoid_: Notebook, project, folder.
 
 **Default Workspace**:
-Workspace ẩn, tạm, chứa đúng một Document — giữ hành vi "đọc một tài liệu lẻ" (`IsWorkspaceSession=false`). KHÔNG Tab Strip, KHÔNG "+"; mở doc khác từ Library thì thay thế. Không liệt kê ở màn Workspaces; muốn đa tài liệu phải tạo Workspace có tên (promote — ADR 0004).
+Workspace ẩn, riêng cho từng Document, chứa đúng một Document: giữ hành vi "đọc một tài liệu lẻ" (`IsWorkspaceSession=false`). Document hiển thị qua viewer đọc lẻ, chỉ một Tab Document, không đóng được, KHÔNG "+"; mở doc khác từ Library là chuyển sang Default Workspace của doc đó. Vẫn mở thêm được Tab Bản soạn, và chúng được nhớ lại (ADR 0009). Không liệt kê ở màn Workspaces; muốn đa tài liệu phải tạo Workspace có tên (promote, ADR 0004). Promote không lấy gì đi: Note và Bản soạn ở lại Default Workspace.
 _Avoid_: Implicit workspace, single-doc mode.
 
 **Workspace membership**:
@@ -69,19 +69,19 @@ _Avoid_: Embedding table, index (trơn, dễ lẫn với chỉ mục FTS tìm ki
 ## Tab đa tài liệu (multi-document tabs)
 
 **Phiên đọc**:
-Document đang được đọc cùng những gì suy ra từ nó (cấu trúc, chữ từng trang, Đoạn nguồn) và ngữ cảnh đi kèm (UI panel notes của Tab, trạng thái Search). Mỗi lúc chỉ có một Phiên đọc, giống nhau ở Default Workspace và named Workspace. Kích hoạt Tab, Cross-doc jump, khôi phục Open Set hay mở lẻ một Document đều là thay Document của Phiên đọc. Phiên đọc không phải Workspace, cũng không phải Open Set.
+Document đang được đọc cùng những gì suy ra từ nó (cấu trúc, chữ từng trang, Đoạn nguồn) và ngữ cảnh đi kèm (UI panel notes của Tab, trạng thái Search). Mỗi lúc chỉ có một Phiên đọc, giống nhau ở Default Workspace và named Workspace. Kích hoạt Tab Document, Cross-doc jump, khôi phục Open Set hay mở lẻ một Document đều là thay Document của Phiên đọc. Kích hoạt Tab Bản soạn không đổi Phiên đọc: nó vẫn giữ Document của Tab Document active gần nhất; không còn Tab Document nào thì Phiên đọc rỗng. Phiên đọc không phải Workspace, cũng không phải Open Set.
 _Avoid_: Session (trơn), active document state, "vào phiên đọc" theo nghĩa rời màn Workspaces.
 
 **Tab**:
-Một Document đang mở để đọc trong phiên Workspace hiện tại, kèm view-state riêng (trang, zoom, scroll). Tab chỉ tồn tại trong Workspace có tên; đọc lẻ luôn một tab.
+Một Document hoặc một Bản soạn đang mở trong phiên Workspace hiện tại, kèm view-state riêng. Có hai loại: **Tab Document** (trang, zoom, scroll) và **Tab Bản soạn** (scroll). Hai loại nằm chung một Tab Strip, xếp xen kẽ. Default Workspace có đúng một Tab Document và có thể thêm Tab Bản soạn (ADR 0009).
 _Avoid_: Window, pane, view.
 
 **Open Set**:
-Tập Document hiện đang mở thành Tab trong một Workspace — một **tập con** của membership. Mở/đóng Tab thay đổi Open Set, không đụng membership.
+Tập Tab đang mở trong một Workspace: Document trong đó là **tập con** của membership, Bản soạn trong đó thuộc Workspace ấy. Mở/đóng Tab thay đổi Open Set, không đụng membership. Open Set được nhớ lại khi mở lại Workspace có tên. Ở Default Workspace chỉ Tab Bản soạn được nhớ lại, khi đọc lẻ lại Document đó.
 _Avoid_: Open documents, active list.
 
 **Per-tab view-state**:
-Trạng thái hiển thị riêng của mỗi Tab: trang + zoom (chính xác) và scroll (best-effort, chuẩn hóa trong trang), cộng UI panel notes (scroll + note đang chọn + bộ lọc-doc) — giữ trong bộ nhớ. Chat KHÔNG thuộc per-tab (xem **Chat thread** — theo Workspace). Search cũng **không** thuộc view-state: transient, xóa khi đổi tab.
+Trạng thái hiển thị riêng của mỗi Tab, giữ trong bộ nhớ. Tab Document: trang + zoom (chính xác) và scroll (best-effort, chuẩn hóa trong trang), cộng UI panel notes (scroll + note đang chọn + bộ lọc-doc). Tab Bản soạn: chỉ vị trí cuộn; chế độ Sửa không thuộc view-state. Chat KHÔNG thuộc per-tab (xem **Chat thread**: theo Workspace). Search cũng **không** thuộc view-state: transient, xóa khi đổi tab.
 _Avoid_: Tab settings.
 
 **Cross-doc jump**:
@@ -89,11 +89,11 @@ Hành vi mở từ một Note/highlight của Document khác trong Workspace. Qu
 _Avoid_: Navigate, link.
 
 **Tab Strip**:
-Dải tab ngang ở đầu vùng nội dung chính (giữa toolbar và viewer). Tràn thì cuộn ngang; kéo để sắp lại; nút "+" mở Workspace Documents surface. Chỉ hiện trong named Workspace (không có ở Default Workspace).
+Dải tab ngang ở đầu vùng nội dung chính (giữa toolbar và viewer). Tràn thì cuộn ngang; kéo để sắp lại; nút "+" mở Workspace Documents surface. Hiện trong named Workspace; ở Default Workspace chỉ hiện khi có Tab Bản soạn mở (từ hai tab trở lên), không có "+" (ADR 0009).
 _Avoid_: Tab bar (dùng được nhưng thống nhất "Tab Strip").
 
 **Workspace Documents surface**:
-Surface hai vùng cho Tài liệu của Workspace: (1) **thành viên** — thumbnail member doc, click → mở/kích hoạt Tab, kèm nút gỡ (**gỡ = xóa membership và đóng Tab nếu đang mở** — giữ bất biến Open Set ⊆ membership); (2) **thêm từ Library** — Add = thêm membership **và** mở Tab active. Header surface mang tên Workspace + đổi tên inline (bút chì). Cùng MỘT component ở **2 bối cảnh host**: modal nút "+" (DialogHost) và inline trong canvas khi Open Set rỗng (gộp empty-state lẫn lưới re-open). Chỉ ở named Workspace.
+Surface hai vùng cho Tài liệu của Workspace: (1) **thành viên**: thumbnail member doc, click → mở/kích hoạt Tab, kèm nút gỡ (**gỡ = xóa membership và đóng Tab nếu đang mở**, giữ bất biến Open Set ⊆ membership); (2) **thêm từ Library**: Add = thêm membership **và** mở Tab active. Header surface mang tên Workspace + đổi tên inline (bút chì). Cùng MỘT component ở **2 bối cảnh host**: modal nút "+" (DialogHost) và inline trong canvas khi không còn Tab nào (gộp empty-state lẫn lưới re-open). Chỉ ở named Workspace.
 _Avoid_: Thumbnail Gallery, document picker, doc grid, empty state.
 
 ## Phát hành (Release)
