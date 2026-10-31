@@ -154,27 +154,136 @@ public sealed class CompositionsViewModelTests
         Assert.Same(composition, f.Opened.Single());
     }
 
-    [Fact]
-    public async Task CreateSummary_WorkspaceSwitchedWhileGenerating_StoresButDoesNotShowOrOpenInTheNewWorkspace()
+    // Generator chờ cổng và tôn trọng token như AiCompositionGenerator thật.
+    private sealed class GatedGenerator : ICompositionGenerator
     {
-        var f = new Fixture(NoteOf("n", "a", 0, "x"));
-        var gate = new TaskCompletionSource<GeneratedComposition>(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource<GeneratedComposition> _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool HonorsCancellation { get; init; } = true;
+        public int Calls { get; private set; }
+        public CompositionKind? LastKind { get; private set; }
+        public CancellationToken LastToken { get; private set; }
+        public void Release() => _gate.SetResult(new GeneratedComposition("T", "C", "m"));
+
+        public Task<GeneratedComposition> GenerateAsync(CompositionKind kind, CompositionContext context, CancellationToken cancellationToken)
+        {
+            Calls++;
+            LastKind = kind;
+            LastToken = cancellationToken;
+            return HonorsCancellation ? _gate.Task.WaitAsync(cancellationToken) : _gate.Task;
+        }
+    }
+
+    private static (CompositionsViewModel Vm, FakeCompositionStore Store, List<Composition> Opened, List<string> Errors, List<(Composition, string)> OpenedAfter)
+        GatedVm(GatedGenerator generator)
+    {
+        var store = new FakeCompositionStore();
+        var opened = new List<Composition>();
+        var errors = new List<string>();
+        var openedAfter = new List<(Composition, string)>();
         var vm = new CompositionsViewModel(
-            f.Store, new FakeNoteStore(NoteOf("n", "a", 0, "x")), new GatedGenerator(gate.Task), () => f.Documents, f.Opened.Add, f.Errors.Add);
+            store, new FakeNoteStore(NoteOf("n", "a", 0, "x"), NoteOf("m", "b", 0, "y")), generator,
+            () => [new("a", "Sách A"), new("b", "Sách B")], opened.Add, errors.Add,
+            openCompositionAfter: (c, after) => openedAfter.Add((c, after)));
         vm.LoadFor("ws");
+        return (vm, store, opened, errors, openedAfter);
+    }
+
+    [Fact]
+    public async Task Generating_ShowsGeneratingState_AndCancelCommandDiscardsTheRequestWithoutSavingOrReportingAnError()
+    {
+        var generator = new GatedGenerator();
+        var (vm, store, opened, errors, _) = GatedVm(generator);
+
+        var running = vm.CreateSummaryCommand.ExecuteAsync(null);
+        Assert.True(vm.IsGenerating);
+
+        vm.CancelGenerationCommand.Execute(null);
+        await running;
+
+        Assert.True(generator.LastToken.IsCancellationRequested);
+        Assert.False(vm.IsGenerating);
+        Assert.Empty(store.Rows);
+        Assert.Empty(vm.Items);
+        Assert.Empty(opened);
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public async Task SwitchingWorkspaceWhileGenerating_CancelsTheRequestAndSavesNothingEvenIfTheGeneratorIgnoresTheToken()
+    {
+        var generator = new GatedGenerator { HonorsCancellation = false };
+        var (vm, store, opened, errors, _) = GatedVm(generator);
 
         var running = vm.CreateSummaryCommand.ExecuteAsync(null);
         vm.LoadFor("ws2");
-        gate.SetResult(new GeneratedComposition("T", "C", "m"));
+        Assert.True(generator.LastToken.IsCancellationRequested);
+        generator.Release();
         await running;
 
-        Assert.Single(f.Store.GetForOwner("ws"));
+        Assert.Empty(store.Rows);
         Assert.Empty(vm.Items);
-        Assert.Empty(f.Opened);
+        Assert.Empty(opened);
+        Assert.Empty(errors);
+        Assert.False(vm.IsGenerating);
     }
 
-    private sealed class GatedGenerator(Task<GeneratedComposition> result) : ICompositionGenerator
+    [Fact]
+    public async Task WhileGenerating_CreateAndRegenerateAreLockedUntilItEnds()
     {
-        public Task<GeneratedComposition> GenerateAsync(CompositionKind kind, CompositionContext context, CancellationToken cancellationToken) => result;
+        var generator = new GatedGenerator();
+        var (vm, _, _, _, _) = GatedVm(generator);
+        var existing = new Composition("c1", "ws", "T", CompositionKind.Summary, "x", "m", ["n"], 1);
+
+        Assert.True(vm.CreateSummaryCommand.CanExecute(null));
+        Assert.True(vm.RegenerateCommand.CanExecute(existing));
+
+        var running = vm.CreateSummaryCommand.ExecuteAsync(null);
+        Assert.False(vm.CreateSummaryCommand.CanExecute(null));
+        Assert.False(vm.RegenerateCommand.CanExecute(existing));
+
+        generator.Release();
+        await running;
+        Assert.True(vm.CreateSummaryCommand.CanExecute(null));
+        Assert.True(vm.RegenerateCommand.CanExecute(existing));
+    }
+
+    [Fact]
+    public async Task Regenerate_CreatesANewCompositionFromTheSameKindAndSourceNotes_OpensItRightOfTheOldOneAndKeepsTheOldOne()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "A"), NoteOf("b1", "b", 0, "B"), NoteOf("other", "b", 1, "O"));
+        var old = new Composition("old", "ws", "Cũ", CompositionKind.Summary, "đã sửa tay", "m", ["a1", "b1"], 1);
+        f.Store.Add(old);
+        f.Vm.LoadFor("ws");
+        List<(Composition, string)> openedAfter = [];
+        var vm = new CompositionsViewModel(
+            f.Store, new FakeNoteStore(NoteOf("a1", "a", 0, "A"), NoteOf("b1", "b", 0, "B"), NoteOf("other", "b", 1, "O")),
+            f.Generator, () => f.Documents, f.Opened.Add, f.Errors.Add, new FixedClock(99),
+            (c, after) => openedAfter.Add((c, after)));
+        vm.LoadFor("ws");
+
+        await vm.RegenerateCommand.ExecuteAsync(old);
+
+        Assert.Equal(["a1", "b1"], f.Generator.Received.Single().SourceNoteIds);
+        var created = vm.Items[0];
+        Assert.NotEqual("old", created.Id, StringComparer.Ordinal);
+        Assert.Equal((CompositionKind.Summary, 99L, "ws"), (created.Kind, created.CreatedAtUnixMs, created.OwnerKey));
+        Assert.Equal("old", openedAfter.Single().Item2);
+        Assert.Same(created, openedAfter.Single().Item1);
+        Assert.Empty(f.Opened);
+        Assert.Equal("đã sửa tay", f.Store.Rows.Single(c => c.Id == "old").Content);
+        Assert.Equal(2, f.Store.Rows.Count);
+    }
+
+    [Fact]
+    public async Task Regenerate_WhenAiFails_ShowsErrorAndSavesNothingNew()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "A"));
+        f.Generator.Failure = new AiChatException(AiChatError.RateLimit, "x");
+        var old = new Composition("old", "ws", "Cũ", CompositionKind.Summary, "x", "m", ["a1"], 1);
+
+        await f.Vm.RegenerateCommand.ExecuteAsync(old);
+
+        Assert.Equal([AiErrorMessages.Describe(AiChatError.RateLimit)], f.Errors);
+        Assert.Empty(f.Store.Rows);
     }
 }

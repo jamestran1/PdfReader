@@ -90,9 +90,10 @@ public sealed class TabSetViewModel : ObservableObject
 
     /// <summary>
     /// Mở Tab Bản soạn cho <paramref name="composition"/>, hoặc kích hoạt tab đã có (không mở tab trùng).
-    /// Tab mới chèn ngay sau ActiveTab, như Tab Document.
+    /// Tab mới chèn ngay sau ActiveTab, như Tab Document; khi có <paramref name="afterCompositionId"/> và tab đó còn mở thì
+    /// chèn ngay sau tab đó (Sinh lại: bản mới nằm bên phải bản cũ).
     /// </summary>
-    internal CompositionTab OpenOrActivateComposition(Composition composition)
+    internal CompositionTab OpenOrActivateComposition(Composition composition, string? afterCompositionId = null)
     {
         foreach (var existing in _tabItems)
         {
@@ -104,7 +105,8 @@ public sealed class TabSetViewModel : ObservableObject
         }
 
         var tab = new CompositionTab(composition);
-        int insertAt = _activeTab is null ? _tabItems.Count : _tabItems.IndexOf(_activeTab) + 1;
+        var anchor = _tabItems.FirstOrDefault(t => t is CompositionTab c && c.CompositionId == afterCompositionId) ?? _activeTab;
+        int insertAt = anchor is null ? _tabItems.Count : _tabItems.IndexOf(anchor) + 1;
         _tabItems.Insert(insertAt, tab);
         Activate(tab);
         return tab;

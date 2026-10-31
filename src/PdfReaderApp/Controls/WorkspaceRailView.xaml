@@ -46,13 +46,17 @@
                         <materialDesign:PackIcon Kind="Plus" Width="18" Height="18"/>
                     </Button>
                 </Grid>
-                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="10,2,0,8"
-                            Visibility="{Binding Compositions.IsGenerating, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <DockPanel DockPanel.Dock="Top" Margin="10,2,0,8"
+                           Visibility="{Binding Compositions.IsGenerating, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Button DockPanel.Dock="Right" Content="Huỷ" Height="28" Padding="10,0" FontSize="12.5"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            materialDesign:ButtonAssist.CornerRadius="12"
+                            Command="{Binding Compositions.CancelGenerationCommand}"/>
                     <ProgressBar IsIndeterminate="True" Style="{StaticResource MaterialDesignCircularProgressBar}"
                                  Width="16" Height="16" Value="0"/>
-                    <TextBlock Text="Đang sinh Tóm tắt…" Margin="8,0,0,0" FontSize="12.5" VerticalAlignment="Center"
+                    <TextBlock Text="Đang sinh…" Margin="8,0,0,0" FontSize="12.5" VerticalAlignment="Center"
                                Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
-                </StackPanel>
+                </DockPanel>
                 <TextBlock DockPanel.Dock="Top" Text="Chưa có. Bấm ＋ để tạo." FontSize="12.5" Margin="10,2,0,8"
                            Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"
                            Visibility="{Binding Compositions.Items.Count, Converter={StaticResource CountToInverseVisibilityConverter}}"/>

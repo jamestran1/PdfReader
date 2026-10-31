@@ -26,6 +26,20 @@ public class TabSetCompositionTests
     }
 
     [Fact]
+    public void OpenOrActivateComposition_AfterAnotherComposition_InsertsRightOfThatTabEvenWhenItIsNotActive()
+    {
+        var tabSet = new TabSetViewModel();
+        tabSet.OpenOrActivate("docA", "A", "/a.pdf");
+        tabSet.OpenOrActivateComposition(CompositionOf("x"));
+        tabSet.OpenOrActivate("docB", "B", "/b.pdf");
+
+        var regenerated = tabSet.OpenOrActivateComposition(CompositionOf("x2"), afterCompositionId: "x");
+
+        Assert.Equal(["docA", "x", "x2", "docB"], [.. tabSet.Tabs.Select(t => t.ItemId)]);
+        Assert.Same(regenerated, tabSet.ActiveTab);
+    }
+
+    [Fact]
     public void OpenOrActivate_DocumentWithSameIdAsComposition_IsADifferentTab()
     {
         var tabSet = new TabSetViewModel();
