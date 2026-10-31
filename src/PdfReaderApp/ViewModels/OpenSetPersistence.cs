@@ -10,23 +10,23 @@ public sealed class OpenSetPersistence
     private static readonly TimeSpan DebounceInterval = TimeSpan.FromMilliseconds(400);
 
     private readonly IWorkspaceStore _workspaceStore;
-    private readonly TabSetViewModel _tabs;
+    private readonly Func<TabHost> _currentTabs;
     private readonly Func<string?> _activeWorkspaceId;
     private readonly Func<bool> _isWorkspaceSession;
     private DispatcherTimer? _debounce;
 
     /// <param name="workspaceStore">Nơi lưu Open Set.</param>
-    /// <param name="tabs">Tập tab cần lưu. Lớp này không tự nghe sự kiện: bên sở hữu gọi <see cref="Schedule"/> đúng thứ tự.</param>
+    /// <param name="currentTabs">Nguồn tab của đường host đang dùng (Workspace có tên hoặc Tab Strip nhẹ). Lớp này không tự nghe sự kiện: bên sở hữu gọi <see cref="Schedule"/> đúng thứ tự.</param>
     /// <param name="activeWorkspaceId">Id workspace đang hoạt động, null khi chưa có.</param>
     /// <param name="isWorkspaceSession">Đang ở phiên workspace (không phải đọc lẻ); đọc lẻ chỉ lưu Tab Bản soạn.</param>
     public OpenSetPersistence(
         IWorkspaceStore workspaceStore,
-        TabSetViewModel tabs,
+        Func<TabHost> currentTabs,
         Func<string?> activeWorkspaceId,
         Func<bool> isWorkspaceSession)
     {
         _workspaceStore = workspaceStore;
-        _tabs = tabs;
+        _currentTabs = currentTabs;
         _activeWorkspaceId = activeWorkspaceId;
         _isWorkspaceSession = isWorkspaceSession;
     }
@@ -48,9 +48,10 @@ public sealed class OpenSetPersistence
         // Default Workspace (đọc lẻ): Tab Document trỏ viewer standalone nên không ghi (ADR 0009), chỉ Tab Bản soạn.
         bool compositionsOnly = !_isWorkspaceSession();
         long nowUnixMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var activeTab = _tabs.ActiveTab;
-        var states = new List<OpenTabState>(_tabs.Tabs.Count);
-        foreach (var tab in _tabs.Tabs)
+        var tabs = _currentTabs();
+        var activeTab = tabs.ActiveTab;
+        var states = new List<OpenTabState>(tabs.Tabs.Count);
+        foreach (var tab in tabs.Tabs)
         {
             if (compositionsOnly && tab.Kind != TabKind.Composition) continue;
             states.Add(new OpenTabState(

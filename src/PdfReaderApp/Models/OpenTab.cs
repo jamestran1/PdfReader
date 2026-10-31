@@ -9,7 +9,7 @@ public abstract partial class OpenTab : ObservableObject
     public abstract TabKind Kind { get; }
 
     /// <summary>Tab có nút đóng. Tab Document của Tab Strip nhẹ ở Default Workspace thì không (ADR 0009).</summary>
-    public virtual bool CanClose => true;
+    public bool CanClose { get; init; } = true;
 
     /// <summary>Id của mục được mở: id Document với Tab Document.</summary>
     public string ItemId { get; }

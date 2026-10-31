@@ -86,8 +86,8 @@ public sealed class MainViewModelDefaultWorkspaceCompositionTests : IDisposable
 
         var composition = Assert.Single(_vm.Compositions.Items);
         Assert.Equal(ws, composition.OwnerKey);
-        Assert.IsType<CompositionTab>(_vm.Session.Tabs.ActiveTab);
-        Assert.Equal(2, _vm.Session.Tabs.Tabs.Count);
+        Assert.IsType<CompositionTab>(_vm.Session.CurrentTabs.ActiveTab);
+        Assert.Equal(2, _vm.Session.CurrentTabs.Tabs.Count);
         Assert.True(_vm.IsTabStripVisible);
         Assert.False(_vm.Session.IsWorkspaceSession);
     }
@@ -108,7 +108,7 @@ public sealed class MainViewModelDefaultWorkspaceCompositionTests : IDisposable
         Assert.False(_vm.Compositions.IsGenerating);
         Assert.Empty(_vm.Compositions.Items);
         Assert.Empty(_compositions.GetForOwner(wsA));
-        Assert.Empty(_vm.Session.Tabs.Tabs);
+        Assert.Empty(_vm.Session.CurrentTabs.Tabs);
         Assert.False(_vm.IsTabStripVisible);
     }
 
@@ -124,7 +124,7 @@ public sealed class MainViewModelDefaultWorkspaceCompositionTests : IDisposable
         Assert.True(_vm.Session.IsWorkspaceSession);
         Assert.NotEqual(defaultWs, _vm.Session.ActiveWorkspaceId, StringComparer.Ordinal);
         Assert.Empty(_vm.Compositions.Items);
-        Assert.Single(_vm.Session.Tabs.Tabs);
+        Assert.Single(_vm.Session.CurrentTabs.Tabs);
         Assert.Single(_compositions.GetForOwner(defaultWs));
     }
 }

@@ -51,10 +51,13 @@ public sealed partial class CompositionSourcesViewModel
                 ShowNote(entry.NoteId);
             },
             entry => ShowNote(entry.NoteId));
-        session.Tabs.ActiveTabChanged += tab =>
+        void RefreshOnCompositionTab(OpenTab? tab)
         {
             if (tab is CompositionTab compositionTab) viewModel.Refresh(compositionTab);
-        };
+        }
+
+        session.Tabs.ActiveTabChanged += RefreshOnCompositionTab;
+        session.LightTabs.ActiveTabChanged += RefreshOnCompositionTab;   // Default Workspace có Tab Bản soạn riêng
         return viewModel;
     }
 

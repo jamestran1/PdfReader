@@ -76,7 +76,7 @@
                                                     <DataTrigger.Binding>
                                                         <MultiBinding Converter="{StaticResource IsActiveTabItemConverter}" ConverterParameter="Composition">
                                                             <Binding Path="Id"/>
-                                                            <Binding Path="DataContext.Session.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                                                            <Binding Path="DataContext.Session.CurrentTabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
                                                         </MultiBinding>
                                                     </DataTrigger.Binding>
                                                     <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
@@ -132,7 +132,7 @@
                                                 <DataTrigger.Binding>
                                                     <MultiBinding Converter="{StaticResource IsActiveTabItemConverter}" ConverterParameter="Document">
                                                         <Binding Path="DocumentId"/>
-                                                        <Binding Path="DataContext.Session.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                                                        <Binding Path="DataContext.Session.CurrentTabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
                                                     </MultiBinding>
                                                 </DataTrigger.Binding>
                                                 <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>

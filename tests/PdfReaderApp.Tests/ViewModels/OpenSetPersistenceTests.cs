@@ -13,9 +13,21 @@ public sealed class OpenSetPersistenceTests
     {
         var store = new FakeWorkspaceStore();
         var tabs = new TabSetViewModel();
-        var persistence = new OpenSetPersistence(store, tabs, () => workspaceId, () => isWorkspaceSession)
+        var persistence = new OpenSetPersistence(store, () => tabs, () => workspaceId, () => isWorkspaceSession)
         {
             DispatcherProvider = dispatcher,
+        };
+        return (persistence, tabs, store);
+    }
+
+    // Default Workspace: nguồn tab là Tab Strip nhẹ, tách khỏi TabSetViewModel (ADR 0009).
+    private static (OpenSetPersistence Persistence, LightTabStripViewModel Tabs, FakeWorkspaceStore Store) CreateLight()
+    {
+        var store = new FakeWorkspaceStore();
+        var tabs = new LightTabStripViewModel();
+        var persistence = new OpenSetPersistence(store, () => tabs, () => WorkspaceId, () => false)
+        {
+            DispatcherProvider = () => null,
         };
         return (persistence, tabs, store);
     }
@@ -57,9 +69,9 @@ public sealed class OpenSetPersistenceTests
     [Fact]
     public void Schedule_InDefaultWorkspace_DoesNotWriteTheDocumentTab()
     {
-        var (persistence, tabs, store) = Create(() => null, isWorkspaceSession: false);
+        var (persistence, tabs, store) = CreateLight();
 
-        tabs.OpenStandaloneDocument("docA", "A", "/a.pdf");
+        tabs.EnsureDocumentTab("docA", "A", "/a.pdf");
         persistence.Schedule();
 
         Assert.Empty(store.OpenSets[WorkspaceId]);
@@ -68,8 +80,8 @@ public sealed class OpenSetPersistenceTests
     [Fact]
     public void SaveNow_InDefaultWorkspace_WritesOnlyCompositionTabsWithTheirOwnOrder()
     {
-        var (persistence, tabs, store) = Create(() => null, isWorkspaceSession: false);
-        tabs.OpenStandaloneDocument("docA", "A", "/a.pdf");
+        var (persistence, tabs, store) = CreateLight();
+        tabs.EnsureDocumentTab("docA", "A", "/a.pdf");
         tabs.OpenOrActivateComposition(new PdfReaderApp.Models.Composition("X", WorkspaceId, "Bản X", PdfReaderApp.Models.CompositionKind.Summary, "# x", "m", [], 1));
 
         persistence.SaveNow();

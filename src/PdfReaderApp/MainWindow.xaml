@@ -480,7 +480,7 @@
                     Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
-                        <ItemsControl ItemsSource="{Binding Session.Tabs.Tabs}">
+                        <ItemsControl ItemsSource="{Binding Session.CurrentTabs.Tabs}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal"/>
@@ -497,7 +497,7 @@
                                                         <DataTrigger.Binding>
                                                             <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
                                                                 <Binding/>
-                                                                <Binding Path="DataContext.Session.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                                                <Binding Path="DataContext.Session.CurrentTabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
                                                             </MultiBinding>
                                                         </DataTrigger.Binding>
                                                         <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
@@ -591,13 +591,13 @@
                 <Grid>
                     <!-- Hint khi Open Set rỗng (#62 AC2): inline WorkspaceDocumentsView khi chưa có tab -->
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                  Visibility="{Binding Session.Tabs.HasTabs, Converter={StaticResource InverseBoolToVisibilityConverter}}">
+                                  Visibility="{Binding Session.CurrentTabs.HasTabs, Converter={StaticResource InverseBoolToVisibilityConverter}}">
                         <controls:WorkspaceDocumentsView DataContext="{Binding DataContext.DocumentsSurface, RelativeSource={RelativeSource AncestorType=Window}}"
                                                          MaxWidth="760" Margin="22" VerticalAlignment="Top"/>
                     </ScrollViewer>
 
                     <!-- Một PdfViewerControl trên mỗi tab, xếp chồng, chỉ active visible -->
-                    <ItemsControl ItemsSource="{Binding Session.Tabs.Tabs}">
+                    <ItemsControl ItemsSource="{Binding Session.CurrentTabs.Tabs}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
                                 <Grid/>
@@ -610,7 +610,7 @@
                                     <controls:CompositionView.Visibility>
                                         <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
                                             <Binding/>
-                                            <Binding Path="DataContext.Session.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                            <Binding Path="DataContext.Session.CurrentTabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
                                         </MultiBinding>
                                     </controls:CompositionView.Visibility>
                                 </controls:CompositionView>
@@ -633,7 +633,7 @@
                                     <controls:PdfViewerControl.Visibility>
                                         <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
                                             <Binding/>
-                                            <Binding Path="DataContext.Session.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                            <Binding Path="DataContext.Session.CurrentTabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
                                         </MultiBinding>
                                     </controls:PdfViewerControl.Visibility>
                                 </controls:PdfViewerControl>

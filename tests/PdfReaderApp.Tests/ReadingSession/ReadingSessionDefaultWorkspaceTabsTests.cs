@@ -26,7 +26,7 @@ public class ReadingSessionDefaultWorkspaceTabsTests
         return f.Session.OpenComposition(composition);
     }
 
-    private static string Order(ReadingSessionFixture f) => string.Join(",", f.Session.Tabs.Tabs.Select(t => t.ItemId));
+    private static string Order(ReadingSessionFixture f) => string.Join(",", f.Session.CurrentTabs.Tabs.Select(t => t.ItemId));
 
     [Fact]
     public void OpenComposition_WhileReadingStandalone_ShowsTabStripWithDocumentTabAndCompositionTab()
@@ -37,7 +37,7 @@ public class ReadingSessionDefaultWorkspaceTabsTests
         var tab = Compose(f, "A", "X");
 
         Assert.Equal("A,X", Order(f));
-        Assert.Same(tab, f.Session.Tabs.ActiveTab);
+        Assert.Same(tab, f.Session.CurrentTabs.ActiveTab);
         Assert.True(f.Session.IsLightTabStripVisible);
         Assert.False(f.Session.IsWorkspaceSession);
         Assert.Equal("A", f.Session.DocumentId);
@@ -48,7 +48,7 @@ public class ReadingSessionDefaultWorkspaceTabsTests
     {
         var f = Reading("A");
         Compose(f, "A", "X");
-        var documentTab = f.Session.Tabs.Tabs[0];
+        var documentTab = f.Session.CurrentTabs.Tabs[0];
 
         f.Session.Close(documentTab);
 
@@ -65,7 +65,7 @@ public class ReadingSessionDefaultWorkspaceTabsTests
 
         f.Session.Close(x);
 
-        Assert.Same(f.Session.Tabs.Tabs[0], f.Session.Tabs.ActiveTab);
+        Assert.Same(f.Session.CurrentTabs.Tabs[0], f.Session.CurrentTabs.ActiveTab);
         Assert.False(f.Session.IsLightTabStripVisible);
         Assert.False(f.Session.IsCompositionTabActive);
         Assert.False(f.Log.HasLoad());   // viewer standalone giữ nguyên Document, không nạp lại
@@ -83,7 +83,7 @@ public class ReadingSessionDefaultWorkspaceTabsTests
 
         f.Session.Close(y);
 
-        Assert.Same(x, f.Session.Tabs.ActiveTab);
+        Assert.Same(x, f.Session.CurrentTabs.ActiveTab);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public class ReadingSessionDefaultWorkspaceTabsTests
 
         f.Session.Open(ReadingSessionFixture.PathOf("B"));
 
-        Assert.Empty(f.Session.Tabs.Tabs);
+        Assert.Empty(f.Session.CurrentTabs.Tabs);
         Assert.False(f.Session.IsLightTabStripVisible);
         Assert.Equal("B", f.Session.DocumentId);
         Assert.Equal(DefaultWorkspaceOf(f, "B"), f.Session.ActiveWorkspaceId);
@@ -128,12 +128,12 @@ public class ReadingSessionDefaultWorkspaceTabsTests
         f.Session.Open(ReadingSessionFixture.PathOf("A"));
 
         Assert.Equal("A,X,Y", Order(f));
-        var restoredX = Assert.IsType<CompositionTab>(f.Session.Tabs.Tabs[1]);
-        var restoredY = Assert.IsType<CompositionTab>(f.Session.Tabs.Tabs[2]);
-        Assert.Same(restoredX, f.Session.Tabs.ActiveTab);
+        var restoredX = Assert.IsType<CompositionTab>(f.Session.CurrentTabs.Tabs[1]);
+        var restoredY = Assert.IsType<CompositionTab>(f.Session.CurrentTabs.Tabs[2]);
+        Assert.Same(restoredX, f.Session.CurrentTabs.ActiveTab);
         Assert.Equal((0.4, 0.7), (restoredX.ScrollNorm, restoredY.ScrollNorm));
         Assert.True(f.Session.IsLightTabStripVisible);
-        Assert.False(f.Session.Tabs.Tabs[0].CanClose);
+        Assert.False(f.Session.CurrentTabs.Tabs[0].CanClose);
     }
 
     [Fact]
@@ -141,13 +141,13 @@ public class ReadingSessionDefaultWorkspaceTabsTests
     {
         var f = Reading("A");
         Compose(f, "A", "X");
-        f.Session.Activate(f.Session.Tabs.Tabs[0]);
+        f.Session.Activate(f.Session.CurrentTabs.Tabs[0]);
         f.InLibrary("B");
         f.Session.Open(ReadingSessionFixture.PathOf("B"));
 
         f.Session.Open(ReadingSessionFixture.PathOf("A"));
 
-        Assert.Same(f.Session.Tabs.Tabs[0], f.Session.Tabs.ActiveTab);
+        Assert.Same(f.Session.CurrentTabs.Tabs[0], f.Session.CurrentTabs.ActiveTab);
         Assert.False(f.Session.IsCompositionTabActive);
     }
 
@@ -162,7 +162,7 @@ public class ReadingSessionDefaultWorkspaceTabsTests
 
         f.Session.Open(ReadingSessionFixture.PathOf("A"));
 
-        Assert.Empty(f.Session.Tabs.Tabs);
+        Assert.Empty(f.Session.CurrentTabs.Tabs);
         Assert.Empty(f.Errors);
     }
 
@@ -176,7 +176,7 @@ public class ReadingSessionDefaultWorkspaceTabsTests
         f.Session.Open(ReadingSessionFixture.PathOf("B"));
         f.Session.Open(ReadingSessionFixture.PathOf("B"));
 
-        Assert.Empty(f.Session.Tabs.Tabs);
+        Assert.Empty(f.Session.CurrentTabs.Tabs);
     }
 
     [Fact]
@@ -188,7 +188,7 @@ public class ReadingSessionDefaultWorkspaceTabsTests
 
         f.Session.Promote(new Workspace("ws-moi", "Mới", false, null, 1, 1), "Tài liệu A");
 
-        var tab = Assert.Single(f.Session.Tabs.Tabs);
+        var tab = Assert.Single(f.Session.CurrentTabs.Tabs);
         Assert.IsType<DocumentTab>(tab);
         Assert.True(tab.CanClose);
         Assert.Equal("ws-moi", f.Session.ActiveWorkspaceId);
@@ -221,5 +221,6 @@ public class ReadingSessionDefaultWorkspaceTabsTests
 
         Assert.Equal("A,B", string.Join(",", f.Store.OpenSets[ReadingSessionFixture.WorkspaceId].Select(s => s.ItemId)));
         Assert.Empty(f.Session.Tabs.Tabs);
+        Assert.Empty(f.Session.LightTabs.Tabs);
     }
 }

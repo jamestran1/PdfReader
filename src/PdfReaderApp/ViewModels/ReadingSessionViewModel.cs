@@ -53,17 +53,26 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         // Phiên đọc là bên nghe duy nhất việc đổi Tab và gọi OpenSetPersistence: thứ tự "xử lý đổi Tab rồi mới lập lịch lưu
         // Open Set" nằm trong OnActiveTabChanged và handler TabsChanged, không phụ thuộc thứ tự đăng ký sự kiện.
         Tabs = new TabSetViewModel();
+        LightTabs = new LightTabStripViewModel();
         _openSet = new OpenSetPersistence(
-            _workspaceStore, Tabs, () => ActiveWorkspaceId, () => IsWorkspaceSession)
+            _workspaceStore, () => CurrentTabs, () => ActiveWorkspaceId, () => IsWorkspaceSession)
         {
             DispatcherProvider = dependencies.DispatcherProvider ?? (() => null),
         };
         Tabs.ActiveTabChanged += OnActiveTabChanged;
         Tabs.TabsChanged += OnTabsChanged;
+        LightTabs.ActiveTabChanged += OnLightActiveTabChanged;
+        LightTabs.TabsChanged += OnLightTabsChanged;
     }
 
-    /// <summary>Tập Tab (Open Set). Tab Strip chỉ đọc; mọi thao tác ghi đi qua Phiên đọc.</summary>
+    /// <summary>Tập Tab (Open Set) của Workspace có tên. Tab Strip chỉ đọc; mọi thao tác ghi đi qua Phiên đọc.</summary>
     public TabSetViewModel Tabs { get; }
+
+    /// <summary>Tab Strip nhẹ của Default Workspace (đọc lẻ): nguồn tab riêng, không dùng <see cref="Tabs"/> (ADR 0009).</summary>
+    public LightTabStripViewModel LightTabs { get; }
+
+    /// <summary>Nguồn tab của đường host đang dùng: <see cref="Tabs"/> ở Workspace có tên, <see cref="LightTabs"/> ở đọc lẻ.</summary>
+    public TabHost CurrentTabs => IsWorkspaceSession ? Tabs : LightTabs;
 
     /// <summary>Text engine dùng chung để viewer tô từ khoá và Đoạn nguồn.</summary>
     public IPdfDocumentService MatchSource => _loader.MatchSource;
@@ -72,6 +81,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StandaloneDocumentSource))]
     [NotifyPropertyChangedFor(nameof(CanPromote))]
+    [NotifyPropertyChangedFor(nameof(CurrentTabs))]
+    [NotifyPropertyChangedFor(nameof(IsCompositionTabActive))]
     public partial bool IsWorkspaceSession { get; private set; }
 
     /// <summary>Workspace đang hoạt động; null khi chưa có Document nào được nạp ở chế độ đọc lẻ.</summary>
@@ -113,43 +124,49 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     private OpenTab? ActiveViewTab => IsWorkspaceSession ? (Tabs.ActiveTab as DocumentTab ?? _lastDocumentTab) : null;
 
     /// <summary>Tab Bản soạn đang active (Search của viewer tắt, viewer Document ẩn).</summary>
-    public bool IsCompositionTabActive => Tabs.ActiveTab is CompositionTab;
+    public bool IsCompositionTabActive => CurrentTabs.ActiveTab is CompositionTab;
 
     /// <summary>Intent: mở <paramref name="composition"/> thành Tab Bản soạn active (đã mở thì kích hoạt, không tạo tab trùng).
     /// Không đổi Phiên đọc.</summary>
     public CompositionTab OpenComposition(Composition composition, string? afterCompositionId = null)
     {
         ArgumentNullException.ThrowIfNull(composition);
-        if (!IsWorkspaceSession && DocumentId is { } documentId && FilePath is { } path && !Tabs.Tabs.Any(t => t is DocumentTab))
-            Tabs.OpenStandaloneDocument(documentId, TitleOf(path), path);   // Default Workspace: Tab Strip nhẹ cần Tab Document trỏ viewer standalone
-        return Tabs.OpenOrActivateComposition(composition, afterCompositionId);
+        if (IsWorkspaceSession) return Tabs.OpenOrActivateComposition(composition, afterCompositionId);
+
+        // Default Workspace: Tab Strip nhẹ cần Tab Document trỏ viewer standalone.
+        if (DocumentId is { } documentId && FilePath is { } path) LightTabs.EnsureDocumentTab(documentId, TitleOf(path), path);
+        return LightTabs.OpenOrActivateComposition(composition, afterCompositionId);
     }
 
     /// <summary>Tab Strip nhẹ của Default Workspace (đọc lẻ): chỉ hiện khi có từ hai tab, không có "+".</summary>
-    public bool IsLightTabStripVisible => !IsWorkspaceSession && Tabs.Tabs.Count >= 2;
+    public bool IsLightTabStripVisible => !IsWorkspaceSession && LightTabs.IsStripVisible;
 
     private static string TitleOf(string path) => System.IO.Path.GetFileNameWithoutExtension(path);
 
-    // Đóng mọi Tab khi đổi Document hoặc Workspace. Bên gọi lưu Open Set TRƯỚC; ở đây không ghi lại Open Set đã đóng.
+    // Đóng mọi Tab của cả hai đường host khi đổi Document hoặc Workspace. Bên gọi lưu Open Set TRƯỚC; ở đây không ghi lại Open Set đã đóng.
     private void CloseAllTabs()
     {
-        if (Tabs.Tabs.Count == 0) return;
+        if (!Tabs.HasTabs && !LightTabs.HasTabs) return;
         _openSet.IsRestoring = true;
-        try { Tabs.Reset(); }
+        try
+        {
+            Tabs.Reset();
+            LightTabs.Reset();
+        }
         finally { _openSet.IsRestoring = false; }
     }
 
     // Mở lẻ: khôi phục Tab Bản soạn đã lưu của Default Workspace vừa vào, sau Tab Document trỏ viewer standalone.
     private void RestoreDefaultWorkspaceTabs(string workspaceId, string documentId, string path)
     {
-        if (Tabs.Tabs.Count > 0) return;   // Jump về chính Document đang đọc không đổi Workspace: Tab Bản soạn đang mở giữ nguyên
+        if (LightTabs.HasTabs) return;   // Jump về chính Document đang đọc không đổi Workspace: Tab Bản soạn đang mở giữ nguyên
         var saved = _workspaceStore.GetOpenTabs(workspaceId).Where(s => s.Kind == TabKind.Composition).ToList();
         var compositions = RestoreSavedTabs(workspaceId, saved);
         if (compositions.Count == 0) return;
         string? activeId = saved.LastOrDefault(s => s.IsActive && compositions.Any(t => t.ItemId == s.ItemId))?.ItemId;
-        var documentTab = new DocumentTab(documentId, TitleOf(path), path) { IsStandalone = true };
+        var documentTab = LightTabStripViewModel.CreateDocumentTab(documentId, TitleOf(path), path);
         _openSet.IsRestoring = true;
-        try { Tabs.RestoreTabs([documentTab, .. compositions], activeId ?? documentId); }
+        try { LightTabs.RestoreTabs([documentTab, .. compositions], activeId ?? documentId); }
         finally
         {
             _openSet.IsRestoring = false;
@@ -194,7 +211,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     public void Activate(OpenTab tab)
     {
         ArgumentNullException.ThrowIfNull(tab);
-        Tabs.ActivateTab(tab);
+        CurrentTabs.ActivateTab(tab);
     }
 
     /// <summary>Intent: đóng <paramref name="tab"/> (chỉ gỡ khỏi Open Set, không gỡ membership). Đóng Tab active thì
@@ -202,14 +219,13 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     public void Close(OpenTab tab)
     {
         ArgumentNullException.ThrowIfNull(tab);
-        if (!tab.CanClose) return;
-        Tabs.Close(tab);
+        CurrentTabs.Close(tab);   // tab không đóng được (Tab Document của Tab Strip nhẹ) do TabHost bỏ qua
     }
 
     /// <summary>Intent: đóng Tab của <paramref name="documentId"/> nếu Document đang mở thành Tab; không thì không làm gì.</summary>
     public void CloseDocument(string documentId)
     {
-        var tab = Tabs.Tabs.FirstOrDefault(t => t is DocumentTab && t.ItemId == documentId);
+        var tab = CurrentTabs.Tabs.FirstOrDefault(t => t is DocumentTab && t.ItemId == documentId);
         if (tab is not null) Close(tab);
     }
 
@@ -277,7 +293,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     public void RestoreOpenSet(string workspaceId)
     {
         ArgumentException.ThrowIfNullOrEmpty(workspaceId);
-        if (IsWorkspaceSession && ActiveWorkspaceId is not null) _openSet.SaveNow();
+        if (ActiveWorkspaceId is not null) _openSet.SaveNow();   // Workspace có tên, hoặc Tab Bản soạn của Default Workspace đang rời
 
         // Đọc state đã lưu TRƯỚC khi Reset để việc xoá Open Set cũ không ghi đè nó.
         var savedTabs = _workspaceStore.GetOpenTabs(workspaceId);
@@ -286,6 +302,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         try
         {
             Tabs.Reset();   // bắt đầu từ Open Set rỗng: không tích luỹ, không trùng Tab
+            LightTabs.Reset();
             ActiveWorkspaceId = workspaceId;
             IsWorkspaceSession = true;
 
@@ -380,6 +397,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _surface.DismissModal();
         _notes.LoadFor(null);
         Tabs.Reset();
+        LightTabs.Reset();
         SetDocumentState(null, []);
         FilePath = null;
         PageTexts = [];
@@ -405,8 +423,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         _openSet.SaveNow();   // Open Set đang rời (Workspace có tên hoặc Tab Bản soạn của Default Workspace cũ)
-        IsWorkspaceSession = false;
         CloseAllTabs();
+        IsWorkspaceSession = false;
         ReplaceCurrentDocument(path);
     }
 
@@ -518,8 +536,6 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 
     private void OnTabsChanged()
     {
-        OnPropertyChanged(nameof(IsLightTabStripVisible));
-
         // Đóng Tab Document mà Phiên đọc đang bám trong lúc Tab Bản soạn active không đổi Tab active, nên không có
         // ActiveTabChanged: xử lý như Tab Bản soạn vào lại để Phiên đọc rỗng hoặc bám tab khác.
         if (_documentKeptWhileComposing && _lastDocumentTab is not null && !Tabs.Tabs.Contains(_lastDocumentTab))
@@ -531,23 +547,22 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _openSet.Schedule();
     }
 
-    // Default Workspace: viewer standalone giữ Document, Tab Document và Tab Bản soạn chỉ đổi cái đang hiện.
-    private void OnStandaloneActiveTabChanged()
+    private void OnLightTabsChanged()
     {
-        _documentKeptWhileComposing = false;
-        _lastDocumentTab = null;
+        OnPropertyChanged(nameof(IsLightTabStripVisible));
+        _openSet.Schedule();
+    }
+
+    // Default Workspace: viewer standalone giữ Document, Tab Document và Tab Bản soạn chỉ đổi cái đang hiện;
+    // Phiên đọc không đổi nên không có bước hủy Chat, nạp Document hay đổi panel Notes.
+    private void OnLightActiveTabChanged(OpenTab? _)
+    {
         OnPropertyChanged(nameof(IsCompositionTabActive));
         _openSet.Schedule();
     }
 
     private void OnActiveTabChanged(OpenTab? incoming)
     {
-        if (!IsWorkspaceSession)
-        {
-            OnStandaloneActiveTabChanged();
-            return;
-        }
-
         bool resumingKeptDocument = _documentKeptWhileComposing && incoming is DocumentTab resumed && ReferenceEquals(resumed, _lastDocumentTab);
         _documentKeptWhileComposing = false;
         OnPropertyChanged(nameof(IsCompositionTabActive));

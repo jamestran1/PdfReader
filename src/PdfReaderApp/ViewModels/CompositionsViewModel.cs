@@ -61,7 +61,7 @@ public sealed partial class CompositionsViewModel : ObservableObject
             host.NotifyError,
             openCompositionAfter: (composition, afterId) => host.Session.OpenComposition(composition, afterId))
         {
-            OpenTabFor = id => host.Session.Tabs.Tabs.OfType<CompositionTab>().FirstOrDefault(t => t.CompositionId == id),
+            OpenTabFor = id => host.Session.CurrentTabs.Tabs.OfType<CompositionTab>().FirstOrDefault(t => t.CompositionId == id),
             CloseTab = tab => host.Session.Close(tab),
             CopyToClipboard = DesktopPrompts.CopyText,
             ConfirmDelete = DesktopPrompts.ConfirmDeleteComposition,
