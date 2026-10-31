@@ -14,6 +14,11 @@ public sealed partial class DocumentTab : OpenTab
     public override TabKind Kind => TabKind.Document;
 
     public string DocumentId => ItemId;
+
+    /// <summary>Tab Document của Default Workspace: trỏ viewer đọc lẻ (không có viewer riêng, không giữ handle PDFium) và không đóng được.</summary>
+    public bool IsStandalone { get; init; }
+
+    public override bool CanClose => !IsStandalone;
     public string Path { get; }
 
     /// <summary>

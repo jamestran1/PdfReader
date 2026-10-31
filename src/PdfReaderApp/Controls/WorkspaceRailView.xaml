@@ -4,7 +4,7 @@
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:converters="clr-namespace:PdfReaderApp.Converters"
              xmlns:local="clr-namespace:PdfReaderApp">
-    <!-- Rail trái của Workspace có tên (#291, prototype #252-B): mục DOCUMENT và mục BẢN SOẠN.
+    <!-- Rail trái (#291, prototype #252-B): mục DOCUMENT (chỉ Workspace có tên) và mục BẢN SOẠN (cả Default Workspace, #297).
          DataContext là MainViewModel. -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -34,7 +34,8 @@
         <DockPanel Margin="12,14,12,12">
             <TextBlock DockPanel.Dock="Top" Text="{Binding DocumentsSurface.WorkspaceName}"
                        FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" Margin="10,0,10,14"
-                       Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
+                       Foreground="{DynamicResource TriThu.Brush.OnSurface}"
+                       Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
             <!-- Bản soạn: ở đáy rail, có danh sách cuộn riêng -->
             <DockPanel DockPanel.Dock="Bottom" MaxHeight="300" Margin="0,12,0,0">
@@ -114,8 +115,10 @@
             </DockPanel>
 
             <!-- Document của Workspace: bấm để kích hoạt hoặc mở Tab Document -->
-            <TextBlock DockPanel.Dock="Top" Text="DOCUMENT" Style="{StaticResource TriThu.Rail.SectionHeader}" Margin="10,0,0,6"/>
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <TextBlock DockPanel.Dock="Top" Text="DOCUMENT" Style="{StaticResource TriThu.Rail.SectionHeader}" Margin="10,0,0,6"
+                       Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <ItemsControl ItemsSource="{Binding DocumentsSurface.Members}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>

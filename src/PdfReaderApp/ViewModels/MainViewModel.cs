@@ -121,7 +121,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(IsRightPanelExpanded));
         OnPropertyChanged(nameof(IsRightPanelStripVisible));
         OnPropertyChanged(nameof(IsDocumentTabStripVisible));
+        RaiseTabChromeChanged();
         OnPropertyChanged(nameof(CanPromoteToWorkspace));
+    }
+
+    private void RaiseTabChromeChanged()
+    {
+        OnPropertyChanged(nameof(IsTabStripVisible));
+        OnPropertyChanged(nameof(IsRailVisible));
+        OnPropertyChanged(nameof(IsTabHostVisible));
     }
 
     // Đang đọc tài liệu (không ở Thư viện cũng không ở Workspaces) -> hiện các nút đọc trên toolbar.
@@ -132,6 +140,15 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     // #64: Tab Strip tài liệu chỉ hiện khi đang đọc trong phiên workspace (ẩn ở Thư viện/Workspaces).
     public bool IsDocumentTabStripVisible => Session.IsWorkspaceSession && IsReadingDocument;
+
+    /// <summary>Tab Strip hiện: Workspace có tên (luôn), Default Workspace (đọc lẻ) khi có từ hai tab (ADR 0009).</summary>
+    public bool IsTabStripVisible => IsReadingDocument && (Session.IsWorkspaceSession || Session.IsLightTabStripVisible);
+
+    /// <summary>Rail trái hiện khi đang đọc một Workspace có tên, hoặc đọc lẻ một Document (rail chỉ có mục Bản soạn).</summary>
+    /// <summary>Vùng host tab (viewer mỗi tab, Tab Bản soạn) hiện ở Workspace có tên, hoặc ở đọc lẻ khi Tab Bản soạn đang active; còn lại viewer standalone hiện.</summary>
+    public bool IsTabHostVisible => Session.IsWorkspaceSession || Session.IsCompositionTabActive;
+
+    public bool IsRailVisible => IsReadingDocument && (Session.IsWorkspaceSession || Session.HasDocument);
 
     // Đích điều hướng đang active trên nav rail; suy ra từ trạng thái màn (Library/Workspaces loại trừ nhau).
     public Core.NavDestination ActiveNavDestination =>
@@ -282,16 +299,19 @@ public partial class MainViewModel : ObservableObject, IDisposable
         switch (e.PropertyName)
         {
             case nameof(ReadingSessionViewModel.CanPromote): OnPropertyChanged(nameof(CanPromoteToWorkspace)); break;
-            case nameof(ReadingSessionViewModel.IsWorkspaceSession): OnPropertyChanged(nameof(IsDocumentTabStripVisible)); ReloadCompositionsIfWorkspaceChanged(); break;
+            case nameof(ReadingSessionViewModel.IsWorkspaceSession): OnPropertyChanged(nameof(IsDocumentTabStripVisible)); RaiseTabChromeChanged(); ReloadCompositionsIfWorkspaceChanged(); break;
+            case nameof(ReadingSessionViewModel.IsLightTabStripVisible):
+            case nameof(ReadingSessionViewModel.HasDocument): RaiseTabChromeChanged(); break;
             case nameof(ReadingSessionViewModel.ActiveWorkspaceId): ReloadCompositionsIfWorkspaceChanged(); break;
-            case nameof(ReadingSessionViewModel.IsCompositionTabActive): Compositions.FlushPendingEdits(); OnPropertyChanged(nameof(IsSearchAvailable)); OnPropertyChanged(nameof(IsPagePillVisible)); break;
+            case nameof(ReadingSessionViewModel.IsCompositionTabActive): Compositions.FlushPendingEdits(); RaiseTabChromeChanged(); OnPropertyChanged(nameof(IsSearchAvailable)); OnPropertyChanged(nameof(IsPagePillVisible)); break;
         }
     }
 
-    // Rail Bản soạn theo Workspace có tên đang hoạt động. Bản soạn ở Default Workspace (đọc lẻ) thuộc #297: rail rỗng ở đó.
+    // Rail Bản soạn theo Workspace đang hoạt động, có tên hay Default Workspace (đọc lẻ). Ở Default Workspace owner đổi khi
+    // mở lẻ Document khác (ApplyLoaded), nên chỉ nạp lại và huỷ lần sinh khi owner thật sự đổi.
     private void ReloadCompositionsIfWorkspaceChanged()
     {
-        string? ownerKey = Session.IsWorkspaceSession ? Session.ActiveWorkspaceId : null;
+        string? ownerKey = Session.ActiveWorkspaceId;
         if (ownerKey == Compositions.OwnerKey) return;
         Compositions.FlushPendingEdits();
         Compositions.CancelGeneration();

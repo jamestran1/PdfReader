@@ -201,7 +201,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         <controls:WorkspaceRailView Grid.Column="0"
-                                    Visibility="{Binding IsDocumentTabStripVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    Visibility="{Binding IsRailVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
         <!-- Main Content Area -->
         <Grid Grid.Column="1">
@@ -473,9 +473,9 @@
                 </DockPanel>
             </Border>
 
-            <!-- Tab Strip (Row 1): chỉ hiện trong workspace session -->
+            <!-- Tab Strip (Row 1): Workspace có tên, hoặc Tab Strip nhẹ của Default Workspace khi có từ hai tab -->
             <Border Grid.Row="1"
-                    Visibility="{Binding IsDocumentTabStripVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Visibility="{Binding IsTabStripVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                     BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="0,0,0,1"
                     Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -526,6 +526,7 @@
                                                        FontSize="13"/>
                                             <Button Grid.Column="1" Margin="6,0,0,0"
                                                     Style="{StaticResource TriThu.DocTab.Close}"
+                                                    Visibility="{Binding CanClose, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                     ToolTip="Đóng tab"
                                                     Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}">
@@ -538,6 +539,7 @@
                         </ItemsControl>
                         <!-- Nút "+" cuối strip: mở Workspace Documents surface (#47) để thêm tài liệu -->
                         <Button Style="{StaticResource TriThu.DocTab.Add}"
+                                Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 ToolTip="Thêm tài liệu"
                                 Command="{Binding ShowWorkspaceDocumentsCommand}">
                             <materialDesign:PackIcon Kind="Plus" Width="20" Height="20"/>
@@ -572,6 +574,10 @@
                             <DataTrigger Binding="{Binding Session.IsWorkspaceSession}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
+                            <!-- Default Workspace: Tab Bản soạn đang active thì viewer standalone nhường chỗ (Document vẫn giữ nguyên) -->
+                            <DataTrigger Binding="{Binding Session.IsCompositionTabActive}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </controls:PdfViewerControl.Style>
@@ -581,7 +587,7 @@
                  chỉ tab active Visible, còn lại Collapsed (không render). Viewer chỉ giữ tài liệu khi
                  OpenTab.IsHydrated (active + nhóm MRU ấm), tab ngoài nhóm bị evict (#48). -->
             <Border Grid.Row="2"
-                    Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Visibility="{Binding IsTabHostVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
                     <!-- Hint khi Open Set rỗng (#62 AC2): inline WorkspaceDocumentsView khi chưa có tab -->
                     <ScrollViewer VerticalScrollBarVisibility="Auto"

@@ -89,6 +89,18 @@ public sealed class TabSetViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Tab Document của Default Workspace (đọc lẻ): luôn đứng đầu Tab Strip nhẹ, trỏ viewer standalone nên không hydrate
+    /// và không đóng được. Mở khi Default Workspace có Tab Bản soạn đầu tiên.
+    /// </summary>
+    internal DocumentTab OpenStandaloneDocument(string documentId, string title, string path)
+    {
+        var tab = new DocumentTab(documentId, title, path) { IsStandalone = true };
+        _tabItems.Insert(0, tab);
+        Activate(tab);
+        return tab;
+    }
+
+    /// <summary>
     /// Mở Tab Bản soạn cho <paramref name="composition"/>, hoặc kích hoạt tab đã có (không mở tab trùng).
     /// Tab mới chèn ngay sau ActiveTab, như Tab Document; khi có <paramref name="afterCompositionId"/> và tab đó còn mở thì
     /// chèn ngay sau tab đó (Sinh lại: bản mới nằm bên phải bản cũ).
@@ -185,7 +197,7 @@ public sealed class TabSetViewModel : ObservableObject
     {
         _mru.Remove(tab);
         _mru.Insert(0, tab);
-        if (tab is DocumentTab documentTab) documentTab.IsHydrated = true;
+        if (tab is DocumentTab { IsStandalone: false } documentTab) documentTab.IsHydrated = true;
         EvictBeyondWarmLimit();
         ActiveTab = tab;
     }
@@ -197,7 +209,7 @@ public sealed class TabSetViewModel : ObservableObject
         int documentsSeen = 0;
         foreach (var tab in _mru)
         {
-            if (tab is not DocumentTab documentTab) continue;
+            if (tab is not DocumentTab { IsStandalone: false } documentTab) continue;
             if (++documentsSeen > _maxWarmInactiveTabs + 1) documentTab.IsHydrated = false;
         }
     }

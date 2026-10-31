@@ -55,14 +55,27 @@ public sealed class OpenSetPersistenceTests
     }
 
     [Fact]
-    public void Schedule_DoesNothing_WhenNotWorkspaceSession()
+    public void Schedule_InDefaultWorkspace_DoesNotWriteTheDocumentTab()
     {
         var (persistence, tabs, store) = Create(() => null, isWorkspaceSession: false);
 
-        tabs.OpenOrActivate("docA", "A", "/a.pdf");
+        tabs.OpenStandaloneDocument("docA", "A", "/a.pdf");
         persistence.Schedule();
 
-        Assert.Empty(store.OpenSets);
+        Assert.Empty(store.OpenSets[WorkspaceId]);
+    }
+
+    [Fact]
+    public void SaveNow_InDefaultWorkspace_WritesOnlyCompositionTabsWithTheirOwnOrder()
+    {
+        var (persistence, tabs, store) = Create(() => null, isWorkspaceSession: false);
+        tabs.OpenStandaloneDocument("docA", "A", "/a.pdf");
+        tabs.OpenOrActivateComposition(new PdfReaderApp.Models.Composition("X", WorkspaceId, "Bản X", PdfReaderApp.Models.CompositionKind.Summary, "# x", "m", [], 1));
+
+        persistence.SaveNow();
+
+        var row = Assert.Single(store.OpenSets[WorkspaceId]);
+        Assert.Equal(("X", 0, true, PdfReaderApp.Models.TabKind.Composition), (row.ItemId, row.TabOrder, row.IsActive, row.Kind));
     }
 
     [Fact]

@@ -9,7 +9,7 @@ namespace PdfReaderApp.Tests;
 /// <summary>Đường xuyên suốt Bản soạn ở Workspace có tên (#291): rail, sinh, lưu bền, mở thành Tab Bản soạn.</summary>
 public sealed class MainViewModelCompositionTests : IDisposable
 {
-    private sealed class MemoryCompositionStore : ICompositionStore
+    internal sealed class MemoryCompositionStore : ICompositionStore
     {
         private readonly List<Composition> _rows = [];
         public void EnsureSchema() { }
@@ -28,7 +28,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
         public int DeleteForOwner(string ownerKey) => _rows.RemoveAll(c => c.OwnerKey == ownerKey);
     }
 
-    private sealed class MemoryNoteStore : INoteStore
+    internal sealed class MemoryNoteStore : INoteStore
     {
         public List<Note> Rows { get; } = [];
         public void EnsureSchema() { }
