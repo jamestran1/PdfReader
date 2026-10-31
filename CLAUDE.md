@@ -62,7 +62,7 @@ Repo dùng bộ skill **Matt Pocock** (nạp global trên máy, xem `npx skills 
   - `GLOSSARY.md` (gốc repo): glossary / ngôn ngữ miền (do `domain-modeling` duy trì). Chỉ là từ điển, không phải spec.
   - `docs/adr/`: Architecture Decision Records (vd `0001-workspace-architecture`, `0002-per-feature-sqlite-databases`, `0003-multi-document-tabs`).
 - **PRD & task:** sống trên GitHub issues (gắn nhãn triage `ready-for-agent`), không ở file local.
-- **Lệnh `gh` cho map Wayfinder** (sub-issue, blocked_by, nhận ticket): `docs/agents/issue-tracker.md`. **Prototype UI** (skill `prototype` cho app WPF): `docs/agents/prototyping.md`.
+- **Lệnh `gh` để đọc ticket** (kể cả khi số là PR) **và cho map Wayfinder** (sub-issue, blocked_by, nhận ticket): `docs/agents/issue-tracker.md`. **Prototype UI** (skill `prototype` cho app WPF): `docs/agents/prototyping.md`.
 - **Quy trình tính năng mới:** `grill-with-docs` → (việc nhiều session: `to-spec` publish PRD lên issue → `to-tickets` chẻ thành vertical-slice issues) → `/implement <issue>` (chạy `/tdd` tại seam đã thống nhất, rồi `/code-review`) → PR (`/pr`) → `/retro` (tổng kết session, đề xuất guardrail và chuẩn code). Hỏi `/ask-matt` khi không chắc bước tiếp theo.
 - **Góp ý về code:** góp ý bền về code (C#, XAML, test, giao diện) thêm vào `CODING_STANDARDS.md` qua PR, không lưu vào memory của agent. Memory chỉ giữ sở thích cá nhân và quy trình.
 - **Model selection:** brainstorm, planning và review dùng **Opus** (bản mới nhất, hiện Opus 5.5); code (implement) dùng **Sonnet** (bản mới nhất, hiện Sonnet 5.5), không dùng Haiku.

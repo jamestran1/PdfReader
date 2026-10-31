@@ -10,7 +10,8 @@
                    -Fix rewrites those files instead and reports them on one line.
       2. build     analyzers write SARIF per project (see Directory.Build.props).
       3. analyzer  every warning in repo source blocks, changed line or not (ADR 0007: the per-rule ratchet is done).
-      4. XAML      PrimaryHueMidBrush / CornerRadius="100" on changed lines (CODING_STANDARDS.md UI-3, UI-5).
+      4. patterns  on changed lines: XAML PrimaryHueMidBrush / CornerRadius="100", Markdown em dash
+                   (CODING_STANDARDS.md UI-3, UI-5, REPO-3).
       5. test      only when .cs / .xaml / .csproj (or .props / .targets / global.json) files changed.
     When nothing that affects the build changed (e.g. only markdown), build and test are skipped.
 
@@ -55,9 +56,11 @@ $TestExtensions = '.cs', '.xaml', '.csproj', '.props', '.targets'
 $TestFiles = @('global.json')
 $BuildExtensions = $TestExtensions + '.editorconfig', '.slnx', '.sln'
 $BuildFiles = $TestFiles + 'codemetricsconfig.txt'
-$ForbiddenXaml = @(
-    @{ Rule = 'UI-3'; Pattern = 'PrimaryHueMid(Foreground)?Brush'; Message = 'brush chết dưới CustomColorTheme; dùng MaterialDesign.Brush.Primary hoặc TriThu.Brush.*' }
-    @{ Rule = 'UI-5'; Pattern = 'CornerRadius\s*=\s*"100"'; Message = 'CornerRadius="100" vẽ thành elip; nút dài dùng CornerRadius="12", cần bo tròn hai đầu thì dùng đúng nửa chiều cao' }
+$ForbiddenPatterns = @(
+    @{ Extension = '.xaml'; Rule = 'UI-3'; Pattern = 'PrimaryHueMid(Foreground)?Brush'; Message = 'brush chết dưới CustomColorTheme; dùng MaterialDesign.Brush.Primary hoặc TriThu.Brush.*' }
+    @{ Extension = '.xaml'; Rule = 'UI-5'; Pattern = 'CornerRadius\s*=\s*"100"'; Message = 'CornerRadius="100" vẽ thành elip; nút dài dùng CornerRadius="12", cần bo tròn hai đầu thì dùng đúng nửa chiều cao' }
+    # Built from the code point so this file itself stays free of the character it bans.
+    @{ Extension = '.md'; Rule = 'REPO-3'; Pattern = [string][char]0x2014; Message = 'em dash; dùng dấu hai chấm, dấu phẩy, dấu chấm phẩy hoặc ngoặc đơn' }
 )
 
 function Stop-CannotRun([string]$Message) {
@@ -190,13 +193,14 @@ function Get-AnalyzerViolations {
     Get-SarifResults | Where-Object { $_.Level -in 'warning', 'error' -and (Test-SourceFile $_.File) }
 }
 
-function Get-XamlViolations {
-    foreach ($file in Get-ChangedFiles '.xaml') {
+function Get-ForbiddenPatternViolations {
+    foreach ($file in Get-ChangedFiles @($ForbiddenPatterns.Extension | Sort-Object -Unique)) {
+        $rules = @($ForbiddenPatterns | Where-Object Extension -eq ([IO.Path]::GetExtension($file)))
         $lineNumber = 0
-        foreach ($text in Get-Content -LiteralPath (Join-Path $repoRoot $file)) {
+        foreach ($text in Get-Content -LiteralPath (Join-Path $repoRoot $file) -Encoding utf8) {
             $lineNumber++
             if (-not (Test-ChangedLine $file $lineNumber)) { continue }
-            foreach ($rule in $ForbiddenXaml) {
+            foreach ($rule in $rules) {
                 if ($text -match $rule.Pattern) { New-Violation $file $lineNumber 'warning' $rule.Rule $rule.Message }
             }
         }
@@ -251,7 +255,7 @@ try {
     $mergeBase = (Invoke-Git merge-base $Base HEAD | Select-Object -First 1).Trim()
     $changed = Get-ChangedLines $mergeBase
 
-    $violations = @(Get-XamlViolations)
+    $violations = @(Get-ForbiddenPatternViolations)
     $failedTests = @()
     $needsBuild = @($changed.Keys | Where-Object { [IO.Path]::GetExtension($_) -in $BuildExtensions -or $_ -in $BuildFiles }).Count -gt 0
     if ($needsBuild) {
