@@ -67,6 +67,10 @@ public sealed partial class CompositionsViewModel : ObservableObject
         return [.. library.Where(i => memberIds.Contains(i.DocumentId)).Select(i => new CompositionSourceDocument(i.DocumentId, i.Title))];
     }
 
+    /// <summary>Đọc Bản soạn của Workspace theo id từ store (khôi phục Open Set); null khi đã bị xoá.</summary>
+    public Composition? FindForOwner(string ownerKey, string compositionId)
+        => _store.GetForOwner(ownerKey).FirstOrDefault(c => c.Id == compositionId);
+
     /// <summary>Xoá mọi Bản soạn của Workspace (khi xoá Workspace).</summary>
     public void DeleteForOwner(string ownerKey)
     {

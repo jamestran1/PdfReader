@@ -268,7 +268,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 RefreshNotesDocumentContext: UpdateNotesDocumentContext,
                 NotifyError: NotifyError,
                 MarkDocumentOpened: documentId => _library.MarkOpened(documentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
-                FindDocument: id => Library.FirstOrDefault(i => i.DocumentId == id)));
+                FindDocument: id => Library.FirstOrDefault(i => i.DocumentId == id),
+                FindComposition: (workspaceId, id) => Compositions.FindForOwner(workspaceId, id)));
         session.PropertyChanged += OnSessionPropertyChanged;
         return session;
     }

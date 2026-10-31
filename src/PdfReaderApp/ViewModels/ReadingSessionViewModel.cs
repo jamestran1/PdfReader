@@ -22,6 +22,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     private readonly IReadingSessionSurface _surface;
     private readonly Action<string> _notifyError;
     private readonly LibraryDocumentLookup _findDocument;
+    private readonly CompositionLookup _findComposition;
     private readonly TimeProvider _clock;
     private readonly OpenSetPersistence _openSet;
     private readonly Action<string>? _markDocumentOpened;
@@ -45,6 +46,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         _surface = dependencies.Surface;
         _notifyError = dependencies.NotifyError;
         _findDocument = dependencies.FindDocument ?? (_ => null);
+        _findComposition = dependencies.FindComposition ?? ((_, _) => null);
         _markDocumentOpened = dependencies.MarkDocumentOpened;
         _clock = dependencies.Clock ?? TimeProvider.System;
 
@@ -252,11 +254,16 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
             ActiveWorkspaceId = workspaceId;
             IsWorkspaceSession = true;
 
-            var restored = RestoreSavedTabs(savedTabs);
+            var restored = RestoreSavedTabs(workspaceId, savedTabs);
             if (restored.Count > 0)
             {
                 string? activeId = savedTabs.LastOrDefault(s => s.IsActive && restored.Any(t => t.ItemId == s.ItemId))?.ItemId;
-                Tabs.RestoreTabs(restored, activeId ?? restored[0].ItemId);
+                // Tab Bản soạn không đổi Phiên đọc: nạp Tab Document gần nhất trước để Phiên đọc bám nó, rồi mới kích hoạt Bản soạn.
+                var keptDocument = restored.FirstOrDefault(t => t.ItemId == activeId) is CompositionTab active
+                    ? NearestDocumentTab(restored, active)
+                    : null;
+                Tabs.RestoreTabs(restored, keptDocument?.ItemId ?? activeId ?? restored[0].ItemId);
+                if (keptDocument is not null) Tabs.ActivateTab(restored.First(t => t.ItemId == activeId));
             }
             else
             {
@@ -270,12 +277,26 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         }
     }
 
-    private List<OpenTab> RestoreSavedTabs(IReadOnlyList<OpenTabState> savedTabs)
+    // Tab Document gần nhất trước tab Bản soạn, không có thì Tab Document đầu tiên.
+    private static OpenTab? NearestDocumentTab(List<OpenTab> tabs, OpenTab composition)
+    {
+        int at = tabs.IndexOf(composition);
+        return tabs.Take(at).LastOrDefault(t => t is DocumentTab) ?? tabs.FirstOrDefault(t => t is DocumentTab);
+    }
+
+    private List<OpenTab> RestoreSavedTabs(string workspaceId, IReadOnlyList<OpenTabState> savedTabs)
     {
         var restored = new List<OpenTab>(savedTabs.Count);
         foreach (var state in savedTabs)
         {
-            if (state.Kind != TabKind.Document) continue;   // Tab Bản soạn khôi phục ở #296
+            if (state.Kind == TabKind.Composition)
+            {
+                // Chế độ Sửa không được nhớ: tab luôn mở lại ở chế độ đọc. Bản soạn đã xoá thì bỏ qua.
+                if (_findComposition(workspaceId, state.ItemId) is { } composition)
+                    restored.Add(new CompositionTab(composition) { ScrollNorm = state.ScrollNorm });
+                continue;
+            }
+
             if (_findDocument(state.ItemId) is not { } item) continue;   // Document đã gỡ khỏi Library
             restored.Add(new DocumentTab(state.ItemId, item.Title, item.StoredPath)
             {

@@ -27,7 +27,7 @@
         </DataTemplate>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource TriThu.Brush.Surface}">
+    <ScrollViewer x:Name="Scroller" VerticalScrollBarVisibility="Auto" Background="{DynamicResource TriThu.Brush.Surface}">
         <Border MaxWidth="680" Margin="24,28,24,40" Padding="36,32" VerticalAlignment="Top" CornerRadius="12"
                 Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}"
                 BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="1"
