@@ -258,6 +258,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
             else
             {
                 ReplaceCurrentDocument(item.StoredPath, ActiveWorkspaceId, targetPage);
+                // Đang xem Tab Bản soạn của Tab Strip nhẹ thì viewer standalone vẫn ẩn: đưa người dùng về Tab Document.
+                if (LightTabs.Tabs.OfType<DocumentTab>().FirstOrDefault() is { } lightDocument) LightTabs.ActivateTab(lightDocument);
             }
         }
         finally

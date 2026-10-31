@@ -223,4 +223,18 @@ public class ReadingSessionDefaultWorkspaceTabsTests
         Assert.Empty(f.Session.Tabs.Tabs);
         Assert.Empty(f.Session.LightTabs.Tabs);
     }
+
+    [Fact]
+    public void Jump_FromNoteWhileCompositionTabIsActive_ActivatesTheDocumentTabOfTheLightStrip()
+    {
+        var f = Reading("A");
+        Compose(f, "A", "X");
+        Assert.True(f.Session.IsCompositionTabActive);
+
+        f.Session.JumpFromNote("A", 2);
+
+        Assert.False(f.Session.IsCompositionTabActive);
+        Assert.IsType<DocumentTab>(f.Session.CurrentTabs.ActiveTab);
+        Assert.Equal(3, f.Session.CurrentPage);
+    }
 }

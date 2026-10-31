@@ -45,4 +45,18 @@ public class MarkdownBlockParserTests
 
         Assert.Equal(new MarkdownBlock(MarkdownBlockKind.Paragraph, "#hashtag"), block);
     }
+
+    [Fact]
+    public void Parse_NestedListItems_KeepLevelFromIndent()
+    {
+        var blocks = MarkdownBlockParser.Parse("- cha\n  - con\n    - cháu\n- cha hai");
+
+        Assert.Equal(
+        [
+            new MarkdownBlock(MarkdownBlockKind.ListItem, "cha", 0),
+            new MarkdownBlock(MarkdownBlockKind.ListItem, "con", 1),
+            new MarkdownBlock(MarkdownBlockKind.ListItem, "cháu", 2),
+            new MarkdownBlock(MarkdownBlockKind.ListItem, "cha hai", 0),
+        ], blocks);
+    }
 }

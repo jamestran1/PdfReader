@@ -27,7 +27,7 @@
                        FontSize="17" FontWeight="Bold" Margin="0,10,0,8"/>
         </DataTemplate>
         <DataTemplate x:Key="ListItemTemplate">
-            <DockPanel Margin="8,0,0,0">
+            <DockPanel Margin="{Binding ListIndent}">
                 <TextBlock DockPanel.Dock="Left" Text="•" Style="{StaticResource TriThu.Composition.Block}" Margin="0,0,10,10"/>
                 <TextBlock controls:CitationText.Spans="{Binding Spans}" controls:CitationText.Command="{Binding DataContext.Compositions.Sources.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=Window}}" Style="{StaticResource TriThu.Composition.Block}"/>
             </DockPanel>
