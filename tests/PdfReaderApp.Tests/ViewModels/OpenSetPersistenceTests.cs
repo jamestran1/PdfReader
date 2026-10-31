@@ -39,7 +39,7 @@ public sealed class OpenSetPersistenceTests
 
         persistence.Schedule();
 
-        Assert.Equal("docA", Assert.Single(store.OpenSets[WorkspaceId]).DocumentId);
+        Assert.Equal("docA", Assert.Single(store.OpenSets[WorkspaceId]).ItemId);
     }
 
     [Fact]
@@ -86,7 +86,7 @@ public sealed class OpenSetPersistenceTests
         persistence.SaveNow();
 
         var saved = store.OpenSets[WorkspaceId];
-        Assert.Equal(["docA", "docB"], saved.Select(t => t.DocumentId), StringComparer.Ordinal);
+        Assert.Equal(["docA", "docB"], saved.Select(t => t.ItemId), StringComparer.Ordinal);
         Assert.Equal([false, true], saved.Select(t => t.IsActive));
     }
 
@@ -106,6 +106,6 @@ public sealed class OpenSetPersistenceTests
 
         PumpFor(dispatcher, TimeSpan.FromMilliseconds(900));
 
-        Assert.Equal("docA", Assert.Single(store.OpenSets[WorkspaceId]).DocumentId);
+        Assert.Equal("docA", Assert.Single(store.OpenSets[WorkspaceId]).ItemId);
     }
 }

@@ -1,4 +1,4 @@
-using System.Windows.Threading;
+﻿using System.Windows.Threading;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
@@ -52,8 +52,8 @@ public sealed class OpenSetPersistence
         {
             var tab = _tabs.Tabs[order];
             states.Add(new OpenTabState(
-                tab.DocumentId, order, ReferenceEquals(tab, activeTab),
-                tab.Page, tab.Zoom, tab.ScrollNorm, nowUnixMs));
+                tab.ItemId, order, ReferenceEquals(tab, activeTab),
+                tab.Page, tab.Zoom, tab.ScrollNorm, nowUnixMs, tab.Kind));
         }
         try { _workspaceStore.SaveOpenTabs(workspaceId, states); }
 #pragma warning disable CA1031 // best-effort: lưu tab lỗi không được làm gãy phiên đọc

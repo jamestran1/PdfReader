@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
@@ -385,7 +385,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var activeTab = _workspaceStore.GetOpenTabs(workspace.Id).FirstOrDefault(tab => tab.IsActive);
         string? activeTitle = activeTab is null
             ? null
-            : Library.FirstOrDefault(item => item.DocumentId == activeTab.DocumentId)?.Title;
+            : Library.FirstOrDefault(item => item.DocumentId == activeTab.ItemId)?.Title;
         return new WorkspaceCard(workspace, $"{documentCount} tài liệu", activeTitle, documentCount == 0);
     }
 

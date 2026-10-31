@@ -214,11 +214,11 @@ public class TabSetViewModelTests
         int activationCount = 0;
         tabSet.ActiveTabChanged += _ => activationCount++;
 
-        var tabA = new OpenTab("docA", "A", "/a.pdf") { Page = 3, Zoom = 1.5 };
-        var tabB = new OpenTab("docB", "B", "/b.pdf") { Page = 7, Zoom = 2.0 };
+        var tabA = new DocumentTab("docA", "A", "/a.pdf") { Page = 3, Zoom = 1.5 };
+        var tabB = new DocumentTab("docB", "B", "/b.pdf") { Page = 7, Zoom = 2.0 };
         tabSet.RestoreTabs(new[] { tabA, tabB }, activeDocumentId: "docB");
 
-        Assert.Equal(new[] { "docA", "docB" }, tabSet.Tabs.Select(t => t.DocumentId), StringComparer.Ordinal);
+        Assert.Equal(new[] { "docA", "docB" }, tabSet.Tabs.Select(t => t.ItemId), StringComparer.Ordinal);
         Assert.Same(tabB, tabSet.ActiveTab);
         Assert.Equal(1, activationCount);
         Assert.Equal(7, tabSet.ActiveTab!.Page);
@@ -231,9 +231,9 @@ public class TabSetViewModelTests
     public void RestoreTabs_OnlyActiveTabIsHydrated()
     {
         var tabSet = new TabSetViewModel();
-        var tabA = new OpenTab("docA", "A", "/a.pdf");
-        var tabB = new OpenTab("docB", "B", "/b.pdf");
-        var tabC = new OpenTab("docC", "C", "/c.pdf");
+        var tabA = new DocumentTab("docA", "A", "/a.pdf");
+        var tabB = new DocumentTab("docB", "B", "/b.pdf");
+        var tabC = new DocumentTab("docC", "C", "/c.pdf");
 
         tabSet.RestoreTabs(new[] { tabA, tabB, tabC }, activeDocumentId: "docB");
 
@@ -287,8 +287,8 @@ public class TabSetViewModelTests
         for (int i = 0; i < 8; i++)
             tabSet.OpenOrActivate($"doc{i}", $"T{i}", $"/{i}.pdf");
 
-        Assert.Equal(TabSetViewModel.DefaultMaxWarmInactiveTabs + 1, tabSet.Tabs.Count(t => t.IsHydrated));
-        Assert.False(tabSet.Tabs.Single(t => t.DocumentId == "doc0").IsHydrated);
-        Assert.False(tabSet.Tabs.Single(t => t.DocumentId == "doc1").IsHydrated);
+        Assert.Equal(TabSetViewModel.DefaultMaxWarmInactiveTabs + 1, tabSet.Tabs.OfType<DocumentTab>().Count(t => t.IsHydrated));
+        Assert.False(tabSet.Tabs.OfType<DocumentTab>().Single(t => t.ItemId == "doc0").IsHydrated);
+        Assert.False(tabSet.Tabs.OfType<DocumentTab>().Single(t => t.ItemId == "doc1").IsHydrated);
     }
 }

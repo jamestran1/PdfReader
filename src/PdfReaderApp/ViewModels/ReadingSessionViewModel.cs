@@ -1,4 +1,4 @@
-using System.ComponentModel;
+﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfReaderApp.Core;
 using PdfReaderApp.Models;
@@ -156,7 +156,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     /// <summary>Intent: đóng Tab của <paramref name="documentId"/> nếu Document đang mở thành Tab; không thì không làm gì.</summary>
     public void CloseDocument(string documentId)
     {
-        var tab = Tabs.Tabs.FirstOrDefault(t => t.DocumentId == documentId);
+        var tab = Tabs.Tabs.FirstOrDefault(t => t is DocumentTab && t.ItemId == documentId);
         if (tab is not null) Close(tab);
     }
 
@@ -239,8 +239,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
             var restored = RestoreSavedTabs(savedTabs);
             if (restored.Count > 0)
             {
-                string? activeId = savedTabs.LastOrDefault(s => s.IsActive && restored.Any(t => t.DocumentId == s.DocumentId))?.DocumentId;
-                Tabs.RestoreTabs(restored, activeId ?? restored[0].DocumentId);
+                string? activeId = savedTabs.LastOrDefault(s => s.IsActive && restored.Any(t => t.ItemId == s.ItemId))?.ItemId;
+                Tabs.RestoreTabs(restored, activeId ?? restored[0].ItemId);
             }
             else
             {
@@ -259,8 +259,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         var restored = new List<OpenTab>(savedTabs.Count);
         foreach (var state in savedTabs)
         {
-            if (_findDocument(state.DocumentId) is not { } item) continue;   // Document đã gỡ khỏi Library
-            restored.Add(new OpenTab(state.DocumentId, item.Title, item.StoredPath)
+            if (_findDocument(state.ItemId) is not { } item) continue;   // Document đã gỡ khỏi Library
+            restored.Add(new DocumentTab(state.ItemId, item.Title, item.StoredPath)
             {
                 Page = state.Page,
                 Zoom = state.Zoom,
@@ -450,9 +450,9 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         // Tab mới (hoặc không còn Tab) thì Đoạn nguồn của tài liệu trước không còn nghĩa.
         ActiveSourcePassage = null;
 
-        if (incoming is not null)
+        if (incoming is DocumentTab incomingDocument)
         {
-            ReplaceCurrentDocument(incoming.Path, ActiveWorkspaceId, incoming.Page);
+            ReplaceCurrentDocument(incomingDocument.Path, ActiveWorkspaceId, incoming.Page);
         }
         else
         {

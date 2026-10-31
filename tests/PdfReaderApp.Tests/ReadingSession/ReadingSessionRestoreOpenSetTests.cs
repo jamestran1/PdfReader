@@ -24,8 +24,8 @@ public class ReadingSessionRestoreOpenSetTests
         f.Session.RestoreOpenSet(Target);
 
         Assert.Equal(ReadingSessionFixture.WorkspaceId, f.Store.SavedWorkspaceIds[0]);
-        Assert.Equal("A", Assert.Single(f.Store.OpenSets[ReadingSessionFixture.WorkspaceId]).DocumentId);
-        Assert.Equal("B", Assert.Single(f.Session.Tabs.Tabs).DocumentId);
+        Assert.Equal("A", Assert.Single(f.Store.OpenSets[ReadingSessionFixture.WorkspaceId]).ItemId);
+        Assert.Equal("B", Assert.Single(f.Session.Tabs.Tabs).ItemId);
     }
 
     [Fact]
@@ -40,13 +40,13 @@ public class ReadingSessionRestoreOpenSetTests
 
         f.Session.RestoreOpenSet(Target);
 
-        Assert.Equal("A,B,C", string.Join(",", f.Session.Tabs.Tabs.Select(t => t.DocumentId)));
+        Assert.Equal("A,B,C", string.Join(",", f.Session.Tabs.Tabs.Select(t => t.ItemId)));
         var first = f.Session.Tabs.Tabs[0];
         Assert.Equal((3, 1.5, 0.25), (first.Page, first.Zoom, first.ScrollNorm));
-        Assert.Equal("B", f.Session.Tabs.ActiveTab?.DocumentId);
+        Assert.Equal("B", f.Session.Tabs.ActiveTab?.ItemId);
         Assert.Equal([ReadingSessionFixture.PathOf("B")], f.Loader.LoadedPaths);
         Assert.Equal(7, f.Session.CurrentPage);
-        Assert.Equal([false, true, false], f.Session.Tabs.Tabs.Select(t => t.IsHydrated));   // chỉ Tab active nạp
+        Assert.Equal([false, true, false], f.Session.Tabs.Tabs.OfType<DocumentTab>().Select(t => t.IsHydrated));   // chỉ Tab active nạp
         Assert.True(f.Session.IsWorkspaceSession);
         Assert.Equal(Target, f.Session.ActiveWorkspaceId);
     }
@@ -61,7 +61,7 @@ public class ReadingSessionRestoreOpenSetTests
         f.Session.RestoreOpenSet(Target);
 
         Assert.Equal([Target], f.Store.SavedWorkspaceIds);
-        Assert.Equal("A,B", string.Join(",", f.Store.OpenSets[Target].Select(t => t.DocumentId)));
+        Assert.Equal("A,B", string.Join(",", f.Store.OpenSets[Target].Select(t => t.ItemId)));
         Assert.Equal(3, f.Store.OpenSets[Target][0].Page);
     }
 
@@ -75,8 +75,8 @@ public class ReadingSessionRestoreOpenSetTests
 
         f.Session.RestoreOpenSet(Target);
 
-        Assert.Equal("A,C", string.Join(",", f.Session.Tabs.Tabs.Select(t => t.DocumentId)));
-        Assert.Equal("A", f.Session.Tabs.ActiveTab?.DocumentId);
+        Assert.Equal("A,C", string.Join(",", f.Session.Tabs.Tabs.Select(t => t.ItemId)));
+        Assert.Equal("A", f.Session.Tabs.ActiveTab?.ItemId);
     }
 
     [Fact]
@@ -91,9 +91,9 @@ public class ReadingSessionRestoreOpenSetTests
 
         f.Session.RestoreOpenSet(Target);
 
-        Assert.Equal("B", Assert.Single(f.Session.Tabs.Tabs).DocumentId);
+        Assert.Equal("B", Assert.Single(f.Session.Tabs.Tabs).ItemId);
         Assert.Equal([ReadingSessionFixture.PathOf("B")], f.Loader.LoadedPaths);
-        Assert.Equal("B", Assert.Single(f.Store.OpenSets[Target]).DocumentId);
+        Assert.Equal("B", Assert.Single(f.Store.OpenSets[Target]).ItemId);
     }
 
     [Fact]
@@ -108,7 +108,7 @@ public class ReadingSessionRestoreOpenSetTests
 
         f.Session.RestoreOpenSet(Target);
 
-        Assert.Equal("A", Assert.Single(f.Session.Tabs.Tabs).DocumentId);
+        Assert.Equal("A", Assert.Single(f.Session.Tabs.Tabs).ItemId);
     }
 
     [Fact]

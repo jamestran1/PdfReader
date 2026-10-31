@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfReaderApp.Models;
 
@@ -64,23 +64,23 @@ public sealed class TabSetViewModel : ObservableObject
     /// - Tab đã tồn tại: kích hoạt (đẩy lên đầu MRU), trả về tab đó.
     /// - Tab mới: chèn ngay sau ActiveTab hiện tại (hoặc cuối nếu không có), kích hoạt, trả về.
     /// </summary>
-    internal OpenTab OpenOrActivate(string documentId, string title, string path, int? initialPage = null)
+    internal DocumentTab OpenOrActivate(string documentId, string title, string path, int? initialPage = null)
     {
         // Kiểm tra tab đã tồn tại theo documentId.
         foreach (var existing in _tabItems)
         {
-            if (existing.DocumentId == documentId)
+            if (existing is DocumentTab doc && doc.DocumentId == documentId)
             {
                 // Đặt trang TRƯỚC khi kích hoạt để viewer (per-tab) nạp thẳng tại trang đích.
-                if (initialPage is int pe) existing.Page = pe;
-                Activate(existing);
-                return existing;
+                if (initialPage is int pe) doc.Page = pe;
+                Activate(doc);
+                return doc;
             }
         }
 
         // Tạo tab mới và chèn ngay sau ActiveTab. Đặt trang TRƯỚC khi chèn/kích hoạt
         // để viewer mở thẳng tại trang đích (cross-doc jump), tránh cuộn-sau-khi-nạp không ổn định.
-        var tab = new OpenTab(documentId, title, path);
+        var tab = new DocumentTab(documentId, title, path);
         if (initialPage is int ip) tab.Page = ip;
         int insertAt = _activeTab is null ? _tabItems.Count : _tabItems.IndexOf(_activeTab) + 1;
         _tabItems.Insert(insertAt, tab);
@@ -138,7 +138,7 @@ public sealed class TabSetViewModel : ObservableObject
 
         var tabToActivate = activeDocumentId is null
             ? null
-            : _tabItems.FirstOrDefault(t => t.DocumentId == activeDocumentId);
+            : _tabItems.FirstOrDefault(t => t.ItemId == activeDocumentId);
         if (tabToActivate is not null)
             Activate(tabToActivate);
     }
@@ -161,7 +161,7 @@ public sealed class TabSetViewModel : ObservableObject
     {
         _mru.Remove(tab);
         _mru.Insert(0, tab);
-        tab.IsHydrated = true;
+        if (tab is DocumentTab documentTab) documentTab.IsHydrated = true;
         EvictBeyondWarmLimit();
         ActiveTab = tab;
     }
@@ -170,6 +170,6 @@ public sealed class TabSetViewModel : ObservableObject
     private void EvictBeyondWarmLimit()
     {
         for (int i = _maxWarmInactiveTabs + 1; i < _mru.Count; i++)
-            _mru[i].IsHydrated = false;
+            if (_mru[i] is DocumentTab documentTab) documentTab.IsHydrated = false;
     }
 }

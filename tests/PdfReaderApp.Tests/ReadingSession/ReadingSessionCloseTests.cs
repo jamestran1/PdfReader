@@ -12,7 +12,7 @@ public class ReadingSessionCloseTests
 
         f.Session.Close(tabC);
 
-        Assert.Equal("B", f.Session.Tabs.ActiveTab?.DocumentId);
+        Assert.Equal("B", f.Session.Tabs.ActiveTab?.ItemId);
         Assert.Equal("B", f.Session.DocumentId);
         Assert.True(f.Log.Has($"load:{ReadingSessionFixture.PathOf("B")}"));
     }
@@ -26,7 +26,7 @@ public class ReadingSessionCloseTests
 
         f.Session.Close(tabA);
 
-        Assert.Equal("B", f.Session.Tabs.ActiveTab?.DocumentId);
+        Assert.Equal("B", f.Session.Tabs.ActiveTab?.ItemId);
         Assert.False(f.Log.HasLoad());
     }
 
@@ -80,7 +80,7 @@ public class ReadingSessionCloseTests
         f.Session.Close(tabB);
 
         var saved = f.Store.GetOpenTabs(ReadingSessionFixture.WorkspaceId);
-        Assert.Equal("A", Assert.Single(saved).DocumentId);
+        Assert.Equal("A", Assert.Single(saved).ItemId);
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public class ReadingSessionCloseTests
 
         f.Session.CloseDocument("A");
 
-        Assert.Equal("B", Assert.Single(f.Session.Tabs.Tabs).DocumentId);
+        Assert.Equal("B", Assert.Single(f.Session.Tabs.Tabs).ItemId);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class ReadingSessionCloseTests
 
         f.Session.CloseDocument("Z");
 
-        Assert.Equal("A", Assert.Single(f.Session.Tabs.Tabs).DocumentId);
+        Assert.Equal("A", Assert.Single(f.Session.Tabs.Tabs).ItemId);
         Assert.False(f.Log.HasLoad());
     }
 }

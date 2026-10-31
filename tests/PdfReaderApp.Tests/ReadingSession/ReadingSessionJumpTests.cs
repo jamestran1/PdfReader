@@ -17,7 +17,7 @@ public class ReadingSessionJumpTests
 
         f.Session.Jump(To("B", 4, JumpOrigin.Search));
 
-        Assert.Equal("B", f.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("B", f.Session.Tabs.ActiveTab!.ItemId);
         Assert.Equal(5, f.Session.CurrentPage);
         Assert.False(f.Log.Has("search.reset"));
         Assert.False(f.Log.Has("search.clear"));
@@ -44,7 +44,7 @@ public class ReadingSessionJumpTests
 
         f.Session.Jump(To("B", 2, JumpOrigin.Note));
 
-        Assert.Equal("B", f.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("B", f.Session.Tabs.ActiveTab!.ItemId);
         Assert.Equal(3, f.Session.CurrentPage);
         Assert.True(f.Log.Has("search.reset"));
     }
@@ -59,7 +59,7 @@ public class ReadingSessionJumpTests
         f.Session.Jump(To("B", 6, JumpOrigin.Note));
 
         Assert.Equal(2, f.Session.Tabs.Tabs.Count);
-        Assert.Equal("B", f.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("B", f.Session.Tabs.ActiveTab!.ItemId);
         Assert.Equal(7, f.Session.CurrentPage);
     }
 
@@ -72,7 +72,7 @@ public class ReadingSessionJumpTests
 
         f.Session.Jump(To("B", 3, JumpOrigin.Citation, passage));
 
-        Assert.Equal("B", f.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("B", f.Session.Tabs.ActiveTab!.ItemId);
         Assert.Equal(4, f.Session.CurrentPage);
         Assert.Same(passage, f.Session.ActiveSourcePassage);
     }
@@ -86,7 +86,7 @@ public class ReadingSessionJumpTests
 
         f.Session.Jump(To("gone", 1, JumpOrigin.Citation, new SourcePassage("gone", 1, ["mới"])));
 
-        Assert.Equal("A", f.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("A", f.Session.Tabs.ActiveTab!.ItemId);
         Assert.Single(f.Session.Tabs.Tabs);
         Assert.Null(f.Session.ActiveSourcePassage);
         Assert.False(f.Log.HasLoad());
@@ -100,7 +100,7 @@ public class ReadingSessionJumpTests
 
         f.Session.Jump(To("gone", 1, JumpOrigin.Note));
 
-        Assert.Equal("A", f.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("A", f.Session.Tabs.ActiveTab!.ItemId);
         Assert.False(f.Log.HasLoad());
         Assert.False(f.Log.Has("search.reset"));
     }

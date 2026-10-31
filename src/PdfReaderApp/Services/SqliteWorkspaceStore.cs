@@ -1,4 +1,4 @@
-using Microsoft.Data.Sqlite;
+﻿using Microsoft.Data.Sqlite;
 using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;
@@ -7,7 +7,8 @@ namespace PdfReaderApp.Services;
 /// Connection per-operation Pooling=False + lock; user_version riêng.</summary>
 public sealed class SqliteWorkspaceStore : IWorkspaceStore
 {
-    private const long SchemaVersion = 2;
+    private const long SchemaVersion = 3;
+    private const string DocumentKindText = "document";
     private readonly string _connectionString;
     private readonly Lock _lock = new();
 
@@ -44,16 +45,20 @@ CREATE TABLE IF NOT EXISTS workspace_document (
 CREATE INDEX IF NOT EXISTS ix_ws_doc_document ON workspace_document(document_id);
 CREATE TABLE IF NOT EXISTS open_tab (
   workspace_id TEXT NOT NULL,
-  document_id TEXT NOT NULL,
+  tab_kind TEXT NOT NULL,
+  item_id TEXT NOT NULL,
   tab_order INTEGER NOT NULL,
   is_active INTEGER NOT NULL,
   page INTEGER NOT NULL,
   zoom REAL NOT NULL,
   scroll_norm REAL NOT NULL,
   last_active_unix_ms INTEGER NOT NULL,
-  PRIMARY KEY (workspace_id, document_id));
-CREATE INDEX IF NOT EXISTS ix_open_tab_ws ON open_tab(workspace_id);";
+  PRIMARY KEY (workspace_id, tab_kind, item_id));";
             cmd.ExecuteNonQuery();
+            MigrateOpenTabToKindAndItemId(conn);
+            using var index = conn.CreateCommand();
+            index.CommandText = "CREATE INDEX IF NOT EXISTS ix_open_tab_ws ON open_tab(workspace_id);";
+            index.ExecuteNonQuery();
 
             using var ver = conn.CreateCommand();
             ver.CommandText = "PRAGMA user_version;";
@@ -67,6 +72,43 @@ CREATE INDEX IF NOT EXISTS ix_open_tab_ws ON open_tab(workspace_id);";
                 set.ExecuteNonQuery();
             }
         }
+    }
+
+    // ADR 0009: open_tab v2 khoá (workspace_id, document_id); v3 khoá (workspace_id, tab_kind, item_id). Đổi khoá chính trong
+    // SQLite là dựng lại bảng. Nhận diện bằng cột document_id nên chạy lại là no-op; dòng cũ thành Tab Document.
+    private static void MigrateOpenTabToKindAndItemId(SqliteConnection conn)
+    {
+        bool isLegacy = false;
+        using (var info = conn.CreateCommand())
+        {
+            info.CommandText = "SELECT 1 FROM pragma_table_info('open_tab') WHERE name='document_id'";
+            isLegacy = info.ExecuteScalar() is not null;
+        }
+
+        if (!isLegacy) return;
+
+        using var transaction = conn.BeginTransaction();
+        using var rebuild = conn.CreateCommand();
+        rebuild.Transaction = transaction;
+        rebuild.CommandText = $@"
+ALTER TABLE open_tab RENAME TO open_tab_v2;
+CREATE TABLE open_tab (
+  workspace_id TEXT NOT NULL,
+  tab_kind TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  tab_order INTEGER NOT NULL,
+  is_active INTEGER NOT NULL,
+  page INTEGER NOT NULL,
+  zoom REAL NOT NULL,
+  scroll_norm REAL NOT NULL,
+  last_active_unix_ms INTEGER NOT NULL,
+  PRIMARY KEY (workspace_id, tab_kind, item_id));
+INSERT INTO open_tab (workspace_id, tab_kind, item_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms)
+SELECT workspace_id, '{DocumentKindText}', document_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms
+FROM open_tab_v2;
+DROP TABLE open_tab_v2;";
+        rebuild.ExecuteNonQuery();
+        transaction.Commit();
     }
 
     public void Upsert(Workspace workspace)
@@ -233,7 +275,7 @@ VALUES ($id, $name, 1, $d, $t, $t);";
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-SELECT document_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms
+SELECT item_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms
 FROM open_tab WHERE workspace_id=$w ORDER BY tab_order ASC";
             cmd.Parameters.AddWithValue("$w", workspaceId);
             using var reader = cmd.ExecuteReader();
@@ -266,10 +308,11 @@ FROM open_tab WHERE workspace_id=$w ORDER BY tab_order ASC";
                 using var insert = conn.CreateCommand();
                 insert.Transaction = transaction;
                 insert.CommandText = @"
-INSERT INTO open_tab (workspace_id, document_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms)
-VALUES ($w, $d, $order, $active, $page, $zoom, $scroll, $last)";
+INSERT INTO open_tab (workspace_id, tab_kind, item_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms)
+VALUES ($w, $kind, $d, $order, $active, $page, $zoom, $scroll, $last)";
                 insert.Parameters.AddWithValue("$w", workspaceId);
-                insert.Parameters.AddWithValue("$d", tab.DocumentId);
+                insert.Parameters.AddWithValue("$kind", DocumentKindText);
+                insert.Parameters.AddWithValue("$d", tab.ItemId);
                 insert.Parameters.AddWithValue("$order", tab.TabOrder);
                 insert.Parameters.AddWithValue("$active", tab.IsActive ? 1 : 0);
                 insert.Parameters.AddWithValue("$page", tab.Page);

@@ -28,7 +28,7 @@ public class ReadingSessionPromoteTests
         Assert.True(promoted);
         var tab = Assert.Single(f.Session.Tabs.Tabs);
         Assert.Same(tab, f.Session.Tabs.ActiveTab);
-        Assert.Equal("D", tab.DocumentId);
+        Assert.Equal("D", tab.ItemId);
         Assert.Equal("Tài liệu D", tab.Title);
         Assert.Equal(12, tab.Page);
         Assert.Equal(1.5, tab.Zoom);

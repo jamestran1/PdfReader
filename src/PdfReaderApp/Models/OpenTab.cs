@@ -2,12 +2,15 @@
 
 namespace PdfReaderApp.Models;
 
-/// <summary>Một Tab đang mở trong Open Set của Workspace hiện tại, kèm per-tab view-state.</summary>
-public sealed partial class OpenTab : ObservableObject
+/// <summary>Một Tab đang mở trong Open Set của Workspace hiện tại, kèm per-tab view-state (ADR 0009: lớp cơ sở).</summary>
+public abstract partial class OpenTab : ObservableObject
 {
-    public string DocumentId { get; }
+    /// <summary>Loại tab.</summary>
+    public abstract TabKind Kind { get; }
+
+    /// <summary>Id của mục được mở: id Document với Tab Document.</summary>
+    public string ItemId { get; }
     public string Title { get; }
-    public string Path { get; }
 
     /// <summary>Trang hiện tại (1-based). Mặc định 1.</summary>
     [ObservableProperty]
@@ -37,21 +40,9 @@ public sealed partial class OpenTab : ObservableObject
     [ObservableProperty]
     public partial bool FilterCurrentDocumentOnly { get; set; } = false;
 
-    /// <summary>
-    /// Tab được giữ handle PDFium sống (active hoặc trong nhóm MRU ấm, #48).
-    /// false: viewer của tab nhả tài liệu, chỉ còn header + view-state; nạp lại khi kích hoạt.
-    /// </summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ViewerSource))]
-    public partial bool IsHydrated { get; set; }
-
-    /// <summary>Nguồn tài liệu cho viewer của tab: null khi tab chưa nạp hoặc đã bị evict.</summary>
-    public string? ViewerSource => IsHydrated ? Path : null;
-
-    public OpenTab(string documentId, string title, string path)
+    protected OpenTab(string itemId, string title)
     {
-        DocumentId = documentId;
+        ItemId = itemId;
         Title = title;
-        Path = path;
     }
 }

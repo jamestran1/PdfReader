@@ -1,4 +1,4 @@
-using PdfReaderApp.Models;
+﻿using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 using PdfReaderApp.Tests.Fakes;
 using PdfReaderApp.ViewModels;
@@ -218,12 +218,12 @@ public class MainViewModelTabTests
         // doc0 vừa được dùng lại nên victim phải là doc1, tab inactive ít dùng nhất.
         for (int i = 1; i < tabCount - 1; i++)
             vm.OpenWorkspaceDocumentCommand.Execute(items[i]);
-        vm.ActivateTabCommand.Execute(vm.Session.Tabs.Tabs.Single(t => t.DocumentId == "doc0"));
+        vm.ActivateTabCommand.Execute(vm.Session.Tabs.Tabs.Single(t => t.ItemId == "doc0"));
         vm.OpenWorkspaceDocumentCommand.Execute(items[tabCount - 1]);
 
-        Assert.False(vm.Session.Tabs.Tabs.Single(t => t.DocumentId == "doc1").IsHydrated);
-        Assert.True(vm.Session.Tabs.Tabs.Single(t => t.DocumentId == "doc0").IsHydrated);
-        Assert.Equal(TabSetViewModel.DefaultMaxWarmInactiveTabs + 1, vm.Session.Tabs.Tabs.Count(t => t.IsHydrated));
+        Assert.False(vm.Session.Tabs.Tabs.OfType<DocumentTab>().Single(t => t.ItemId == "doc1").IsHydrated);
+        Assert.True(vm.Session.Tabs.Tabs.OfType<DocumentTab>().Single(t => t.ItemId == "doc0").IsHydrated);
+        Assert.Equal(TabSetViewModel.DefaultMaxWarmInactiveTabs + 1, vm.Session.Tabs.Tabs.OfType<DocumentTab>().Count(t => t.IsHydrated));
     }
 
     [Fact]
@@ -240,7 +240,7 @@ public class MainViewModelTabTests
 
         Assert.True(vm.Session.IsWorkspaceSession);
         Assert.Single(vm.Session.Tabs.Tabs);
-        Assert.Equal("docOnly", vm.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("docOnly", vm.Session.Tabs.ActiveTab!.ItemId);
         Assert.Single(loader.LoadedPaths);
     }
 
@@ -269,11 +269,11 @@ public class MainViewModelTabTests
         var saved = wsStore.GetOpenTabs(workspace.Id);
         Assert.Equal(vm.Session.Tabs.Tabs.Count, saved.Count);
         var activeRow = saved.Single(t => t.IsActive);
-        Assert.Equal("docB", activeRow.DocumentId);
+        Assert.Equal("docB", activeRow.ItemId);
         Assert.Equal(9, activeRow.Page);
         Assert.Equal(1.5, activeRow.Zoom);
         for (int order = 0; order < saved.Count; order++)
-            Assert.Equal(vm.Session.Tabs.Tabs[order].DocumentId, saved[order].DocumentId);
+            Assert.Equal(vm.Session.Tabs.Tabs[order].ItemId, saved[order].ItemId);
     }
 
     // =========================================================
@@ -295,7 +295,7 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceCommand.Execute(workspace);
 
         Assert.Equal(afterFirstEntry, vm.Session.Tabs.Tabs.Count);
-        Assert.Single(vm.Session.Tabs.Tabs, t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal));
+        Assert.Single(vm.Session.Tabs.Tabs, t => string.Equals(t.ItemId, "docA", StringComparison.Ordinal));
     }
 
     // REGRESSION (S2): chuyển sang Workspace khác phải THAY THẾ Open Set, không tích lũy tab cũ.
@@ -318,6 +318,6 @@ public class MainViewModelTabTests
         vm.OpenWorkspaceCommand.Execute(workspaceB);
 
         Assert.Single(vm.Session.Tabs.Tabs);
-        Assert.Equal("docB", vm.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("docB", vm.Session.Tabs.ActiveTab!.ItemId);
     }
 }

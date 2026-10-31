@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using Microsoft.Data.Sqlite;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
@@ -114,8 +114,8 @@ public class SqliteWorkspaceStoreTests : IDisposable
 
         var restored = _store.GetOpenTabs("w1");
         Assert.Equal(2, restored.Count);
-        Assert.Equal("docA", restored[0].DocumentId);
-        Assert.Equal("docB", restored[1].DocumentId);
+        Assert.Equal("docA", restored[0].ItemId);
+        Assert.Equal("docB", restored[1].ItemId);
         Assert.True(restored[1].IsActive);
         Assert.False(restored[0].IsActive);
         Assert.Equal(5, restored[0].Page);
@@ -130,7 +130,65 @@ public class SqliteWorkspaceStoreTests : IDisposable
         _store.SaveOpenTabs("w1", new[] { new OpenTabState("docB", 0, true, 1, 1.0, 0, 2) });
         var restored = _store.GetOpenTabs("w1");
         Assert.Single(restored);
-        Assert.Equal("docB", restored[0].DocumentId);
+        Assert.Equal("docB", restored[0].ItemId);
+    }
+
+    [Fact]
+    public void EnsureSchema_OnV2OpenTabTable_MigratesRowsToDocumentTabs_PreservingOrderAndViewState()
+    {
+        // Dựng workspaces.db "phiên bản 2": open_tab còn cột document_id, ba Tab Document đã lưu.
+        string oldDatabasePath = Path.Combine(_dir, "v2.db");
+        using (var conn = new SqliteConnection($"Data Source={oldDatabasePath};Pooling=False"))
+        {
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+CREATE TABLE workspace (id TEXT PRIMARY KEY, name TEXT NOT NULL, is_default INTEGER NOT NULL,
+  default_document_id TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+CREATE TABLE workspace_document (workspace_id TEXT NOT NULL, document_id TEXT NOT NULL,
+  PRIMARY KEY (workspace_id, document_id));
+CREATE TABLE open_tab (workspace_id TEXT NOT NULL, document_id TEXT NOT NULL, tab_order INTEGER NOT NULL,
+  is_active INTEGER NOT NULL, page INTEGER NOT NULL, zoom REAL NOT NULL, scroll_norm REAL NOT NULL,
+  last_active_unix_ms INTEGER NOT NULL, PRIMARY KEY (workspace_id, document_id));
+INSERT INTO open_tab VALUES ('w1', 'docA', 0, 0, 5, 1.25, 0.10, 100);
+INSERT INTO open_tab VALUES ('w1', 'docB', 1, 1, 2, 2.00, 0.50, 200);
+INSERT INTO open_tab VALUES ('w1', 'docC', 2, 0, 9, 0.75, 0.90, 300);
+PRAGMA user_version = 2;";
+            cmd.ExecuteNonQuery();
+        }
+
+        var store = new SqliteWorkspaceStore(oldDatabasePath);
+        store.EnsureSchema();
+
+        var restored = store.GetOpenTabs("w1");
+        Assert.Equal(["docA", "docB", "docC"], restored.Select(t => t.ItemId), StringComparer.Ordinal);
+        Assert.All(restored, t => Assert.Equal(TabKind.Document, t.Kind));
+        Assert.Equal([false, true, false], restored.Select(t => t.IsActive));
+        Assert.Equal([5, 2, 9], restored.Select(t => t.Page));
+        Assert.Equal([1.25, 2.00, 0.75], restored.Select(t => t.Zoom));
+        Assert.Equal([0.10, 0.50, 0.90], restored.Select(t => t.ScrollNorm));
+    }
+
+    [Fact]
+    public void EnsureSchema_RunTwiceAfterMigration_KeepsAllRows()
+    {
+        _store.SaveOpenTabs("w1", new[]
+        {
+            new OpenTabState("docA", 0, false, 5, 1.25, 0.10, 100),
+            new OpenTabState("docB", 1, true, 2, 2.00, 0.50, 200),
+        });
+
+        _store.EnsureSchema();
+        _store.EnsureSchema();
+
+        Assert.Equal(2, _store.GetOpenTabs("w1").Count);
+    }
+
+    [Fact]
+    public void SaveOpenTabs_RoundTripsTabKind()
+    {
+        _store.SaveOpenTabs("w1", new[] { new OpenTabState("docA", 0, true, 1, 1.0, 0, 1, TabKind.Document) });
+        Assert.Equal(TabKind.Document, Assert.Single(_store.GetOpenTabs("w1")).Kind);
     }
 
     [Fact]
