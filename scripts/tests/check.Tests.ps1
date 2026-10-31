@@ -107,6 +107,10 @@ public class CalcTests
 </UserControl>
 '@
     Write-SandboxFile 'src/Lib/Views/Panel.xaml' $XamlOriginal
+    # Old Markdown already has an em dash on a line nobody touches.
+    $script:EmDash = [string][char]0x2014
+    $script:MdOriginal = "# Notes`n`nCũ $EmDash giữ nguyên.`nDòng thứ hai.`n"
+    Write-SandboxFile 'docs/Notes.md' $MdOriginal
 
     Invoke-SandboxGit init -q -b main
     Invoke-SandboxGit config user.email 'check@test'
@@ -319,6 +323,29 @@ $ifs
 
             $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
             $result.Output | Should -Not -Match 'UI-3'
+        }
+    }
+
+    Context 'forbidden Markdown' {
+        It 'blocks an em dash on an added Markdown line with file and line' {
+            Write-SandboxFile 'docs/Notes.md' ($MdOriginal + "Mới $EmDash thêm vào.`n")
+            Invoke-SandboxGit commit -q -am 'add em dash'
+
+            $result = Invoke-Check
+
+            $result.ExitCode | Should -Be 1 -Because ($result.Output -join "`n")
+            $result.Output | Where-Object { $_ -match '^docs/Notes\.md:\d+: ' } | Should -HaveCount 1
+            $result.Output | Where-Object { $_ -match '^docs/Notes\.md:5: warning REPO-3: ' } | Should -HaveCount 1
+        }
+
+        It 'does not report an em dash that sits on an unchanged line' {
+            Write-SandboxFile 'docs/Notes.md' ($MdOriginal -replace 'Dòng thứ hai', 'Dòng thứ hai đã sửa')
+            Invoke-SandboxGit commit -q -am 'touch another line'
+
+            $result = Invoke-Check
+
+            $result.ExitCode | Should -Be 0 -Because ($result.Output -join "`n")
+            $result.Output | Should -Not -Match 'REPO-3'
         }
     }
 

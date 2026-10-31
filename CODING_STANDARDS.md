@@ -94,8 +94,8 @@ Lý do: phần lớn lỗi khó nằm trong code-behind WPF, chỉ test được
 **ARCH-1** 🟡 Thay đổi kiến trúc phải theo ADR trong `docs/adr/`; đi ngược hoặc mở rộng một quyết định thì viết ADR mới.
 Lý do: ADR là chỗ duy nhất ghi lại đánh đổi đã chọn; đổi kiến trúc âm thầm làm các quyết định cũ mất nghĩa.
 
-**ARCH-2** 🟡 ADR mở rộng hoặc tạo ngoại lệ cho một ADR cũ thì ghi ở Consequences những hành vi code hiện có bị đổi, kèm tên class hoặc bảng (vd `OpenSetPersistence` bỏ qua Default Workspace).
-Lý do: reviewer chỉ đọc diff tài liệu nên không thấy ADR mâu thuẫn với code; ở #284, bốn câu hỏi về Default Workspace chỉ lộ ra khi đối chiếu code, sau khi ADR 0009 đã viết xong.
+**ARCH-2** 🟡 ADR mở rộng hoặc tạo ngoại lệ cho một ADR cũ thì ghi ở Consequences: (1) những hành vi code hiện có bị đổi, kèm tên class hoặc bảng (vd `OpenSetPersistence` bỏ qua Default Workspace); (2) nguyên văn những câu của ADR cũ bị lật hoặc thu hẹp. Class nêu ở Consequences phải khớp với Quyết định: không dùng lại class của một đường mà Quyết định đã loại.
+Lý do: reviewer chỉ đọc diff tài liệu nên không thấy ADR mâu thuẫn với code hay với ADR cũ. Ở #284, bốn câu hỏi về Default Workspace chỉ lộ ra khi đối chiếu code; ở #285, ADR 0009 lật bốn câu của ADR 0003/0004 mà không nêu, và cho Default Workspace dùng lại `RestoreOpenSet` dù đã quyết không chuyển nó sang `TabSetViewModel`.
 
 ## REPO: những thứ thấy được trong diff
 
@@ -104,6 +104,9 @@ Lý do: repo public, key lọt vào lịch sử git coi như đã lộ.
 
 **REPO-2** 🔴 Không commit `conductor/`, `.serena/`, `obj/`, `bin/` hay file tạm `*_wpftmp.*`.
 Lý do: đây là công cụ cục bộ và sản phẩm build, không phải mã nguồn.
+
+**REPO-3** 🔵 Dòng Markdown thêm mới dùng dấu hai chấm, dấu phẩy, dấu chấm phẩy hoặc ngoặc đơn thay cho em dash (U+2014). (máy kiểm trên dòng diff)
+Lý do: chủ repo chọn văn phong không em dash; dòng cũ còn em dash được giữ, chỉ dòng sửa mới bị chặn.
 
 ## Bẫy đã biết
 

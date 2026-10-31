@@ -2,6 +2,18 @@
 
 PRD, task và map Wayfinder sống trên GitHub issues của `jamestran1/PdfReader`, thao tác qua `gh`. Viết body bằng file UTF-8 và `--body-file`, không pipe qua stdin (chữ tiếng Việt thành `?`).
 
+## Đọc ticket
+
+Số `#n` có thể là PR: `gh issue view <n>` vẫn chạy với PR nên không lộ ra. Kiểm trước bằng `gh pr view <n> --json state,headRefName` (lỗi nghĩa là issue). Với PR, brief triage (Agent Brief, checklist "Còn thiếu") nằm ở comment mới nhất của chủ repo, còn góp ý AI review nằm ở review comment:
+
+| Việc | Lệnh |
+|---|---|
+| Body và comment | `gh pr view <n> --json title,body,comments --jq '.title, .body, (.comments[] \| "\(.author.login): \(.body)")'` |
+| Review comment theo dòng | `gh api repos/jamestran1/PdfReader/pulls/<n>/comments --jq '.[] \| "\(.id) \(.path):\(.line) \(.body)"'` |
+| Trả lời review comment | `gh api repos/jamestran1/PdfReader/pulls/<n>/comments/<id>/replies -F body=@<file>` |
+
+Nhánh của PR thường đã có worktree: chạy `git worktree list` trước khi tạo mới.
+
 ## Wayfinding operations
 
 Map là issue gắn nhãn `wayfinder:map`; ticket là sub-issue của map, gắn một nhãn `wayfinder:<type>`.
