@@ -1,0 +1,265 @@
+<!doctype html>
+<!--
+  PROTOTYPE, vứt đi sau khi chọn. Ticket #252 "Bề mặt UI của Bản soạn" (map #28).
+  Ba biến thể chỗ đặt Bản soạn trên giao diện, đổi bằng ?variant=A|B|C hoặc thanh nổi dưới đáy (phím ← →).
+  A: tab thứ ba "Bản soạn" trong panel phải (cạnh Chat, Notes).
+  B: Bản soạn mở như một tab ở vùng giữa, cạnh tab Document; danh sách ở rail trái.
+  C: cột "Studio" riêng bên phải kiểu NotebookLM; mở một Bản soạn thì cột nở rộng.
+  App là WPF nên mock lại khung Trí Thư bằng token màu thật. Dữ liệu giả, không lưu gì.
+  Nút "Tạo Bản soạn" chỉ báo toast: hộp thoại đã chốt ở #251.
+-->
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bề mặt Bản soạn</title>
+<style>
+:root{
+  --primary:#006B5B;--on-primary:#fff;--sc:#CCE8DE;--sc-on:#06201A;
+  --surface:#F4FBF7;--on-surface:#161D1B;--on-sv:#3F4945;--outline:#6F7975;--ov:#BFC9C4;
+  --low:#EEF5F1;--tonal:#E8EFEB;--high:#E2E9E5;--lowest:#fff;--err:#BA1A1A;--inv:#2B322F;--inv-on:#ECF2EE;
+  --tc:#C6E7FF;--tc-on:#001E2F;--hl:#F9E07F;
+}
+*{box-sizing:border-box}
+body{margin:0;font:13px/1.5 "Segoe UI",system-ui,sans-serif;background:var(--surface);color:var(--on-surface);height:100vh;overflow:hidden}
+.app{display:grid;height:100vh;transition:grid-template-columns .2s}
+.rail{background:var(--low);border-right:1px solid var(--ov);padding:12px;overflow:auto}
+.rail h3{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--on-sv);margin:12px 0 6px;display:flex;align-items:center}
+.rail h3 .spacer{flex:1}
+.ws{font-weight:600;font-size:14px;padding:4px 8px 8px}
+.doc{display:flex;gap:8px;align-items:center;padding:7px 8px;border-radius:12px;margin-bottom:2px;cursor:pointer}
+.doc:hover{background:var(--tonal)}
+.doc.active{background:var(--sc)}
+.doc .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.center{display:flex;flex-direction:column;min-width:0;background:var(--tonal)}
+.ctabs{display:flex;gap:2px;padding:6px 8px 0;background:var(--low);border-bottom:1px solid var(--ov)}
+.ctab{padding:7px 12px;border-radius:12px 12px 0 0;cursor:pointer;display:flex;gap:6px;align-items:center;color:var(--on-sv);max-width:240px}
+.ctab span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ctab.on{background:var(--tonal);color:var(--on-surface);font-weight:600}
+.cbody{flex:1;overflow:auto;display:flex;justify-content:center;padding:24px;min-height:0}
+.page{width:520px;min-height:700px;background:#fff;box-shadow:0 1px 3px #0003;padding:48px;flex:none}
+.page .line{height:9px;background:#e6e6e6;margin:10px 0;border-radius:2px}
+.page .line.hl{background:var(--hl)}
+.right{border-left:1px solid var(--ov);background:var(--lowest);display:flex;flex-direction:column;min-height:0;min-width:0}
+.tabs{display:flex;border-bottom:1px solid var(--ov)}
+.tab{flex:1;text-align:center;padding:10px 0;color:var(--on-sv);cursor:pointer}
+.tab.on{color:var(--primary);border-bottom:3px solid var(--primary);font-weight:600}
+.pbody{flex:1;overflow:auto;padding:8px;min-height:0}
+.card{background:var(--lowest);border-radius:12px;box-shadow:0 1px 2px #0002,0 1px 3px 1px #0001;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.card:hover{background:var(--low)}
+.card .ttl{font-weight:600;margin:2px 0}
+.meta{font-size:11px;color:var(--on-sv)}
+.tchip{display:inline-block;font-size:10px;font-weight:600;border-radius:8px;padding:1px 8px}
+.tchip.sum{background:var(--sc);color:var(--sc-on)} .tchip.out{background:var(--tc);color:var(--tc-on)} .tchip.dra{background:#FFD8E4;color:#31111D}
+.btn{border:none;border-radius:12px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer;background:var(--primary);color:var(--on-primary);display:inline-flex;gap:6px;align-items:center}
+.btn.text{background:transparent;color:var(--primary);padding:6px 10px}
+.btn.tonal{background:var(--sc);color:var(--sc-on)}
+.btn.out{background:transparent;color:var(--primary);border:1px solid var(--outline)}
+.ib{border:none;background:transparent;cursor:pointer;width:32px;height:32px;border-radius:50%;font-size:16px;color:var(--on-sv);flex:none}
+.ib:hover{background:var(--high)}
+.ib.on{background:var(--sc);color:var(--sc-on)}
+.toolbar{display:flex;align-items:center;gap:2px;padding:6px 8px;border-bottom:1px solid var(--ov)}
+.toolbar .spacer{flex:1}
+.reader{padding:16px 20px}
+.reader h1{font-size:20px;font-weight:500;margin:0 0 4px}
+.reader h1 input{font:inherit;width:100%;border:none;border-bottom:1px solid var(--primary);background:transparent;outline:none}
+.reader .md p,.reader .md li{margin:6px 0}
+.reader .md h4{margin:14px 0 4px;font-size:14px}
+.reader textarea{width:100%;min-height:360px;border:1px solid var(--outline);border-radius:8px;padding:10px;font:13px/1.5 Consolas,monospace;resize:vertical}
+.cite{display:inline-block;background:var(--sc);color:var(--sc-on);border-radius:6px;padding:0 5px;font-size:11px;font-weight:600;cursor:pointer;margin:0 1px;vertical-align:1px}
+.cite:hover{background:var(--primary);color:#fff}
+.srcs{border-top:1px solid var(--ov);margin-top:16px;padding-top:8px}
+.src{display:flex;gap:8px;padding:4px 0;font-size:12px;border-radius:6px}
+.src.flash{background:var(--hl)}
+.src b{flex:none;width:26px;color:var(--primary)}
+.gen{display:flex;gap:8px;align-items:center}
+.spin{width:14px;height:14px;border:2px solid var(--ov);border-top-color:var(--primary);border-radius:50%;animation:s 1s linear infinite;flex:none}
+@keyframes s{to{transform:rotate(360deg)}}
+.empty{padding:32px 16px;text-align:center;color:var(--on-sv)}
+.chat .msg{background:var(--low);border-radius:12px;padding:8px 10px;margin:6px 0}
+.chat .msg.me{background:var(--sc);margin-left:40px}
+.note{background:var(--lowest);border-radius:8px;box-shadow:0 1px 2px #0002;padding:8px;margin-bottom:8px}
+.note.flash{outline:3px solid var(--hl)}
+.studio-gen{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;padding:10px}
+.studio-gen button{border:1px solid var(--ov);background:var(--low);border-radius:12px;padding:10px 6px;cursor:pointer;font:inherit;text-align:left}
+.studio-gen button:hover{background:var(--sc)}
+.studio-gen b{display:block;font-size:13px}
+.studio-gen small{color:var(--on-sv);font-size:11px}
+.sideSrc{width:260px;flex:none;margin-left:16px;align-self:flex-start;position:sticky;top:0}
+.sheet{width:680px;max-width:100%;background:#fff;border-radius:12px;box-shadow:0 1px 3px #0003;flex:none;align-self:flex-start}
+.toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:var(--inv);color:var(--inv-on);padding:12px 16px;border-radius:4px;z-index:20;max-width:560px}
+.switcher{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;color:#fff;border-radius:999px;padding:6px 8px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 16px #0006;z-index:30;font:12px system-ui;border:2px dashed #ff3d7f}
+.switcher button{background:#333;color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px}
+.switcher label{display:flex;gap:4px;align-items:center;margin-left:8px;opacity:.85}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const DOCS=[
+  {id:'d1',title:'Giáo trình Kinh tế vi mô',color:'#2E7D6B'},
+  {id:'d2',title:'Báo cáo thị trường lúa gạo 2025',color:'#5B6CB2'},
+  {id:'d3',title:'Luật Cạnh tranh 2018',color:'#B25B7E'},
+];
+const NOTES=[
+  {id:1,doc:'d1',page:12,content:'Nhớ phân biệt hiệu ứng thu nhập và hiệu ứng thay thế.'},
+  {id:4,doc:'d1',page:48,content:'Điểm đóng cửa = min AVC.'},
+  {id:5,doc:'d1',page:52,content:'Độc quyền tự nhiên, liên hệ vị trí thống lĩnh.'},
+  {id:6,doc:'d2',page:3,content:'Xuất khẩu gạo 2025 đạt 8,1 triệu tấn, tăng 6%.'},
+  {id:7,doc:'d2',page:7,content:'Giá gạo 5% tấm 520 USD/tấn, giảm nhẹ so với 2024.'},
+  {id:8,doc:'d2',page:11,content:'Dùng mô hình cung cầu chương 2 giải thích biến động giá.'},
+  {id:10,doc:'d3',page:5,content:'Thống lĩnh thị trường khi thị phần từ 30%.'},
+  {id:12,doc:'d3',page:null,content:'Luật 2018 tiếp cận theo "tác động" thay vì "hình thức".'},
+];
+const TYPES={sum:'Tóm tắt',out:'Outline',dra:'Soạn thảo'};
+let COMPS=[
+  {id:'c1',type:'sum',title:'Tóm tắt: thị trường lúa gạo và cung cầu',when:'Hôm nay 14:20',model:'Claude Sonnet',src:[6,7,8,1],
+   body:'Năm 2025, xuất khẩu gạo đạt 8,1 triệu tấn, tăng 6% [1], trong khi giá gạo 5% tấm giảm nhẹ xuống 520 USD/tấn [2].\n\nCó thể giải thích biến động giá bằng mô hình cung cầu [3]: khi nguồn cung thế giới tăng, giá cân bằng giảm dù lượng xuất khẩu tăng. Cần lưu ý tách hiệu ứng thu nhập và hiệu ứng thay thế khi phân tích phía cầu [4].'},
+  {id:'c2',type:'out',title:'Outline: độc quyền và Luật Cạnh tranh',when:'Hôm qua 21:05',model:'GPT-5',src:[5,10,12,4],
+   body:'#### 1. Cơ sở kinh tế\n- Độc quyền tự nhiên [1]\n- Quyết định sản xuất ngắn hạn, điểm đóng cửa [4]\n#### 2. Khung pháp lý\n- Ngưỡng thống lĩnh 30% thị phần [2]\n- Cách tiếp cận "tác động" của Luật 2018 [3]\n#### 3. Câu hỏi mở\n- Ngưỡng cho nhóm doanh nghiệp?'},
+  {id:'c3',type:'dra',title:'Soạn thảo: mở đầu bài thuyết trình',when:'28/10 09:40',model:'Claude Sonnet',src:[6,7],
+   body:'Kính thưa thầy cô và các bạn,\n\nNăm 2025, Việt Nam xuất khẩu 8,1 triệu tấn gạo [1], một con số kỷ lục. Nhưng đằng sau sản lượng tăng là mức giá giảm nhẹ [2]. Bài trình bày hôm nay đi tìm lời giải cho nghịch lý đó.'},
+];
+const VARIANTS={A:'Tab thứ ba trong panel phải',B:'Tab giữa cạnh Document',C:'Cột Studio riêng'};
+let S={variant:new URLSearchParams(location.search).get('variant')||'A',rtab:'chat',openComp:null,centerTab:'d1',centerTabs:['d1'],
+  editing:false,renaming:false,generating:false,studio:true,toast:null,flashNote:null,flashSrc:null};
+const docOf=id=>DOCS.find(d=>d.id===id);
+const noteOf=id=>NOTES.find(n=>n.id===id);
+const compOf=id=>COMPS.find(c=>c.id===id);
+const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function toast(t){S.toast=t;render();clearTimeout(toast.h);toast.h=setTimeout(()=>{S.toast=null;render()},2600)}
+function set(p){Object.assign(S,p);render()}
+function tchip(c){return `<span class="tchip ${c.type}">${TYPES[c.type]}</span>`}
+
+function mdHtml(c){
+  return c.body.split('\n').map(l=>{
+    let h=esc(l).replace(/\[(\d+)\]/g,(m,n)=>`<span class="cite" onclick="cite('${c.id}',${n})" title="${esc(srcLabel(c,+n))}">${n}</span>`);
+    if(l.startsWith('#### '))return `<h4>${h.slice(5)}</h4>`;
+    if(l.startsWith('- '))return `<li>${h.slice(2)}</li>`;
+    return l.trim()?`<p>${h}</p>`:'';
+  }).join('');
+}
+function srcLabel(c,n){const note=noteOf(c.src[n-1]);if(!note)return'Note đã xoá';return `${docOf(note.doc).title}${note.page?', tr. '+note.page:''}: ${note.content}`}
+function cite(cid,n){
+  const c=compOf(cid),note=noteOf(c.src[n-1]);
+  S.flashSrc=n;S.flashNote=note.id;
+  toast(`Bấm [${n}]: nhảy tới Note ở ${docOf(note.doc).title}${note.page?', trang '+note.page:''} (mở Document, cuộn tới trang, nháy Note).`);
+  setTimeout(()=>{S.flashSrc=null;S.flashNote=null;render()},2600);
+}
+function sources(c){
+  return `<div class="srcs"><div class="meta" style="margin-bottom:4px">Nguồn: ${c.src.length} Note · ${c.model} · ${c.when}</div>`+
+    c.src.map((id,i)=>{const n=noteOf(id);return `<div class="src ${S.flashSrc===i+1?'flash':''}"><b>[${i+1}]</b><span><span class="dot" style="display:inline-block;background:${docOf(n.doc).color}"></span> ${esc(docOf(n.doc).title)}${n.page?', tr. '+n.page:''}: ${esc(n.content)}</span></div>`}).join('')+`</div>`;
+}
+function compToolbar(c,{back,close,expand}={}){
+  return `<div class="toolbar">
+    ${back?`<button class="ib" title="Về danh sách" onclick="set({openComp:null,editing:false,renaming:false})">←</button>`:''}
+    ${tchip(c)}
+    <span class="spacer"></span>
+    <button class="ib ${S.editing?'on':''}" title="${S.editing?'Xong':'Sửa'}" onclick="set({editing:!S.editing})">✎</button>
+    <button class="ib" title="Đổi tên" onclick="set({renaming:true})">𝐓</button>
+    <button class="ib" title="Sao chép (Markdown)" onclick="toast('Đã sao chép Bản soạn vào clipboard (Markdown, giữ [n]).')">⧉</button>
+    <button class="ib" title="Sinh lại (tạo bản mới)" onclick="regen('${c.id}')">↻</button>
+    <button class="ib" title="Xoá" onclick="del('${c.id}')">🗑</button>
+    ${expand?`<button class="ib" title="Mở rộng" onclick="${expand}">⤢</button>`:''}
+    ${close?`<button class="ib" title="Đóng" onclick="${close}">✕</button>`:''}
+  </div>`;
+}
+function reader(c){
+  const title=S.renaming?`<input value="${esc(c.title)}" autofocus onkeydown="if(event.key==='Enter'){compOf('${c.id}').title=this.value;set({renaming:false})}" onblur="compOf('${c.id}').title=this.value;set({renaming:false})">`:esc(c.title);
+  const body=S.editing?`<textarea oninput="compOf('${c.id}').body=this.value">${esc(c.body)}</textarea><div class="meta">Sửa tay ghi đè nội dung bản này; sinh lại luôn tạo bản mới.</div>`:`<div class="md">${mdHtml(c)}</div>`;
+  return `<div class="reader"><h1>${title}</h1><div class="meta" style="margin-bottom:10px">${c.when} · ${c.src.length} Note</div>${body}${sources(c)}</div>`;
+}
+function genRow(){return S.generating?`<div class="card gen"><div class="spin"></div><div style="flex:1"><div class="ttl">Đang sinh Tóm tắt…</div><div class="meta">8 Note · Claude Sonnet</div></div><button class="btn text" onclick="event.stopPropagation();set({generating:false});toast('Đã huỷ sinh Bản soạn.')">Huỷ</button></div>`:''}
+function list(onOpen){
+  if(!COMPS.length&&!S.generating)return `<div class="empty">Chưa có Bản soạn nào trong Workspace.<br>Chọn tập Note rồi để AI tóm tắt, lập outline hoặc soạn thảo.</div>`;
+  return genRow()+COMPS.map(c=>`<div class="card" onclick="${onOpen}('${c.id}')">${tchip(c)}<div class="ttl">${esc(c.title)}</div><div class="meta">${c.when} · ${c.src.length} Note · ${c.model}</div></div>`).join('');
+}
+function createBtn(label='Tạo Bản soạn'){return `<button class="btn" onclick="create()">＋ ${label}</button>`}
+function create(type){
+  toast(`Mở hộp thoại "Tạo Bản soạn" (#251)${type?' với kiểu '+TYPES[type]+' chọn sẵn':''}. Giả lập: bấm Tạo → mục "Đang sinh" xuất hiện.`);
+  setTimeout(()=>{S.generating=true;render();setTimeout(()=>{if(!S.generating)return;S.generating=false;
+    COMPS.unshift({id:'c'+Date.now(),type:type||'sum',title:`${TYPES[type||'sum']}: toàn bộ Workspace`,when:'Vừa xong',model:'Claude Sonnet',src:[1,4,6,10],body:'Bản soạn mới sinh, dựa trên 4 Note [1] [2] [3] [4].'});render()},4000)},900);
+}
+function regen(id){const c=compOf(id);toast('Sinh lại: tạo Bản soạn mới cùng nguồn và yêu cầu, bản cũ giữ nguyên.');S.generating=true;render();
+  setTimeout(()=>{if(!S.generating)return;S.generating=false;COMPS.unshift({...c,id:'c'+Date.now(),when:'Vừa xong',title:c.title+' (bản 2)'});render()},3000)}
+function del(id){COMPS=COMPS.filter(c=>c.id!==id);S.centerTabs=S.centerTabs.filter(t=>t!==id);if(S.centerTab===id)S.centerTab='d1';if(S.openComp===id)S.openComp=null;toast('Đã xoá Bản soạn. [Hoàn tác]')}
+
+function rail(extra=''){
+  return `<div class="rail"><div class="ws">📚 Workspace: Ôn thi Kinh tế</div><h3>Document</h3>`+
+    DOCS.map(d=>`<div class="doc ${S.centerTab===d.id?'active':''}" onclick="openDocTab('${d.id}')"><span class="dot" style="background:${d.color}"></span><span class="t">${d.title}</span></div>`).join('')+extra+`</div>`;
+}
+function openDocTab(id){if(!S.centerTabs.includes(id))S.centerTabs.push(id);set({centerTab:id})}
+function pdfPage(){return `<div class="page">${Array.from({length:26},(_,i)=>`<div class="line ${i===7||i===8?'hl':''}" style="width:${60+((i*37)%40)}%"></div>`).join('')}</div>`}
+function centerTabsHtml(){
+  return `<div class="ctabs">`+S.centerTabs.map(t=>{const d=docOf(t),c=compOf(t);
+    const label=d?`<span class="dot" style="background:${d.color}"></span><span>${d.title}</span>`:`<span>📝</span><span>${esc(c.title)}</span>`;
+    return `<div class="ctab ${S.centerTab===t?'on':''}" onclick="set({centerTab:'${t}',editing:false})">${label}<span style="opacity:.6" onclick="event.stopPropagation();closeTab('${t}')">✕</span></div>`}).join('')+`</div>`;
+}
+function closeTab(t){S.centerTabs=S.centerTabs.filter(x=>x!==t);if(S.centerTab===t)S.centerTab=S.centerTabs[0]||null;render()}
+function chatPane(){return `<div class="pbody chat"><div class="msg me">Giá gạo 2025 giảm vì sao?</div><div class="msg">Theo Báo cáo thị trường lúa gạo, giá 5% tấm bình quân 520 USD/tấn… [1]</div></div>`}
+function notesPane(){return `<div class="pbody">`+NOTES.map(n=>`<div class="note ${S.flashNote===n.id?'flash':''}"><span class="tchip" style="background:${docOf(n.doc).color};color:#fff">${docOf(n.doc).title}</span><div>${esc(n.content)}</div><div class="meta">${n.page?'Trang '+n.page:'Không trang'}</div></div>`).join('')+`</div>`}
+function rightTabs(tabs){return `<div class="tabs">`+tabs.map(([k,l])=>`<div class="tab ${S.rtab===k?'on':''}" onclick="set({rtab:'${k}'})">${l}</div>`).join('')+`</div>`}
+
+// A: tab thứ ba trong panel phải
+function VariantA(){
+  let pane;
+  if(S.rtab==='comp'){
+    const c=S.openComp&&compOf(S.openComp);
+    pane=c?`<div class="pbody" style="padding:0">${compToolbar(c,{back:1})}${reader(c)}</div>`
+      :`<div style="padding:10px;border-bottom:1px solid var(--ov)">${createBtn()}</div><div class="pbody">${list('openA')}</div>`;
+  }else pane=S.rtab==='chat'?chatPane():notesPane();
+  return `<div class="app" style="grid-template-columns:220px 1fr 400px">${rail()}<div class="center">${centerTabsHtml()}<div class="cbody">${pdfPage()}</div></div>
+    <div class="right">${rightTabs([['chat','Chat'],['notes','Notes'],['comp','Bản soạn']])}${pane}</div></div>`;
+}
+function openA(id){set({openComp:id,editing:false})}
+
+// B: tab giữa cạnh Document, danh sách ở rail
+function VariantB(){
+  const extra=`<h3>Bản soạn<span class="spacer"></span><button class="ib" title="Tạo Bản soạn" onclick="create()">＋</button></h3>`+
+    (S.generating?`<div class="doc"><div class="spin"></div><span class="t">Đang sinh Tóm tắt…</span><span class="meta" style="cursor:pointer" onclick="set({generating:false})">Huỷ</span></div>`:'')+
+    COMPS.map(c=>`<div class="doc ${S.centerTab===c.id?'active':''}" onclick="openB('${c.id}')"><span>📝</span><span class="t">${esc(c.title)}</span></div>`).join('')+
+    (COMPS.length?'':'<div class="meta" style="padding:4px 8px">Chưa có. Bấm ＋ để tạo.</div>');
+  const c=compOf(S.centerTab);
+  const body=c?`<div class="sheet">${compToolbar(c,{close:`closeTab('${c.id}')`})}${reader(c)}</div>`:(S.centerTab?pdfPage():'<div class="empty">Không có tab nào đang mở.</div>');
+  return `<div class="app" style="grid-template-columns:240px 1fr 380px">${rail(extra)}<div class="center">${centerTabsHtml()}<div class="cbody">${body}</div></div>
+    <div class="right">${rightTabs([['chat','Chat'],['notes','Notes']])}${S.rtab==='notes'?notesPane():chatPane()}</div></div>`;
+}
+function openB(id){if(!S.centerTabs.includes(id))S.centerTabs.push(id);set({centerTab:id,editing:false})}
+
+// C: cột Studio riêng kiểu NotebookLM
+function VariantC(){
+  const c=S.openComp&&compOf(S.openComp);
+  const wide=!!c;
+  let studio;
+  if(!S.studio)studio=`<div class="right" style="align-items:center;padding-top:8px"><button class="ib" title="Mở Studio" onclick="set({studio:true})">⟨</button><div style="writing-mode:vertical-rl;color:var(--on-sv);margin-top:8px">Studio</div></div>`;
+  else if(c)studio=`<div class="right"><div class="toolbar" style="border:none;font-weight:600">Studio</div>${compToolbar(c,{back:1})}<div class="pbody" style="padding:0">${reader(c)}</div></div>`;
+  else studio=`<div class="right"><div class="toolbar"><b>Studio</b><span class="spacer"></span><button class="ib" title="Thu gọn" onclick="set({studio:false})">⟩</button></div>
+    <div class="studio-gen">${Object.entries(TYPES).map(([k,l])=>`<button onclick="create('${k}')"><b>${l}</b><small>${{sum:'Ý chính từ Note',out:'Dàn ý phân cấp',dra:'Văn bản theo yêu cầu'}[k]}</small></button>`).join('')}</div>
+    <div class="meta" style="padding:0 12px 6px">Bản soạn của Workspace</div><div class="pbody">${list('openA')}</div></div>`;
+  const cols=`220px 1fr 340px ${!S.studio?'44px':wide?'620px':'320px'}`;
+  return `<div class="app" style="grid-template-columns:${cols}">${rail()}<div class="center">${centerTabsHtml()}<div class="cbody">${pdfPage()}</div></div>
+    <div class="right">${rightTabs([['chat','Chat'],['notes','Notes']])}${S.rtab==='notes'?notesPane():chatPane()}</div>${studio}</div>`;
+}
+
+function switcher(){
+  const keys=Object.keys(VARIANTS);
+  return `<div class="switcher"><button onclick="cycle(-1)">←</button><b>${S.variant}</b> (${VARIANTS[S.variant]})<button onclick="cycle(1)">→</button>
+    <label><input type="checkbox" ${COMPS.length?'':'checked'} onchange="toggleEmpty(this.checked)">Workspace trống</label></div>`;
+}
+let backup=null;
+function toggleEmpty(on){if(on){backup=COMPS;COMPS=[]}else if(backup)COMPS=backup;S.openComp=null;S.centerTabs=S.centerTabs.filter(t=>docOf(t));if(!docOf(S.centerTab))S.centerTab=S.centerTabs[0]||'d1';render()}
+function cycle(d){const k=Object.keys(VARIANTS);let i=(k.indexOf(S.variant)+d+k.length)%k.length;S.variant=k[i];S.openComp=null;S.editing=false;S.rtab=S.variant==='A'?'comp':'chat';
+  const u=new URL(location);u.searchParams.set('variant',S.variant);history.replaceState(null,'',u);render()}
+document.addEventListener('keydown',e=>{if(e.target.closest('input,textarea,[contenteditable]'))return;if(e.key==='ArrowLeft')cycle(-1);if(e.key==='ArrowRight')cycle(1)});
+function render(){
+  const v={A:VariantA,B:VariantB,C:VariantC}[S.variant]||VariantA;
+  document.getElementById('root').innerHTML=v()+switcher()+(S.toast?`<div class="toast">${S.toast}</div>`:'');
+  const a=document.querySelector('[autofocus]');if(a){a.focus();a.select()}
+}
+if(S.variant==='A')S.rtab='comp';
+render();
+</script>
+</body>
+</html>
