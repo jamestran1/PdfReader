@@ -9,6 +9,7 @@ public sealed class SqliteWorkspaceStore : IWorkspaceStore
 {
     private const long SchemaVersion = 3;
     private const string DocumentKindText = "document";
+    private const string CompositionKindText = "composition";
     private readonly string _connectionString;
     private readonly Lock _lock = new();
 
@@ -275,7 +276,7 @@ VALUES ($id, $name, 1, $d, $t, $t);";
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-SELECT item_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms
+SELECT item_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms, tab_kind
 FROM open_tab WHERE workspace_id=$w ORDER BY tab_order ASC";
             cmd.Parameters.AddWithValue("$w", workspaceId);
             using var reader = cmd.ExecuteReader();
@@ -283,7 +284,8 @@ FROM open_tab WHERE workspace_id=$w ORDER BY tab_order ASC";
             {
                 result.Add(new OpenTabState(
                     reader.GetString(0), (int)reader.GetInt64(1), reader.GetInt64(2) != 0,
-                    (int)reader.GetInt64(3), reader.GetDouble(4), reader.GetDouble(5), reader.GetInt64(6)));
+                    (int)reader.GetInt64(3), reader.GetDouble(4), reader.GetDouble(5), reader.GetInt64(6),
+                    KindFromText(reader.GetString(7))));
             }
 
             return result;
@@ -311,7 +313,7 @@ FROM open_tab WHERE workspace_id=$w ORDER BY tab_order ASC";
 INSERT INTO open_tab (workspace_id, tab_kind, item_id, tab_order, is_active, page, zoom, scroll_norm, last_active_unix_ms)
 VALUES ($w, $kind, $d, $order, $active, $page, $zoom, $scroll, $last)";
                 insert.Parameters.AddWithValue("$w", workspaceId);
-                insert.Parameters.AddWithValue("$kind", DocumentKindText);
+                insert.Parameters.AddWithValue("$kind", KindToText(tab.Kind));
                 insert.Parameters.AddWithValue("$d", tab.ItemId);
                 insert.Parameters.AddWithValue("$order", tab.TabOrder);
                 insert.Parameters.AddWithValue("$active", tab.IsActive ? 1 : 0);
@@ -324,6 +326,10 @@ VALUES ($w, $kind, $d, $order, $active, $page, $zoom, $scroll, $last)";
             transaction.Commit();
         }
     }
+
+    private static string KindToText(TabKind kind) => kind == TabKind.Composition ? CompositionKindText : DocumentKindText;
+
+    private static TabKind KindFromText(string text) => text == CompositionKindText ? TabKind.Composition : TabKind.Document;
 
     private static Workspace ReadRow(SqliteDataReader r) => new(
         r.GetString(0),

@@ -192,6 +192,21 @@ PRAGMA user_version = 2;";
     }
 
     [Fact]
+    public void SaveOpenTabs_KeepsDocumentAndCompositionTabsWithTheSameItemIdApart()
+    {
+        _store.SaveOpenTabs("w1", new[]
+        {
+            new OpenTabState("x1", 0, false, 3, 1.5, 0.2, 1, TabKind.Document),
+            new OpenTabState("x1", 1, true, 1, 1.0, 0.7, 2, TabKind.Composition),
+        });
+
+        var restored = _store.GetOpenTabs("w1");
+
+        Assert.Equal([TabKind.Document, TabKind.Composition], restored.Select(t => t.Kind));
+        Assert.Equal(0.7, restored[1].ScrollNorm);
+    }
+
+    [Fact]
     public void EnsureSchema_OnV1Database_AddsOpenTabTable_AndPreservesExistingData()
     {
         // Dựng workspaces.db "phiên bản 1": chỉ workspace + workspace_document, user_version=1.
