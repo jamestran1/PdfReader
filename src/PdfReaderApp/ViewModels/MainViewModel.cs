@@ -36,6 +36,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     // Workspace
     private readonly IWorkspaceStore _workspaceStore;
     private readonly INoteStore _noteStore;
+    private readonly ICompositionStore _compositionStore;
     public SearchViewModel Search { get; }
 
     [ObservableProperty]
@@ -164,6 +165,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
     public NotesViewModel Notes { get; }
 
+    /// <summary>Mục Bản soạn trên rail trái.</summary>
+    public CompositionsViewModel Compositions { get; }
+
     public IndexingViewModel Indexing { get; }
     public ChatViewModel Chat { get; }
     public WorkspaceDocumentsViewModel DocumentsSurface { get; }
@@ -187,7 +191,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         INoteStore? noteStore = null,
         IWorkspaceStore? workspaceStore = null,
         IThemeService? themeService = null,
-        IDocumentLoader? documentLoader = null)
+        IDocumentLoader? documentLoader = null,
+        ICompositionStore? compositionStore = null,
+        ICompositionGenerator? compositionGenerator = null)
         : this(new MainViewModelServices(
             documentService,
             settingsService,
@@ -199,7 +205,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
             workspaceStore ?? DefaultServices.CreateWorkspaceStore(AppDataDirectory.Current()),
             themeService ?? DefaultServices.CreateThemeService(),
             DefaultServices.CreateLibrary(AppDataDirectory.Current()),
-            documentLoader))
+            documentLoader,
+            compositionStore ?? DefaultServices.CreateCompositionStore(AppDataDirectory.Current()),
+            compositionGenerator))
     { }
 
     public MainViewModel(MainViewModelServices services)
@@ -229,6 +237,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
             idx => Session.CurrentPage = idx + 1,
             () => Session.DocumentId,
             OpenDocumentForNote,
+            NotifyError);
+        _compositionStore = services.CompositionStore ?? DefaultServices.CreateCompositionStore(AppDataDirectory.Current());
+        _compositionStore.EnsureSchema();
+        Compositions = new CompositionsViewModel(
+            _compositionStore, _noteStore,
+            services.CompositionGenerator ?? new AiCompositionGenerator(_settingsService, services.ChatClientFactory),
+            GetCompositionSourceDocuments,
+            composition => Session.OpenComposition(composition),
             NotifyError);
         Search = new SearchViewModel(
             _documentIndex, () => Session.DocumentId, page => Session.CurrentPage = page, NotifyError,
@@ -268,9 +284,31 @@ public partial class MainViewModel : ObservableObject, IDisposable
         switch (e.PropertyName)
         {
             case nameof(ReadingSessionViewModel.CanPromote): OnPropertyChanged(nameof(CanPromoteToWorkspace)); break;
-            case nameof(ReadingSessionViewModel.IsWorkspaceSession): OnPropertyChanged(nameof(IsDocumentTabStripVisible)); break;
+            case nameof(ReadingSessionViewModel.IsWorkspaceSession): OnPropertyChanged(nameof(IsDocumentTabStripVisible)); ReloadCompositionsIfWorkspaceChanged(); break;
+            case nameof(ReadingSessionViewModel.ActiveWorkspaceId): ReloadCompositionsIfWorkspaceChanged(); break;
+            case nameof(ReadingSessionViewModel.IsCompositionTabActive): OnPropertyChanged(nameof(IsSearchAvailable)); break;
         }
     }
+
+    // Rail Bản soạn theo Workspace có tên đang hoạt động. Bản soạn ở Default Workspace (đọc lẻ) thuộc #297: rail rỗng ở đó.
+    private void ReloadCompositionsIfWorkspaceChanged()
+    {
+        string? ownerKey = Session.IsWorkspaceSession ? Session.ActiveWorkspaceId : null;
+        if (ownerKey == Compositions.OwnerKey) return;
+        Compositions.CancelGeneration();
+        Compositions.LoadFor(ownerKey);
+    }
+
+    // Document của Workspace hoạt động theo thứ tự trong Workspace (cùng thứ tự với surface Workspace Documents: thứ tự Library).
+    private List<CompositionSourceDocument> GetCompositionSourceDocuments()
+    {
+        if (Session.ActiveWorkspaceId is not { } workspaceId) return [];
+        var memberIds = new HashSet<string>(_workspaceStore.GetDocumentIds(workspaceId), StringComparer.Ordinal);
+        return [.. Library.Where(i => memberIds.Contains(i.DocumentId)).Select(i => new CompositionSourceDocument(i.DocumentId, i.Title))];
+    }
+
+    /// <summary>Search của viewer chỉ dùng được khi tab active là Tab Document (tắt ở Tab Bản soạn).</summary>
+    public bool IsSearchAvailable => !Session.IsCompositionTabActive;
 
     private void MigrateLegacyNotesToDefaultWorkspace()
     {
@@ -495,6 +533,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Chặn xóa default workspace (default được ẩn khỏi danh sách; đây là phòng vệ)
         if (ws.IsDefault) return;
         _noteStore.DeleteForOwner(ws.Id);
+        _compositionStore.DeleteForOwner(ws.Id);
         _workspaceStore.Delete(ws.Id);
         if (Session.ActiveWorkspaceId == ws.Id)
         {

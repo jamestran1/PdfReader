@@ -4,10 +4,10 @@ using PdfReaderApp.Models;
 namespace PdfReaderApp.Services;
 
 /// <summary>Document của Workspace, theo thứ tự hiển thị trong Workspace, dùng để xếp và gắn nhãn Note nguồn.</summary>
-internal sealed record CompositionSourceDocument(string DocumentId, string Title);
+public sealed record CompositionSourceDocument(string DocumentId, string Title);
 
 /// <summary>Ngữ cảnh gửi AI. <c>SourceNoteIds[i]</c> là Note có số <c>[i + 1]</c> trong <see cref="Text"/>.</summary>
-internal sealed record CompositionContext(string Text, IReadOnlyList<string> SourceNoteIds);
+public sealed record CompositionContext(string Text, IReadOnlyList<string> SourceNoteIds);
 
 /// <summary>
 /// Dựng ngữ cảnh Bản soạn từ Note (thuần, không I/O). Thứ tự: Document theo thứ tự trong Workspace, trong Document theo trang,

@@ -12,7 +12,7 @@ namespace PdfReaderApp.Tests;
 [Collection(DataDirEnvironmentSerial.Name)]
 public sealed class MainViewModelDefaultServicesTests : IDisposable
 {
-    private static readonly string[] DatabaseFiles = ["index.db", "chats.db", "notes.db", "workspaces.db", "library.db"];
+    private static readonly string[] DatabaseFiles = ["index.db", "chats.db", "notes.db", "workspaces.db", "library.db", "compositions.db"];
 
     private readonly string? _previousDataDir = Environment.GetEnvironmentVariable(AppDataDirectory.OverrideVariable);
     private readonly string _dataDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
@@ -45,6 +45,7 @@ public sealed class MainViewModelDefaultServicesTests : IDisposable
             services.ChatHistory.EnsureSchema();
             services.NoteStore.EnsureSchema();
             services.WorkspaceStore.EnsureSchema();
+            services.CompositionStore!.EnsureSchema();
 
             foreach (string name in DatabaseFiles)
                 Assert.True(File.Exists(Path.Combine(_dataDir, name)), name);
