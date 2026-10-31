@@ -38,6 +38,7 @@
         <local:DocumentIdToTitleConverter x:Key="DocumentIdToTitleConverter"/>
         <local:IsActiveTabConverter x:Key="IsActiveTabConverter"/>
         <local:NavDestinationToBoolConverter x:Key="NavDestinationToBoolConverter" />
+        <converters:NoteIsSelectedConverter x:Key="NoteIsSelectedConverter"/>
         <converters:LibraryCoverBrushConverter x:Key="LibraryCoverBrushConverter"/>
         <converters:HasThumbnailToVisibilityConverter x:Key="HasThumbnailToVisibilityConverter"/>
         <converters:WindowStateToContentMarginConverter x:Key="WindowStateToContentMarginConverter"/>
@@ -114,7 +115,14 @@
             </DockPanel>
         </Border>
 
+        <!-- #292: hộp thoại Tạo Bản soạn bọc ngoài DialogHost của Workspace Documents (hai hộp thoại không mở cùng lúc). -->
         <materialDesign:DialogHost Grid.Row="1" CloseOnClickAway="True"
+                                   IsOpen="{Binding Compositions.IsDialogOpen}">
+            <materialDesign:DialogHost.DialogContent>
+                <controls:CreateCompositionDialogView DataContext="{Binding Compositions.Dialog}"
+                                                      Width="760" MaxHeight="600"/>
+            </materialDesign:DialogHost.DialogContent>
+        <materialDesign:DialogHost CloseOnClickAway="True"
                                    IsOpen="{Binding DocumentsSurface.IsModalOpen}">
             <materialDesign:DialogHost.DialogContent>
                 <controls:WorkspaceDocumentsView DataContext="{Binding DocumentsSurface}"
@@ -185,6 +193,15 @@
                 </StackPanel>
             </Grid>
         </Border>
+
+        <!-- Vùng giữa: rail trái của Workspace có tên (DOCUMENT, BẢN SOẠN) + nội dung chính -->
+        <Grid Grid.Column="1">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <controls:WorkspaceRailView Grid.Column="0"
+                                    Visibility="{Binding IsRailVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
         <!-- Main Content Area -->
         <Grid Grid.Column="1">
@@ -332,7 +349,7 @@
                     <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right"
                                 Width="360" Margin="8,0,0,0"
                                 Visibility="{Binding IsReadingDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Border x:Name="SearchBar" Height="44" CornerRadius="22" Padding="16,0,6,0" Width="360"
+                        <Border x:Name="SearchBar" IsEnabled="{Binding IsSearchAvailable}" Height="44" CornerRadius="22" Padding="16,0,6,0" Width="360"
                                 Background="{DynamicResource TriThu.Brush.SurfaceTonalHigh}" BorderThickness="2" BorderBrush="Transparent">
                             <Border.Style>
                                 <Style TargetType="Border">
@@ -456,9 +473,9 @@
                 </DockPanel>
             </Border>
 
-            <!-- Tab Strip (Row 1): chỉ hiện trong workspace session -->
+            <!-- Tab Strip (Row 1): Workspace có tên, hoặc Tab Strip nhẹ của Default Workspace khi có từ hai tab -->
             <Border Grid.Row="1"
-                    Visibility="{Binding IsDocumentTabStripVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+                    Visibility="{Binding IsTabStripVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
                     BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="0,0,0,1"
                     Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -509,6 +526,7 @@
                                                        FontSize="13"/>
                                             <Button Grid.Column="1" Margin="6,0,0,0"
                                                     Style="{StaticResource TriThu.DocTab.Close}"
+                                                    Visibility="{Binding CanClose, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                     ToolTip="Đóng tab"
                                                     Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}">
@@ -521,6 +539,7 @@
                         </ItemsControl>
                         <!-- Nút "+" cuối strip: mở Workspace Documents surface (#47) để thêm tài liệu -->
                         <Button Style="{StaticResource TriThu.DocTab.Add}"
+                                Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"
                                 ToolTip="Thêm tài liệu"
                                 Command="{Binding ShowWorkspaceDocumentsCommand}">
                             <materialDesign:PackIcon Kind="Plus" Width="20" Height="20"/>
@@ -555,6 +574,10 @@
                             <DataTrigger Binding="{Binding Session.IsWorkspaceSession}" Value="True">
                                 <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
+                            <!-- Default Workspace: Tab Bản soạn đang active thì viewer standalone nhường chỗ (Document vẫn giữ nguyên) -->
+                            <DataTrigger Binding="{Binding Session.IsCompositionTabActive}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </controls:PdfViewerControl.Style>
@@ -564,7 +587,7 @@
                  chỉ tab active Visible, còn lại Collapsed (không render). Viewer chỉ giữ tài liệu khi
                  OpenTab.IsHydrated (active + nhóm MRU ấm), tab ngoài nhóm bị evict (#48). -->
             <Border Grid.Row="2"
-                    Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Visibility="{Binding IsTabHostVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <Grid>
                     <!-- Hint khi Open Set rỗng (#62 AC2): inline WorkspaceDocumentsView khi chưa có tab -->
                     <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -580,8 +603,19 @@
                                 <Grid/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
+                        <ItemsControl.Resources>
+                            <!-- Tab Bản soạn: Markdown chỉ đọc, chỉ tab active hiện -->
+                            <DataTemplate DataType="{x:Type models:CompositionTab}">
+                                <controls:CompositionView>
+                                    <controls:CompositionView.Visibility>
+                                        <MultiBinding Converter="{StaticResource IsActiveTabConverter}">
+                                            <Binding/>
+                                            <Binding Path="DataContext.Session.Tabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                        </MultiBinding>
+                                    </controls:CompositionView.Visibility>
+                                </controls:CompositionView>
+                            </DataTemplate>
+                            <DataTemplate DataType="{x:Type models:DocumentTab}">
                                 <controls:PdfViewerControl
                                     DocumentSource="{Binding ViewerSource}"
                                     CurrentPage="{Binding Page, Mode=TwoWay}"
@@ -604,7 +638,7 @@
                                     </controls:PdfViewerControl.Visibility>
                                 </controls:PdfViewerControl>
                             </DataTemplate>
-                        </ItemsControl.ItemTemplate>
+                        </ItemsControl.Resources>
                     </ItemsControl>
                 </Grid>
             </Border>
@@ -858,7 +892,7 @@
                         Height="44" Padding="5" CornerRadius="22" Panel.ZIndex="15"
                         Background="{DynamicResource TriThu.Brush.InverseSurface}"
                         Effect="{DynamicResource TriThu.Elevation.E3}"
-                        Visibility="{Binding IsReadingDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        Visibility="{Binding IsPagePillVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource TriThu.PagePill.Button}" Command="{Binding PreviousPageCommand}" ToolTip="Trang trước">
                             <materialDesign:PackIcon Kind="ChevronLeft" Width="18" Height="18"/>
@@ -877,6 +911,7 @@
                         </Button>
                     </StackPanel>
                 </Border>
+        </Grid>
         </Grid>
 
         <!-- Thanh kéo chỉnh bề rộng panel chat (ẩn khi panel thu gọn hoặc ở thư viện/workspaces) -->
@@ -1068,6 +1103,22 @@
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <materialDesign:Card Margin="0,0,0,8" Padding="8" UniformCornerRadius="8">
+                                            <materialDesign:Card.Style>
+                                                <!-- Note được chọn (bấm [n] của Bản soạn, #295) -->
+                                                <Style TargetType="materialDesign:Card" BasedOn="{StaticResource {x:Type materialDesign:Card}}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Value="True">
+                                                            <DataTrigger.Binding>
+                                                                <MultiBinding Converter="{StaticResource NoteIsSelectedConverter}">
+                                                                    <Binding Path="Id"/>
+                                                                    <Binding Path="DataContext.Notes.SelectedNoteId" RelativeSource="{RelativeSource AncestorType=ItemsControl}"/>
+                                                                </MultiBinding>
+                                                            </DataTrigger.Binding>
+                                                            <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </materialDesign:Card.Style>
                                             <Grid>
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto"/>
@@ -1169,6 +1220,7 @@
             </Button>
         </Border>
         </Grid>
+        </materialDesign:DialogHost>
         </materialDesign:DialogHost>
         <!-- #67: snackbar non-blocking, đáy-giữa, tự ẩn; đổi icon theo mức độ (đặt ở grid ngoài để không nong cột nav). -->
         <Border Grid.RowSpan="2" Panel.ZIndex="100"

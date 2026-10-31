@@ -14,6 +14,7 @@ namespace PdfReaderApp.ViewModels;
 /// <param name="NotifyError">Báo lỗi cho người dùng.</param>
 /// <param name="DispatcherProvider">Dispatcher gộp ghi Open Set; null hoặc trả null thì lưu ngay (test, headless). Nơi dựng ứng dụng truyền dispatcher của app.</param>
 /// <param name="MarkDocumentOpened">Ghi thời điểm mở của Document vào Library; null thì bỏ qua (best-effort).</param>
+/// <param name="FindComposition">Tìm Bản soạn của Workspace theo id (khôi phục Open Set); null hoặc trả null thì Bản soạn coi như đã xoá.</param>
 /// <param name="FindDocument">Tìm Document trong Library theo id (Jump, khôi phục Open Set); null hoặc trả null thì Document coi như đã gỡ.</param>
 /// <param name="Clock">Đồng hồ cho thời điểm ghi Workspace mặc định; null thì dùng <see cref="TimeProvider.System"/>.</param>
 public sealed record ReadingSessionDependencies(
@@ -28,4 +29,5 @@ public sealed record ReadingSessionDependencies(
     Func<Dispatcher?>? DispatcherProvider = null,
     Action<string>? MarkDocumentOpened = null,
     LibraryDocumentLookup? FindDocument = null,
-    TimeProvider? Clock = null);
+    TimeProvider? Clock = null,
+    CompositionLookup? FindComposition = null);

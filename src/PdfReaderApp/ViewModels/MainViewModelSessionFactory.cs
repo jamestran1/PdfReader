@@ -19,5 +19,6 @@ internal sealed record MainViewModelSessionFactory(
             Indexing, Surface, host.NotifyError,
             DispatcherProvider: () => Application.Current?.Dispatcher,
             MarkDocumentOpened: host.MarkDocumentOpened,
-            FindDocument: host.FindDocument));
+            FindDocument: host.FindDocument,
+            FindComposition: host.FindComposition));
 }

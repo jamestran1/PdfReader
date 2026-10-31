@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfReaderApp.Models;
 
@@ -64,25 +64,61 @@ public sealed class TabSetViewModel : ObservableObject
     /// - Tab đã tồn tại: kích hoạt (đẩy lên đầu MRU), trả về tab đó.
     /// - Tab mới: chèn ngay sau ActiveTab hiện tại (hoặc cuối nếu không có), kích hoạt, trả về.
     /// </summary>
-    internal OpenTab OpenOrActivate(string documentId, string title, string path, int? initialPage = null)
+    internal DocumentTab OpenOrActivate(string documentId, string title, string path, int? initialPage = null)
     {
         // Kiểm tra tab đã tồn tại theo documentId.
         foreach (var existing in _tabItems)
         {
-            if (existing.DocumentId == documentId)
+            if (existing is DocumentTab doc && doc.DocumentId == documentId)
             {
                 // Đặt trang TRƯỚC khi kích hoạt để viewer (per-tab) nạp thẳng tại trang đích.
-                if (initialPage is int pe) existing.Page = pe;
-                Activate(existing);
-                return existing;
+                if (initialPage is int pe) doc.Page = pe;
+                Activate(doc);
+                return doc;
             }
         }
 
         // Tạo tab mới và chèn ngay sau ActiveTab. Đặt trang TRƯỚC khi chèn/kích hoạt
         // để viewer mở thẳng tại trang đích (cross-doc jump), tránh cuộn-sau-khi-nạp không ổn định.
-        var tab = new OpenTab(documentId, title, path);
+        var tab = new DocumentTab(documentId, title, path);
         if (initialPage is int ip) tab.Page = ip;
         int insertAt = _activeTab is null ? _tabItems.Count : _tabItems.IndexOf(_activeTab) + 1;
+        _tabItems.Insert(insertAt, tab);
+        Activate(tab);
+        return tab;
+    }
+
+    /// <summary>
+    /// Tab Document của Default Workspace (đọc lẻ): luôn đứng đầu Tab Strip nhẹ, trỏ viewer standalone nên không hydrate
+    /// và không đóng được. Mở khi Default Workspace có Tab Bản soạn đầu tiên.
+    /// </summary>
+    internal DocumentTab OpenStandaloneDocument(string documentId, string title, string path)
+    {
+        var tab = new DocumentTab(documentId, title, path) { IsStandalone = true };
+        _tabItems.Insert(0, tab);
+        Activate(tab);
+        return tab;
+    }
+
+    /// <summary>
+    /// Mở Tab Bản soạn cho <paramref name="composition"/>, hoặc kích hoạt tab đã có (không mở tab trùng).
+    /// Tab mới chèn ngay sau ActiveTab, như Tab Document; khi có <paramref name="afterCompositionId"/> và tab đó còn mở thì
+    /// chèn ngay sau tab đó (Sinh lại: bản mới nằm bên phải bản cũ).
+    /// </summary>
+    internal CompositionTab OpenOrActivateComposition(Composition composition, string? afterCompositionId = null)
+    {
+        foreach (var existing in _tabItems)
+        {
+            if (existing is CompositionTab compositionTab && compositionTab.CompositionId == composition.Id)
+            {
+                Activate(compositionTab);
+                return compositionTab;
+            }
+        }
+
+        var tab = new CompositionTab(composition);
+        var anchor = _tabItems.FirstOrDefault(t => t is CompositionTab c && c.CompositionId == afterCompositionId) ?? _activeTab;
+        int insertAt = anchor is null ? _tabItems.Count : _tabItems.IndexOf(anchor) + 1;
         _tabItems.Insert(insertAt, tab);
         Activate(tab);
         return tab;
@@ -138,7 +174,7 @@ public sealed class TabSetViewModel : ObservableObject
 
         var tabToActivate = activeDocumentId is null
             ? null
-            : _tabItems.FirstOrDefault(t => t.DocumentId == activeDocumentId);
+            : _tabItems.FirstOrDefault(t => t.ItemId == activeDocumentId);
         if (tabToActivate is not null)
             Activate(tabToActivate);
     }
@@ -161,15 +197,20 @@ public sealed class TabSetViewModel : ObservableObject
     {
         _mru.Remove(tab);
         _mru.Insert(0, tab);
-        tab.IsHydrated = true;
+        if (tab is DocumentTab { IsStandalone: false } documentTab) documentTab.IsHydrated = true;
         EvictBeyondWarmLimit();
         ActiveTab = tab;
     }
 
-    // Tab ngoài nhóm ấm (active + N MRU) nhả handle PDFium; tab chưa từng kích hoạt (khôi phục lười) vốn chưa nạp.
+    // Tab Document ngoài nhóm ấm (N + 1 tab gần nhất) nhả handle PDFium; tab chưa từng kích hoạt (khôi phục lười) vốn chưa nạp.
+    // Tab Bản soạn không giữ PDFium nên không chiếm chỗ trong nhóm ấm (ADR 0009).
     private void EvictBeyondWarmLimit()
     {
-        for (int i = _maxWarmInactiveTabs + 1; i < _mru.Count; i++)
-            _mru[i].IsHydrated = false;
+        int documentsSeen = 0;
+        foreach (var tab in _mru)
+        {
+            if (tab is not DocumentTab { IsStandalone: false } documentTab) continue;
+            if (++documentsSeen > _maxWarmInactiveTabs + 1) documentTab.IsHydrated = false;
+        }
     }
 }

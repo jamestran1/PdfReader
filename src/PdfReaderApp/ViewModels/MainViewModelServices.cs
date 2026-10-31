@@ -17,4 +17,6 @@ public sealed record MainViewModelServices(
     IWorkspaceStore WorkspaceStore,
     IThemeService ThemeService,
     LibraryService Library,
-    IDocumentLoader? DocumentLoader = null);
+    IDocumentLoader? DocumentLoader = null,
+    ICompositionStore? CompositionStore = null,
+    ICompositionGenerator? CompositionGenerator = null);
