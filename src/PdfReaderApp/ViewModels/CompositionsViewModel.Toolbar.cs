@@ -5,7 +5,7 @@ using PdfReaderApp.Services;
 namespace PdfReaderApp.ViewModels;
 
 // Thanh công cụ Tab Bản soạn (#294): Sửa tự lưu, Đổi tên, Sao chép, Xoá. Phần phụ thuộc UI (hộp xác nhận, clipboard, đóng tab)
-// vào qua các property bên dưới để test thay được; MainViewModel nối bản thật.
+// vào qua <see cref="CompositionsCallbacks"/> ở constructor để test thay được; MainViewModel nối bản thật.
 public sealed partial class CompositionsViewModel
 {
     /// <summary>Quãng không gõ trước khi Sửa tự lưu.</summary>
@@ -13,21 +13,6 @@ public sealed partial class CompositionsViewModel
 
     private readonly Dictionary<CompositionTab, ITimer> _pendingSaves = [];
     private readonly SynchronizationContext? _uiContext = SynchronizationContext.Current;
-
-    /// <summary>Chạy việc trên luồng UI; mặc định đẩy về <see cref="SynchronizationContext"/> lúc dựng, test chạy thẳng.</summary>
-    internal Action<Action>? RunOnUi { get; set; }
-
-    /// <summary>Tab Bản soạn đang mở của <c>compositionId</c>, null khi chưa mở.</summary>
-    internal Func<string, CompositionTab?> OpenTabFor { get; set; } = _ => null;
-
-    /// <summary>Đóng tab (Tab dùng gần nhất được kích hoạt, theo ADR 0003).</summary>
-    internal Action<CompositionTab> CloseTab { get; set; } = _ => { };
-
-    /// <summary>Đặt văn bản lên clipboard.</summary>
-    internal Action<string> CopyToClipboard { get; set; } = _ => { };
-
-    /// <summary>Hỏi xác nhận xoá Bản soạn có tiêu đề này; mặc định không xoá.</summary>
-    internal Func<string, bool> ConfirmDelete { get; set; } = _ => false;
 
     /// <summary>Bật hoặc tắt chế độ Sửa. Tắt thì lưu ngay phần đã gõ.</summary>
     [RelayCommand]
@@ -64,7 +49,7 @@ public sealed partial class CompositionsViewModel
 
     private void PostToUi(Action action)
     {
-        if (RunOnUi is not null) RunOnUi(action);
+        if (_callbacks.RunOnUi is { } runOnUi) runOnUi(action);
         else if (_uiContext is null) action();
         else _uiContext.Post(_ => action(), null);
     }
@@ -112,20 +97,32 @@ public sealed partial class CompositionsViewModel
     private void Copy(CompositionTab? tab)
     {
         if (tab is null) return;
-        CopyToClipboard(tab.IsEditing ? tab.EditText : tab.Composition.Content);
+        _callbacks.CopyToClipboard(tab.IsEditing ? tab.EditText : tab.Composition.Content);
     }
 
     /// <summary>Xoá một Bản soạn sau khi xác nhận: khỏi db và rail, đóng tab nếu đang mở. Dùng từ thanh công cụ và từ rail.</summary>
     [RelayCommand]
     private void Delete(Composition? composition)
     {
-        if (composition is null || !ConfirmDelete(composition.Title)) return;
+        if (composition is null || !_callbacks.ConfirmDelete(composition.Title)) return;
 
-        var tab = OpenTabFor(composition.Id);
+        var tab = _callbacks.OpenTabFor(composition.Id);
         if (tab is not null) DiscardPendingEdit(tab);
-        _store.Delete(composition.Id);
+        try
+        {
+            _store.Delete(composition.Id);
+        }
+#pragma warning disable CA1031 // ranh giới lệnh UI: lỗi xoá không được làm sập app, hiện cho người dùng
+        catch (Exception ex)
+        {
+            System.Diagnostics.Trace.TraceWarning($"CompositionsViewModel: xoá Bản soạn lỗi: {ex}");
+            _callbacks.NotifyError(AiErrorMessages.Unknown);
+            return;   // db còn bản ghi: rail và tab giữ nguyên để không lệch với db
+        }
+#pragma warning restore CA1031
+
         RemoveFromItems(composition.Id);
-        if (tab is not null) CloseTab(tab);
+        if (tab is not null) _callbacks.CloseTab(tab);
     }
 
     private void DiscardPendingEdit(CompositionTab tab)
@@ -134,9 +131,11 @@ public sealed partial class CompositionsViewModel
         if (_pendingSaves.Remove(tab, out var timer)) timer.Dispose();
     }
 
+    private int IndexOfItem(string id) => Items.ToList().FindIndex(c => c.Id == id);
+
     private void RemoveFromItems(string id)
     {
-        int index = Items.ToList().FindIndex(c => c.Id == id);
+        int index = IndexOfItem(id);
         if (index >= 0) Items.RemoveAt(index);
     }
 
@@ -153,13 +152,13 @@ public sealed partial class CompositionsViewModel
         catch (Exception ex)
         {
             System.Diagnostics.Trace.TraceWarning($"CompositionsViewModel: lưu Bản soạn lỗi: {ex}");
-            _notifyError(AiErrorMessages.Unknown);
+            _callbacks.NotifyError(AiErrorMessages.Unknown);
             return;
         }
 #pragma warning restore CA1031
 
-        int index = Items.ToList().FindIndex(c => c.Id == saved.Id);
+        int index = IndexOfItem(saved.Id);
         if (index >= 0) Items[index] = saved;
-        OpenTabFor(saved.Id)?.Apply(saved);
+        _callbacks.OpenTabFor(saved.Id)?.Apply(saved);
     }
 }

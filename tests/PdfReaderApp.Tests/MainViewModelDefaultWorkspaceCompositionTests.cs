@@ -82,7 +82,7 @@ public sealed class MainViewModelDefaultWorkspaceCompositionTests : IDisposable
         _notes.Add(new Note("n1", ws, "/docA.pdf", 0, null, "ý A", 1, 1));
         Assert.False(_vm.IsTabStripVisible);
 
-        await _vm.Compositions.CreateSummaryCommand.ExecuteAsync(null);
+        await _vm.Compositions.CreateSummaryFromAllNotesAsync();
 
         var composition = Assert.Single(_vm.Compositions.Items);
         Assert.Equal(ws, composition.OwnerKey);
@@ -98,7 +98,7 @@ public sealed class MainViewModelDefaultWorkspaceCompositionTests : IDisposable
         string wsA = ReadStandalone(0);
         _notes.Add(new Note("n1", wsA, "/docA.pdf", 0, null, "ý A", 1, 1));
         _generator.BlockUntilCancelled = true;
-        var running = _vm.Compositions.CreateSummaryCommand.ExecuteAsync(null);
+        var running = _vm.Compositions.CreateSummaryFromAllNotesAsync();
         await _generator.Started.Task;
 
         ReadStandalone(1);
@@ -117,7 +117,7 @@ public sealed class MainViewModelDefaultWorkspaceCompositionTests : IDisposable
     {
         string defaultWs = ReadStandalone(0);
         _notes.Add(new Note("n1", defaultWs, "/docA.pdf", 0, null, "ý A", 1, 1));
-        await _vm.Compositions.CreateSummaryCommand.ExecuteAsync(null);
+        await _vm.Compositions.CreateSummaryFromAllNotesAsync();
 
         _vm.PromoteToWorkspaceCommand.Execute("Luận văn");
 

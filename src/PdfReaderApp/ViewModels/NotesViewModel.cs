@@ -131,7 +131,19 @@ public sealed partial class NotesViewModel : ObservableObject
         PendingQuote = quote;
         _pendingPageIndex = pageIndex;
         _pendingRects = rects;
-        RightTabIndex = 1; // 0=Chat, 1=Notes
+        RightTabIndex = NotesTabIndex;
+    }
+
+    /// <summary>Chỉ số tab Notes trong panel phải (0 là Chat).</summary>
+    internal const int NotesTabIndex = 1;
+
+    /// <summary>Mở panel Notes và chọn <paramref name="noteId"/>: bỏ lọc để Note luôn thấy được.</summary>
+    internal void ShowNote(string noteId)
+    {
+        FilterText = string.Empty;
+        FilterCurrentDocumentOnly = false;
+        RightTabIndex = NotesTabIndex;
+        SelectedNoteId = noteId;
     }
 
     // Tạo note trực tiếp (không qua Draft/composer). Dùng cho one-click lưu câu trả lời AI.

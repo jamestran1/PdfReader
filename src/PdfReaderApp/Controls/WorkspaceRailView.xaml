@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
              xmlns:converters="clr-namespace:PdfReaderApp.Converters"
+             xmlns:models="clr-namespace:PdfReaderApp.Models"
              xmlns:local="clr-namespace:PdfReaderApp">
     <!-- Rail trái (#291, prototype #252-B): mục DOCUMENT (chỉ Workspace có tên) và mục BẢN SOẠN (cả Default Workspace, #297).
          DataContext là MainViewModel. -->
@@ -74,7 +75,7 @@
                                             <Style.Triggers>
                                                 <DataTrigger Value="True">
                                                     <DataTrigger.Binding>
-                                                        <MultiBinding Converter="{StaticResource IsActiveTabItemConverter}" ConverterParameter="Composition">
+                                                        <MultiBinding Converter="{StaticResource IsActiveTabItemConverter}" ConverterParameter="{x:Static models:TabKind.Composition}">
                                                             <Binding Path="Id"/>
                                                             <Binding Path="DataContext.Session.CurrentTabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
                                                         </MultiBinding>
@@ -130,7 +131,7 @@
                                         <Style.Triggers>
                                             <DataTrigger Value="True">
                                                 <DataTrigger.Binding>
-                                                    <MultiBinding Converter="{StaticResource IsActiveTabItemConverter}" ConverterParameter="Document">
+                                                    <MultiBinding Converter="{StaticResource IsActiveTabItemConverter}" ConverterParameter="{x:Static models:TabKind.Document}">
                                                         <Binding Path="DocumentId"/>
                                                         <Binding Path="DataContext.Session.CurrentTabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
                                                     </MultiBinding>

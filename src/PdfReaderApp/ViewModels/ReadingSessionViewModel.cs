@@ -134,9 +134,12 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         if (IsWorkspaceSession) return Tabs.OpenOrActivateComposition(composition, afterCompositionId);
 
         // Default Workspace: Tab Strip nhẹ cần Tab Document trỏ viewer standalone.
-        if (DocumentId is { } documentId && FilePath is { } path) LightTabs.EnsureDocumentTab(documentId, TitleOf(path), path);
+        if (DocumentId is { } documentId && FilePath is { } path) LightTabs.EnsureDocumentTab(new DocumentRef(documentId, TitleOf(path), path));
         return LightTabs.OpenOrActivateComposition(composition, afterCompositionId);
     }
+
+    /// <summary>Tab Bản soạn đang mở của <paramref name="compositionId"/> trên đường host đang dùng; null khi chưa mở.</summary>
+    public CompositionTab? FindCompositionTab(string compositionId) => CurrentTabs.FindComposition(compositionId);
 
     /// <summary>Tab Strip nhẹ của Default Workspace (đọc lẻ): chỉ hiện khi có từ hai tab, không có "+".</summary>
     public bool IsLightTabStripVisible => !IsWorkspaceSession && LightTabs.IsStripVisible;
@@ -147,14 +150,24 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     private void CloseAllTabs()
     {
         if (!Tabs.HasTabs && !LightTabs.HasTabs) return;
-        _openSet.IsRestoring = true;
-        try
+        WhileRestoring(() =>
         {
             Tabs.Reset();
             LightTabs.Reset();
-        }
+        });
+    }
+
+    // Trong lúc dựng Open Set không ghi lại state đang dở.
+    private void WhileRestoring(Action rebuild)
+    {
+        _openSet.IsRestoring = true;
+        try { rebuild(); }
         finally { _openSet.IsRestoring = false; }
     }
+
+    // Tab active đã lưu mà vẫn còn trong <paramref name="restored"/>; null khi không còn.
+    private static string? SavedActiveItemId(IReadOnlyList<OpenTabState> saved, IReadOnlyList<OpenTab> restored)
+        => saved.LastOrDefault(s => s.IsActive && restored.Any(t => t.ItemId == s.ItemId))?.ItemId;
 
     // Mở lẻ: khôi phục Tab Bản soạn đã lưu của Default Workspace vừa vào, sau Tab Document trỏ viewer standalone.
     private void RestoreDefaultWorkspaceTabs(string workspaceId, string documentId, string path)
@@ -163,15 +176,10 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         var saved = _workspaceStore.GetOpenTabs(workspaceId).Where(s => s.Kind == TabKind.Composition).ToList();
         var compositions = RestoreSavedTabs(workspaceId, saved);
         if (compositions.Count == 0) return;
-        string? activeId = saved.LastOrDefault(s => s.IsActive && compositions.Any(t => t.ItemId == s.ItemId))?.ItemId;
-        var documentTab = LightTabStripViewModel.CreateDocumentTab(documentId, TitleOf(path), path);
-        _openSet.IsRestoring = true;
-        try { LightTabs.RestoreTabs([documentTab, .. compositions], activeId ?? documentId); }
-        finally
-        {
-            _openSet.IsRestoring = false;
-            _openSet.SaveNow();
-        }
+        string? activeId = SavedActiveItemId(saved, compositions);
+        var documentTab = LightTabStripViewModel.CreateDocumentTab(new DocumentRef(documentId, TitleOf(path), path));
+        try { WhileRestoring(() => LightTabs.RestoreTabs([documentTab, .. compositions], activeId ?? documentId)); }
+        finally { _openSet.SaveNow(); }
     }
 
     // Trong phiên Workspace có Tab active: trang, zoom, tổng trang là MỘT nguồn sự thật với OpenTab (viewer per-tab bind cùng
@@ -311,7 +319,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
             var restored = RestoreSavedTabs(workspaceId, savedTabs);
             if (restored.Count > 0)
             {
-                string? activeId = savedTabs.LastOrDefault(s => s.IsActive && restored.Any(t => t.ItemId == s.ItemId))?.ItemId;
+                string? activeId = SavedActiveItemId(savedTabs, restored);
                 // Tab Bản soạn không đổi Phiên đọc: nạp Tab Document gần nhất trước để Phiên đọc bám nó, rồi mới kích hoạt Bản soạn.
                 var keptDocument = restored.FirstOrDefault(t => t.ItemId == activeId) is CompositionTab active
                     ? NearestDocumentTab(restored, active)

@@ -15,4 +15,8 @@ public sealed record Composition(
     IReadOnlyList<string> SourceNoteIds,
     long CreatedAtUnixMs,
     string? AdditionalRequest = null,
-    long? UpdatedAtUnixMs = null);
+    long? UpdatedAtUnixMs = null)
+{
+    /// <summary>Nhãn kiểu để hiện trên rail và chip.</summary>
+    public string KindLabel => CompositionKindLabels.For(Kind);
+}

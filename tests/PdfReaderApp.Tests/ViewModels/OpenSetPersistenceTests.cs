@@ -1,4 +1,5 @@
 using System.Windows.Threading;
+using PdfReaderApp.Models;
 using PdfReaderApp.Tests.Fakes;
 using PdfReaderApp.ViewModels;
 
@@ -71,7 +72,7 @@ public sealed class OpenSetPersistenceTests
     {
         var (persistence, tabs, store) = CreateLight();
 
-        tabs.EnsureDocumentTab("docA", "A", "/a.pdf");
+        tabs.EnsureDocumentTab(new DocumentRef("docA", "A", "/a.pdf"));
         persistence.Schedule();
 
         Assert.Empty(store.OpenSets[WorkspaceId]);
@@ -81,7 +82,7 @@ public sealed class OpenSetPersistenceTests
     public void SaveNow_InDefaultWorkspace_WritesOnlyCompositionTabsWithTheirOwnOrder()
     {
         var (persistence, tabs, store) = CreateLight();
-        tabs.EnsureDocumentTab("docA", "A", "/a.pdf");
+        tabs.EnsureDocumentTab(new DocumentRef("docA", "A", "/a.pdf"));
         tabs.OpenOrActivateComposition(new PdfReaderApp.Models.Composition("X", WorkspaceId, "Bản X", PdfReaderApp.Models.CompositionKind.Summary, "# x", "m", [], 1));
 
         persistence.SaveNow();

@@ -19,4 +19,5 @@ public sealed record MainViewModelServices(
     LibraryService Library,
     IDocumentLoader? DocumentLoader = null,
     ICompositionStore? CompositionStore = null,
-    ICompositionGenerator? CompositionGenerator = null);
+    ICompositionGenerator? CompositionGenerator = null,
+    Func<string, bool>? ConfirmDeleteComposition = null);

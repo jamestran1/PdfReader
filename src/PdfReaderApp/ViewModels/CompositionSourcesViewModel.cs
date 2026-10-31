@@ -35,22 +35,14 @@ public sealed partial class CompositionSourcesViewModel
     internal static CompositionSourcesViewModel Create(
         INoteStore noteStore, Func<string, string?> documentTitle, ReadingSessionViewModel session, NotesViewModel notes)
     {
-        void ShowNote(string noteId)
-        {
-            notes.FilterText = string.Empty;
-            notes.FilterCurrentDocumentOnly = false;
-            notes.RightTabIndex = 1; // 0=Chat, 1=Notes
-            notes.SelectedNoteId = noteId;
-        }
-
         var viewModel = new CompositionSourcesViewModel(
             noteStore, documentTitle,
             entry =>
             {
                 session.JumpFromCitation(new RagSource(entry.Number, entry.DocumentId!, entry.DocumentTitle ?? string.Empty, entry.PageIndex ?? 0, entry.Quote), null);
-                ShowNote(entry.NoteId);
+                notes.ShowNote(entry.NoteId);
             },
-            entry => ShowNote(entry.NoteId));
+            entry => notes.ShowNote(entry.NoteId));
         void RefreshOnCompositionTab(OpenTab? tab)
         {
             if (tab is CompositionTab compositionTab) viewModel.Refresh(compositionTab);

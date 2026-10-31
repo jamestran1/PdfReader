@@ -82,14 +82,19 @@ public sealed class CompositionToolbarTests
 
         public Fixture()
         {
-            Vm = new CompositionsViewModel(Store, new NoNotes(), new NoGenerator(), () => [], _ => { }, Errors.Add, Clock)
-            {
-                RunOnUi = action => action(),
-                OpenTabFor = id => OpenTabs.FirstOrDefault(t => t.CompositionId == id),
-                CloseTab = tab => OpenTabs.Remove(tab),
-                CopyToClipboard = Copied.Add,
-                ConfirmDelete = title => { Asked.Add(title); return Answer; },
-            };
+            Vm = new CompositionsViewModel(
+                Store, new NoNotes(), new NoGenerator(), () => [],
+                new CompositionsCallbacks
+                {
+                    OpenComposition = (_, _) => { },
+                    NotifyError = Errors.Add,
+                    RunOnUi = action => action(),
+                    OpenTabFor = id => OpenTabs.FirstOrDefault(t => t.CompositionId == id),
+                    CloseTab = tab => OpenTabs.Remove(tab),
+                    CopyToClipboard = Copied.Add,
+                    ConfirmDelete = title => { Asked.Add(title); return Answer; },
+                },
+                Clock);
             Vm.LoadFor("ws");
         }
 

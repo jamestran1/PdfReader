@@ -8,7 +8,7 @@ public class IsActiveTabItemConverterTests
 {
     private static readonly Composition Comp = new("same", "ws", "T", CompositionKind.Summary, "x", "m", [], 1);
 
-    private static object? Convert(object?[] values, string kind)
+    private static object? Convert(object?[] values, TabKind kind)
         => new IsActiveTabItemConverter().Convert(values!, typeof(bool), kind, CultureInfo.InvariantCulture);
 
     [Fact]
@@ -16,8 +16,8 @@ public class IsActiveTabItemConverterTests
     {
         var documentTab = new DocumentTab("same", "D", "/d.pdf");
 
-        Assert.Equal(true, Convert(["same", documentTab], "Document"));
-        Assert.Equal(false, Convert(["other", documentTab], "Document"));
+        Assert.Equal(true, Convert(["same", documentTab], TabKind.Document));
+        Assert.Equal(false, Convert(["other", documentTab], TabKind.Document));
     }
 
     [Fact]
@@ -25,13 +25,13 @@ public class IsActiveTabItemConverterTests
     {
         var compositionTab = new CompositionTab(Comp);
 
-        Assert.Equal(false, Convert(["same", compositionTab], "Document"));
-        Assert.Equal(true, Convert(["same", compositionTab], "Composition"));
+        Assert.Equal(false, Convert(["same", compositionTab], TabKind.Document));
+        Assert.Equal(true, Convert(["same", compositionTab], TabKind.Composition));
     }
 
     [Fact]
     public void NoActiveTab_IsNotActive()
     {
-        Assert.Equal(false, Convert(["same", null], "Document"));
+        Assert.Equal(false, Convert(["same", null], TabKind.Document));
     }
 }

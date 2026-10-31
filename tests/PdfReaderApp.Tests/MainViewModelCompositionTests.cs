@@ -70,6 +70,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
             DocumentLoader = new FakeDocumentLoader(),
             CompositionStore = _compositions,
             CompositionGenerator = _generator,
+            ConfirmDeleteComposition = _ => true,
         });
 
         _workspaces.Upsert(_ws);
@@ -98,7 +99,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
         AddNote("nA", "docA", 4, "ý A");
         _vm.OpenWorkspaceCommand.Execute(_ws);
 
-        await _vm.Compositions.CreateSummaryCommand.ExecuteAsync(null);
+        await _vm.Compositions.CreateSummaryFromAllNotesAsync();
 
         Assert.Equal(["nA", "nB"], _generator.Received.Single().SourceNoteIds);
         var composition = Assert.Single(_vm.Compositions.Items);
@@ -114,7 +115,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
     {
         AddNote("nA", "docA", 0, "ý A");
         _vm.OpenWorkspaceCommand.Execute(_ws);
-        await _vm.Compositions.CreateSummaryCommand.ExecuteAsync(null);
+        await _vm.Compositions.CreateSummaryFromAllNotesAsync();
         var created = _vm.Compositions.Items[0];
 
         var other = new Workspace("ws-2", "Khác", false, null, 1, 1);
@@ -136,7 +137,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
     {
         AddNote("nA", "docA", 0, "ý A");
         _vm.OpenWorkspaceCommand.Execute(_ws);
-        await _vm.Compositions.CreateSummaryCommand.ExecuteAsync(null);
+        await _vm.Compositions.CreateSummaryFromAllNotesAsync();
         var composition = _vm.Compositions.Items[0];
         var documentTab = _vm.Session.Tabs.Tabs.OfType<DocumentTab>().First();
         _vm.ActivateTabCommand.Execute(documentTab);
@@ -153,7 +154,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
     {
         _vm.OpenWorkspaceCommand.Execute(_ws);
 
-        await _vm.Compositions.CreateSummaryCommand.ExecuteAsync(null);
+        await _vm.Compositions.CreateSummaryFromAllNotesAsync();
 
         Assert.Empty(_vm.Compositions.Items);
         Assert.Empty(_vm.Session.Tabs.Tabs.OfType<CompositionTab>());
@@ -168,7 +169,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
         _vm.OpenWorkspaceDocumentCommand.Execute(_vm.Library[0]);
         string? documentBefore = _vm.Session.DocumentId;
 
-        await _vm.Compositions.CreateSummaryCommand.ExecuteAsync(null);
+        await _vm.Compositions.CreateSummaryFromAllNotesAsync();
 
         Assert.NotNull(documentBefore);
         Assert.Equal(documentBefore, _vm.Session.DocumentId);
@@ -224,7 +225,6 @@ public sealed class MainViewModelCompositionTests : IDisposable
         var tab = OpenCompositionTab();
         var other = _vm.Session.OpenComposition(new Composition("c2", _ws.Id, "T2", CompositionKind.Summary, "y", "m", [], 2));
         _vm.Session.Activate(tab);
-        _vm.Compositions.ConfirmDelete = _ => true;
 
         _vm.Compositions.DeleteCommand.Execute(tab.Composition);
 

@@ -18,17 +18,17 @@ public sealed class LightTabStripViewModel : TabHost
     }
 
     /// <summary>Tab Document của chính Document đang đọc lẻ: không đóng được.</summary>
-    internal static DocumentTab CreateDocumentTab(string documentId, string title, string path)
-        => new(documentId, title, path) { CanClose = false };
+    internal static DocumentTab CreateDocumentTab(DocumentRef document)
+        => new(document.DocumentId, document.Title, document.Path) { CanClose = false };
 
     /// <summary>
     /// Đảm bảo có Tab Document đứng đầu strip và trả về nó. Mở khi Default Workspace có Tab Bản soạn đầu tiên;
     /// Tab Document đã có thì giữ nguyên.
     /// </summary>
-    internal DocumentTab EnsureDocumentTab(string documentId, string title, string path)
+    internal DocumentTab EnsureDocumentTab(DocumentRef document)
     {
         if (Items.OfType<DocumentTab>().FirstOrDefault() is { } existing) return existing;
-        var tab = CreateDocumentTab(documentId, title, path);
+        var tab = CreateDocumentTab(document);
         InsertAndActivate(0, tab);
         return tab;
     }

@@ -22,7 +22,7 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
         IReadOnlyList<CompositionSourceDocument> documents,
         Action<CompositionDraft> create,
         Action close,
-        int budgetChars = ContextLimits.MaxChars)
+        int budgetChars)
     {
         _documents = documents;
         _create = create;
@@ -38,9 +38,9 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
     /// <summary>Các kiểu để chọn, theo thứ tự hiển thị.</summary>
     public IReadOnlyList<CompositionKindOption> Kinds { get; } =
     [
-        new(CompositionKind.Summary, "Tóm tắt", "Các ý chính, ngắn gọn"),
-        new(CompositionKind.Outline, "Outline", "Dàn ý theo mục và mục con"),
-        new(CompositionKind.Draft, "Soạn thảo", "Bản thảo văn xuôi hoàn chỉnh"),
+        new(CompositionKind.Summary, CompositionKindLabels.Summary, "Các ý chính, ngắn gọn"),
+        new(CompositionKind.Outline, CompositionKindLabels.Outline, "Dàn ý theo mục và mục con"),
+        new(CompositionKind.Draft, CompositionKindLabels.Draft, "Bản thảo văn xuôi hoàn chỉnh"),
     ];
 
     [ObservableProperty]

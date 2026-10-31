@@ -54,7 +54,7 @@ public sealed class CreateCompositionDialogViewModelTests
     {
         var created = new List<CompositionDraft>();
         int closed = 0;
-        var vm = new CreateCompositionDialogViewModel(FiveNotes(), Documents, created.Add, () => closed++);
+        var vm = new CreateCompositionDialogViewModel(FiveNotes(), Documents, created.Add, () => closed++, ContextLimits.MaxChars);
         vm.Tree.Documents[1].IsChecked = false;
         vm.Tree.Documents[0].Notes[2].IsChecked = false;
         vm.Kind = CompositionKind.Outline;
@@ -130,7 +130,7 @@ public sealed class CreateCompositionDialogViewModelTests
     {
         var created = new List<CompositionDraft>();
         int closed = 0;
-        var vm = new CreateCompositionDialogViewModel(FiveNotes(), Documents, created.Add, () => closed++);
+        var vm = new CreateCompositionDialogViewModel(FiveNotes(), Documents, created.Add, () => closed++, ContextLimits.MaxChars);
 
         vm.CancelCommand.Execute(null);
 

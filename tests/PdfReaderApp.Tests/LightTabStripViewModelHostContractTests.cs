@@ -9,7 +9,7 @@ public sealed class LightTabStripViewModelHostContractTests : TabHostContractTes
     protected override TabHost CreateHostWithDocument(out OpenTab document)
     {
         var host = new LightTabStripViewModel();
-        document = host.EnsureDocumentTab("A", "A", "/a.pdf");
+        document = host.EnsureDocumentTab(new DocumentRef("A", "A", "/a.pdf"));
         return host;
     }
 
@@ -17,7 +17,7 @@ public sealed class LightTabStripViewModelHostContractTests : TabHostContractTes
     public void DocumentTab_CannotBeClosed()
     {
         var host = new LightTabStripViewModel();
-        var document = host.EnsureDocumentTab("A", "A", "/a.pdf");
+        var document = host.EnsureDocumentTab(new DocumentRef("A", "A", "/a.pdf"));
         var x = Compose(host, "X");
 
         host.Close(document);
@@ -31,10 +31,10 @@ public sealed class LightTabStripViewModelHostContractTests : TabHostContractTes
     public void EnsureDocumentTab_CalledAgain_KeepsTheSameTabAtTheFront()
     {
         var host = new LightTabStripViewModel();
-        var first = host.EnsureDocumentTab("A", "A", "/a.pdf");
+        var first = host.EnsureDocumentTab(new DocumentRef("A", "A", "/a.pdf"));
         Compose(host, "X");
 
-        var second = host.EnsureDocumentTab("A", "A", "/a.pdf");
+        var second = host.EnsureDocumentTab(new DocumentRef("A", "A", "/a.pdf"));
 
         Assert.Same(first, second);
         Assert.Equal("A,X", Order(host));
@@ -44,7 +44,7 @@ public sealed class LightTabStripViewModelHostContractTests : TabHostContractTes
     public void Strip_IsVisibleFromTwoTabs()
     {
         var host = new LightTabStripViewModel();
-        host.EnsureDocumentTab("A", "A", "/a.pdf");
+        host.EnsureDocumentTab(new DocumentRef("A", "A", "/a.pdf"));
         Assert.False(host.IsStripVisible);
 
         Compose(host, "X");
@@ -56,7 +56,7 @@ public sealed class LightTabStripViewModelHostContractTests : TabHostContractTes
     public void DocumentTab_IsNeverHydrated()
     {
         var host = new LightTabStripViewModel();
-        var document = host.EnsureDocumentTab("A", "A", "/a.pdf");
+        var document = host.EnsureDocumentTab(new DocumentRef("A", "A", "/a.pdf"));
         Compose(host, "X");
         host.ActivateTab(document);
 

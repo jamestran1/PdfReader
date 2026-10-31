@@ -9,11 +9,6 @@ namespace PdfReaderApp.Services;
 /// </summary>
 internal sealed class AiCompositionGenerator(ISettingsService settings, IChatClientFactory factory) : ICompositionGenerator
 {
-    private const string SummaryFallbackTitle = "Tóm tắt";
-
-    private const string OutlineFallbackTitle = "Outline";
-    private const string DraftFallbackTitle = "Soạn thảo";
-
     // Phần chung của mọi kiểu: chỉ dùng Note, gắn [n], tiếng Việt mặc định, dòng đầu là tiêu đề.
     private const string CommonRules =
         "Chỉ dựa vào các Note được cung cấp, không thêm kiến thức bên ngoài. " +
@@ -102,11 +97,5 @@ internal sealed class AiCompositionGenerator(ISettingsService settings, IChatCli
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Kiểu Bản soạn chưa được hỗ trợ."),
     };
 
-    private static string FallbackTitleFor(CompositionKind kind) => kind switch
-    {
-        CompositionKind.Summary => SummaryFallbackTitle,
-        CompositionKind.Outline => OutlineFallbackTitle,
-        CompositionKind.Draft => DraftFallbackTitle,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Kiểu Bản soạn chưa được hỗ trợ."),
-    };
+    private static string FallbackTitleFor(CompositionKind kind) => CompositionKindLabels.For(kind);
 }

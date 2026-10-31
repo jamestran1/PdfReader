@@ -1,5 +1,6 @@
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
+using PdfReaderApp.Tests.Fakes;
 using PdfReaderApp.ViewModels;
 
 namespace PdfReaderApp.Tests.ViewModels;
@@ -64,7 +65,8 @@ public sealed class CompositionsViewModelTests
         public Fixture(params Note[] notes)
         {
             Vm = new CompositionsViewModel(
-                Store, new FakeNoteStore(notes), Generator, () => Documents, Opened.Add, Errors.Add,
+                Store, new FakeNoteStore(notes), Generator, () => Documents,
+                new CompositionsCallbacks { OpenComposition = (c, _) => Opened.Add(c), NotifyError = Errors.Add },
                 new FixedClock(1234));
             Vm.LoadFor("ws");
         }
@@ -84,7 +86,7 @@ public sealed class CompositionsViewModelTests
         var f = new Fixture(NoteOf("b1", "b", 0, "B"), NoteOf("a2", "a", 1, "A2"), NoteOf("free", null, null, "F", created: 5));
         f.Vm.Items.Add(new Composition("old", "ws", "Cũ", CompositionKind.Summary, "x", "m", [], 1));
 
-        await f.Vm.CreateSummaryCommand.ExecuteAsync(null);
+        await f.Vm.CreateSummaryFromAllNotesAsync();
 
         Assert.Equal(["a2", "b1", "free"], f.Generator.Received.Single().SourceNoteIds);
         var created = f.Vm.Items[0];
@@ -101,7 +103,7 @@ public sealed class CompositionsViewModelTests
     {
         var f = new Fixture();
 
-        await f.Vm.CreateSummaryCommand.ExecuteAsync(null);
+        await f.Vm.CreateSummaryFromAllNotesAsync();
 
         Assert.Empty(f.Generator.Received);
         Assert.Empty(f.Store.Rows);
@@ -116,7 +118,7 @@ public sealed class CompositionsViewModelTests
         var f = new Fixture(NoteOf("n", "a", 0, "x"));
         f.Vm.LoadFor(null);
 
-        await f.Vm.CreateSummaryCommand.ExecuteAsync(null);
+        await f.Vm.CreateSummaryFromAllNotesAsync();
 
         Assert.Empty(f.Generator.Received);
         Assert.Empty(f.Errors);
@@ -128,7 +130,7 @@ public sealed class CompositionsViewModelTests
         var f = new Fixture(NoteOf("n", "a", 0, "x"));
         f.Generator.Failure = new AiChatException(AiChatError.RateLimit, "x");
 
-        await f.Vm.CreateSummaryCommand.ExecuteAsync(null);
+        await f.Vm.CreateSummaryFromAllNotesAsync();
 
         Assert.Equal([AiErrorMessages.Describe(AiChatError.RateLimit)], f.Errors);
         Assert.Empty(f.Store.Rows);
@@ -193,8 +195,12 @@ public sealed class CompositionsViewModelTests
         var openedAfter = new List<(Composition, string)>();
         var vm = new CompositionsViewModel(
             store, new FakeNoteStore(NoteOf("n", "a", 0, "x"), NoteOf("m", "b", 0, "y")), generator,
-            () => [new("a", "Sách A"), new("b", "Sách B")], opened.Add, errors.Add,
-            openCompositionAfter: (c, after) => openedAfter.Add((c, after)));
+            () => [new("a", "Sách A"), new("b", "Sách B")],
+            new CompositionsCallbacks
+            {
+                OpenComposition = (c, after) => { if (after is null) opened.Add(c); else openedAfter.Add((c, after)); },
+                NotifyError = errors.Add,
+            });
         vm.LoadFor("ws");
         return (vm, store, opened, errors, openedAfter);
     }
@@ -205,7 +211,7 @@ public sealed class CompositionsViewModelTests
         var generator = new GatedGenerator();
         var (vm, store, opened, errors, _) = GatedVm(generator);
 
-        var running = vm.CreateSummaryCommand.ExecuteAsync(null);
+        var running = vm.CreateSummaryFromAllNotesAsync();
         Assert.True(vm.IsGenerating);
 
         vm.CancelGenerationCommand.Execute(null);
@@ -225,7 +231,7 @@ public sealed class CompositionsViewModelTests
         var generator = new GatedGenerator { HonorsCancellation = false };
         var (vm, store, opened, errors, _) = GatedVm(generator);
 
-        var running = vm.CreateSummaryCommand.ExecuteAsync(null);
+        var running = vm.CreateSummaryFromAllNotesAsync();
         vm.LoadFor("ws2");
         Assert.True(generator.LastToken.IsCancellationRequested);
         generator.Release();
@@ -315,16 +321,16 @@ public sealed class CompositionsViewModelTests
         var (vm, _, _, _, _) = GatedVm(generator);
         var existing = new Composition("c1", "ws", "T", CompositionKind.Summary, "x", "m", ["n"], 1);
 
-        Assert.True(vm.CreateSummaryCommand.CanExecute(null));
+        Assert.True(vm.ShowCreateDialogCommand.CanExecute(null));
         Assert.True(vm.RegenerateCommand.CanExecute(existing));
 
-        var running = vm.CreateSummaryCommand.ExecuteAsync(null);
-        Assert.False(vm.CreateSummaryCommand.CanExecute(null));
+        var running = vm.CreateSummaryFromAllNotesAsync();
+        Assert.False(vm.ShowCreateDialogCommand.CanExecute(null));
         Assert.False(vm.RegenerateCommand.CanExecute(existing));
 
         generator.Release();
         await running;
-        Assert.True(vm.CreateSummaryCommand.CanExecute(null));
+        Assert.True(vm.ShowCreateDialogCommand.CanExecute(null));
         Assert.True(vm.RegenerateCommand.CanExecute(existing));
     }
 
@@ -338,8 +344,13 @@ public sealed class CompositionsViewModelTests
         List<(Composition, string)> openedAfter = [];
         var vm = new CompositionsViewModel(
             f.Store, new FakeNoteStore(NoteOf("a1", "a", 0, "A"), NoteOf("b1", "b", 0, "B"), NoteOf("other", "b", 1, "O")),
-            f.Generator, () => f.Documents, f.Opened.Add, f.Errors.Add, new FixedClock(99),
-            (c, after) => openedAfter.Add((c, after)));
+            f.Generator, () => f.Documents,
+            new CompositionsCallbacks
+            {
+                OpenComposition = (c, after) => { if (after is null) f.Opened.Add(c); else openedAfter.Add((c, after)); },
+                NotifyError = f.Errors.Add,
+            },
+            new FixedClock(99));
         vm.LoadFor("ws");
 
         await vm.RegenerateCommand.ExecuteAsync(old);

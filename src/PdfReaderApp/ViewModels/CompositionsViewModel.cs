@@ -20,10 +20,8 @@ public sealed partial class CompositionsViewModel : ObservableObject
     private readonly INoteStore _noteStore;
     private readonly ICompositionGenerator _generator;
     private readonly Func<IReadOnlyList<CompositionSourceDocument>> _documentsInWorkspace;
-    private readonly Action<Composition> _openComposition;
-    private readonly Action<string> _notifyError;
+    private readonly CompositionsCallbacks _callbacks;
     private readonly TimeProvider _clock;
-    private readonly Action<Composition, string>? _openCompositionAfter;
     private CancellationTokenSource? _generation;
 
     internal CompositionsViewModel(
@@ -31,18 +29,14 @@ public sealed partial class CompositionsViewModel : ObservableObject
         INoteStore noteStore,
         ICompositionGenerator generator,
         Func<IReadOnlyList<CompositionSourceDocument>> documentsInWorkspace,
-        Action<Composition> openComposition,
-        Action<string> notifyError,
-        TimeProvider? clock = null,
-        Action<Composition, string>? openCompositionAfter = null)
+        CompositionsCallbacks callbacks,
+        TimeProvider? clock = null)
     {
-        _openCompositionAfter = openCompositionAfter;
         _store = store;
         _noteStore = noteStore;
         _generator = generator;
         _documentsInWorkspace = documentsInWorkspace;
-        _openComposition = openComposition;
-        _notifyError = notifyError;
+        _callbacks = callbacks;
         _clock = clock ?? TimeProvider.System;
     }
 
@@ -57,15 +51,16 @@ public sealed partial class CompositionsViewModel : ObservableObject
             store, services.NoteStore,
             services.CompositionGenerator ?? new AiCompositionGenerator(services.Settings, services.ChatClientFactory),
             () => DocumentsInWorkspace(services.WorkspaceStore, host.Library, host.Session.ActiveWorkspaceId),
-            composition => host.Session.OpenComposition(composition),
-            host.NotifyError,
-            openCompositionAfter: (composition, afterId) => host.Session.OpenComposition(composition, afterId))
-        {
-            OpenTabFor = id => host.Session.CurrentTabs.Tabs.OfType<CompositionTab>().FirstOrDefault(t => t.CompositionId == id),
-            CloseTab = tab => host.Session.Close(tab),
-            CopyToClipboard = DesktopPrompts.CopyText,
-            ConfirmDelete = DesktopPrompts.ConfirmDeleteComposition,
-        };
+            new CompositionsCallbacks
+            {
+                OpenComposition = (composition, afterId) => host.Session.OpenComposition(composition, afterId),
+                NotifyError = host.NotifyError,
+                OpenTabFor = id => host.Session.FindCompositionTab(id),
+                CloseTab = tab => host.Session.Close(tab),
+                CopyToClipboard = DesktopPrompts.CopyText,
+                ConfirmDelete = services.ConfirmDeleteComposition ?? DesktopPrompts.ConfirmDeleteComposition,
+                BudgetChars = () => CompositionBudget.CharsFor(services.Settings.GetModelSettings().ChatModel),
+            });
     }
 
     // Document của Workspace theo thứ tự Library, cùng thứ tự với surface Workspace Documents.
@@ -96,7 +91,6 @@ public sealed partial class CompositionsViewModel : ObservableObject
 
     /// <summary>Đang sinh một Bản soạn.</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(CreateSummaryCommand))]
     [NotifyCanExecuteChangedFor(nameof(RegenerateCommand))]
     [NotifyCanExecuteChangedFor(nameof(ShowCreateDialogCommand))]
     public partial bool IsGenerating { get; private set; }
@@ -119,7 +113,7 @@ public sealed partial class CompositionsViewModel : ObservableObject
     [RelayCommand]
     private void Open(Composition? composition)
     {
-        if (composition is not null) _openComposition(composition);
+        if (composition is not null) _callbacks.OpenComposition(composition, null);
     }
 
     private bool CanGenerate() => !IsGenerating;
@@ -140,28 +134,18 @@ public sealed partial class CompositionsViewModel : ObservableObject
         Dialog = new CreateCompositionDialogViewModel(
             _noteStore.GetForOwner(owner), _documentsInWorkspace(),
             draft => _ = CreateFromDraftAsync(draft),
-            () => IsDialogOpen = false);
+            () => IsDialogOpen = false,
+            _callbacks.BudgetChars());
         IsDialogOpen = true;
     }
 
-    private Task CreateFromDraftAsync(CompositionDraft draft)
-        => GenerateFromNoteIdsAsync(draft.Kind, draft.NoteIds, draft.AdditionalRequest);
-
-    [RelayCommand(CanExecute = nameof(CanGenerate))]
-    private Task CreateSummaryAsync() => GenerateFromNoteIdsAsync(CompositionKind.Summary, noteIds: null, additionalRequest: null);
-
-    // noteIds null = mọi Note của Workspace.
-    private async Task GenerateFromNoteIdsAsync(CompositionKind kind, IReadOnlyCollection<string>? noteIds, string? additionalRequest)
+    /// <summary>Sinh Bản soạn từ lựa chọn của hộp thoại: đúng các Note đã chọn, kiểu và yêu cầu thêm.</summary>
+    internal async Task CreateFromDraftAsync(CompositionDraft draft)
     {
         if (OwnerKey is not { } owner || IsGenerating) return;
-        var notes = _noteStore.GetForOwner(owner);
-        if (noteIds is not null)
-        {
-            var wanted = new HashSet<string>(noteIds, StringComparer.Ordinal);
-            notes = [.. notes.Where(n => wanted.Contains(n.Id))];
-        }
-
-        await GenerateAsync(owner, kind, notes, afterCompositionId: null, additionalRequest);
+        var wanted = new HashSet<string>(draft.NoteIds, StringComparer.Ordinal);
+        var notes = _noteStore.GetForOwner(owner).Where(n => wanted.Contains(n.Id)).ToList();
+        await GenerateAsync(owner, draft.Kind, notes, afterCompositionId: null, draft.AdditionalRequest);
     }
 
     /// <summary>Sinh lại: Bản soạn mới cùng kiểu, cùng Note nguồn và cùng yêu cầu thêm, mở bên phải tab cũ; bản cũ giữ nguyên.</summary>
@@ -179,7 +163,7 @@ public sealed partial class CompositionsViewModel : ObservableObject
         var context = CompositionContextBuilder.Build(notes, _documentsInWorkspace()) with { AdditionalRequest = additionalRequest };
         if (context.SourceNoteIds.Count == 0)
         {
-            _notifyError(NoNotesMessage);
+            _callbacks.NotifyError(NoNotesMessage);
             return;
         }
 
@@ -197,8 +181,7 @@ public sealed partial class CompositionsViewModel : ObservableObject
             _store.Add(composition);
 
             Items.Insert(0, composition);
-            if (afterCompositionId is not null && _openCompositionAfter is not null) _openCompositionAfter(composition, afterCompositionId);
-            else _openComposition(composition);
+            _callbacks.OpenComposition(composition, afterCompositionId);
         }
         catch (OperationCanceledException) when (generation.IsCancellationRequested)
         {
@@ -206,13 +189,13 @@ public sealed partial class CompositionsViewModel : ObservableObject
         }
         catch (AiChatException ex)
         {
-            _notifyError(AiErrorMessages.Describe(ex.Error));
+            _callbacks.NotifyError(AiErrorMessages.Describe(ex.Error));
         }
 #pragma warning disable CA1031 // ranh giới lệnh UI: lỗi lưu không được làm sập app, hiện cho người dùng
         catch (Exception ex)
         {
             System.Diagnostics.Trace.TraceWarning($"CompositionsViewModel: tạo Bản soạn lỗi: {ex}");
-            _notifyError(AiErrorMessages.Unknown);
+            _callbacks.NotifyError(AiErrorMessages.Unknown);
         }
 #pragma warning restore CA1031
         finally

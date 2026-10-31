@@ -60,6 +60,10 @@ public abstract class TabHost : ObservableObject
     /// <summary>Các tab theo thứ tự hiển thị, cho lớp con tìm tab đã có.</summary>
     protected IReadOnlyList<OpenTab> Items => _tabItems;
 
+    /// <summary>Tab Bản soạn đang mở của <paramref name="compositionId"/>, null khi chưa mở.</summary>
+    internal CompositionTab? FindComposition(string compositionId)
+        => _tabItems.OfType<CompositionTab>().FirstOrDefault(t => t.CompositionId == compositionId);
+
     /// <summary>
     /// Mở Tab Bản soạn cho <paramref name="composition"/>, hoặc kích hoạt tab đã có (không mở tab trùng).
     /// Tab mới chèn ngay sau ActiveTab, như Tab Document; khi có <paramref name="afterCompositionId"/> và tab đó còn mở thì
@@ -67,17 +71,14 @@ public abstract class TabHost : ObservableObject
     /// </summary>
     internal CompositionTab OpenOrActivateComposition(Composition composition, string? afterCompositionId = null)
     {
-        foreach (var existing in _tabItems)
+        if (FindComposition(composition.Id) is { } existing)
         {
-            if (existing is CompositionTab compositionTab && compositionTab.CompositionId == composition.Id)
-            {
-                Activate(compositionTab);
-                return compositionTab;
-            }
+            Activate(existing);
+            return existing;
         }
 
         var tab = new CompositionTab(composition);
-        var anchor = _tabItems.FirstOrDefault(t => t is CompositionTab c && c.CompositionId == afterCompositionId) ?? _activeTab;
+        var anchor = (afterCompositionId is null ? null : FindComposition(afterCompositionId)) ?? _activeTab;
         int insertAt = anchor is null ? _tabItems.Count : _tabItems.IndexOf(anchor) + 1;
         _tabItems.Insert(insertAt, tab);
         Activate(tab);
@@ -99,7 +100,6 @@ public abstract class TabHost : ObservableObject
         {
             // Kích hoạt tab được dùng gần nhất trong số còn lại.
             var next = _mru.Count > 0 ? _mru[0] : null;
-            // Gán trực tiếp để tránh tự thêm lại vào MRU (Activate đã làm điều đó).
             if (next is not null)
                 Activate(next);
             else
@@ -123,7 +123,7 @@ public abstract class TabHost : ObservableObject
     /// chỉ kích hoạt tab active được chỉ định -> đúng một ActiveTabChanged -> đúng một lần nạp Document.
     /// Dùng khi vào lại Workspace. Gọi khi tập tab đang rỗng.
     /// </summary>
-    internal void RestoreTabs(IReadOnlyList<OpenTab> tabs, string? activeDocumentId)
+    internal void RestoreTabs(IReadOnlyList<OpenTab> tabs, string? activeItemId)
     {
         foreach (var tab in tabs)
         {
@@ -132,9 +132,9 @@ public abstract class TabHost : ObservableObject
         }
         OnPropertyChanged(nameof(HasTabs));
 
-        var tabToActivate = activeDocumentId is null
+        var tabToActivate = activeItemId is null
             ? null
-            : _tabItems.FirstOrDefault(t => t.ItemId == activeDocumentId);
+            : _tabItems.FirstOrDefault(t => t.ItemId == activeItemId);
         if (tabToActivate is not null)
             Activate(tabToActivate);
     }

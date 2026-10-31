@@ -216,7 +216,7 @@ public class TabSetViewModelTests
 
         var tabA = new DocumentTab("docA", "A", "/a.pdf") { Page = 3, Zoom = 1.5 };
         var tabB = new DocumentTab("docB", "B", "/b.pdf") { Page = 7, Zoom = 2.0 };
-        tabSet.RestoreTabs(new[] { tabA, tabB }, activeDocumentId: "docB");
+        tabSet.RestoreTabs(new[] { tabA, tabB }, activeItemId: "docB");
 
         Assert.Equal(new[] { "docA", "docB" }, tabSet.Tabs.Select(t => t.ItemId), StringComparer.Ordinal);
         Assert.Same(tabB, tabSet.ActiveTab);
@@ -235,7 +235,7 @@ public class TabSetViewModelTests
         var tabB = new DocumentTab("docB", "B", "/b.pdf");
         var tabC = new DocumentTab("docC", "C", "/c.pdf");
 
-        tabSet.RestoreTabs(new[] { tabA, tabB, tabC }, activeDocumentId: "docB");
+        tabSet.RestoreTabs(new[] { tabA, tabB, tabC }, activeItemId: "docB");
 
         Assert.False(tabA.IsHydrated);
         Assert.True(tabB.IsHydrated);

@@ -63,13 +63,7 @@ public sealed partial class CompositionTab : OpenTab
     }
 
     /// <summary>Nhãn kiểu Bản soạn trên chip.</summary>
-    public string KindLabel => Composition.Kind switch
-    {
-        CompositionKind.Summary => "Tóm tắt",
-        CompositionKind.Outline => "Outline",
-        CompositionKind.Draft => "Soạn thảo",
-        _ => Composition.Kind.ToString(),
-    };
+    public string KindLabel => Composition.KindLabel;
 
     /// <summary>Dòng phụ dưới tiêu đề: số Note nguồn và Chat Model đã dùng.</summary>
     public string MetaText => $"{Composition.SourceNoteIds.Count} Note · {Composition.ChatModel}";
