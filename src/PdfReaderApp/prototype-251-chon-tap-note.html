@@ -1,0 +1,256 @@
+<!doctype html>
+<!--
+  PROTOTYPE, vứt đi sau khi chọn. Ticket #251 "Chọn tập Note làm nguồn" (map #28).
+  Ba biến thể cách chọn tập Note làm nguồn cho Bản soạn, đổi bằng ?variant=A|B|C hoặc thanh nổi dưới đáy (phím ← →).
+  Giả định: app là WPF nên không gắn được biến thể vào trang thật rẻ; mock lại khung Trí Thư (danh sách Document, trang PDF, panel phải) bằng token màu thật.
+  Dữ liệu giả, không lưu gì. Ngân sách 48k ký tự theo quyết định #250 (vượt thì chặn).
+-->
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chọn nguồn Bản soạn</title>
+<style>
+:root{
+  --primary:#006B5B;--on-primary:#fff;--pc:#74F8DD;--pc-on:#00201A;--sc:#CCE8DE;--sc-on:#06201A;
+  --surface:#F4FBF7;--on-surface:#161D1B;--on-sv:#3F4945;--outline:#6F7975;--ov:#BFC9C4;
+  --low:#EEF5F1;--tonal:#E8EFEB;--high:#E2E9E5;--lowest:#fff;--err:#BA1A1A;--errc:#FFDAD6;--inv:#2B322F;--inv-on:#ECF2EE;
+  --tc:#C6E7FF;--tc-on:#001E2F;--hl:#F9E07F;
+}
+*{box-sizing:border-box}
+body{margin:0;font:13px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--surface);color:var(--on-surface);height:100vh;overflow:hidden}
+.app{display:grid;grid-template-columns:220px 1fr 380px;height:100vh}
+.rail{background:var(--low);border-right:1px solid var(--ov);padding:12px;overflow:auto}
+.rail h3{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--on-sv);margin:4px 0 8px}
+.doc{display:flex;gap:8px;align-items:center;padding:8px;border-radius:12px;margin-bottom:4px}
+.doc.active{background:var(--sc)}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.center{display:flex;align-items:flex-start;justify-content:center;padding:24px;overflow:auto;background:var(--tonal)}
+.page{width:520px;min-height:700px;background:#fff;box-shadow:0 1px 3px #0003;padding:48px;color:#444}
+.page .line{height:9px;background:#e6e6e6;margin:10px 0;border-radius:2px}
+.page .line.hl{background:var(--hl)}
+.right{border-left:1px solid var(--ov);background:var(--lowest);display:flex;flex-direction:column;min-height:0;position:relative}
+.tabs{display:flex;border-bottom:1px solid var(--ov)}
+.tab{flex:1;text-align:center;padding:10px 0;color:var(--on-sv);cursor:pointer}
+.tab.on{color:var(--primary);border-bottom:3px solid var(--primary);font-weight:600}
+.body{flex:1;overflow:auto;padding:8px;min-height:0}
+input[type=text],textarea{width:100%;border:none;border-bottom:1px solid var(--outline);background:transparent;padding:6px 2px;font:inherit;color:inherit;outline:none}
+textarea{border:1px solid var(--outline);border-radius:4px;padding:6px;resize:vertical}
+.card{background:var(--lowest);border-radius:8px;box-shadow:0 1px 2px #0002,0 1px 3px 1px #0001;padding:8px;margin-bottom:8px;display:flex;gap:8px}
+.card.off{opacity:.45}
+.card .main{flex:1;min-width:0}
+.chip{display:inline-flex;align-items:center;gap:4px;font-size:10px;color:#fff;border-radius:10px;padding:1px 7px;margin-bottom:4px}
+.quote{border-left:3px solid var(--ov);padding:0 6px;font-style:italic;opacity:.75;margin-bottom:4px;max-height:40px;overflow:hidden}
+.pg{font-size:11px;opacity:.7;margin-top:4px}
+.btn{border:none;border-radius:12px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer;background:var(--primary);color:var(--on-primary)}
+.btn:disabled{background:var(--high);color:#1d1b2061;cursor:not-allowed}
+.btn.text{background:transparent;color:var(--primary)}
+.btn.tonal{background:var(--sc);color:var(--sc-on)}
+.seg{display:flex;border:1px solid var(--outline);border-radius:12px;overflow:hidden}
+.seg button{flex:1;border:none;background:transparent;padding:6px 8px;font:inherit;cursor:pointer;color:var(--on-surface)}
+.seg button+button{border-left:1px solid var(--outline)}
+.seg button.on{background:var(--sc);color:var(--sc-on);font-weight:600}
+.budget{font-size:12px;color:var(--on-sv)}
+.bar{height:4px;background:var(--high);border-radius:2px;overflow:hidden;margin:4px 0}
+.bar i{display:block;height:100%;background:var(--primary)}
+.budget.over{color:var(--err)} .budget.over .bar i{background:var(--err)}
+.grp{display:flex;align-items:center;gap:8px;padding:6px 4px;font-weight:600;position:sticky;top:-8px;background:var(--lowest);z-index:1}
+.grp small{font-weight:400;color:var(--on-sv)}
+input[type=checkbox]{accent-color:var(--primary);width:16px;height:16px;margin:2px 0 0;flex:none;cursor:pointer}
+.dock{border-top:1px solid var(--ov);background:var(--low);padding:10px;display:flex;flex-direction:column;gap:8px}
+.row{display:flex;gap:8px;align-items:center}
+.spacer{flex:1}
+.muted{color:var(--on-sv)}
+.scrim{position:fixed;inset:0;background:#0006;display:flex;align-items:center;justify-content:center;z-index:5}
+.dialog{background:var(--surface);border-radius:28px;width:880px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 100px);display:grid;grid-template-columns:1fr 300px;overflow:hidden;box-shadow:0 8px 24px #0004}
+.dialog .l{padding:20px;overflow:auto;border-right:1px solid var(--ov)}
+.dialog .r{padding:20px;display:flex;flex-direction:column;gap:12px;background:var(--low)}
+.dialog h2{margin:0 0 12px;font-size:22px;font-weight:400}
+.tree .n{display:flex;gap:8px;padding:4px 4px 4px 28px;align-items:flex-start}
+.tree .n .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tree .d{display:flex;gap:8px;padding:6px 4px;align-items:center;font-weight:600;cursor:pointer}
+.caret{width:14px;display:inline-block;color:var(--on-sv)}
+.scope label{display:flex;gap:8px;align-items:flex-start;padding:6px 0;cursor:pointer}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0 24px}
+.fchip{border:1px solid var(--outline);border-radius:8px;padding:4px 10px;cursor:pointer;display:inline-flex;gap:6px;align-items:center;background:transparent;font:inherit}
+.fchip.on{background:var(--sc);border-color:transparent}
+.x{border:none;background:transparent;cursor:pointer;color:var(--on-sv);font-size:16px;line-height:1;padding:0 4px}
+.empty{padding:40px 16px;text-align:center;color:var(--on-sv)}
+.toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:var(--inv);color:var(--inv-on);padding:12px 16px;border-radius:4px;z-index:20;max-width:560px}
+.switcher{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;color:#fff;border-radius:999px;padding:6px 8px;display:flex;align-items:center;gap:8px;box-shadow:0 4px 16px #0006;z-index:30;font:12px system-ui;border:2px dashed #ff3d7f}
+.switcher button{background:#333;color:#fff;border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;font-size:14px}
+.switcher label{display:flex;gap:4px;align-items:center;margin-left:8px;opacity:.85}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const DOCS=[
+  {id:'d1',title:'Giáo trình Kinh tế vi mô',color:'#2E7D6B'},
+  {id:'d2',title:'Báo cáo thị trường lúa gạo 2025',color:'#5B6CB2'},
+  {id:'d3',title:'Luật Cạnh tranh 2018',color:'#B25B7E'},
+];
+const NOTES=[
+  {id:1,doc:'d1',page:12,quote:'Đường cầu dốc xuống do hiệu ứng thu nhập và hiệu ứng thay thế.',content:'Nhớ phân biệt hai hiệu ứng, đề thi hay hỏi.'},
+  {id:2,doc:'d1',page:15,quote:'Độ co giãn của cầu theo giá đo phần trăm thay đổi lượng cầu...',content:'Công thức điểm giữa dùng khi biến động lớn.'},
+  {id:3,doc:'d1',page:31,quote:null,content:'Chương 3 cần đọc lại phần thặng dư tiêu dùng, ví dụ trang 31 khó hiểu.'},
+  {id:4,doc:'d1',page:48,quote:'Trong ngắn hạn, doanh nghiệp tiếp tục sản xuất nếu giá lớn hơn AVC tối thiểu.',content:'Điểm đóng cửa = min AVC.'},
+  {id:5,doc:'d1',page:52,quote:'Thị trường độc quyền tự nhiên xuất hiện khi chi phí bình quân giảm dần.',content:'Liên hệ với Luật Cạnh tranh, phần doanh nghiệp có vị trí thống lĩnh.'},
+  {id:6,doc:'d2',page:3,quote:'Sản lượng xuất khẩu gạo 2025 đạt 8,1 triệu tấn, tăng 6%.',content:'Số liệu chính cho phần mở đầu bài thuyết trình.'},
+  {id:7,doc:'d2',page:7,quote:'Giá gạo 5% tấm bình quân 520 USD/tấn.',content:'So với 2024 giảm nhẹ; tìm nguyên nhân (Ấn Độ mở lại xuất khẩu?).'},
+  {id:8,doc:'d2',page:11,quote:null,content:'Ý tưởng: dùng mô hình cung cầu chương 2 giải thích biến động giá.'},
+  {id:9,doc:'d2',page:18,quote:'Diện tích lúa chất lượng cao chiếm 75% vụ Đông Xuân.',content:'Xu hướng chuyển dịch sang gạo thơm.'},
+  {id:10,doc:'d3',page:5,quote:'Doanh nghiệp được coi là có vị trí thống lĩnh thị trường nếu có thị phần từ 30% trở lên.',content:'Ngưỡng 30%, nhóm doanh nghiệp có ngưỡng khác.'},
+  {id:11,doc:'d3',page:9,quote:'Thỏa thuận hạn chế cạnh tranh bị cấm...',content:'Liệt kê các hành vi bị cấm tuyệt đối.'},
+  {id:12,doc:'d3',page:null,quote:null,content:'Hỏi thầy: Luật 2018 khác 2004 ở cách tiếp cận "tác động" thay vì "hình thức".'},
+  {id:13,doc:'d3',page:22,quote:'Ủy ban Cạnh tranh Quốc gia có thẩm quyền...',content:'Cơ quan thực thi mới.'},
+];
+const BUDGET=48000;
+const TYPES=['Tóm tắt','Outline','Soạn thảo'];
+const docOf=id=>DOCS.find(d=>d.id===id);
+const noteChars=n=>(n.content.length+(n.quote?n.quote.length:0)+docOf(n.doc).title.length+20);
+
+let S={variant:new URLSearchParams(location.search).get('variant')||'A',big:false,
+  sel:new Set(NOTES.map(n=>n.id)),type:'Tóm tắt',filter:'',selectMode:false,dialog:false,
+  open:{d1:true,d2:true,d3:true},scope:'all',scopeDocs:new Set(['d1','d2','d3']),scopeText:'',excluded:new Set(),toast:null,tab:'notes'};
+const VARIANTS={A:'Tick trong panel Notes',B:'Hộp thoại cây Document → Note',C:'Phạm vi rồi loại trừ'};
+
+function charsOf(ids){let c=0;for(const n of NOTES)if(ids.has(n.id))c+=noteChars(n);return S.big?c*40:c}
+function fmtK(c){return (c/1000).toFixed(1).replace('.',',')+'k'}
+function budgetHtml(ids){
+  const c=charsOf(ids),over=c>BUDGET,pct=Math.min(100,c/BUDGET*100);
+  return `<div class="budget ${over?'over':''}">
+    <div class="row"><span>${ids.size} Note · ${fmtK(c)} / 48k ký tự</span></div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    ${over?'<div>Vượt ngân sách của Chat Model. Bỏ bớt Note để tạo.</div>':''}</div>`;
+}
+function typeSeg(){return `<div class="seg">${TYPES.map(t=>`<button class="${S.type===t?'on':''}" onclick="S.type='${t}';render()">${t}</button>`).join('')}</div>`}
+function chip(n){const d=docOf(n.doc);return `<span class="chip" style="background:${d.color}">▤ ${d.title}</span>`}
+function noteBody(n){return `${chip(n)}${n.quote?`<div class="quote">${n.quote}</div>`:''}<div>${n.content}</div><div class="pg">${n.page?'Trang '+n.page:'Không neo trang'}</div>`}
+function triState(ids){const k=ids.filter(i=>S.sel.has(i)).length;return k===0?'none':k===ids.length?'all':'some'}
+function toggleIds(ids){const st=triState(ids);ids.forEach(i=>st==='all'?S.sel.delete(i):S.sel.add(i));render()}
+function create(ids){
+  if(charsOf(ids)>BUDGET||ids.size===0)return;
+  S.toast=`Đang tạo Bản soạn "${S.type}" từ ${ids.size} Note… (prototype: không gọi AI)`;
+  S.selectMode=false;S.dialog=false;render();setTimeout(()=>{S.toast=null;render()},2600);
+}
+const filtered=()=>NOTES.filter(n=>!S.filter||(n.content+(n.quote||'')).toLowerCase().includes(S.filter.toLowerCase()));
+
+/* ---------- Khung app chung ---------- */
+function shell(rightHtml,extra=''){
+  return `<div class="app">
+   <aside class="rail"><h3>Workspace: Ôn thi Kinh tế</h3>
+     ${DOCS.map((d,i)=>`<div class="doc ${i===0?'active':''}"><span class="dot" style="background:${d.color}"></span>${d.title}</div>`).join('')}
+   </aside>
+   <main class="center"><div class="page">${Array.from({length:26},(_,i)=>`<div class="line ${i===7||i===8?'hl':''}" style="width:${70+((i*37)%30)}%"></div>`).join('')}</div></main>
+   <section class="right">${rightHtml}</section></div>${extra}`;
+}
+function tabs(names){return `<div class="tabs">${names.map(([k,l])=>`<div class="tab ${S.tab===k?'on':''}" onclick="S.tab='${k}';render()">${l}</div>`).join('')}</div>`}
+function plainNotes(){
+  return `<input type="text" placeholder="Lọc ghi chú" value="${S.filter}" oninput="refocus(this);S.filter=this.value;render()">
+   <textarea rows="3" placeholder="Viết ghi chú (Ctrl+Enter để lưu)" style="margin:8px 0"></textarea>
+   ${filtered().map(n=>`<div class="card"><div class="main">${noteBody(n)}</div></div>`).join('')}`;
+}
+function chatStub(){return `<div class="empty">Chat (không thuộc prototype)</div>`}
+
+/* ---------- A: chế độ chọn ngay trong panel Notes ---------- */
+function VariantA(){
+  if(S.tab!=='notes'||!S.selectMode){
+    const body=S.tab==='chat'?chatStub():`<div class="row" style="margin-bottom:8px"><span class="muted">${NOTES.length} ghi chú</span><span class="spacer"></span>
+       <button class="btn tonal" onclick="S.selectMode=true;S.sel=new Set(NOTES.map(n=>n.id));render()">✦ Tạo Bản soạn</button></div>${plainNotes()}`;
+    return shell(tabs([['chat','AI Chat'],['notes','Notes']])+`<div class="body">${body}</div>`);
+  }
+  const list=filtered();
+  const groups=DOCS.map(d=>({d,ns:list.filter(n=>n.doc===d.id)})).filter(g=>g.ns.length);
+  const body=`<div class="row" style="margin-bottom:6px"><b>Chọn Note làm nguồn</b><span class="spacer"></span>
+     <button class="btn text" onclick="S.sel=new Set(NOTES.map(n=>n.id));render()">Chọn tất cả</button>
+     <button class="btn text" onclick="S.sel=new Set();render()">Bỏ chọn</button></div>
+   <input type="text" placeholder="Lọc ghi chú" value="${S.filter}" oninput="refocus(this);S.filter=this.value;render()">
+   ${S.filter?`<div class="row" style="margin:6px 0"><button class="btn text" onclick="S.sel=new Set(filtered().map(n=>n.id));render()">Chỉ chọn ${list.length} Note đang lọc</button></div>`:''}
+   ${groups.map(({d,ns})=>{const ids=ns.map(n=>n.id),st=triState(ids);
+     return `<div class="grp"><input type="checkbox" ${st==='all'?'checked':''} ${st==='some'?'data-ind':''} onclick="toggleIds([${ids}])">
+       <span class="dot" style="background:${d.color}"></span>${d.title}<small>${ids.filter(i=>S.sel.has(i)).length}/${ids.length}</small></div>
+       ${ns.map(n=>`<label class="card ${S.sel.has(n.id)?'':'off'}"><input type="checkbox" ${S.sel.has(n.id)?'checked':''} onclick="S.sel.has(${n.id})?S.sel.delete(${n.id}):S.sel.add(${n.id});render()"><div class="main">${noteBody(n)}</div></label>`).join('')}`}).join('')}`;
+  const dock=`<div class="dock">${typeSeg()}<input type="text" placeholder="Yêu cầu thêm cho AI (không bắt buộc)">
+     ${budgetHtml(S.sel)}<div class="row"><button class="btn text" onclick="S.selectMode=false;render()">Hủy</button><span class="spacer"></span>
+     <button class="btn" ${S.sel.size&&charsOf(S.sel)<=BUDGET?'':'disabled'} onclick="create(S.sel)">Tạo ${S.type}</button></div></div>`;
+  return shell(tabs([['chat','AI Chat'],['notes','Notes']])+`<div class="body">${body}</div>${dock}`);
+}
+
+/* ---------- B: hộp thoại cây Document → Note ---------- */
+function VariantB(){
+  const base=`<div class="body">${S.tab==='chat'?chatStub():plainNotes()}</div>`;
+  const right=tabs([['chat','AI Chat'],['notes','Notes']])+`<div style="padding:8px;border-bottom:1px solid var(--ov)"><button class="btn tonal" style="width:100%" onclick="S.dialog=true;S.sel=new Set(NOTES.map(n=>n.id));render()">✦ Tạo Bản soạn…</button></div>`+base;
+  if(!S.dialog)return shell(right);
+  const all=NOTES.map(n=>n.id),stAll=triState(all);
+  const tree=DOCS.map(d=>{const ns=NOTES.filter(n=>n.doc===d.id&&(!S.filter||(n.content+(n.quote||'')).toLowerCase().includes(S.filter.toLowerCase())));if(!ns.length)return'';
+    const ids=ns.map(n=>n.id),st=triState(ids);
+    return `<div class="d"><span class="caret" onclick="S.open.${d.id}=!S.open.${d.id};render()">${S.open[d.id]?'▾':'▸'}</span>
+      <input type="checkbox" ${st==='all'?'checked':''} ${st==='some'?'data-ind':''} onclick="toggleIds([${ids}])">
+      <span class="dot" style="background:${d.color}"></span><span onclick="S.open.${d.id}=!S.open.${d.id};render()">${d.title}</span> <small class="muted">${ids.filter(i=>S.sel.has(i)).length}/${ids.length}</small></div>
+      ${S.open[d.id]?ns.map(n=>`<label class="n"><input type="checkbox" ${S.sel.has(n.id)?'checked':''} onclick="S.sel.has(${n.id})?S.sel.delete(${n.id}):S.sel.add(${n.id});render()">
+        <span class="t" title="${n.content}">${n.content}</span><small class="muted">${n.page?'tr. '+n.page:'không trang'}</small></label>`).join(''):''}`}).join('');
+  const dlg=`<div class="scrim"><div class="dialog">
+    <div class="l"><h2>Tạo Bản soạn</h2>
+      <input type="text" placeholder="Tìm Note" value="${S.filter}" oninput="refocus(this);S.filter=this.value;render()">
+      <div class="d" style="margin-top:8px"><span class="caret"></span><input type="checkbox" ${stAll==='all'?'checked':''} ${stAll==='some'?'data-ind':''} onclick="toggleIds([${all}])">Toàn bộ Workspace</div>
+      <div class="tree">${tree}</div></div>
+    <div class="r"><div class="muted">Kiểu</div>${typeSeg()}
+      <div class="muted">Yêu cầu thêm (không bắt buộc)</div><textarea rows="4" placeholder="vd: nhấn mạnh số liệu, viết cho người mới"></textarea>
+      <span class="spacer"></span>${budgetHtml(S.sel)}
+      <div class="row"><span class="spacer"></span><button class="btn text" onclick="S.dialog=false;render()">Hủy</button>
+      <button class="btn" ${S.sel.size&&charsOf(S.sel)<=BUDGET?'':'disabled'} onclick="create(S.sel)">Tạo</button></div></div>
+  </div></div>`;
+  return shell(right,dlg);
+}
+
+/* ---------- C: chọn phạm vi, rồi loại từng Note ---------- */
+function scopeIds(){
+  let ns=NOTES;
+  if(S.scope==='docs')ns=ns.filter(n=>S.scopeDocs.has(n.doc));
+  if(S.scope==='text')ns=ns.filter(n=>S.scopeText&&(n.content+(n.quote||'')).toLowerCase().includes(S.scopeText.toLowerCase()));
+  return ns.filter(n=>!S.excluded.has(n.id));
+}
+function VariantC(){
+  if(S.tab!=='studio')return shell(tabs([['chat','AI Chat'],['notes','Notes'],['studio','Bản soạn']])+`<div class="body">${S.tab==='chat'?chatStub():plainNotes()}</div>`);
+  const inc=scopeIds(),ids=new Set(inc.map(n=>n.id));
+  const exc=NOTES.filter(n=>S.excluded.has(n.id));
+  const body=`<div class="scope"><b>Nguồn</b>
+    <label><input type="radio" name="sc" ${S.scope==='all'?'checked':''} onclick="S.scope='all';render()"><span>Tất cả Note của Workspace <span class="muted">(${NOTES.length})</span></span></label>
+    <label><input type="radio" name="sc" ${S.scope==='docs'?'checked':''} onclick="S.scope='docs';render()"><span>Note của các Document</span></label>
+    ${S.scope==='docs'?`<div class="chips">${DOCS.map(d=>`<button class="fchip ${S.scopeDocs.has(d.id)?'on':''}" onclick="S.scopeDocs.has('${d.id}')?S.scopeDocs.delete('${d.id}'):S.scopeDocs.add('${d.id}');render()"><span class="dot" style="background:${d.color}"></span>${d.title}</button>`).join('')}</div>`:''}
+    <label><input type="radio" name="sc" ${S.scope==='text'?'checked':''} onclick="S.scope='text';render()"><span>Note chứa từ khoá</span></label>
+    ${S.scope==='text'?`<div style="margin-left:24px"><input type="text" placeholder="vd: giá, cạnh tranh" value="${S.scopeText}" oninput="refocus(this);S.scopeText=this.value;render()"></div>`:''}
+   </div>
+   <div class="row" style="margin:12px 0 6px"><b>Sẽ dùng ${inc.length} Note</b><span class="spacer"></span><span class="muted">bấm × để loại</span></div>
+   ${inc.map(n=>`<div class="card"><div class="main">${noteBody(n)}</div><button class="x" title="Loại khỏi nguồn" onclick="S.excluded.add(${n.id});render()">×</button></div>`).join('')||'<div class="empty">Không có Note nào khớp.</div>'}
+   ${exc.length?`<details style="margin-top:8px"><summary class="muted">Đã loại (${exc.length})</summary>${exc.map(n=>`<div class="card off"><div class="main">${n.content}</div><button class="btn text" onclick="S.excluded.delete(${n.id});render()">Thêm lại</button></div>`).join('')}</details>`:''}`;
+  const dock=`<div class="dock">${typeSeg()}<input type="text" placeholder="Yêu cầu thêm cho AI (không bắt buộc)">${budgetHtml(ids)}
+    <div class="row"><span class="spacer"></span><button class="btn" ${ids.size&&charsOf(ids)<=BUDGET?'':'disabled'} onclick="create(new Set(${JSON.stringify([...ids])}))">Tạo ${S.type}</button></div></div>`;
+  return shell(tabs([['chat','AI Chat'],['notes','Notes'],['studio','Bản soạn']])+`<div class="body">${body}</div>${dock}`);
+}
+
+/* ---------- Thanh đổi biến thể (không thuộc thiết kế) ---------- */
+function switcher(){
+  return `<div class="switcher"><button onclick="cycle(-1)">←</button>
+    <span><b>${S.variant}</b> (${VARIANTS[S.variant]})</span><button onclick="cycle(1)">→</button>
+    <label><input type="checkbox" ${S.big?'checked':''} onclick="S.big=!S.big;render()">Giả lập Workspace lớn (×40 ký tự)</label></div>`;
+}
+function cycle(d){const k=Object.keys(VARIANTS);S.variant=k[(k.indexOf(S.variant)+d+k.length)%k.length];
+  S.tab=S.variant==='C'?'studio':'notes';S.selectMode=false;S.dialog=false;S.filter='';
+  const u=new URL(location);u.searchParams.set('variant',S.variant);history.replaceState(null,'',u);render()}
+let focusSel=null;
+function refocus(el){focusSel={ph:el.placeholder,pos:el.selectionStart}}
+function render(){
+  const v={A:VariantA,B:VariantB,C:VariantC}[S.variant]||VariantA;
+  document.getElementById('root').innerHTML=v()+switcher()+(S.toast?`<div class="toast">${S.toast}</div>`:'');
+  document.querySelectorAll('[data-ind]').forEach(c=>c.indeterminate=true);
+  if(focusSel){const el=[...document.querySelectorAll('input[type=text]')].find(i=>i.placeholder===focusSel.ph);if(el){el.focus();el.setSelectionRange(focusSel.pos,focusSel.pos)}focusSel=null}
+}
+document.addEventListener('keydown',e=>{if(e.target.closest('input[type=text],textarea,[contenteditable]'))return;
+  if(e.key==='ArrowLeft')cycle(-1);if(e.key==='ArrowRight')cycle(1)});
+if(S.variant==='C')S.tab='studio';
+render();
+</script>
+</body>
+</html>
