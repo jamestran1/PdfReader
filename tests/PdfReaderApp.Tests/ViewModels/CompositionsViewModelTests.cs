@@ -31,11 +31,13 @@ public sealed class CompositionsViewModelTests
     private sealed class FakeGenerator : ICompositionGenerator
     {
         public List<CompositionContext> Received { get; } = [];
+        public List<CompositionKind> Kinds { get; } = [];
         public Exception? Failure { get; set; }
 
         public Task<GeneratedComposition> GenerateAsync(CompositionKind kind, CompositionContext context, CancellationToken cancellationToken)
         {
             Received.Add(context);
+            Kinds.Add(kind);
             if (Failure is not null) throw Failure;
             return Task.FromResult(new GeneratedComposition("Tiêu đề AI", "Nội dung [1]", "model-x"));
         }
@@ -228,6 +230,76 @@ public sealed class CompositionsViewModelTests
     }
 
     [Fact]
+    public void ShowCreateDialog_OpensWithEveryNoteSelected()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "x"), NoteOf("a2", "a", 1, "y"), NoteOf("b1", "b", 0, "z"));
+
+        f.Vm.ShowCreateDialogCommand.Execute(null);
+
+        Assert.True(f.Vm.IsDialogOpen);
+        Assert.Equal(3, f.Vm.Dialog!.Tree.SelectedCount);
+        Assert.Empty(f.Generator.Received);
+    }
+
+    [Fact]
+    public void ShowCreateDialog_WorkspaceWithoutNotes_OpensWithLockedCreate()
+    {
+        var f = new Fixture();
+
+        f.Vm.ShowCreateDialogCommand.Execute(null);
+
+        Assert.True(f.Vm.IsDialogOpen);
+        Assert.False(f.Vm.Dialog!.CanCreate);
+        Assert.Equal(CompositionsViewModel.NoNotesMessage, f.Vm.Dialog.WarningText);
+    }
+
+    [Fact]
+    public void ShowCreateDialog_NoActiveWorkspace_DoesNothing()
+    {
+        var f = new Fixture(NoteOf("n", "a", 0, "x"));
+        f.Vm.LoadFor(null);
+
+        f.Vm.ShowCreateDialogCommand.Execute(null);
+
+        Assert.False(f.Vm.IsDialogOpen);
+    }
+
+    [Fact]
+    public void DialogCreate_GeneratesFromSelectedNotesOnly_WithChosenKindAndRequest_AndStoresTheRequest()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "một"), NoteOf("a2", "a", 1, "hai"), NoteOf("b1", "b", 0, "ba"), NoteOf("b2", "b", 1, "bốn"));
+        f.Vm.ShowCreateDialogCommand.Execute(null);
+        f.Vm.Dialog!.Tree.Documents[1].Notes[1].IsChecked = false;
+        f.Vm.Dialog.Kind = CompositionKind.Outline;
+        f.Vm.Dialog.AdditionalRequest = "viết bằng tiếng Anh";
+
+        f.Vm.Dialog.CreateCommand.Execute(null);
+
+        Assert.False(f.Vm.IsDialogOpen);
+        Assert.Equal(CompositionKind.Outline, f.Generator.Kinds.Single());
+        var context = f.Generator.Received.Single();
+        Assert.Equal(["a1", "a2", "b1"], context.SourceNoteIds);
+        Assert.Equal("viết bằng tiếng Anh", context.AdditionalRequest);
+        Assert.DoesNotContain("bốn", context.Text, StringComparison.Ordinal);
+        var created = Assert.Single(f.Store.Rows);
+        Assert.Equal((CompositionKind.Outline, "viết bằng tiếng Anh"), (created.Kind, created.AdditionalRequest));
+        Assert.Equal(["a1", "a2", "b1"], created.SourceNoteIds);
+        Assert.Same(created, f.Opened.Single());
+    }
+
+    [Fact]
+    public void DialogCancel_ClosesWithoutGenerating()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "x"));
+        f.Vm.ShowCreateDialogCommand.Execute(null);
+
+        f.Vm.Dialog!.CancelCommand.Execute(null);
+
+        Assert.False(f.Vm.IsDialogOpen);
+        Assert.Empty(f.Generator.Received);
+    }
+
+    [Fact]
     public async Task WhileGenerating_CreateAndRegenerateAreLockedUntilItEnds()
     {
         var generator = new GatedGenerator();
@@ -272,6 +344,20 @@ public sealed class CompositionsViewModelTests
         Assert.Empty(f.Opened);
         Assert.Equal("đã sửa tay", f.Store.Rows.Single(c => c.Id == "old").Content);
         Assert.Equal(2, f.Store.Rows.Count);
+    }
+
+    [Fact]
+    public async Task Regenerate_PassesTheOriginalAdditionalRequestAndKeepsTheKind()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "A"));
+        var old = new Composition("old", "ws", "Cũ", CompositionKind.Outline, "x", "m", ["a1"], 1, "viết bằng tiếng Anh");
+
+        await f.Vm.RegenerateCommand.ExecuteAsync(old);
+
+        Assert.Equal(CompositionKind.Outline, f.Generator.Kinds.Single());
+        Assert.Equal("viết bằng tiếng Anh", f.Generator.Received.Single().AdditionalRequest);
+        var created = f.Store.Rows.Single();
+        Assert.Equal((CompositionKind.Outline, "viết bằng tiếng Anh"), (created.Kind, created.AdditionalRequest));
     }
 
     [Fact]

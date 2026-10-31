@@ -92,6 +92,7 @@ public sealed partial class CompositionsViewModel : ObservableObject
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CreateSummaryCommand))]
     [NotifyCanExecuteChangedFor(nameof(RegenerateCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ShowCreateDialogCommand))]
     public partial bool IsGenerating { get; private set; }
 
     /// <summary>Nạp Bản soạn của Workspace <paramref name="ownerKey"/> (null thì rỗng). Gọi khi đổi Workspace hoạt động.</summary>
@@ -117,26 +118,59 @@ public sealed partial class CompositionsViewModel : ObservableObject
 
     private bool CanGenerate() => !IsGenerating;
 
+    /// <summary>Hộp thoại "Tạo Bản soạn" đang mở (hoặc vừa đóng); dựng mới mỗi lần bấm ＋.</summary>
+    [ObservableProperty]
+    public partial CreateCompositionDialogViewModel? Dialog { get; private set; }
+
+    /// <summary>Bind hai chiều với <c>DialogHost.IsOpen</c> để bấm ra ngoài thì đóng.</summary>
+    [ObservableProperty]
+    public partial bool IsDialogOpen { get; set; }
+
+    /// <summary>Nút ＋ ở mục Bản soạn: mở hộp thoại chọn Note, kiểu và yêu cầu thay vì sinh ngay.</summary>
     [RelayCommand(CanExecute = nameof(CanGenerate))]
-    private async Task CreateSummaryAsync()
+    private void ShowCreateDialog()
     {
         if (OwnerKey is not { } owner || IsGenerating) return;
-        await GenerateAsync(owner, CompositionKind.Summary, _noteStore.GetForOwner(owner), afterCompositionId: null);
+        Dialog = new CreateCompositionDialogViewModel(
+            _noteStore.GetForOwner(owner), _documentsInWorkspace(),
+            draft => _ = CreateFromDraftAsync(draft),
+            () => IsDialogOpen = false);
+        IsDialogOpen = true;
     }
 
-    /// <summary>Sinh lại: Bản soạn mới cùng kiểu và cùng Note nguồn, mở bên phải tab cũ; bản cũ giữ nguyên.</summary>
+    private Task CreateFromDraftAsync(CompositionDraft draft)
+        => GenerateFromNoteIdsAsync(draft.Kind, draft.NoteIds, draft.AdditionalRequest);
+
+    [RelayCommand(CanExecute = nameof(CanGenerate))]
+    private Task CreateSummaryAsync() => GenerateFromNoteIdsAsync(CompositionKind.Summary, noteIds: null, additionalRequest: null);
+
+    // noteIds null = mọi Note của Workspace.
+    private async Task GenerateFromNoteIdsAsync(CompositionKind kind, IReadOnlyCollection<string>? noteIds, string? additionalRequest)
+    {
+        if (OwnerKey is not { } owner || IsGenerating) return;
+        var notes = _noteStore.GetForOwner(owner);
+        if (noteIds is not null)
+        {
+            var wanted = new HashSet<string>(noteIds, StringComparer.Ordinal);
+            notes = [.. notes.Where(n => wanted.Contains(n.Id))];
+        }
+
+        await GenerateAsync(owner, kind, notes, afterCompositionId: null, additionalRequest);
+    }
+
+    /// <summary>Sinh lại: Bản soạn mới cùng kiểu, cùng Note nguồn và cùng yêu cầu thêm, mở bên phải tab cũ; bản cũ giữ nguyên.</summary>
     [RelayCommand(CanExecute = nameof(CanGenerate))]
     private async Task RegenerateAsync(Composition? source)
     {
         if (source is null || OwnerKey is not { } owner || IsGenerating) return;
         var sourceIds = new HashSet<string>(source.SourceNoteIds, StringComparer.Ordinal);
         var notes = _noteStore.GetForOwner(owner).Where(n => sourceIds.Contains(n.Id)).ToList();
-        await GenerateAsync(owner, source.Kind, notes, source.Id);
+        await GenerateAsync(owner, source.Kind, notes, source.Id, source.AdditionalRequest);
     }
 
-    private async Task GenerateAsync(string owner, CompositionKind kind, IReadOnlyList<Note> notes, string? afterCompositionId)
+    private async Task GenerateAsync(string owner, CompositionKind kind, IReadOnlyList<Note> notes, string? afterCompositionId, string? additionalRequest)
     {
-        var context = CompositionContextBuilder.Build(notes, _documentsInWorkspace());
+        var context = CompositionContextBuilder.Build(notes, _documentsInWorkspace()) with { AdditionalRequest = additionalRequest };
         if (context.SourceNoteIds.Count == 0)
         {
             _notifyError(NoNotesMessage);
@@ -152,7 +186,8 @@ public sealed partial class CompositionsViewModel : ObservableObject
             generation.Token.ThrowIfCancellationRequested();
             var composition = new Composition(
                 Guid.NewGuid().ToString("N"), owner, generated.Title, kind,
-                generated.Content, generated.ChatModel, context.SourceNoteIds, _clock.GetUtcNow().ToUnixTimeMilliseconds());
+                generated.Content, generated.ChatModel, context.SourceNoteIds, _clock.GetUtcNow().ToUnixTimeMilliseconds(),
+                additionalRequest);
             _store.Add(composition);
 
             Items.Insert(0, composition);

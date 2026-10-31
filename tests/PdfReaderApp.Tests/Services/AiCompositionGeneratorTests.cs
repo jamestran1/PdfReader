@@ -92,4 +92,58 @@ public sealed class AiCompositionGeneratorTests
         Assert.Equal(title, parsed.Title);
         Assert.Equal(content, parsed.Content);
     }
+
+    [Theory]
+    [InlineData(CompositionKind.Summary, "Tóm tắt", "tóm tắt")]
+    [InlineData(CompositionKind.Outline, "Outline", "outline")]
+    [InlineData(CompositionKind.Draft, "Soạn thảo", "bản thảo")]
+    public async Task GenerateAsync_EachKindHasItsOwnInstruction_AndFallbackTitle(CompositionKind kind, string fallbackTitle, string keyword)
+    {
+        string system = string.Empty;
+        var generator = new AiCompositionGenerator(new FakeSettings(), new FakeFactory((msgs, _) =>
+        {
+            system = msgs.First(m => m.Role == ChatRole.System).Text;
+            return Task.FromResult("Chỉ một dòng");
+        }));
+
+        var result = await generator.GenerateAsync(kind, Context, CancellationToken.None);
+
+        Assert.Equal(fallbackTitle, result.Title);
+        Assert.Contains(keyword, system, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("[n]", system, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_KindsUseDistinctSystemPrompts()
+    {
+        HashSet<string> prompts = [];
+        var generator = new AiCompositionGenerator(new FakeSettings(), new FakeFactory((msgs, _) =>
+        {
+            prompts.Add(msgs.First(m => m.Role == ChatRole.System).Text);
+            return Task.FromResult("T\n\nC");
+        }));
+
+        foreach (var kind in new[] { CompositionKind.Summary, CompositionKind.Outline, CompositionKind.Draft })
+            await generator.GenerateAsync(kind, Context, CancellationToken.None);
+
+        Assert.Equal(3, prompts.Count);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_AdditionalRequest_IsSentWithTheNotes_AndAbsentWhenNull()
+    {
+        List<string> userTurns = [];
+        var generator = new AiCompositionGenerator(new FakeSettings(), new FakeFactory((msgs, _) =>
+        {
+            userTurns.Add(msgs.Last().Text);
+            return Task.FromResult("T\n\nC");
+        }));
+
+        await generator.GenerateAsync(CompositionKind.Outline, Context with { AdditionalRequest = "viết bằng tiếng Anh" }, CancellationToken.None);
+        await generator.GenerateAsync(CompositionKind.Outline, Context, CancellationToken.None);
+
+        Assert.Contains("viết bằng tiếng Anh", userTurns[0], StringComparison.Ordinal);
+        Assert.Contains("[1]\nGhi chú: x", userTurns[0], StringComparison.Ordinal);
+        Assert.DoesNotContain("Yêu cầu thêm", userTurns[1], StringComparison.Ordinal);
+    }
 }

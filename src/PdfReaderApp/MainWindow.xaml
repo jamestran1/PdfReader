@@ -115,7 +115,14 @@
             </DockPanel>
         </Border>
 
+        <!-- #292: hộp thoại Tạo Bản soạn bọc ngoài DialogHost của Workspace Documents (hai hộp thoại không mở cùng lúc). -->
         <materialDesign:DialogHost Grid.Row="1" CloseOnClickAway="True"
+                                   IsOpen="{Binding Compositions.IsDialogOpen}">
+            <materialDesign:DialogHost.DialogContent>
+                <controls:CreateCompositionDialogView DataContext="{Binding Compositions.Dialog}"
+                                                      Width="760" MaxHeight="600"/>
+            </materialDesign:DialogHost.DialogContent>
+        <materialDesign:DialogHost CloseOnClickAway="True"
                                    IsOpen="{Binding DocumentsSurface.IsModalOpen}">
             <materialDesign:DialogHost.DialogContent>
                 <controls:WorkspaceDocumentsView DataContext="{Binding DocumentsSurface}"
@@ -1207,6 +1214,7 @@
             </Button>
         </Border>
         </Grid>
+        </materialDesign:DialogHost>
         </materialDesign:DialogHost>
         <!-- #67: snackbar non-blocking, đáy-giữa, tự ẩn; đổi icon theo mức độ (đặt ở grid ngoài để không nong cột nav). -->
         <Border Grid.RowSpan="2" Panel.ZIndex="100"

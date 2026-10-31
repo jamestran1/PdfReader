@@ -45,6 +45,8 @@ public sealed partial class CompositionTab : OpenTab
     public string KindLabel => Composition.Kind switch
     {
         CompositionKind.Summary => "Tóm tắt",
+        CompositionKind.Outline => "Outline",
+        CompositionKind.Draft => "Soạn thảo",
         _ => Composition.Kind.ToString(),
     };
 

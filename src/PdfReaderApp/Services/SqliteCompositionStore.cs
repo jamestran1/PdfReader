@@ -8,7 +8,7 @@ namespace PdfReaderApp.Services;
 /// Danh sách id Note nguồn lưu dạng mảng JSON để giữ đúng thứ tự đánh số <c>[n]</c>.</summary>
 public sealed class SqliteCompositionStore : ICompositionStore
 {
-    private const long SchemaVersion = 1;
+    private const long SchemaVersion = 2;
     private readonly string _connectionString;
     private readonly Lock _lock = new();
 
@@ -39,9 +39,11 @@ CREATE TABLE IF NOT EXISTS composition (
   content TEXT NOT NULL,
   chat_model TEXT NOT NULL,
   source_note_ids TEXT NOT NULL,
-  created_at INTEGER NOT NULL);
+  created_at INTEGER NOT NULL,
+  additional_request TEXT NULL);
 CREATE INDEX IF NOT EXISTS ix_composition_owner ON composition(owner_key);";
             cmd.ExecuteNonQuery();
+            AddAdditionalRequestColumnIfMissing(conn);
 
             using var ver = conn.CreateCommand();
             ver.CommandText = "PRAGMA user_version;";
@@ -57,6 +59,18 @@ CREATE INDEX IF NOT EXISTS ix_composition_owner ON composition(owner_key);";
         }
     }
 
+    // v1 chưa có cột yêu cầu thêm (#292): CREATE TABLE IF NOT EXISTS không thêm cột vào bảng cũ.
+    private static void AddAdditionalRequestColumnIfMissing(SqliteConnection conn)
+    {
+        using var probe = conn.CreateCommand();
+        probe.CommandText = "SELECT COUNT(*) FROM pragma_table_info('composition') WHERE name='additional_request'";
+        if ((long)(probe.ExecuteScalar() ?? 0L) > 0) return;
+
+        using var alter = conn.CreateCommand();
+        alter.CommandText = "ALTER TABLE composition ADD COLUMN additional_request TEXT NULL";
+        alter.ExecuteNonQuery();
+    }
+
     public void Add(Composition composition)
     {
         ArgumentNullException.ThrowIfNull(composition);
@@ -65,8 +79,9 @@ CREATE INDEX IF NOT EXISTS ix_composition_owner ON composition(owner_key);";
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-INSERT INTO composition (id, owner_key, title, kind, content, chat_model, source_note_ids, created_at)
-VALUES ($id, $owner, $title, $kind, $content, $model, $sources, $created);";
+INSERT INTO composition (id, owner_key, title, kind, content, chat_model, source_note_ids, created_at, additional_request)
+VALUES ($id, $owner, $title, $kind, $content, $model, $sources, $created, $request);";
+            cmd.Parameters.AddWithValue("$request", (object?)composition.AdditionalRequest ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$id", composition.Id);
             cmd.Parameters.AddWithValue("$owner", composition.OwnerKey);
             cmd.Parameters.AddWithValue("$title", composition.Title);
@@ -87,7 +102,7 @@ VALUES ($id, $owner, $title, $kind, $content, $model, $sources, $created);";
             using var conn = OpenConn();
             using var cmd = conn.CreateCommand();
             cmd.CommandText = @"
-SELECT id, owner_key, title, kind, content, chat_model, source_note_ids, created_at
+SELECT id, owner_key, title, kind, content, chat_model, source_note_ids, created_at, additional_request
 FROM composition WHERE owner_key=$owner ORDER BY created_at DESC, rowid DESC";
             cmd.Parameters.AddWithValue("$owner", ownerKey);
             using var r = cmd.ExecuteReader();
@@ -95,7 +110,8 @@ FROM composition WHERE owner_key=$owner ORDER BY created_at DESC, rowid DESC";
             {
                 list.Add(new Composition(
                     r.GetString(0), r.GetString(1), r.GetString(2), ParseKind(r.GetString(3)),
-                    r.GetString(4), r.GetString(5), ParseSources(r.GetString(6)), r.GetInt64(7)));
+                    r.GetString(4), r.GetString(5), ParseSources(r.GetString(6)), r.GetInt64(7),
+                    r.IsDBNull(8) ? null : r.GetString(8)));
             }
 
             return list;
