@@ -102,6 +102,21 @@ public sealed class CreateCompositionDialogViewModelTests
     }
 
     [Fact]
+    public void AdditionalRequest_CountsTowardTheBudget()
+    {
+        var notes = FiveNotes();
+        int total = CompositionContextBuilder.Build(notes, Documents).Text.Length;
+        var vm = Make(notes, [], budget: total + 5);
+        Assert.True(vm.CanCreate);
+
+        vm.AdditionalRequest = "yêu cầu dài hơn năm ký tự";
+
+        Assert.Equal(total + vm.AdditionalRequest.Length, vm.SelectedChars);
+        Assert.True(vm.IsOverBudget);
+        Assert.False(vm.CanCreate);
+    }
+
+    [Fact]
     public void NothingSelected_LocksCreate()
     {
         var created = new List<CompositionDraft>();

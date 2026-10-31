@@ -72,9 +72,7 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
         {
             if (!HasNotes) return CompositionsViewModel.NoNotesMessage;
             if (Tree.SelectedCount == 0) return "Chưa chọn Note nào. Hãy chọn ít nhất một Note.";
-            return IsOverBudget
-                ? $"Vượt ngân sách {Format(SelectedChars - _budgetChars)} ký tự. Hãy bỏ bớt Note."
-                : string.Empty;
+            return IsOverBudget ? OverBudgetMessage(SelectedChars - _budgetChars) : string.Empty;
         }
     }
 
@@ -85,8 +83,7 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
     {
         // Execute của RelayCommand không tự kiểm CanExecute (Enter trong ô yêu cầu, gọi trực tiếp).
         if (!CanCreate) return;
-        string request = AdditionalRequest?.Trim() ?? string.Empty;
-        _create(new CompositionDraft(Kind, [.. Tree.SelectedNotes.Select(n => n.Id)], request.Length == 0 ? null : request));
+        _create(new CompositionDraft(Kind, [.. Tree.SelectedNotes.Select(n => n.Id)], NormalizedRequest()));
         _close();
     }
 
@@ -95,7 +92,9 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
 
     private void Recalculate()
     {
-        SelectedChars = Tree.SelectedCount == 0 ? 0 : CompositionContextBuilder.Build(Tree.SelectedNotes, _documents).Text.Length;
+        SelectedChars = Tree.SelectedCount == 0
+            ? 0
+            : CompositionContextBuilder.Build(Tree.SelectedNotes, _documents, NormalizedRequest()).CharCount;
         OnPropertyChanged(nameof(IsOverBudget));
         OnPropertyChanged(nameof(CanCreate));
         OnPropertyChanged(nameof(BudgetText));
@@ -103,6 +102,18 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
         OnPropertyChanged(nameof(HasWarning));
         CreateCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnAdditionalRequestChanged(string value) => Recalculate();
+
+    // Cùng chuẩn hoá với nút Tạo: yêu cầu toàn khoảng trắng coi như không có.
+    private string? NormalizedRequest()
+    {
+        string request = AdditionalRequest?.Trim() ?? string.Empty;
+        return request.Length == 0 ? null : request;
+    }
+
+    /// <summary>Thông báo vượt ngân sách, dùng chung cho hộp thoại và Sinh lại.</summary>
+    internal static string OverBudgetMessage(int overChars) => $"Vượt ngân sách {Format(overChars)} ký tự. Hãy bỏ bớt Note.";
 
     // Dấu chấm ngăn nghìn theo thói quen tiếng Việt, không phụ thuộc culture của máy.
     private static string Format(int value)

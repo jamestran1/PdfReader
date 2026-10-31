@@ -48,7 +48,10 @@ public sealed class CompositionToolbarTests
             return 1;
         }
 
-        public int Delete(string id) => Rows.RemoveAll(c => c.Id == id);
+        public bool FailDelete { get; set; }
+
+        public int Delete(string id)
+            => FailDelete ? throw new InvalidOperationException("db lỗi") : Rows.RemoveAll(c => c.Id == id);
     }
 
     private sealed class NoNotes : INoteStore
@@ -271,6 +274,20 @@ public sealed class CompositionToolbarTests
         Assert.DoesNotContain(f.Vm.Items, c => c.Id == "c1");
         Assert.Empty(f.OpenTabs);
         Assert.Contains(f.Vm.Items, c => c.Id == "keep");
+    }
+
+    [Fact]
+    public void Delete_WhenTheStoreFails_TellsTheUserAndKeepsRailAndTab()
+    {
+        var f = new Fixture();
+        var tab = f.Add("c1");
+        f.Store.FailDelete = true;
+
+        f.Vm.DeleteCommand.Execute(tab.Composition);
+
+        Assert.Single(f.Errors);
+        Assert.Contains(f.Vm.Items, c => c.Id == "c1");
+        Assert.Contains(tab, f.OpenTabs);
     }
 
     [Fact]

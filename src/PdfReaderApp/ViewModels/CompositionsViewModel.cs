@@ -160,10 +160,18 @@ public sealed partial class CompositionsViewModel : ObservableObject
 
     private async Task GenerateAsync(string owner, CompositionKind kind, IReadOnlyList<Note> notes, string? afterCompositionId, string? additionalRequest)
     {
-        var context = CompositionContextBuilder.Build(notes, _documentsInWorkspace()) with { AdditionalRequest = additionalRequest };
+        var context = CompositionContextBuilder.Build(notes, _documentsInWorkspace(), additionalRequest);
         if (context.SourceNoteIds.Count == 0)
         {
             _callbacks.NotifyError(NoNotesMessage);
+            return;
+        }
+
+        // Sinh lại đi thẳng vào đây (không qua hộp thoại) nên ngân sách phải được chặn ở đây, trước khi gửi.
+        int over = context.CharCount - _callbacks.BudgetChars();
+        if (over > 0)
+        {
+            _callbacks.NotifyError(CreateCompositionDialogViewModel.OverBudgetMessage(over));
             return;
         }
 

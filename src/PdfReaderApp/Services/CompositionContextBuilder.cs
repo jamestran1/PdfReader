@@ -9,7 +9,8 @@ namespace PdfReaderApp.Services;
 /// </summary>
 internal static class CompositionContextBuilder
 {
-    public static CompositionContext Build(IReadOnlyList<Note> notes, IReadOnlyList<CompositionSourceDocument> documentsInOrder)
+    public static CompositionContext Build(
+        IReadOnlyList<Note> notes, IReadOnlyList<CompositionSourceDocument> documentsInOrder, string? additionalRequest = null)
     {
         ArgumentNullException.ThrowIfNull(notes);
         ArgumentNullException.ThrowIfNull(documentsInOrder);
@@ -35,7 +36,7 @@ internal static class CompositionContextBuilder
             AppendNote(text, i + 1, ordered[i], documentsInOrder, documentIndex);
         }
 
-        return new CompositionContext(text.ToString(), [.. ordered.Select(n => n.Id)]);
+        return new CompositionContext(text.ToString(), [.. ordered.Select(n => n.Id)], additionalRequest);
     }
 
     internal static bool HasText(Note note) => !string.IsNullOrWhiteSpace(note.Quote) || !string.IsNullOrWhiteSpace(note.Content);

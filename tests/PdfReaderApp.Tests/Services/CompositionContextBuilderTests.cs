@@ -35,6 +35,19 @@ public sealed class CompositionContextBuilderTests
     }
 
     [Fact]
+    public void Build_CharCount_CountsContextTextPlusAdditionalRequest()
+    {
+        var notes = new[] { NoteOf("n", "a", 0, null, "ý của tôi") };
+
+        var plain = CompositionContextBuilder.Build(notes, [DocA]);
+        var withRequest = CompositionContextBuilder.Build(notes, [DocA], "viết ngắn thôi");
+
+        Assert.Equal(plain.Text.Length, plain.CharCount);
+        Assert.Equal("viết ngắn thôi", withRequest.AdditionalRequest);
+        Assert.Equal(plain.Text.Length + "viết ngắn thôi".Length, withRequest.CharCount);
+    }
+
+    [Fact]
     public void Build_NoteWithoutQuote_SendsOnlyContent()
     {
         var context = CompositionContextBuilder.Build([NoteOf("n", "a", 0, null, "ý của tôi")], [DocA]);

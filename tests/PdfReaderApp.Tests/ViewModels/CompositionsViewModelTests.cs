@@ -113,6 +113,30 @@ public sealed class CompositionsViewModelTests
     }
 
     [Fact]
+    public async Task Regenerate_WhenSourceNotesNowExceedTheBudget_BlocksBeforeSendingAndSaysSo()
+    {
+        var f = new Fixture(NoteOf("big", "a", 0, new string('x', ContextLimits.MaxChars + 10)));
+        var source = new Composition("old", "ws", "Cũ", CompositionKind.Summary, "x", "m", ["big"], 1);
+
+        await f.Vm.RegenerateCommand.ExecuteAsync(source);
+
+        Assert.Empty(f.Generator.Received);
+        Assert.Empty(f.Vm.Items);
+        Assert.Contains("Vượt ngân sách", Assert.Single(f.Errors), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Create_WhenAdditionalRequestPushesContextOverTheBudget_BlocksBeforeSending()
+    {
+        var f = new Fixture(NoteOf("n", "a", 0, new string('x', ContextLimits.MaxChars - 100)));
+
+        await f.Vm.CreateSummaryFromAllNotesAsync(new string('y', 500));
+
+        Assert.Empty(f.Generator.Received);
+        Assert.Contains("Vượt ngân sách", Assert.Single(f.Errors), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CreateSummary_NoActiveWorkspace_DoesNothing()
     {
         var f = new Fixture(NoteOf("n", "a", 0, "x"));
