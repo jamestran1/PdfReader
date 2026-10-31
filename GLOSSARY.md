@@ -13,7 +13,7 @@ Một ngữ cảnh nghiên cứu tham chiếu **nhiều Document** theo quan h�
 _Avoid_: Notebook, project, folder.
 
 **Default Workspace**:
-Workspace ẩn, riêng cho từng Document, chứa đúng một Document: giữ hành vi "đọc một tài liệu lẻ" (`IsWorkspaceSession=false`). Không dùng `TabSetViewModel`: Document hiển thị qua viewer standalone, chỉ một Tab Document, không đóng được, KHÔNG "+"; mở doc khác từ Library là chuyển sang Default Workspace của doc đó. Vẫn mở thêm được Tab Bản soạn, và chúng được nhớ lại (ADR 0009). Không liệt kê ở màn Workspaces; muốn đa tài liệu phải tạo Workspace có tên (promote, ADR 0004). Promote không lấy gì đi: Note và Bản soạn ở lại Default Workspace.
+Workspace ẩn, riêng cho từng Document, chứa đúng một Document: giữ hành vi "đọc một tài liệu lẻ" (`IsWorkspaceSession=false`). Document hiển thị qua viewer đọc lẻ, chỉ một Tab Document, không đóng được, KHÔNG "+"; mở doc khác từ Library là chuyển sang Default Workspace của doc đó. Vẫn mở thêm được Tab Bản soạn, và chúng được nhớ lại (ADR 0009). Không liệt kê ở màn Workspaces; muốn đa tài liệu phải tạo Workspace có tên (promote, ADR 0004). Promote không lấy gì đi: Note và Bản soạn ở lại Default Workspace.
 _Avoid_: Implicit workspace, single-doc mode.
 
 **Workspace membership**:
@@ -77,7 +77,7 @@ Một Document hoặc một Bản soạn đang mở trong phiên Workspace hiệ
 _Avoid_: Window, pane, view.
 
 **Open Set**:
-Tập Tab đang mở trong một Workspace: Document trong đó là **tập con** của membership, Bản soạn trong đó thuộc Workspace ấy. Mở/đóng Tab thay đổi Open Set, không đụng membership. Open Set được nhớ lại khi mở lại Workspace, cả Tab Bản soạn, kể cả ở Default Workspace.
+Tập Tab đang mở trong một Workspace: Document trong đó là **tập con** của membership, Bản soạn trong đó thuộc Workspace ấy. Mở/đóng Tab thay đổi Open Set, không đụng membership. Open Set được nhớ lại khi mở lại Workspace có tên. Ở Default Workspace chỉ Tab Bản soạn được nhớ lại, khi đọc lẻ lại Document đó.
 _Avoid_: Open documents, active list.
 
 **Per-tab view-state**:
@@ -89,7 +89,7 @@ Hành vi mở từ một Note/highlight của Document khác trong Workspace. Qu
 _Avoid_: Navigate, link.
 
 **Tab Strip**:
-Dải tab ngang ở đầu vùng nội dung chính (giữa toolbar và viewer). Tràn thì cuộn ngang; kéo để sắp lại; nút "+" mở Workspace Documents surface. Hiện trong named Workspace; ở Default Workspace chỉ hiện khi có Tab Bản soạn mở (từ hai tab trở lên), không có "+".
+Dải tab ngang ở đầu vùng nội dung chính (giữa toolbar và viewer). Tràn thì cuộn ngang; kéo để sắp lại; nút "+" mở Workspace Documents surface. Hiện trong named Workspace; ở Default Workspace chỉ hiện khi có Tab Bản soạn mở (từ hai tab trở lên), không có "+" (ADR 0009).
 _Avoid_: Tab bar (dùng được nhưng thống nhất "Tab Strip").
 
 **Workspace Documents surface**:
