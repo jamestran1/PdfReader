@@ -5,8 +5,16 @@
              xmlns:core="clr-namespace:PdfReaderApp.Core"
              xmlns:models="clr-namespace:PdfReaderApp.Models"
              xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes">
-    <!-- Tab Bản soạn (#291): Markdown chỉ đọc trên tờ giấy 680 px (prototype #252-B). DataContext là CompositionTab. -->
+    <!-- Tab Bản soạn (#291, #294): Markdown trên tờ giấy 680 px (prototype #252-B), thanh công cụ Sửa/Đổi tên/Sao chép/Xoá/Đóng.
+         DataContext là CompositionTab; lệnh nằm ở MainViewModel.Compositions nên bind qua Window. -->
     <UserControl.Resources>
+        <!-- Nút icon vuông của thanh công cụ (UI-2: nút icon được miễn bo viên thuốc) -->
+        <Style x:Key="TriThu.Composition.ToolbarButton" TargetType="Button" BasedOn="{StaticResource MaterialDesignIconButton}">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="Margin" Value="2,0,0,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+        </Style>
         <Style x:Key="TriThu.Composition.Block" TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="FontSize" Value="14.5"/>
@@ -35,24 +43,132 @@
                 BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="1"
                 Effect="{DynamicResource TriThu.Elevation.E1}">
             <StackPanel>
+                <!-- Thanh công cụ: chip kiểu bên trái, nút icon bên phải. Sinh lại (#293) nằm giữa Sao chép và Xoá. -->
                 <DockPanel>
-                    <!-- #293: Sinh lại; lệnh nằm ở CompositionsViewModel của MainViewModel (DataContext của Window) -->
-                    <Button DockPanel.Dock="Right" Content="Sinh lại" Height="32" Padding="12,0"
-                            Style="{StaticResource MaterialDesignOutlinedButton}"
-                            materialDesign:ButtonAssist.CornerRadius="12"
-                            Command="{Binding DataContext.Compositions.RegenerateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                            CommandParameter="{Binding Composition}"/>
-                    <Border HorizontalAlignment="Left" Padding="10,3" CornerRadius="8"
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Command="{Binding DataContext.Compositions.ToggleEditCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource TriThu.Composition.ToolbarButton}">
+                                    <Setter Property="ToolTip" Value="Sửa"/>
+                                    <Setter Property="Content">
+                                        <Setter.Value>
+                                            <materialDesign:PackIcon Kind="Pencil" Width="18" Height="18"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                            <Setter Property="ToolTip" Value="Xong"/>
+                                            <Setter Property="Content">
+                                                <Setter.Value>
+                                                    <materialDesign:PackIcon Kind="Check" Width="18" Height="18"/>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Style="{StaticResource TriThu.Composition.ToolbarButton}" ToolTip="Đổi tên"
+                                Command="{Binding DataContext.Compositions.StartRenameCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}">
+                            <materialDesign:PackIcon Kind="RenameBox" Width="18" Height="18"/>
+                        </Button>
+                        <Button Style="{StaticResource TriThu.Composition.ToolbarButton}" ToolTip="Sao chép (Markdown)"
+                                Command="{Binding DataContext.Compositions.CopyCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}">
+                            <materialDesign:PackIcon Kind="ContentCopy" Width="18" Height="18"/>
+                        </Button>
+                        <Button Style="{StaticResource TriThu.Composition.ToolbarButton}" ToolTip="Sinh lại (tạo bản mới)"
+                                Command="{Binding DataContext.Compositions.RegenerateCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding Composition}">
+                            <materialDesign:PackIcon Kind="Refresh" Width="18" Height="18"/>
+                        </Button>
+                        <Button Style="{StaticResource TriThu.Composition.ToolbarButton}" ToolTip="Xoá"
+                                Command="{Binding DataContext.Compositions.DeleteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding Composition}">
+                            <materialDesign:PackIcon Kind="Delete" Width="18" Height="18"/>
+                        </Button>
+                        <Button Style="{StaticResource TriThu.Composition.ToolbarButton}" ToolTip="Đóng"
+                                Command="{Binding DataContext.CloseTabCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}">
+                            <materialDesign:PackIcon Kind="Close" Width="18" Height="18"/>
+                        </Button>
+                    </StackPanel>
+                    <Border HorizontalAlignment="Left" VerticalAlignment="Center" Padding="10,3" CornerRadius="8"
                             Background="{DynamicResource TriThu.Brush.SecondaryContainer}">
                         <TextBlock Text="{Binding KindLabel}" FontSize="12" FontWeight="Medium"
                                    Foreground="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
                     </Border>
                 </DockPanel>
+
                 <TextBlock Text="{Binding Title}" FontSize="26" TextWrapping="Wrap" Margin="0,14,0,4"
-                           Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
+                           Foreground="{DynamicResource TriThu.Brush.OnSurface}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+                <!-- Đổi tên tại chỗ: Enter hoặc rời ô để lưu, Esc để bỏ -->
+                <TextBox Text="{Binding RenameText, UpdateSourceTrigger=PropertyChanged}" FontSize="26" TextWrapping="Wrap"
+                         Margin="0,14,0,4" materialDesign:HintAssist.Hint="Tên Bản soạn"
+                         LostKeyboardFocus="RenameBox_LostKeyboardFocus" IsVisibleChanged="RenameBox_IsVisibleChanged">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Enter"
+                                    Command="{Binding DataContext.Compositions.CommitRenameCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}"/>
+                        <KeyBinding Key="Esc"
+                                    Command="{Binding DataContext.Compositions.CancelRenameCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    CommandParameter="{Binding}"/>
+                    </TextBox.InputBindings>
+                    <TextBox.Style>
+                        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRenaming}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+
                 <TextBlock Text="{Binding MetaText}" FontSize="12.5" Margin="0,0,0,20"
                            Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+
+                <!-- Chế độ Sửa: ô Markdown thô, tự lưu khi ngừng gõ và khi rời tab; không có hộp thoại lưu -->
+                <StackPanel>
+                    <StackPanel.Style>
+                        <Style TargetType="StackPanel">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </StackPanel.Style>
+                    <TextBox Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" TextWrapping="Wrap"
+                             MinHeight="240" FontFamily="Consolas" FontSize="13.5"/>
+                    <TextBlock Text="Sửa tay ghi đè nội dung bản này; sinh lại luôn tạo bản mới." FontSize="12" Margin="0,8,0,0"
+                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+                </StackPanel>
+
                 <ItemsControl ItemsSource="{Binding RenderedBlocks}">
+                    <ItemsControl.Style>
+                        <Style TargetType="ItemsControl">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsEditing}" Value="True">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ItemsControl.Style>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type models:CompositionBlockView}">
                             <ContentControl Content="{Binding}">

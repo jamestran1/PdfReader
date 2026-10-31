@@ -59,7 +59,13 @@ public sealed partial class CompositionsViewModel : ObservableObject
             () => DocumentsInWorkspace(services.WorkspaceStore, host.Library, host.Session.ActiveWorkspaceId),
             composition => host.Session.OpenComposition(composition),
             host.NotifyError,
-            openCompositionAfter: (composition, afterId) => host.Session.OpenComposition(composition, afterId));
+            openCompositionAfter: (composition, afterId) => host.Session.OpenComposition(composition, afterId))
+        {
+            OpenTabFor = id => host.Session.Tabs.Tabs.OfType<CompositionTab>().FirstOrDefault(t => t.CompositionId == id),
+            CloseTab = tab => host.Session.Close(tab),
+            CopyToClipboard = DesktopPrompts.CopyText,
+            ConfirmDelete = DesktopPrompts.ConfirmDeleteComposition,
+        };
     }
 
     // Document của Workspace theo thứ tự Library, cùng thứ tự với surface Workspace Documents.

@@ -78,9 +78,35 @@ public sealed class SqliteCompositionStoreTests : IDisposable
     }
 
     [Fact]
-    public void EnsureSchema_OnDatabaseCreatedBeforeAdditionalRequest_AddsTheColumnAndKeepsRows()
+    public void Update_PersistsTitleContentAndEditTime_KeepingSourcesCreatedAtAndAdditionalRequest()
     {
-        string path = Path.Combine(_dir, "old.db");
+        _store.Add(Make("c1", createdAt: 7, sources: ["z", "a"]) with { AdditionalRequest = "r" });
+
+        int rows = _store.Update("c1", "Ôn tập chương 3", "Nội dung mới [2]", 99);
+
+        var loaded = Assert.Single(_store.GetForOwner("ws"));
+        Assert.Equal(1, rows);
+        Assert.Equal(("Ôn tập chương 3", "Nội dung mới [2]", 7L, (long?)99, "r"),
+            (loaded.Title, loaded.Content, loaded.CreatedAtUnixMs, loaded.UpdatedAtUnixMs, loaded.AdditionalRequest));
+        Assert.Equal(["z", "a"], loaded.SourceNoteIds);
+    }
+
+    [Fact]
+    public void Delete_RemovesOnlyThatComposition()
+    {
+        _store.Add(Make("keep"));
+        _store.Add(Make("gone"));
+
+        int rows = _store.Delete("gone");
+
+        Assert.Equal(1, rows);
+        Assert.Equal("keep", Assert.Single(_store.GetForOwner("ws")).Id);
+    }
+
+    [Fact]
+    public void EnsureSchema_OnSchemaV1Database_MigratesThroughV2ToV3AndKeepsRows()
+    {
+        string path = Path.Combine(_dir, "v1.db");
         using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
         {
             conn.Open();
@@ -95,12 +121,50 @@ PRAGMA user_version = 1;";
 
         var store = new SqliteCompositionStore(path);
         store.EnsureSchema();
+        store.EnsureSchema();
         store.Add(Make("new", createdAt: 9) with { AdditionalRequest = "r" });
+        store.Update("old", "Mới", "y", 8);
 
-        var all = store.GetForOwner("ws");
-        Assert.Equal(["new", "old"], [.. all.Select(c => c.Id)]);
-        Assert.Null(all[1].AdditionalRequest);
-        Assert.Equal("r", all[0].AdditionalRequest);
+        var all = store.GetForOwner("ws").ToDictionary(c => c.Id, StringComparer.Ordinal);
+        Assert.Equal(("Mới", "y", (string?)null, (long?)8), (all["old"].Title, all["old"].Content, all["old"].AdditionalRequest, all["old"].UpdatedAtUnixMs));
+        Assert.Equal(("r", (long?)null), (all["new"].AdditionalRequest, all["new"].UpdatedAtUnixMs));
+        Assert.Equal(3L, UserVersion(path));
+    }
+
+    [Fact]
+    public void EnsureSchema_OnSchemaV2Database_AddsUpdatedAtAndKeepsAdditionalRequest()
+    {
+        string path = Path.Combine(_dir, "v2.db");
+        using (var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            conn.Open();
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = @"
+CREATE TABLE composition (id TEXT PRIMARY KEY, owner_key TEXT NOT NULL, title TEXT NOT NULL, kind TEXT NOT NULL,
+  content TEXT NOT NULL, chat_model TEXT NOT NULL, source_note_ids TEXT NOT NULL, created_at INTEGER NOT NULL,
+  additional_request TEXT NULL);
+INSERT INTO composition VALUES ('old', 'ws', 'Cũ', 'Outline', 'x', 'm', '[""n1""]', 5, 'yêu cầu cũ');
+PRAGMA user_version = 2;";
+            cmd.ExecuteNonQuery();
+        }
+
+        var store = new SqliteCompositionStore(path);
+        store.EnsureSchema();
+        store.EnsureSchema();
+        store.Update("old", "Mới", "y", 8);
+
+        var loaded = Assert.Single(store.GetForOwner("ws"));
+        Assert.Equal(("yêu cầu cũ", (long?)8, CompositionKind.Outline), (loaded.AdditionalRequest, loaded.UpdatedAtUnixMs, loaded.Kind));
+        Assert.Equal(3L, UserVersion(path));
+    }
+
+    private static long UserVersion(string path)
+    {
+        using var conn = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False");
+        conn.Open();
+        using var cmd = conn.CreateCommand();
+        cmd.CommandText = "PRAGMA user_version;";
+        return (long)(cmd.ExecuteScalar() ?? 0L);
     }
 
     public void Dispose()

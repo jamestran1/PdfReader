@@ -10,7 +10,9 @@ public abstract partial class OpenTab : ObservableObject
 
     /// <summary>Id của mục được mở: id Document với Tab Document.</summary>
     public string ItemId { get; }
-    public string Title { get; }
+    /// <summary>Tiêu đề trên tab. Chỉ lớp con đổi được (Tab Bản soạn đổi tên).</summary>
+    [ObservableProperty]
+    public partial string Title { get; protected set; }
 
     /// <summary>Trang hiện tại (1-based). Mặc định 1.</summary>
     [ObservableProperty]
