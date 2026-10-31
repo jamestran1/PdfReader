@@ -24,6 +24,10 @@ _Avoid_: Document list (mơ hồ với Open Set).
 Ghi chú/highlight thuộc về Workspace (`owner_key = workspaceId`); `document_id` chỉ là anchor để neo lên trang. Panel notes gộp mọi Note của Workspace kèm chip nhãn doc, auto-focus doc active + toggle "chỉ tài liệu này"; highlight TRÊN TRANG luôn lọc theo `document_id` active.
 _Avoid_: Annotation, comment.
 
+**Bản soạn** (`Composition`):
+Văn bản AI sinh từ một tập Note do người dùng chọn, thuộc về Workspace giống Note nhưng là thực thể riêng (không hiện trong panel notes). Có ba kiểu: **Tóm tắt**, **Outline**, **Soạn thảo**. Mỗi lần sinh tạo một Bản soạn mới, là ảnh chụp tại thời điểm sinh; người dùng sửa tay và đổi tiêu đề được. Nhớ các Note nguồn, yêu cầu người dùng gõ và Chat Model đã dùng (#28).
+_Avoid_: Draft (trùng nghĩa với kiểu Soạn thảo), sản phẩm AI, kết quả AI, Studio output.
+
 **Chat thread**:
 Một luồng hội thoại AI cho mỗi **Workspace**, RAG xuyên mọi Document thành viên; Document active là neo trích dẫn mặc định. Đổi Tab KHÔNG đổi luồng chat (ADR 0004). Lịch sử bền + RAG thật: #26.
 _Avoid_: Chat per-tab, per-document chat.
