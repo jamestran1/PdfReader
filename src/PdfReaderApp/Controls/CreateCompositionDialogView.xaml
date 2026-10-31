@@ -43,8 +43,8 @@
         </Style>
     </UserControl.Resources>
 
-    <Border Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}" CornerRadius="16"
-            BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="1">
+    <materialDesign:Card Background="{DynamicResource TriThu.Brush.SurfaceTonalLowest}" UniformCornerRadius="16"
+                         BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="1">
         <DockPanel Margin="20">
             <TextBlock DockPanel.Dock="Top" Text="Tạo Bản soạn" FontSize="18" FontWeight="Bold" Margin="0,0,0,14"
                        Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
@@ -169,5 +169,5 @@
                 </DockPanel>
             </Grid>
         </DockPanel>
-    </Border>
+    </materialDesign:Card>
 </UserControl>

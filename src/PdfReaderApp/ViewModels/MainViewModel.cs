@@ -272,7 +272,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Dựng Phiên đọc sau mọi bên cộng tác; các lambda ở trên chỉ chạy sau khi Session đã có.
         Session = CreateSession(documentLoader);
-        Compositions.AttachSources(documentId => Library.FirstOrDefault(i => i.DocumentId == documentId)?.Title, Session, Notes);
+        Compositions.AttachSources(documentId => FindLibraryItem(documentId)?.Title, Session, Notes);
 
         ReloadWorkspaces();
         Chat.LoadHistory();
@@ -286,7 +286,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 RefreshNotesDocumentContext: UpdateNotesDocumentContext,
                 NotifyError: NotifyError,
                 MarkDocumentOpened: documentId => _library.MarkOpened(documentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
-                FindDocument: id => Library.FirstOrDefault(i => i.DocumentId == id),
+                FindDocument: FindLibraryItem,
                 FindComposition: (workspaceId, id) => Compositions.FindForOwner(workspaceId, id)));
         session.PropertyChanged += OnSessionPropertyChanged;
         return session;
@@ -434,7 +434,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var activeTab = _workspaceStore.GetOpenTabs(workspace.Id).FirstOrDefault(tab => tab.IsActive);
         string? activeTitle = activeTab is null
             ? null
-            : Library.FirstOrDefault(item => item.DocumentId == activeTab.ItemId)?.Title;
+            : FindLibraryItem(activeTab.ItemId)?.Title;
         return new WorkspaceCard(workspace, $"{documentCount} tài liệu", activeTitle, documentCount == 0);
     }
 
@@ -512,7 +512,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var documents = new List<WorkspaceDocument>();
         foreach (string id in _workspaceStore.GetDocumentIds(Session.ActiveWorkspaceId))
         {
-            var item = Library.FirstOrDefault(i => i.DocumentId == id);
+            var item = FindLibraryItem(id);
             if (item is not null) documents.Add(new WorkspaceDocument(id, item.Title, item.StoredPath));
         }
 
@@ -659,9 +659,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Session.CurrentPage,
         CurrentDocumentTitle());
 
+    private LibraryItem? FindLibraryItem(string documentId) => Library.FirstOrDefault(i => i.DocumentId == documentId);
+
     // Tên trong Library (người dùng có thể đã đổi tên); chưa có trong Library thì lấy tên file.
     private string CurrentDocumentTitle()
-        => Library.FirstOrDefault(i => i.DocumentId == Session.DocumentId)?.Title
+        => (Session.DocumentId is { } currentId ? FindLibraryItem(currentId) : null)?.Title
             ?? System.IO.Path.GetFileNameWithoutExtension(Session.FilePath ?? string.Empty);
 
     [RelayCommand]

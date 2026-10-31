@@ -1,5 +1,6 @@
 ﻿using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
@@ -92,7 +93,18 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     /// <summary>Đường dẫn file đang đọc; null khi nạp lỗi hoặc chưa có.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StandaloneDocumentSource))]
+    [NotifyPropertyChangedFor(nameof(DocumentTitle))]
     public partial string? FilePath { get; private set; }
+
+    /// <summary>Tiêu đề Document đang đọc (tên file không đuôi); null khi chưa có. Hiện ở mục DOCUMENT của rail khi đọc lẻ.</summary>
+    public string? DocumentTitle => FilePath is { } path ? TitleOf(path) : null;
+
+    /// <summary>Đọc lẻ: đưa người dùng về viewer Document (rời Tab Bản soạn của Tab Strip nhẹ nếu đang xem).</summary>
+    [RelayCommand]
+    private void ShowDocument()
+    {
+        if (LightTabs.Tabs.OfType<DocumentTab>().FirstOrDefault() is { } documentTab) LightTabs.ActivateTab(documentTab);
+    }
 
     // Nguồn cho viewer ĐỌC LẺ. Trong phiên Workspace: null để viewer đọc lẻ ngủ yên (không nạp lại, không ghi ngược
     // zoom/trang qua binding TwoWay vào Tab active, bug #44). FilePath vẫn giữ nguyên cho lập chỉ mục.
@@ -267,7 +279,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
             {
                 ReplaceCurrentDocument(item.StoredPath, ActiveWorkspaceId, targetPage);
                 // Đang xem Tab Bản soạn của Tab Strip nhẹ thì viewer standalone vẫn ẩn: đưa người dùng về Tab Document.
-                if (LightTabs.Tabs.OfType<DocumentTab>().FirstOrDefault() is { } lightDocument) LightTabs.ActivateTab(lightDocument);
+                ShowDocument();
             }
         }
         finally

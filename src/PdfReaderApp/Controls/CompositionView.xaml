@@ -95,11 +95,11 @@
                             <materialDesign:PackIcon Kind="Close" Width="18" Height="18"/>
                         </Button>
                     </StackPanel>
-                    <Border HorizontalAlignment="Left" VerticalAlignment="Center" Padding="10,3" CornerRadius="8"
-                            Background="{DynamicResource TriThu.Brush.SecondaryContainer}">
-                        <TextBlock Text="{Binding KindLabel}" FontSize="12" FontWeight="Medium"
-                                   Foreground="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
-                    </Border>
+                    <materialDesign:Chip HorizontalAlignment="Left" VerticalAlignment="Center" Height="26"
+                                         Content="{Binding KindLabel}" FontSize="12" FontWeight="Medium"
+                                         materialDesign:ButtonAssist.CornerRadius="8"
+                                         Background="{DynamicResource TriThu.Brush.SecondaryContainer}"
+                                         Foreground="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
                 </DockPanel>
 
                 <TextBlock Text="{Binding Title}" FontSize="26" TextWrapping="Wrap" Margin="0,14,0,4"
