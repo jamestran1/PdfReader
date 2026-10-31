@@ -89,6 +89,28 @@ public sealed class TabSetViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Mở Tab Bản soạn cho <paramref name="composition"/>, hoặc kích hoạt tab đã có (không mở tab trùng).
+    /// Tab mới chèn ngay sau ActiveTab, như Tab Document.
+    /// </summary>
+    internal CompositionTab OpenOrActivateComposition(Composition composition)
+    {
+        foreach (var existing in _tabItems)
+        {
+            if (existing is CompositionTab compositionTab && compositionTab.CompositionId == composition.Id)
+            {
+                Activate(compositionTab);
+                return compositionTab;
+            }
+        }
+
+        var tab = new CompositionTab(composition);
+        int insertAt = _activeTab is null ? _tabItems.Count : _tabItems.IndexOf(_activeTab) + 1;
+        _tabItems.Insert(insertAt, tab);
+        Activate(tab);
+        return tab;
+    }
+
+    /// <summary>
     /// Đóng <paramref name="tab"/>: gỡ khỏi Tabs và MRU.
     /// Nếu là ActiveTab, kích hoạt tab MRU tiếp theo (hoặc null nếu không còn).
     /// </summary>
@@ -166,10 +188,15 @@ public sealed class TabSetViewModel : ObservableObject
         ActiveTab = tab;
     }
 
-    // Tab ngoài nhóm ấm (active + N MRU) nhả handle PDFium; tab chưa từng kích hoạt (khôi phục lười) vốn chưa nạp.
+    // Tab Document ngoài nhóm ấm (N + 1 tab gần nhất) nhả handle PDFium; tab chưa từng kích hoạt (khôi phục lười) vốn chưa nạp.
+    // Tab Bản soạn không giữ PDFium nên không chiếm chỗ trong nhóm ấm (ADR 0009).
     private void EvictBeyondWarmLimit()
     {
-        for (int i = _maxWarmInactiveTabs + 1; i < _mru.Count; i++)
-            if (_mru[i] is DocumentTab documentTab) documentTab.IsHydrated = false;
+        int documentsSeen = 0;
+        foreach (var tab in _mru)
+        {
+            if (tab is not DocumentTab documentTab) continue;
+            if (++documentsSeen > _maxWarmInactiveTabs + 1) documentTab.IsHydrated = false;
+        }
     }
 }

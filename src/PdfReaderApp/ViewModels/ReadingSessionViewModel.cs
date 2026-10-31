@@ -57,7 +57,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
             DispatcherProvider = dependencies.DispatcherProvider ?? (() => null),
         };
         Tabs.ActiveTabChanged += OnActiveTabChanged;
-        Tabs.TabsChanged += _openSet.Schedule;
+        Tabs.TabsChanged += OnTabsChanged;
     }
 
     /// <summary>Tập Tab (Open Set). Tab Strip chỉ đọc; mọi thao tác ghi đi qua Phiên đọc.</summary>
@@ -103,7 +103,23 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
     // không phụ thuộc cờ do bên ngoài đặt.
     private bool KeepsSearch => _jumpOrigin == JumpOrigin.Search;
 
-    private OpenTab? ActiveViewTab => IsWorkspaceSession ? Tabs.ActiveTab : null;
+    // Tab Document mà Phiên đọc đang bám: Tab active nếu là Tab Document, còn Tab Bản soạn active thì là Tab Document gần nhất
+    // (Tab Bản soạn không đổi Phiên đọc, ADR 0009).
+    private DocumentTab? _lastDocumentTab;
+    private bool _documentKeptWhileComposing;
+
+    private OpenTab? ActiveViewTab => IsWorkspaceSession ? (Tabs.ActiveTab as DocumentTab ?? _lastDocumentTab) : null;
+
+    /// <summary>Tab Bản soạn đang active (Search của viewer tắt, viewer Document ẩn).</summary>
+    public bool IsCompositionTabActive => Tabs.ActiveTab is CompositionTab;
+
+    /// <summary>Intent: mở <paramref name="composition"/> thành Tab Bản soạn active (đã mở thì kích hoạt, không tạo tab trùng).
+    /// Không đổi Phiên đọc.</summary>
+    public CompositionTab OpenComposition(Composition composition)
+    {
+        ArgumentNullException.ThrowIfNull(composition);
+        return Tabs.OpenOrActivateComposition(composition);
+    }
 
     // Trong phiên Workspace có Tab active: trang, zoom, tổng trang là MỘT nguồn sự thật với OpenTab (viewer per-tab bind cùng
     // OpenTab nên toolbar và viewer luôn đồng bộ). Đọc lẻ: dùng field riêng.
@@ -259,6 +275,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         var restored = new List<OpenTab>(savedTabs.Count);
         foreach (var state in savedTabs)
         {
+            if (state.Kind != TabKind.Document) continue;   // Tab Bản soạn khôi phục ở #296
             if (_findDocument(state.ItemId) is not { } item) continue;   // Document đã gỡ khỏi Library
             restored.Add(new DocumentTab(state.ItemId, item.Title, item.StoredPath)
             {
@@ -438,8 +455,45 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         OnPropertyChanged(nameof(CanPromote));
     }
 
+    private void OnTabsChanged()
+    {
+        // Đóng Tab Document mà Phiên đọc đang bám trong lúc Tab Bản soạn active không đổi Tab active, nên không có
+        // ActiveTabChanged: xử lý như Tab Bản soạn vào lại để Phiên đọc rỗng hoặc bám tab khác.
+        if (_documentKeptWhileComposing && _lastDocumentTab is not null && !Tabs.Tabs.Contains(_lastDocumentTab))
+        {
+            OnActiveTabChanged(Tabs.ActiveTab);
+            return;
+        }
+
+        _openSet.Schedule();
+    }
+
     private void OnActiveTabChanged(OpenTab? incoming)
     {
+        bool resumingKeptDocument = _documentKeptWhileComposing && incoming is DocumentTab resumed && ReferenceEquals(resumed, _lastDocumentTab);
+        _documentKeptWhileComposing = false;
+        OnPropertyChanged(nameof(IsCompositionTabActive));
+
+        if (incoming is CompositionTab)
+        {
+            // Tab Bản soạn không đổi Phiên đọc: giữ Document, Chat, panel Notes và Đoạn nguồn của Tab Document gần nhất.
+            if (_lastDocumentTab is not null && Tabs.Tabs.Contains(_lastDocumentTab))
+            {
+                _documentKeptWhileComposing = true;
+                _openSet.Schedule();
+                return;
+            }
+
+            incoming = null;   // không còn Tab Document nào: Phiên đọc rỗng như khi Open Set rỗng
+        }
+        else if (resumingKeptDocument)
+        {
+            RaiseViewStateChanged();
+            _openSet.Schedule();
+            return;
+        }
+
+        _lastDocumentTab = incoming as DocumentTab;
         // Đổi hoặc đóng Tab: câu trả lời đang chạy thuộc tài liệu của Tab cũ (kể cả khi đóng Tab cuối, không nạp lại chat).
         _chat.CancelPendingRequest();
         SwapNotesPanelState(incoming);
