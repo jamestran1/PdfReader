@@ -255,6 +255,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Dựng Phiên đọc sau mọi bên cộng tác; các lambda ở trên chỉ chạy sau khi Session đã có.
         Session = CreateSession(documentLoader);
+        Compositions.AttachSources(_noteStore, documentId => Library.FirstOrDefault(i => i.DocumentId == documentId)?.Title, Session, Notes);
 
         ReloadWorkspaces();
         Chat.LoadHistory();
