@@ -28,6 +28,12 @@ Map là issue gắn nhãn `wayfinder:map`; ticket là sub-issue của map, gắn
 | Ghi kết luận | `gh issue comment <n> --body-file <file>`, rồi `gh issue close <n> --reason completed` |
 | Sửa body map | `gh issue view <map> --json body --jq .body > map.md`, sửa file, `gh issue edit <map> --body-file map.md` |
 
-Cả hai API POST nhận `id` nội bộ của issue (số nguyên lớn), không phải số issue `#n`.
+Cả hai API POST nhận `id` nội bộ của issue (số nguyên lớn), không phải số issue `#n`. Chặn đi bằng cạnh `blocked_by` native, nên body ticket bỏ mục "Blocked by" của template.
+
+Giữ map khớp với các quyết định:
+
+- Câu hỏi phát sinh khi làm một ticket thì gắn làm sub-issue của map, để nó hiện trong frontier.
+- PR chốt câu trả lời cho một câu hỏi đang mở thì đóng luôn câu hỏi đó (`Closes #n`) và ghi "đã chốt ở #n" trong ADR hay mô tả PR.
+- Ticket sau lật kết luận của ticket trước thì comment vào ticket trước trỏ sang ticket mới, và sửa dòng của nó trong "Decisions so far" của map.
 
 **Frontier** = sub-issue đang mở, chưa có assignee, và mọi issue trong `blocked_by` đã đóng. Lấy ticket đầu tiên theo thứ tự `sub_issues` trả về.

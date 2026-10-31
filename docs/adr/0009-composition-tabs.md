@@ -20,7 +20,7 @@ Bản soạn (#28) mở thành tab ở vùng giữa, cạnh Tab Document (#252),
 - **Chỉ cho mở Bản soạn ở Workspace có tên:** đi ngược việc Bản soạn thuộc cả Default Workspace (#248); loại.
 - **Đưa Default Workspace sang `TabSetViewModel`:** một đường host tab duy nhất, nhưng phải bỏ viewer standalone và đổi hành vi đọc lẻ của ADR 0004 chỉ để chứa Tab Bản soạn; loại.
 - **Tập tab riêng cho Bản soạn:** hai dải tab, hai tab active trong cùng một Workspace, khó trả lời "đang xem gì"; loại.
-- **Promote mang Bản soạn sang Workspace mới, hoặc giữ ở cả hai nơi và đồng bộ:** phá quy tắc mỗi Note, mỗi Bản soạn thuộc đúng một Workspace, và kéo theo việc chia sẻ Note giữa các Workspace; loại khỏi ADR này, để ngỏ ở #286.
+- **Promote mang Bản soạn sang Workspace mới, hoặc giữ ở cả hai nơi và đồng bộ:** phá quy tắc mỗi Note, mỗi Bản soạn thuộc đúng một Workspace, và kéo theo việc chia sẻ Note giữa các Workspace; loại; đã chốt ở #286.
 
 ## Consequences
 
