@@ -5,8 +5,8 @@
              xmlns:converters="clr-namespace:PdfReaderApp.Converters"
              xmlns:models="clr-namespace:PdfReaderApp.Models"
              xmlns:local="clr-namespace:PdfReaderApp">
-    <!-- Rail trái (#291, prototype #252-B): mục DOCUMENT (chỉ Workspace có tên) và mục BẢN SOẠN (cả Default Workspace, #297).
-         DataContext là MainViewModel. -->
+    <!-- Rail trái (#291, prototype #252-B): một luồng từ trên xuống, mục DOCUMENT (chỉ Workspace có tên) rồi mục BẢN SOẠN
+         (cả Default Workspace, #297). DataContext là MainViewModel. -->
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <local:CountToInverseVisibilityConverter x:Key="CountToInverseVisibilityConverter"/>
@@ -32,15 +32,91 @@
 
     <Border Width="240" Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}"
             BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}" BorderThickness="0,0,1,0">
-        <DockPanel Margin="12,14,12,12">
-            <TextBlock DockPanel.Dock="Top" Text="{Binding DocumentsSurface.WorkspaceName}"
-                       FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis" Margin="10,0,10,14"
-                       Foreground="{DynamicResource TriThu.Brush.OnSurface}"
-                       Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="12,14,12,12">
+                <!-- Tiêu đề: "Workspace: {tên}" (chỉ Workspace có tên) -->
+                <Grid Margin="10,0,10,14"
+                      Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <materialDesign:PackIcon Kind="FolderOutline" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,8,0"
+                                             Foreground="{DynamicResource TriThu.Brush.OnSurface}"/>
+                    <TextBlock Grid.Column="1" FontSize="15" FontWeight="Bold" TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TriThu.Brush.OnSurface}">
+                        <Run Text="Workspace: "/><Run Text="{Binding DocumentsSurface.WorkspaceName, Mode=OneWay}"/>
+                    </TextBlock>
+                </Grid>
 
-            <!-- Bản soạn: ở đáy rail, có danh sách cuộn riêng -->
-            <DockPanel DockPanel.Dock="Bottom" MaxHeight="300" Margin="0,12,0,0">
-                <Grid DockPanel.Dock="Top" Margin="10,0,0,6">
+                <!-- Đọc lẻ (Default Workspace): mục DOCUMENT có đúng Document đang đọc; bấm để về viewer khi đang xem Bản soạn -->
+                <StackPanel Visibility="{Binding Session.CanPromote, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="DOCUMENT" Style="{StaticResource TriThu.Rail.SectionHeader}" Margin="10,0,0,6"/>
+                    <Button ToolTip="{Binding Session.DocumentTitle}" Command="{Binding Session.ShowDocumentCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource TriThu.Rail.Row}">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Session.IsCompositionTabActive}" Value="False">
+                                        <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
+                                        <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <materialDesign:PackIcon Kind="FilePdfBox" Width="16" Height="16" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Session.DocumentTitle}" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center" FontSize="13"/>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+
+                <!-- Document của Workspace: bấm để kích hoạt hoặc mở Tab Document -->
+                <StackPanel Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="DOCUMENT" Style="{StaticResource TriThu.Rail.SectionHeader}" Margin="10,0,0,6"/>
+                    <ItemsControl ItemsSource="{Binding DocumentsSurface.Members}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button ToolTip="{Binding Title}"
+                                        Command="{Binding DataContext.OpenWorkspaceDocumentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                        CommandParameter="{Binding}">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource TriThu.Rail.Row}">
+                                            <Style.Triggers>
+                                                <DataTrigger Value="True">
+                                                    <DataTrigger.Binding>
+                                                        <MultiBinding Converter="{StaticResource IsActiveTabItemConverter}" ConverterParameter="{x:Static models:TabKind.Document}">
+                                                            <Binding Path="DocumentId"/>
+                                                            <Binding Path="DataContext.Session.CurrentTabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
+                                                        </MultiBinding>
+                                                    </DataTrigger.Binding>
+                                                    <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
+                                                    <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <materialDesign:PackIcon Kind="FilePdfBox" Width="16" Height="16" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" FontSize="13"/>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Bản soạn: ngay dưới DOCUMENT, cùng luồng cuộn của rail -->
+                <Grid Margin="10,12,0,6">
                     <TextBlock Text="BẢN SOẠN" Style="{StaticResource TriThu.Rail.SectionHeader}"/>
                     <Button HorizontalAlignment="Right" Style="{StaticResource MaterialDesignIconButton}"
                             Width="32" Height="32" ToolTip="Tạo Bản soạn"
@@ -49,7 +125,7 @@
                     </Button>
                 </Grid>
                 <!-- Chưa có Bản soạn nào và không đang sinh: hướng dẫn bấm ＋ -->
-                <TextBlock DockPanel.Dock="Top" Text="Chưa có. Bấm ＋ để tạo." FontSize="12.5" Margin="10,2,0,8"
+                <TextBlock Text="Chưa có. Bấm ＋ để tạo." FontSize="12.5" Margin="10,2,0,8"
                            Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
@@ -66,24 +142,22 @@
                         </Style>
                     </TextBlock.Style>
                 </TextBlock>
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                  <StackPanel>
-                    <!-- Đang sinh: nằm đầu danh sách, trên các Bản soạn đã có (Bản mới nhất ở trên cùng) -->
-                    <DockPanel Margin="10,2,0,8"
-                               Visibility="{Binding Compositions.IsGenerating, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Button DockPanel.Dock="Right" Content="Huỷ" Height="28" Padding="10,0" FontSize="12.5"
-                                Style="{StaticResource MaterialDesignFlatButton}"
-                                materialDesign:ButtonAssist.CornerRadius="12"
-                                Command="{Binding Compositions.CancelGenerationCommand}"/>
-                        <ProgressBar IsIndeterminate="True" Style="{StaticResource MaterialDesignCircularProgressBar}"
-                                     Width="16" Height="16" Value="0"/>
-                        <TextBlock Text="Đang sinh…" Margin="8,0,0,0" FontSize="12.5" VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
-                    </DockPanel>
-                    <ItemsControl ItemsSource="{Binding Compositions.Items}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                              <Grid>
+                <!-- Đang sinh: nằm đầu danh sách, trên các Bản soạn đã có (Bản mới nhất ở trên cùng) -->
+                <DockPanel Margin="10,2,0,8"
+                           Visibility="{Binding Compositions.IsGenerating, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Button DockPanel.Dock="Right" Content="Huỷ" Height="28" Padding="10,0" FontSize="12.5"
+                            Style="{StaticResource MaterialDesignFlatButton}"
+                            materialDesign:ButtonAssist.CornerRadius="12"
+                            Command="{Binding Compositions.CancelGenerationCommand}"/>
+                    <ProgressBar IsIndeterminate="True" Style="{StaticResource MaterialDesignCircularProgressBar}"
+                                 Width="16" Height="16" Value="0"/>
+                    <TextBlock Text="Đang sinh…" Margin="8,0,0,0" FontSize="12.5" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TriThu.Brush.OnSurfaceVariant}"/>
+                </DockPanel>
+                <ItemsControl ItemsSource="{Binding Compositions.Items}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid x:Name="RowRoot">
                                 <Button ToolTip="{Binding Title}"
                                         Command="{Binding DataContext.Compositions.OpenCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}">
@@ -103,14 +177,29 @@
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
-                                    <StackPanel Orientation="Horizontal">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
                                         <materialDesign:PackIcon Kind="TextBoxOutline" Width="16" Height="16" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Title}" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"
-                                                   VerticalAlignment="Center" FontSize="13" MaxWidth="104"/>
-                                        <!-- Kiểu Bản soạn (Tóm tắt, Outline, Soạn thảo) -->
-                                        <TextBlock Text="{Binding KindLabel}" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"
-                                                   Opacity="0.7"/>
-                                    </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding Title}" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center" FontSize="13"/>
+                                        <!-- Kiểu Bản soạn (Tóm tắt, Outline, Soạn thảo); ẩn khi rê chuột để nhường chỗ nút Xoá -->
+                                        <TextBlock Grid.Column="2" Text="{Binding KindLabel}" Margin="8,0,0,0" VerticalAlignment="Center" FontSize="11"
+                                                   Opacity="0.7">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsMouseOver, ElementName=RowRoot}" Value="True">
+                                                            <Setter Property="Visibility" Value="Hidden"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
                                 </Button>
                                 <!-- Xoá từ rail (#294): hiện khi rê chuột vào hàng, có hộp xác nhận -->
                                 <Button HorizontalAlignment="Right" Width="26" Height="26" Margin="0,0,4,0" ToolTip="Xoá"
@@ -120,7 +209,7 @@
                                         <Style TargetType="Button" BasedOn="{StaticResource MaterialDesignIconButton}">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Grid}}" Value="True">
+                                                <DataTrigger Binding="{Binding IsMouseOver, ElementName=RowRoot}" Value="True">
                                                     <Setter Property="Visibility" Value="Visible"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
@@ -128,74 +217,11 @@
                                     </Button.Style>
                                     <materialDesign:PackIcon Kind="Delete" Width="15" Height="15"/>
                                 </Button>
-                              </Grid>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                  </StackPanel>
-                </ScrollViewer>
-            </DockPanel>
-
-            <!-- Đọc lẻ (Default Workspace): mục DOCUMENT có đúng Document đang đọc; bấm để về viewer khi đang xem Bản soạn -->
-            <StackPanel DockPanel.Dock="Top"
-                        Visibility="{Binding Session.CanPromote, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock Text="DOCUMENT" Style="{StaticResource TriThu.Rail.SectionHeader}" Margin="10,0,0,6"/>
-                <Button ToolTip="{Binding Session.DocumentTitle}" Command="{Binding Session.ShowDocumentCommand}">
-                    <Button.Style>
-                        <Style TargetType="Button" BasedOn="{StaticResource TriThu.Rail.Row}">
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding Session.IsCompositionTabActive}" Value="False">
-                                    <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
-                                    <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                    <StackPanel Orientation="Horizontal">
-                        <materialDesign:PackIcon Kind="FilePdfBox" Width="16" Height="16" VerticalAlignment="Center"/>
-                        <TextBlock Text="{Binding Session.DocumentTitle}" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center" FontSize="13"/>
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-
-            <!-- Document của Workspace: bấm để kích hoạt hoặc mở Tab Document -->
-            <TextBlock DockPanel.Dock="Top" Text="DOCUMENT" Style="{StaticResource TriThu.Rail.SectionHeader}" Margin="10,0,0,6"
-                       Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
-                          Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <ItemsControl ItemsSource="{Binding DocumentsSurface.Members}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Button ToolTip="{Binding Title}"
-                                    Command="{Binding DataContext.OpenWorkspaceDocumentCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                    CommandParameter="{Binding}">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource TriThu.Rail.Row}">
-                                        <Style.Triggers>
-                                            <DataTrigger Value="True">
-                                                <DataTrigger.Binding>
-                                                    <MultiBinding Converter="{StaticResource IsActiveTabItemConverter}" ConverterParameter="{x:Static models:TabKind.Document}">
-                                                        <Binding Path="DocumentId"/>
-                                                        <Binding Path="DataContext.Session.CurrentTabs.ActiveTab" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
-                                                    </MultiBinding>
-                                                </DataTrigger.Binding>
-                                                <Setter Property="Background" Value="{DynamicResource TriThu.Brush.SecondaryContainer}"/>
-                                                <Setter Property="Foreground" Value="{DynamicResource TriThu.Brush.SecondaryContainer.On}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                                <StackPanel Orientation="Horizontal">
-                                    <materialDesign:PackIcon Kind="FilePdfBox" Width="16" Height="16" VerticalAlignment="Center"/>
-                                    <TextBlock Text="{Binding Title}" Margin="10,0,0,0" TextTrimming="CharacterEllipsis"
-                                               VerticalAlignment="Center" FontSize="13"/>
-                                </StackPanel>
-                            </Button>
+                            </Grid>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
-            </ScrollViewer>
-        </DockPanel>
+            </StackPanel>
+        </ScrollViewer>
     </Border>
 </UserControl>

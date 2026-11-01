@@ -18,6 +18,15 @@ public static class CitationText
         "Command", typeof(ICommand), typeof(CitationText),
         new PropertyMetadata(null, OnInputsChanged));
 
+    /// <summary>true: trích dẫn vẽ thành chip nhỏ chỉ có số (Bản soạn); mặc định false: link gạch chân "[n]" (Chat).</summary>
+    public static readonly DependencyProperty AsChipProperty = DependencyProperty.RegisterAttached(
+        "AsChip", typeof(bool), typeof(CitationText),
+        new PropertyMetadata(false, OnInputsChanged));
+
+    public static bool GetAsChip(DependencyObject element) => (bool)element.GetValue(AsChipProperty);
+
+    public static void SetAsChip(DependencyObject element, bool value) => element.SetValue(AsChipProperty, value);
+
     public static IReadOnlyList<CitationSpan>? GetSpans(DependencyObject element) =>
         (IReadOnlyList<CitationSpan>?)element.GetValue(SpansProperty);
 
@@ -33,8 +42,55 @@ public static class CitationText
         if (d is not System.Windows.Controls.TextBlock block) return;
         block.Inlines.Clear();
         ICommand? command = GetCommand(block);
+        bool asChip = GetAsChip(block);
         foreach (CitationSpan span in GetSpans(block) ?? [])
-            block.Inlines.Add(span.Source is null ? new Run(span.Text) : CreateLink(span, command));
+        {
+            if (span.Source is null) block.Inlines.Add(new Run(span.Text));
+            else block.Inlines.Add(asChip ? CreateChip(span, command) : CreateLink(span, command));
+        }
+    }
+
+    // Chip secondary-container như prototype #252-B: bo góc 6, chỉ hiện số, bấm được như link.
+    private static InlineUIContainer CreateChip(CitationSpan span, ICommand? command)
+    {
+        var label = new System.Windows.Controls.TextBlock
+        {
+            Text = span.Source!.Number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            LineHeight = 15, // không thừa kế LineHeight của đoạn văn, nếu không chip cao bằng cả dòng
+        };
+        label.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TriThu.Brush.SecondaryContainer.On");
+        var chip = new System.Windows.Controls.Border
+        {
+            Child = label,
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(5, 0, 5, 0),
+            Margin = new Thickness(1, 0, 1, 0),
+            Cursor = Cursors.Hand,
+            ToolTip = CitationTooltip.For(span),
+        };
+        chip.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "TriThu.Brush.SecondaryContainer");
+        chip.InputBindings.Add(new MouseBinding(command ?? DisabledCommand.Instance, new MouseGesture(MouseAction.LeftClick))
+        {
+            CommandParameter = span,
+        });
+        return new InlineUIContainer(chip) { BaselineAlignment = BaselineAlignment.Center };
+    }
+
+    private sealed class DisabledCommand : ICommand
+    {
+        public static readonly DisabledCommand Instance = new();
+
+#pragma warning disable CS0067 // ICommand buộc có event; lệnh này không bao giờ đổi trạng thái
+        public event EventHandler? CanExecuteChanged;
+#pragma warning restore CS0067
+
+        public bool CanExecute(object? parameter) => false;
+
+        public void Execute(object? parameter)
+        {
+        }
     }
 
     private static Hyperlink CreateLink(CitationSpan span, ICommand? command)
