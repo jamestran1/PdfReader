@@ -124,4 +124,45 @@ public class TextChunkerTests
         var chunks = TextChunker.ChunkPages("mydoc", [P("hi", 0)]);
         Assert.All(chunks, c => Assert.Equal("mydoc", c.DocumentId));
     }
+
+    // Cặp surrogate (emoji, ký tự ngoài BMP) bị cắt giữa chừng sinh chuỗi không hợp lệ: Normalize ném ArgumentException
+    // khi tô nguồn trích dẫn (SearchNormalizer.Fold).
+    [Theory]
+    [InlineData(899)] // cặp surrogate nằm vắt qua ranh giới cuối chunk đầu (900)
+    [InlineData(799)] // cặp surrogate nằm vắt qua điểm bắt đầu chunk thứ hai (800)
+    public void ChunkPages_SurrogatePairAtBoundary_NeverSplitsPair(int emojiAt)
+    {
+        string text = new string('a', emojiAt) + "😀" + new string('b', 1500);
+
+        var chunks = TextChunker.ChunkPages("doc", [new PageText(0, text)]);
+
+        Assert.True(chunks.Count > 1);
+        Assert.All(chunks, c => AssertNoLoneSurrogate(c.Text));
+    }
+
+    [Fact]
+    public void Chunk_SurrogatePairAtBoundary_NeverSplitsPair()
+    {
+        string text = new string('a', 899) + "😀" + new string('b', 1500);
+
+        var chunks = TextChunker.Chunk("doc", [B(text, 0)]);
+
+        Assert.All(chunks, c => AssertNoLoneSurrogate(c.Text));
+    }
+
+    private static void AssertNoLoneSurrogate(string text)
+    {
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (char.IsHighSurrogate(text[i]))
+            {
+                Assert.True(i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]), $"surrogate cao lẻ tại {i}");
+                i++;
+            }
+            else
+            {
+                Assert.False(char.IsLowSurrogate(text[i]), $"surrogate thấp lẻ tại {i}");
+            }
+        }
+    }
 }

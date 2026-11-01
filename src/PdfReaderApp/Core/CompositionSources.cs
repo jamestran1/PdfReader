@@ -52,11 +52,24 @@ public static class CompositionSources
             .Select(s => s.Source is { } source ? new CitationSpan($"[{source.Number}]", source, s.Quote) : s)];
     }
 
-    /// <summary>"Sinh bởi {Chat Model} lúc HH:mm dd/MM/yyyy" theo múi giờ <paramref name="zone"/>.</summary>
-    public static string FormatGenerated(string chatModel, long createdAtUnixMs, TimeZoneInfo zone)
+    /// <summary>Thời điểm sinh theo múi giờ <paramref name="zone"/>: "Hôm nay 14:20", "Hôm qua 21:05", "28/10 09:40", hoặc
+    /// "28/10/2025 09:40" khi khác năm. <paramref name="now"/> truyền vào để test không phụ thuộc đồng hồ.</summary>
+    public static string FormatWhen(long createdAtUnixMs, DateTimeOffset now, TimeZoneInfo zone)
     {
         ArgumentNullException.ThrowIfNull(zone);
         var local = TimeZoneInfo.ConvertTime(DateTimeOffset.FromUnixTimeMilliseconds(createdAtUnixMs), zone);
-        return $"Sinh bởi {chatModel} lúc {local.ToString("HH:mm dd/MM/yyyy", CultureInfo.InvariantCulture)}";
+        var today = TimeZoneInfo.ConvertTime(now, zone).Date;
+        string time = local.ToString("HH:mm", CultureInfo.InvariantCulture);
+        if (local.Date == today) return $"Hôm nay {time}";
+        if (local.Date == today.AddDays(-1)) return $"Hôm qua {time}";
+        string format = local.Year == today.Year ? "dd/MM HH:mm" : "dd/MM/yyyy HH:mm";
+        return local.ToString(format, CultureInfo.InvariantCulture);
     }
+
+    /// <summary>Dòng phụ dưới tiêu đề: "{thời điểm} · {n} Note".</summary>
+    public static string FormatMeta(string when, int noteCount) => $"{when} · {noteCount} Note";
+
+    /// <summary>Dòng mô tả đầu phần nguồn: "Nguồn: {n} Note · {Chat Model} · {thời điểm}".</summary>
+    public static string FormatSourcesMeta(int noteCount, string chatModel, string when)
+        => $"Nguồn: {noteCount} Note · {chatModel} · {when}";
 }

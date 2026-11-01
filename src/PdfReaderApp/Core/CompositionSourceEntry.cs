@@ -33,4 +33,16 @@ public sealed record CompositionSourceEntry(
             return PageLabel.Length == 0 ? title : $"{title}, {PageLabel}";
         }
     }
+
+    /// <summary>Một dòng cho danh sách nguồn: "Báo cáo, tr. 7: nội dung", "Note tự do: nội dung" hoặc chữ Note đã xoá.</summary>
+    public string SourceLine
+    {
+        get
+        {
+            if (IsDeleted) return Content;
+            if (IsFree) return $"{CompositionSources.FreeNoteLabel}: {Content}";
+            string title = DocumentTitle ?? CompositionSources.UnknownDocumentLabel;
+            return PageIndex is int p ? $"{title}, tr. {p + 1}: {Content}" : $"{title}: {Content}";
+        }
+    }
 }

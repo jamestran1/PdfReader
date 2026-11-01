@@ -11,7 +11,7 @@ public sealed partial class CompositionTab : OpenTab
     {
         Composition = composition;
         Blocks = MarkdownBlockParser.Parse(composition.Content);
-        GeneratedText = CompositionSources.FormatGenerated(composition.ChatModel, composition.CreatedAtUnixMs, TimeZoneInfo.Local);
+        WhenText = CompositionSources.FormatWhen(composition.CreatedAtUnixMs, DateTimeOffset.Now, TimeZoneInfo.Local);
         ApplySources([]);
     }
 
@@ -22,6 +22,7 @@ public sealed partial class CompositionTab : OpenTab
     /// <summary>Bản soạn mới nhất đã lưu (đổi sau mỗi lần Sửa tự lưu hoặc Đổi tên).</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MetaText))]
+    [NotifyPropertyChangedFor(nameof(SourcesMetaText))]
     public partial Composition Composition { get; private set; }
 
     /// <summary>Nội dung đã tách khối để hiển thị Markdown chỉ đọc.</summary>
@@ -52,8 +53,11 @@ public sealed partial class CompositionTab : OpenTab
     [ObservableProperty]
     public partial IReadOnlyList<CompositionSourceEntry> Sources { get; private set; } = [];
 
-    /// <summary>"Sinh bởi {Chat Model} lúc {thời điểm}".</summary>
-    public string GeneratedText { get; }
+    /// <summary>Thời điểm sinh dạng ngắn ("Hôm nay 14:20").</summary>
+    public string WhenText { get; }
+
+    /// <summary>"Nguồn: {n} Note · {Chat Model} · {thời điểm}" ở đầu phần nguồn.</summary>
+    public string SourcesMetaText => CompositionSources.FormatSourcesMeta(Composition.SourceNoteIds.Count, Composition.ChatModel, WhenText);
 
     /// <summary>Đặt danh sách nguồn mới và dựng lại các link <c>[n]</c>; nội dung <see cref="Composition"/> không đổi.</summary>
     public void ApplySources(IReadOnlyList<CompositionSourceEntry> sources)
@@ -65,8 +69,8 @@ public sealed partial class CompositionTab : OpenTab
     /// <summary>Nhãn kiểu Bản soạn trên chip.</summary>
     public string KindLabel => Composition.KindLabel;
 
-    /// <summary>Dòng phụ dưới tiêu đề: số Note nguồn và Chat Model đã dùng.</summary>
-    public string MetaText => $"{Composition.SourceNoteIds.Count} Note · {Composition.ChatModel}";
+    /// <summary>Dòng phụ dưới tiêu đề: "{thời điểm} · {n} Note".</summary>
+    public string MetaText => CompositionSources.FormatMeta(WhenText, Composition.SourceNoteIds.Count);
 
     /// <summary>Áp bản đã lưu lên tab: tiêu đề, nội dung hiển thị. Không đụng <see cref="EditText"/> để không mất chữ đang gõ.</summary>
     internal void Apply(Composition saved)

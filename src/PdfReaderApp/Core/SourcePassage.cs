@@ -56,11 +56,32 @@ public sealed record SourcePassage(
         return findRects(Fragments);
     }
 
+    /// <summary>Bỏ surrogate lẻ: chunk lập chỉ mục bởi bản cũ có thể bị cắt giữa cặp, và <c>string.Normalize</c> khi dựng regex
+    /// tô nguồn ném ArgumentException với chuỗi đó. Nguyên nhân gốc đã sửa ở <c>TextChunker</c>; đây là lớp đỡ cho dữ liệu đã lưu.</summary>
+    private static string DropLoneSurrogates(string text)
+    {
+        if (!text.Any(char.IsSurrogate)) return text;
+        var sb = new System.Text.StringBuilder(text.Length);
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
+            {
+                sb.Append(text[i]).Append(text[i + 1]);
+                i++;
+            }
+            else if (!char.IsSurrogate(text[i]))
+            {
+                sb.Append(text[i]);
+            }
+        }
+        return sb.ToString();
+    }
+
     /// <summary>Chẻ <paramref name="passage"/> thành các cụm <paramref name="wordsPerFragment"/> từ. Cụm cuối ngắn hơn
     /// nửa cụm thì gộp vào cụm trước: cụm vài từ dễ khớp nhầm chỗ khác trên trang.</summary>
     public static IReadOnlyList<string> SplitFragments(string passage, int wordsPerFragment = WordsPerFragment)
     {
-        string[] words = passage.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        string[] words = DropLoneSurrogates(passage).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         var fragments = new List<string>();
         for (int start = 0; start < words.Length; start += wordsPerFragment)
         {

@@ -137,10 +137,10 @@ public sealed class CompositionSourcesViewModelTests
     }
 
     [Fact]
-    public void GeneratedText_ShowsChatModel()
+    public void SourcesMetaText_ShowsNoteCountAndChatModel()
     {
         var tab = Fixture.TabWith("x");
 
-        Assert.StartsWith("Sinh bởi model-x lúc ", tab.GeneratedText, StringComparison.Ordinal);
+        Assert.StartsWith("Nguồn: 0 Note · model-x · ", tab.SourcesMetaText, StringComparison.Ordinal);
     }
 }

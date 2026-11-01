@@ -65,15 +65,77 @@ public class CompositionSourcesTests
         Assert.True(entries[0].IsClickable);
     }
 
+    private static readonly TimeZoneInfo UtcPlus7 = TimeZoneInfo.CreateCustomTimeZone("t", TimeSpan.FromHours(7), "t", "t");
+    private static readonly DateTimeOffset Now = new(2026, 10, 31, 8, 0, 0, TimeSpan.Zero); // 15:00 ngày 31/10 theo UTC+7
+
+    private static long Ms(int year, int month, int day, int hour, int minute)
+        => new DateTimeOffset(year, month, day, hour, minute, 0, TimeSpan.Zero).ToUnixTimeMilliseconds();
+
     [Fact]
-    public void FormatGenerated_ShowsChatModelAndLocalTime()
+    public void FormatWhen_SameLocalDay_ShowsHomNayWithTime()
     {
-        var utcPlus7 = TimeZoneInfo.CreateCustomTimeZone("t", TimeSpan.FromHours(7), "t", "t");
-        long ms = new DateTimeOffset(2026, 10, 31, 3, 5, 0, TimeSpan.Zero).ToUnixTimeMilliseconds();
+        Assert.Equal("Hôm nay 10:05", CompositionSources.FormatWhen(Ms(2026, 10, 31, 3, 5), Now, UtcPlus7));
+    }
 
-        string text = CompositionSources.FormatGenerated("model-x", ms, utcPlus7);
+    [Fact]
+    public void FormatWhen_PreviousLocalDay_ShowsHomQuaWithTime()
+    {
+        Assert.Equal("Hôm qua 21:05", CompositionSources.FormatWhen(Ms(2026, 10, 30, 14, 5), Now, UtcPlus7));
+    }
 
-        Assert.Equal("Sinh bởi model-x lúc 10:05 31/10/2026", text);
+    [Fact]
+    public void FormatWhen_OlderSameYear_ShowsDayMonthAndTime()
+    {
+        Assert.Equal("28/10 09:40", CompositionSources.FormatWhen(Ms(2026, 10, 28, 2, 40), Now, UtcPlus7));
+    }
+
+    [Fact]
+    public void FormatWhen_OtherYear_ShowsFullDate()
+    {
+        Assert.Equal("28/10/2025 09:40", CompositionSources.FormatWhen(Ms(2025, 10, 28, 2, 40), Now, UtcPlus7));
+    }
+
+    [Fact]
+    public void FormatWhen_LocalDayDiffersFromUtcDay_UsesLocalZone()
+    {
+        // 18:30 UTC ngày 30/10 là 01:30 ngày 31/10 theo UTC+7: vẫn là "Hôm nay".
+        Assert.Equal("Hôm nay 01:30", CompositionSources.FormatWhen(Ms(2026, 10, 30, 18, 30), Now, UtcPlus7));
+    }
+
+    [Fact]
+    public void FormatMeta_JoinsWhenAndNoteCount()
+    {
+        Assert.Equal("Hôm nay 14:20 · 3 Note", CompositionSources.FormatMeta("Hôm nay 14:20", 3));
+    }
+
+    [Fact]
+    public void FormatSourcesMeta_JoinsCountModelAndWhen()
+    {
+        Assert.Equal("Nguồn: 4 Note · model-x · Hôm qua 21:05", CompositionSources.FormatSourcesMeta(4, "model-x", "Hôm qua 21:05"));
+    }
+
+    [Fact]
+    public void SourceLine_DocumentNote_ShowsDocumentPageAndContent()
+    {
+        var entry = new CompositionSourceEntry(1, "n1", "docB", "Báo cáo", 6, null, "ghi chú", false);
+
+        Assert.Equal("Báo cáo, tr. 7: ghi chú", entry.SourceLine);
+    }
+
+    [Fact]
+    public void SourceLine_FreeNote_ShowsFreeLabelAndContent()
+    {
+        var entry = new CompositionSourceEntry(2, "n2", null, null, null, null, "ý tưởng", false);
+
+        Assert.Equal("Note tự do: ý tưởng", entry.SourceLine);
+    }
+
+    [Fact]
+    public void SourceLine_DeletedNote_ShowsOnlyDeletedText()
+    {
+        var entry = new CompositionSourceEntry(3, "n3", null, null, null, null, CompositionSources.DeletedNoteText, true);
+
+        Assert.Equal(CompositionSources.DeletedNoteText, entry.SourceLine);
     }
 
     [Fact]
