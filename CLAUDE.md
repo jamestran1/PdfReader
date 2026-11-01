@@ -47,7 +47,6 @@ Hai lớp render/logic chạy song song:
 | `src/PdfReaderApp/Core/Commands/EditTextCommand.cs` | `IUndoCommand`, pattern Command cho Undo/Redo. |
 | `src/PdfReaderApp/Services/AiChatService.cs` | Chat với LLM (RAG qua `RagContextService`, index trong `SqliteDocumentIndex`). |
 | `src/PdfReaderApp/Services/PdfStructureAnalyzer.cs` | Trích text, chia `TextChunk` cho RAG. |
-| `Inspector_*.cs` (root) + `Inspector_Core/` | Tiện ích chẩn đoán/inspect PDFium/Skia (text, flags, rotation, render params). |
 
 ## Dependencies chính
 
