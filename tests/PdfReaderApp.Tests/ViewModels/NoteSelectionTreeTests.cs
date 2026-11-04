@@ -126,6 +126,17 @@ public sealed class NoteSelectionTreeTests
         Assert.Equal(["z"], [.. tree.Documents.SelectMany(d => d.Notes).Where(n => n.IsVisible).Select(n => n.Note.Id)]);
     }
 
+    // Câu trích từ vùng chọn PDFium chứa U+FFFE; ô lọc không được ném lỗi và vẫn khớp chữ liền.
+    [Fact]
+    public void Filter_QuoteWithPdfiumNoncharacter_DoesNotThrowAndMatches()
+    {
+        var tree = new NoteSelectionTree([NoteOf("q", "a", 0, "ghi chú", quote: "para￾phrase \uD83D")], Documents);
+
+        tree.FilterText = "paraphrase";
+
+        Assert.Equal(["q"], [.. tree.Documents.SelectMany(d => d.Notes).Where(n => n.IsVisible).Select(n => n.Note.Id)]);
+    }
+
     [Fact]
     public void Note_ShowsOneLineOfContentAndItsPage_OrNoPage()
     {

@@ -1,5 +1,3 @@
-using System.Globalization;
-using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
@@ -124,19 +122,9 @@ public sealed partial class NoteSelectionTree : ObservableObject
         }
     }
 
-    // Không phân biệt hoa thường và dấu, để gõ "doan" ra "Đoạn".
-    private static string Normalize(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-        var builder = new StringBuilder();
-        foreach (char c in text.Trim().Normalize(NormalizationForm.FormD))
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(c) == UnicodeCategory.NonSpacingMark) continue;
-            builder.Append(c is 'đ' or 'Đ' ? 'd' : char.ToLowerInvariant(c));
-        }
-
-        return builder.ToString();
-    }
+    // Không phân biệt hoa thường và dấu, để gõ "doan" ra "Đoạn". Dùng SearchNormalizer vì nó an toàn với ký tự không hợp lệ
+    // (U+FFFE của PDFium, surrogate lẻ) mà string.Normalize từ chối.
+    private static string Normalize(string? text) => SearchNormalizer.Fold(text ?? "");
 
     private static string SummaryOf(Note note)
     {

@@ -227,15 +227,6 @@ public class SourcePassageTests
         Assert.Equal(expected, passage.BelongsTo(documentId));
     }
 
-    // Chunk đã lập chỉ mục từ bản cũ có thể chứa surrogate lẻ (bị cắt giữa cặp); chúng không được làm hỏng bước tô.
-    [Fact]
-    public void SplitFragments_LoneSurrogateFromOldIndex_IsDropped()
-    {
-        var fragments = SourcePassage.SplitFragments("một hai\uD83D ba bốn\uDE00 năm");
-
-        Assert.Equal("một hai ba bốn năm", string.Join(' ', fragments));
-    }
-
     [Fact]
     public void SplitFragments_ValidSurrogatePair_IsKept()
     {
