@@ -11,7 +11,7 @@ public static class CompositionKinds
             "Bạn lập một outline (dàn ý có cấu trúc) từ các ghi chú (Note) của người dùng: nhóm các ý thành mục và mục con " +
             "bằng tiêu đề và gạch đầu dòng Markdown, mỗi mục chỉ một dòng ngắn. "),
         new(CompositionKind.Draft, "Soạn thảo", "Bản thảo văn xuôi hoàn chỉnh",
-            "Bạn soạn một bản thảo hoàn chỉnh từ các ghi chú (Note) của người dùng: văn xuôi mạch lạc, có mở đầu, thân bài và kết, " +
+            "Bạn soạn một bản thảo hoàn chỉnh từ các ghi chú (Note) của người dùng: văn xuôi mạch lạc; mặc định có mở đầu, thân bài và kết, " +
             "nối các ý thành bài viết liền mạch. "),
     ];
 

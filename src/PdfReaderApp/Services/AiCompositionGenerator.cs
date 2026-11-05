@@ -9,11 +9,14 @@ namespace PdfReaderApp.Services;
 /// </summary>
 internal sealed class AiCompositionGenerator(ISettingsService settings, IChatClientFactory factory) : ICompositionGenerator
 {
-    // Phần chung của mọi kiểu: chỉ dùng Note, gắn [n], tiếng Việt mặc định, dòng đầu là tiêu đề.
+    // Phần chung của mọi kiểu: chỉ dùng Note, gắn [n], tiếng Việt mặc định, dòng đầu là tiêu đề. Bố cục và giọng văn của kiểu chỉ là mặc định,
+    // nhường cho "Yêu cầu thêm của người dùng" (story 30); chỉ quy tắc [n] và quy tắc chỉ dùng Note là không thương lượng.
     private const string CommonRules =
         "Chỉ dựa vào các Note được cung cấp, không thêm kiến thức bên ngoài. " +
         "Sau mỗi ý, gắn số nguồn dạng [n] khớp với số của Note đã dùng. " +
         "Mặc định trả lời bằng tiếng Việt. " +
+        "Nếu cuối tin nhắn có mục \"Yêu cầu thêm của người dùng\", hãy làm theo; yêu cầu đó được ưu tiên hơn bố cục và giọng văn mặc định của kiểu trên " +
+        "(cấu trúc, độ dài, ngôn ngữ), nhưng không bao giờ bỏ quy tắc gắn [n] và quy tắc chỉ dựa vào Note. " +
         "Dòng đầu tiên là tiêu đề ngắn (một dòng, không ký hiệu Markdown), cách một dòng trống, rồi tới nội dung viết bằng Markdown.";
 
     private const string AdditionalRequestLabel = "Yêu cầu thêm của người dùng: ";

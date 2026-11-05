@@ -146,4 +146,32 @@ public sealed class AiCompositionGeneratorTests
         Assert.Contains("[1]\nGhi chú: x", userTurns[0], StringComparison.Ordinal);
         Assert.DoesNotContain("Yêu cầu thêm", userTurns[1], StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData(CompositionKind.Summary)]
+    [InlineData(CompositionKind.Outline)]
+    [InlineData(CompositionKind.Draft)]
+    public async Task GenerateAsync_SystemPrompt_LetsTheAdditionalRequestOverrideTheDefaultLayoutButNotTheCitationRule(CompositionKind kind)
+    {
+        string system = string.Empty;
+        var generator = new AiCompositionGenerator(new FakeSettings(), new FakeFactory((msgs, _) =>
+        {
+            system = msgs.First(m => m.Role == ChatRole.System).Text;
+            return Task.FromResult("T\n\nC");
+        }));
+
+        await generator.GenerateAsync(kind, Context with { AdditionalRequest = "chỉ viết một đoạn" }, CancellationToken.None);
+
+        Assert.Contains("Yêu cầu thêm của người dùng", system, StringComparison.Ordinal);
+        Assert.Contains("ưu tiên hơn bố cục và giọng văn mặc định", system, StringComparison.Ordinal);
+        Assert.Contains("không bao giờ bỏ quy tắc gắn [n]", system, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DraftKind_PresentsOpeningBodyAndClosingAsADefaultNotAnAbsoluteRule()
+    {
+        string draft = CompositionKinds.Find(CompositionKind.Draft)!.PromptInstructions;
+
+        Assert.Contains("mặc định có mở đầu, thân bài và kết", draft, StringComparison.Ordinal);
+    }
 }
