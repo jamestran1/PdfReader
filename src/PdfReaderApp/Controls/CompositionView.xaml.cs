@@ -40,7 +40,10 @@ public partial class CompositionView : UserControl
     private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (DataContext is not CompositionTab tab
-            || !CompositionScroll.ShouldPersist(_restoringScroll, IsVisible, Scroller.ViewportHeight, e.VerticalChange)) return;
+            || !CompositionScroll.ShouldPersist(_restoringScroll, IsVisible, Scroller.ViewportHeight, e.VerticalChange))
+        {
+            return;
+        }
         tab.ScrollNorm = CompositionScroll.ToNormalized(Scroller.VerticalOffset, Scroller.ScrollableHeight);
     }
 
