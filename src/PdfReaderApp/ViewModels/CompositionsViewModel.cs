@@ -143,7 +143,7 @@ public sealed partial class CompositionsViewModel : ObservableObject
     internal async Task CreateFromDraftAsync(CompositionDraft draft)
     {
         if (OwnerKey is not { } owner || IsGenerating) return;
-        await GenerateAsync(owner, draft.Kind, draft.NoteIds, afterCompositionId: null, draft.AdditionalRequest);
+        await GenerateAsync(new GenerationRequest(owner, draft.Kind, draft.NoteIds, AfterCompositionId: null, draft.AdditionalRequest));
     }
 
     /// <summary>Sinh lại: Bản soạn mới cùng kiểu, cùng Note nguồn và cùng yêu cầu thêm, mở bên phải tab cũ; bản cũ giữ nguyên.</summary>
@@ -151,11 +151,16 @@ public sealed partial class CompositionsViewModel : ObservableObject
     private async Task RegenerateAsync(Composition? source)
     {
         if (source is null || OwnerKey is not { } owner || IsGenerating) return;
-        await GenerateAsync(owner, source.Kind, source.SourceNoteIds, source.Id, source.AdditionalRequest);
+        await GenerateAsync(new GenerationRequest(owner, source.Kind, source.SourceNoteIds, source.Id, source.AdditionalRequest));
     }
 
-    private async Task GenerateAsync(string owner, CompositionKind kind, IEnumerable<string> noteIds, string? afterCompositionId, string? additionalRequest)
+    // Gom tham số để hai string? liền nhau (AfterCompositionId, AdditionalRequest) không bị đảo chỗ mà compiler không bắt (CS-9).
+    private sealed record GenerationRequest(
+        string Owner, CompositionKind Kind, IEnumerable<string> NoteIds, string? AfterCompositionId, string? AdditionalRequest);
+
+    private async Task GenerateAsync(GenerationRequest request)
     {
+        var (owner, kind, noteIds, afterCompositionId, additionalRequest) = request;
         using var generation = new CancellationTokenSource();
         _generation = generation;
         IsGenerating = true;
