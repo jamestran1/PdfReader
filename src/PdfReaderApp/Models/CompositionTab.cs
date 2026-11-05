@@ -6,12 +6,15 @@ namespace PdfReaderApp.Models;
 /// <summary>Tab Bản soạn: đọc Markdown, hoặc Sửa tay và Đổi tên tại chỗ; không giữ handle PDFium nên đứng ngoài hydrate/evict (ADR 0009).</summary>
 public sealed partial class CompositionTab : OpenTab
 {
-    public CompositionTab(Composition composition)
+    /// <param name="composition">Bản soạn của tab.</param>
+    /// <param name="clock">Đồng hồ cho dòng "Hôm nay 14:20"; để trống thì dùng giờ hệ thống. Truyền vào để model không đọc đồng hồ tĩnh (CS-11).</param>
+    public CompositionTab(Composition composition, TimeProvider? clock = null)
         : base(composition?.Id ?? throw new ArgumentNullException(nameof(composition)), composition.Title)
     {
         Composition = composition;
         Blocks = MarkdownBlockParser.Parse(composition.Content);
-        WhenText = CompositionSources.FormatWhen(composition.CreatedAtUnixMs, DateTimeOffset.Now, TimeZoneInfo.Local);
+        clock ??= TimeProvider.System;
+        WhenText = CompositionSources.FormatWhen(composition.CreatedAtUnixMs, clock.GetUtcNow(), clock.LocalTimeZone);
         ApplySources([]);
     }
 

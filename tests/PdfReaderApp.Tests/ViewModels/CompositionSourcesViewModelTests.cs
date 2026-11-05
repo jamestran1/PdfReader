@@ -149,6 +149,25 @@ public sealed class CompositionSourcesViewModelTests
         Assert.Equal("Ý [1].", string.Concat(block.Spans.Select(s => s.Text)));
     }
 
+    private sealed class UtcClock(DateTimeOffset now) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => now;
+        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
+    }
+
+    [Fact]
+    public void MetaText_UsesTheInjectedClockForTodayAndYesterday()
+    {
+        var created = new DateTimeOffset(2026, 11, 5, 9, 40, 0, TimeSpan.Zero);
+        var composition = new Composition("c1", "ws", "T", CompositionKind.Summary, "x", "m", ["n1"], created.ToUnixTimeMilliseconds());
+
+        var sameDay = new CompositionTab(composition, new UtcClock(created.AddHours(2)));
+        var nextDay = new CompositionTab(composition, new UtcClock(created.AddDays(1)));
+
+        Assert.Equal("Hôm nay 09:40 · 1 Note", sameDay.MetaText);
+        Assert.Equal("Hôm qua 09:40 · 1 Note", nextDay.MetaText);
+    }
+
     [Fact]
     public void SourcesMetaText_ShowsNoteCountAndChatModel()
     {
