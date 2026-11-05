@@ -40,7 +40,7 @@ public sealed class CompositionContextBuilderTests
         var notes = new[] { NoteOf("n", "a", 0, null, "ý của tôi") };
 
         var plain = CompositionContextBuilder.Build(notes, [DocA]);
-        var withRequest = CompositionContextBuilder.Build(notes, [DocA], "viết ngắn thôi");
+        var withRequest = CompositionContextBuilder.Build(notes, [DocA], new CompositionContextOptions("viết ngắn thôi"));
 
         Assert.Equal(plain.Text.Length, plain.CharCount);
         Assert.Equal("viết ngắn thôi", withRequest.AdditionalRequest);
@@ -90,5 +90,33 @@ public sealed class CompositionContextBuilderTests
 
         Assert.Equal(["n"], context.SourceNoteIds);
         Assert.StartsWith("[1] ", context.Text, StringComparison.Ordinal);
+    }
+
+    private static string? Library(string id) => id == "removed" ? "Sách cũ" : null;
+
+    [Fact]
+    public void Build_NoteOfDocumentRemovedFromWorkspaceButInLibrary_KeepsTitleAndPageAndSitsBetweenWorkspaceDocsAndFreeNotes()
+    {
+        Note[] notes =
+        [
+            NoteOf("free", null, null, null, "tự do", createdAt: 1),
+            NoteOf("gone-p3", "removed", 2, null, "mồ côi trang 3"),
+            NoteOf("a1", "a", 0, null, "có doc"),
+        ];
+
+        var context = CompositionContextBuilder.Build(notes, [DocA], new CompositionContextOptions(DocumentTitle: Library));
+
+        Assert.Equal(["a1", "gone-p3", "free"], context.SourceNoteIds);
+        Assert.Contains("[2] Tài liệu: \"Sách cũ\", Trang: 3\nGhi chú: mồ côi trang 3", context.Text, StringComparison.Ordinal);
+        Assert.Contains("[3]\nGhi chú: tự do", context.Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Build_NoteOfDocumentUnknownEvenToTheLibrary_StaysAFreeNote()
+    {
+        var context = CompositionContextBuilder.Build(
+            [NoteOf("lost", "nowhere", 2, null, "mất dấu")], [DocA], new CompositionContextOptions(DocumentTitle: Library));
+
+        Assert.Equal("[1]\nGhi chú: mất dấu", context.Text);
     }
 }

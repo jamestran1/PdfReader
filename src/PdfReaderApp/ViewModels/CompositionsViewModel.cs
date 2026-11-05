@@ -24,6 +24,9 @@ public sealed partial class CompositionsViewModel : ObservableObject
     private readonly TimeProvider _clock;
     private CancellationTokenSource? _generation;
 
+    // Tra tên Document trong Library cho Note của Document đã ra khỏi Workspace; có sau AttachSources (trước đó không tra được).
+    private Func<string, string?>? _documentTitle;
+
     internal CompositionsViewModel(
         ICompositionStore store,
         INoteStore noteStore,
@@ -135,7 +138,7 @@ public sealed partial class CompositionsViewModel : ObservableObject
             _noteStore.GetForOwner(owner), _documentsInWorkspace(),
             draft => _ = CreateFromDraftAsync(draft),
             () => IsDialogOpen = false,
-            _callbacks.BudgetChars());
+            _callbacks.BudgetChars(), _documentTitle);
         IsDialogOpen = true;
     }
 
@@ -170,7 +173,7 @@ public sealed partial class CompositionsViewModel : ObservableObject
         {
             var wanted = new HashSet<string>(noteIds, StringComparer.Ordinal);
             var notes = _noteStore.GetForOwner(owner).Where(n => wanted.Contains(n.Id)).ToList();
-            var context = CompositionContextBuilder.Build(notes, _documentsInWorkspace(), additionalRequest);
+            var context = CompositionContextBuilder.Build(notes, _documentsInWorkspace(), new CompositionContextOptions(additionalRequest, _documentTitle));
             if (context.SourceNoteIds.Count == 0)
             {
                 _callbacks.NotifyError(NoNotesMessage);

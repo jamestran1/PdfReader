@@ -8,7 +8,10 @@ public sealed partial class CompositionsViewModel
 
     /// <summary>Nối nguồn với Phiên đọc và panel Notes (Note đọc từ store của view model này). Gọi một lần sau khi Phiên đọc đã dựng.</summary>
     internal void AttachSources(Func<string, string?> documentTitle, ReadingSessionViewModel session, NotesViewModel notes)
-        => Sources = CompositionSourcesViewModel.Create(
+    {
+        _documentTitle = documentTitle;
+        Sources = CompositionSourcesViewModel.Create(
             _noteStore, documentTitle, id => _documentsInWorkspace().Any(d => string.Equals(d.DocumentId, id, StringComparison.Ordinal)),
             session, notes, _callbacks.NotifyError);
+    }
 }

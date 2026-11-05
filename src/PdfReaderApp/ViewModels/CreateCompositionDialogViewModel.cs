@@ -16,18 +16,21 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
     private readonly Action<CompositionDraft> _create;
     private readonly Action _close;
     private readonly int _budgetChars;
+    private readonly Func<string, string?>? _documentTitle;
 
     internal CreateCompositionDialogViewModel(
         IReadOnlyList<Note> notes,
         IReadOnlyList<CompositionSourceDocument> documents,
         Action<CompositionDraft> create,
         Action close,
-        int budgetChars)
+        int budgetChars,
+        Func<string, string?>? documentTitle = null)
     {
         _documents = documents;
         _create = create;
         _close = close;
         _budgetChars = budgetChars;
+        _documentTitle = documentTitle;
         Tree = new NoteSelectionTree(notes, documents);
         Tree.SelectionChanged += (_, _) => Recalculate();
         Recalculate();
@@ -90,7 +93,7 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
     {
         SelectedChars = Tree.SelectedCount == 0
             ? 0
-            : CompositionContextBuilder.Build(Tree.SelectedNotes, _documents, NormalizedRequest()).CharCount;
+            : CompositionContextBuilder.Build(Tree.SelectedNotes, _documents, new CompositionContextOptions(NormalizedRequest(), _documentTitle)).CharCount;
         OnPropertyChanged(nameof(IsOverBudget));
         OnPropertyChanged(nameof(CanCreate));
         OnPropertyChanged(nameof(BudgetText));
