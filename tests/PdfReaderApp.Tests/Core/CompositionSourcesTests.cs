@@ -15,15 +15,17 @@ public class CompositionSourcesTests
     private static string? TitleOf(string documentId) => documentId == "docB" ? "Báo cáo" : null;
 
     [Fact]
-    public void Resolve_NoteOfDocumentOutsideWorkspace_IsTreatedAsFreeNote()
+    public void Resolve_NoteOfDocumentOutsideWorkspace_KeepsDocumentTitleAndPageButCannotJump()
     {
         var entries = CompositionSources.Resolve(
-            CompositionOf("x", "n1"), [NoteOf("n1", "docOut", 3, "a")], TitleOf, id => id != "docOut");
+            CompositionOf("x", "n1"), [NoteOf("n1", "docB", 3, "a")], TitleOf, id => id != "docB");
 
         var entry = Assert.Single(entries);
-        Assert.True(entry.IsFree);
-        Assert.Null(entry.DocumentId);
-        Assert.Equal(CompositionSources.FreeNoteLabel, entry.Location);
+        Assert.False(entry.IsFree);
+        Assert.False(entry.CanJumpToDocument);
+        Assert.Equal("docB", entry.DocumentId);
+        Assert.Equal("Tr.4", entry.PageLabel);
+        Assert.Equal("Báo cáo, Tr.4", entry.Location);
     }
 
     [Fact]

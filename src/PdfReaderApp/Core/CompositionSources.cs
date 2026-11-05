@@ -14,8 +14,8 @@ public static class CompositionSources
     public const string UnknownDocumentLabel = "Tài liệu không còn trong thư viện";
 
     /// <summary>Dựng nguồn từ Note hiện tại. <paramref name="isDocumentInWorkspace"/> cho biết Document có thuộc Workspace của
-    /// Bản soạn không: Note trỏ tới Document ngoài Workspace được coi là Note tự do, đúng như <c>CompositionContextBuilder</c>
-    /// đã gửi cho AI (không dòng "Tài liệu:").</summary>
+    /// Bản soạn không: Note trỏ tới Document ngoài Workspace vẫn hiện tên Document
+    /// và trang, nhưng không Cross-doc jump (khớp <c>CompositionContextBuilder</c>, vốn coi Note đó là Note tự do).</summary>
     public static IReadOnlyList<CompositionSourceEntry> Resolve(
         Composition composition, IReadOnlyList<Note> currentNotes, Func<string, string?> documentTitle,
         Func<string, bool> isDocumentInWorkspace)
@@ -36,9 +36,9 @@ public static class CompositionSources
                 continue;
             }
 
-            string? documentId = note.DocumentId is { } id && isDocumentInWorkspace(id) ? id : null;
-            string? title = documentId is null ? null : documentTitle(documentId);
-            entries.Add(new CompositionSourceEntry(i + 1, noteId, documentId, title, note.PageIndex, note.Quote, note.Content, false));
+            string? title = note.DocumentId is { } documentId ? documentTitle(documentId) : null;
+            bool outside = note.DocumentId is { } id && !isDocumentInWorkspace(id);
+            entries.Add(new CompositionSourceEntry(i + 1, noteId, note.DocumentId, title, note.PageIndex, note.Quote, note.Content, false, outside));
         }
 
         return entries;

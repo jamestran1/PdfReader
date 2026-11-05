@@ -79,7 +79,7 @@ public sealed partial class CompositionSourcesViewModel
     {
         // RagSource.DocumentId mang id Note (xem CompositionSources.ParseCitations).
         if (span?.Source is not { } source || !_entriesByNoteId.TryGetValue(source.DocumentId, out var entry)) return;
-        if (entry.IsFree) _selectFreeNote(entry);
-        else _openDocumentNote(entry);
+        if (entry.CanJumpToDocument) _openDocumentNote(entry);
+        else _selectFreeNote(entry);
     }
 }

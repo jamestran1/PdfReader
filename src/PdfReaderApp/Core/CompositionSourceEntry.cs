@@ -9,10 +9,16 @@ namespace PdfReaderApp.Core;
 /// <param name="Quote">Đoạn Note trích từ trang, dùng để nháy Đoạn nguồn.</param>
 /// <param name="Content">Nội dung Note hiện tại, hoặc <see cref="CompositionSources.DeletedNoteText"/>.</param>
 /// <param name="IsDeleted">Note không còn.</param>
+/// <param name="IsDocumentOutsideWorkspace">Document của Note không còn thuộc Workspace: vẫn hiện tên Document và trang,
+/// nhưng bấm <c>[n]</c> không Cross-doc jump mà chọn Note ở panel Notes.</param>
 public sealed record CompositionSourceEntry(
-    int Number, string NoteId, string? DocumentId, string? DocumentTitle, int? PageIndex, string? Quote, string Content, bool IsDeleted)
+    int Number, string NoteId, string? DocumentId, string? DocumentTitle, int? PageIndex, string? Quote, string Content, bool IsDeleted,
+    bool IsDocumentOutsideWorkspace = false)
 {
     public bool IsFree => !IsDeleted && DocumentId is null;
+
+    /// <summary>Bấm <c>[n]</c> được nhảy sang Document: Note còn, có Document và Document còn trong Workspace.</summary>
+    public bool CanJumpToDocument => !IsDeleted && DocumentId is not null && !IsDocumentOutsideWorkspace;
 
     /// <summary>Số <c>[n]</c> chỉ bấm được khi Note còn.</summary>
     public bool IsClickable => !IsDeleted;

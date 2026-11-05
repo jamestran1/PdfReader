@@ -79,9 +79,11 @@ public sealed partial class NotesViewModel : ObservableObject
 
     public bool MatchesFilter(Note n, string? filter)
     {
-        if (FilterCurrentDocumentOnly && n.DocumentId != _currentDocumentId?.Invoke()) return false;
+        if (FilterCurrentDocumentOnly && !MatchesDocument(n)) return false;
         return MatchesText(n, filter);
     }
+
+    private bool MatchesDocument(Note n) => n.DocumentId == _currentDocumentId?.Invoke();
 
     private static bool MatchesText(Note n, string? filter)
         => string.IsNullOrWhiteSpace(filter)
@@ -143,13 +145,16 @@ public sealed partial class NotesViewModel : ObservableObject
     /// <summary>Chỉ số tab Notes trong panel phải (0 là Chat).</summary>
     internal const int NotesTabIndex = 1;
 
+    /// <summary>Báo Note đã đổi ngoài panel (xoá theo Document khi gỡ khỏi Library) để Tab Bản soạn đọc lại nguồn.</summary>
+    internal void NotifyNotesChanged() => NotesChanged?.Invoke(this, EventArgs.Empty);
+
     /// <summary>Mở panel Notes và chọn <paramref name="noteId"/>. Chỉ bỏ bộ lọc nào đang ẩn Note đó, để "chỉ tài liệu này"
     /// vẫn bám Document gần nhất (story 39 của #289). Không tìm thấy Note thì bỏ cả hai như trước.</summary>
     internal void ShowNote(string noteId)
     {
         var note = _all.Find(n => n.Id == noteId);
         if (note is null || !MatchesText(note, FilterText)) FilterText = string.Empty;
-        if (note is null || (FilterCurrentDocumentOnly && note.DocumentId != _currentDocumentId?.Invoke())) FilterCurrentDocumentOnly = false;
+        if (note is null || (FilterCurrentDocumentOnly && !MatchesDocument(note))) FilterCurrentDocumentOnly = false;
         RightTabIndex = NotesTabIndex;
         SelectedNoteId = noteId;
     }
