@@ -131,7 +131,7 @@
                                    Foreground="{DynamicResource TriThu.Brush.Error}"
                                    Visibility="{Binding HasWarning, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Content="Hủy" Command="{Binding CancelCommand}"
+                            <Button Content="Huỷ" Command="{Binding CancelCommand}"
                                     Style="{StaticResource MaterialDesignFlatButton}"
                                     materialDesign:ButtonAssist.CornerRadius="12" Margin="0,0,8,0"/>
                             <Button Content="Tạo" Command="{Binding CreateCommand}"
