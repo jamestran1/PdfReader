@@ -566,6 +566,14 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Session.Activate(tab);
     }
 
+    /// <summary>Việc phải làm trước khi cửa sổ đóng: lưu chữ đang gõ dở, huỷ lần sinh Bản soạn đang chờ AI (không để nó ghi db sau khi thoát), lưu bộ tab đang mở.</summary>
+    public void PrepareForShutdown()
+    {
+        Compositions.FlushPendingEdits();
+        Compositions.CancelGeneration();
+        Session.SaveOpenSetNow();
+    }
+
     // Đóng tab (chỉ gỡ khỏi Open Set, KHÔNG gỡ khỏi workspace membership).
     [RelayCommand]
     private void CloseTab(Models.OpenTab? tab)

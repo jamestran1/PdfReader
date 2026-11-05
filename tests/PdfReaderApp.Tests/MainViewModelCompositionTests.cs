@@ -48,10 +48,15 @@ public sealed class MainViewModelCompositionTests : IDisposable
     {
         public List<CompositionContext> Received { get; } = [];
 
+        /// <summary>Khi có, lần sinh chờ cổng này và bỏ qua token (như generator quên tôn trọng huỷ).</summary>
+        public TaskCompletionSource? Gate { get; set; }
+
+        private static GeneratedComposition Result => new("Tóm tắt AI", "Nội dung [1]", "model-x");
+
         public Task<GeneratedComposition> GenerateAsync(CompositionKind kind, CompositionContext context, CancellationToken cancellationToken)
         {
             Received.Add(context);
-            return Task.FromResult(new GeneratedComposition("Tóm tắt AI", "Nội dung [1]", "model-x"));
+            return Gate is null ? Task.FromResult(Result) : Gate.Task.ContinueWith(_ => Result, TaskScheduler.Default);
         }
     }
 
@@ -239,6 +244,35 @@ public sealed class MainViewModelCompositionTests : IDisposable
 
         Assert.True(_vm.Notifications.Current?.IsError);
         Assert.Same(tab, _vm.Session.Tabs.ActiveTab);
+    }
+
+    [Fact]
+    public async Task PrepareForShutdown_WhileAiIsStillGenerating_NeverStoresTheLateResult()
+    {
+        AddNote("nA", "docA", 0, "ý A");
+        _vm.OpenWorkspaceCommand.Execute(_ws);
+        _generator.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var generating = _vm.Compositions.CreateSummaryFromAllNotesAsync();
+        Assert.True(_vm.Compositions.IsGenerating);
+
+        _vm.PrepareForShutdown();
+        _generator.Gate.SetResult();
+        await generating;
+
+        Assert.Empty(_compositions.GetForOwner(_ws.Id));
+        Assert.Empty(_vm.Compositions.Items);
+    }
+
+    [Fact]
+    public void PrepareForShutdown_SavesTextTypedInACompositionTab()
+    {
+        var tab = OpenCompositionTab();
+        _vm.Compositions.ToggleEditCommand.Execute(tab);
+        tab.EditText = "Gõ dở rồi đóng cửa sổ";
+
+        _vm.PrepareForShutdown();
+
+        Assert.Equal("Gõ dở rồi đóng cửa sổ", _compositions.GetForOwner(_ws.Id).Single().Content);
     }
 
     [Fact]
