@@ -169,6 +169,20 @@ public sealed class CompositionSourcesViewModelTests
     }
 
     [Fact]
+    public void CompositionTabOpenedThroughAHost_UsesTheHostClockForWhenText()
+    {
+        var created = new DateTimeOffset(2026, 11, 5, 9, 40, 0, TimeSpan.Zero);
+        var composition = new Composition("c1", "ws", "T", CompositionKind.Summary, "x", "m", ["n1"], created.ToUnixTimeMilliseconds());
+        var nextDay = new UtcClock(created.AddDays(1));
+
+        var viaTabSet = new TabSetViewModel(clock: nextDay).OpenOrActivateComposition(composition);
+        var viaLightStrip = new LightTabStripViewModel(nextDay).OpenOrActivateComposition(composition);
+
+        Assert.Equal("Hôm qua 09:40", viaTabSet.WhenText);
+        Assert.Equal("Hôm qua 09:40", viaLightStrip.WhenText);
+    }
+
+    [Fact]
     public void SourcesMetaText_ShowsNoteCountAndChatModel()
     {
         var tab = Fixture.TabWith("x");

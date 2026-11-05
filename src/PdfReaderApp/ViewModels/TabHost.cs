@@ -18,8 +18,12 @@ public abstract class TabHost : ObservableObject
 
     private OpenTab? _activeTab;
 
-    protected TabHost()
+    private readonly TimeProvider _clock;
+
+    /// <param name="clock">Đồng hồ cho các tab sinh ra từ host này (dòng "Hôm nay 14:20" của Tab Bản soạn); để trống thì dùng giờ hệ thống (CS-11).</param>
+    protected TabHost(TimeProvider? clock = null)
     {
+        _clock = clock ?? TimeProvider.System;
         Tabs = new ReadOnlyObservableCollection<OpenTab>(_tabItems);
         _tabItems.CollectionChanged += (_, _) => TabsChanged?.Invoke();
     }
@@ -77,7 +81,7 @@ public abstract class TabHost : ObservableObject
             return existing;
         }
 
-        var tab = new CompositionTab(composition);
+        var tab = new CompositionTab(composition, _clock);
         var anchor = (afterCompositionId is null ? null : FindComposition(afterCompositionId)) ?? _activeTab;
         int insertAt = anchor is null ? _tabItems.Count : _tabItems.IndexOf(anchor) + 1;
         _tabItems.Insert(insertAt, tab);

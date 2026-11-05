@@ -14,7 +14,8 @@ public sealed class TabSetViewModel : TabHost
 
     private readonly int _maxWarmInactiveTabs;
 
-    public TabSetViewModel(int maxWarmInactiveTabs = DefaultMaxWarmInactiveTabs)
+    public TabSetViewModel(int maxWarmInactiveTabs = DefaultMaxWarmInactiveTabs, TimeProvider? clock = null)
+        : base(clock)
     {
         _maxWarmInactiveTabs = maxWarmInactiveTabs;
     }

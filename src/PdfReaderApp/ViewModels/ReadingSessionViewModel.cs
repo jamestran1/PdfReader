@@ -53,8 +53,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
 
         // Phiên đọc là bên nghe duy nhất việc đổi Tab và gọi OpenSetPersistence: thứ tự "xử lý đổi Tab rồi mới lập lịch lưu
         // Open Set" nằm trong OnActiveTabChanged và handler TabsChanged, không phụ thuộc thứ tự đăng ký sự kiện.
-        Tabs = new TabSetViewModel();
-        LightTabs = new LightTabStripViewModel();
+        Tabs = new TabSetViewModel(clock: _clock);
+        LightTabs = new LightTabStripViewModel(_clock);
         _openSet = new OpenSetPersistence(
             _workspaceStore, () => CurrentTabs, () => ActiveWorkspaceId, () => IsWorkspaceSession)
         {
@@ -367,7 +367,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
             {
                 // Chế độ Sửa không được nhớ: tab luôn mở lại ở chế độ đọc. Bản soạn đã xoá thì bỏ qua.
                 if (_findComposition(workspaceId, state.ItemId) is { } composition)
-                    restored.Add(new CompositionTab(composition) { ScrollNorm = state.ScrollNorm });
+                    restored.Add(new CompositionTab(composition, _clock) { ScrollNorm = state.ScrollNorm });
                 continue;
             }
 

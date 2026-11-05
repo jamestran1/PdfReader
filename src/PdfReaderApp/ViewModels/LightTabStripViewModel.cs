@@ -12,7 +12,8 @@ public sealed class LightTabStripViewModel : TabHost
     /// <summary>Strip chỉ hiện khi có từ hai tab, không có nút "+".</summary>
     public bool IsStripVisible => Tabs.Count >= 2;
 
-    public LightTabStripViewModel()
+    public LightTabStripViewModel(TimeProvider? clock = null)
+        : base(clock)
     {
         TabsChanged += () => OnPropertyChanged(nameof(IsStripVisible));
     }
