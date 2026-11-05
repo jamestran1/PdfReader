@@ -8,7 +8,11 @@ using PdfReaderApp.Services;
 
 namespace PdfReaderApp.ViewModels;
 
+// MainViewModel là host ghép các ViewModel con; thêm CompositionsViewModel (#291) đẩy ghép nối lên đúng ngưỡng. Tách tiếp
+// phần host (rail, Workspace) thuộc dọn dẹp #133, không thuộc ticket này.
+#pragma warning disable CA1506
 public partial class MainViewModel : ObservableObject, IDisposable
+#pragma warning restore CA1506
 {
     private readonly IPdfDocumentService _documentService;
     private readonly ISettingsService _settingsService;
@@ -112,18 +116,39 @@ public partial class MainViewModel : ObservableObject, IDisposable
             ChatColumnWidth = new System.Windows.GridLength(_savedChatWidthPx);
         }
         OnPropertyChanged(nameof(IsReadingDocument));
+        OnPropertyChanged(nameof(IsPagePillVisible));
         OnPropertyChanged(nameof(ActiveNavDestination));
         OnPropertyChanged(nameof(IsRightPanelExpanded));
         OnPropertyChanged(nameof(IsRightPanelStripVisible));
         OnPropertyChanged(nameof(IsDocumentTabStripVisible));
+        RaiseTabChromeChanged();
         OnPropertyChanged(nameof(CanPromoteToWorkspace));
+    }
+
+    private void RaiseTabChromeChanged()
+    {
+        OnPropertyChanged(nameof(IsTabStripVisible));
+        OnPropertyChanged(nameof(IsRailVisible));
+        OnPropertyChanged(nameof(IsTabHostVisible));
     }
 
     // Đang đọc tài liệu (không ở Thư viện cũng không ở Workspaces) -> hiện các nút đọc trên toolbar.
     public bool IsReadingDocument => !ShowLibrary && !ShowWorkspaces;
 
+    /// <summary>Nút chuyển trang nổi chỉ hiện khi đang đọc và tab active là Tab Document.</summary>
+    public bool IsPagePillVisible => IsReadingDocument && !Session.IsCompositionTabActive;
+
     // #64: Tab Strip tài liệu chỉ hiện khi đang đọc trong phiên workspace (ẩn ở Thư viện/Workspaces).
     public bool IsDocumentTabStripVisible => Session.IsWorkspaceSession && IsReadingDocument;
+
+    /// <summary>Tab Strip hiện: Workspace có tên (luôn), Default Workspace (đọc lẻ) khi có từ hai tab (ADR 0009).</summary>
+    public bool IsTabStripVisible => IsReadingDocument && (Session.IsWorkspaceSession || Session.IsLightTabStripVisible);
+
+    /// <summary>Vùng host tab (viewer mỗi tab, Tab Bản soạn) hiện ở Workspace có tên, hoặc ở đọc lẻ khi Tab Bản soạn đang active; còn lại viewer standalone hiện.</summary>
+    public bool IsTabHostVisible => Session.IsWorkspaceSession || Session.IsCompositionTabActive;
+
+    /// <summary>Rail trái hiện khi đang đọc một Workspace có tên, hoặc đọc lẻ một Document (rail chỉ có mục Bản soạn).</summary>
+    public bool IsRailVisible => IsReadingDocument && (Session.IsWorkspaceSession || Session.HasDocument);
 
     // Đích điều hướng đang active trên nav rail; suy ra từ trạng thái màn (Library/Workspaces loại trừ nhau).
     public Core.NavDestination ActiveNavDestination =>
@@ -163,6 +188,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
     }
 
     public NotesViewModel Notes { get; }
+
+    /// <summary>Mục Bản soạn trên rail trái.</summary>
+    public CompositionsViewModel Compositions { get; }
 
     public IndexingViewModel Indexing { get; }
     public ChatViewModel Chat { get; }
@@ -230,6 +258,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             () => Session.DocumentId,
             OpenDocumentForNote,
             NotifyError);
+        Compositions = CompositionsViewModel.Create(services, this);
         Search = new SearchViewModel(
             _documentIndex, () => Session.DocumentId, page => Session.CurrentPage = page, NotifyError,
             new SearchWorkspaceContext(GetSearchDocuments, JumpToDocumentFromSearch));
@@ -243,6 +272,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
 
         // Dựng Phiên đọc sau mọi bên cộng tác; các lambda ở trên chỉ chạy sau khi Session đã có.
         Session = CreateSession(documentLoader);
+        Compositions.AttachSources(documentId => FindLibraryItem(documentId)?.Title, Session, Notes);
 
         ReloadWorkspaces();
         Chat.LoadHistory();
@@ -256,7 +286,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
                 RefreshNotesDocumentContext: UpdateNotesDocumentContext,
                 NotifyError: NotifyError,
                 MarkDocumentOpened: documentId => _library.MarkOpened(documentId, DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
-                FindDocument: id => Library.FirstOrDefault(i => i.DocumentId == id)));
+                FindDocument: FindLibraryItem,
+                FindComposition: (workspaceId, id) => Compositions.FindForOwner(workspaceId, id)));
         session.PropertyChanged += OnSessionPropertyChanged;
         return session;
     }
@@ -268,9 +299,27 @@ public partial class MainViewModel : ObservableObject, IDisposable
         switch (e.PropertyName)
         {
             case nameof(ReadingSessionViewModel.CanPromote): OnPropertyChanged(nameof(CanPromoteToWorkspace)); break;
-            case nameof(ReadingSessionViewModel.IsWorkspaceSession): OnPropertyChanged(nameof(IsDocumentTabStripVisible)); break;
+            case nameof(ReadingSessionViewModel.IsWorkspaceSession): OnPropertyChanged(nameof(IsDocumentTabStripVisible)); RaiseTabChromeChanged(); ReloadCompositionsIfWorkspaceChanged(); break;
+            case nameof(ReadingSessionViewModel.IsLightTabStripVisible):
+            case nameof(ReadingSessionViewModel.HasDocument): RaiseTabChromeChanged(); break;
+            case nameof(ReadingSessionViewModel.ActiveWorkspaceId): ReloadCompositionsIfWorkspaceChanged(); break;
+            case nameof(ReadingSessionViewModel.IsCompositionTabActive): Compositions.FlushPendingEdits(); RaiseTabChromeChanged(); OnPropertyChanged(nameof(IsSearchAvailable)); OnPropertyChanged(nameof(IsPagePillVisible)); break;
         }
     }
+
+    // Rail Bản soạn theo Workspace đang hoạt động, có tên hay Default Workspace (đọc lẻ). Ở Default Workspace owner đổi khi
+    // mở lẻ Document khác (ApplyLoaded), nên chỉ nạp lại và huỷ lần sinh khi owner thật sự đổi.
+    private void ReloadCompositionsIfWorkspaceChanged()
+    {
+        string? ownerKey = Session.ActiveWorkspaceId;
+        if (ownerKey == Compositions.OwnerKey) return;
+        Compositions.FlushPendingEdits();
+        Compositions.CancelGeneration();
+        Compositions.LoadFor(ownerKey);
+    }
+
+    /// <summary>Search của viewer chỉ dùng được khi tab active là Tab Document (tắt ở Tab Bản soạn).</summary>
+    public bool IsSearchAvailable => !Session.IsCompositionTabActive;
 
     private void MigrateLegacyNotesToDefaultWorkspace()
     {
@@ -385,7 +434,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var activeTab = _workspaceStore.GetOpenTabs(workspace.Id).FirstOrDefault(tab => tab.IsActive);
         string? activeTitle = activeTab is null
             ? null
-            : Library.FirstOrDefault(item => item.DocumentId == activeTab.DocumentId)?.Title;
+            : FindLibraryItem(activeTab.ItemId)?.Title;
         return new WorkspaceCard(workspace, $"{documentCount} tài liệu", activeTitle, documentCount == 0);
     }
 
@@ -463,7 +512,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         var documents = new List<WorkspaceDocument>();
         foreach (string id in _workspaceStore.GetDocumentIds(Session.ActiveWorkspaceId))
         {
-            var item = Library.FirstOrDefault(i => i.DocumentId == id);
+            var item = FindLibraryItem(id);
             if (item is not null) documents.Add(new WorkspaceDocument(id, item.Title, item.StoredPath));
         }
 
@@ -495,6 +544,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         // Chặn xóa default workspace (default được ẩn khỏi danh sách; đây là phòng vệ)
         if (ws.IsDefault) return;
         _noteStore.DeleteForOwner(ws.Id);
+        Compositions.DeleteForOwner(ws.Id);
         _workspaceStore.Delete(ws.Id);
         if (Session.ActiveWorkspaceId == ws.Id)
         {
@@ -516,11 +566,20 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Session.Activate(tab);
     }
 
+    /// <summary>Việc phải làm trước khi cửa sổ đóng: lưu chữ đang gõ dở, huỷ lần sinh Bản soạn đang chờ AI (không để nó ghi db sau khi thoát), lưu bộ tab đang mở.</summary>
+    public void PrepareForShutdown()
+    {
+        Compositions.FlushPendingEdits();
+        Compositions.CancelGeneration();
+        Session.SaveOpenSetNow();
+    }
+
     // Đóng tab (chỉ gỡ khỏi Open Set, KHÔNG gỡ khỏi workspace membership).
     [RelayCommand]
     private void CloseTab(Models.OpenTab? tab)
     {
         if (tab is null) return;
+        Compositions.FlushPendingEdits();
         Session.Close(tab);
     }
 
@@ -570,6 +629,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 // Xóa default workspace của tài liệu + notes của nó
                 _noteStore.DeleteForOwner(wsId);
+                Compositions.DeleteForOwner(wsId);   // Bản soạn cũng thuộc Workspace: không để lại mồ côi (story 60 của #289)
                 _workspaceStore.Delete(wsId);
             }
             else
@@ -585,6 +645,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         // Dọn note neo trực tiếp tới tài liệu ở mọi nơi
         _noteStore.DeleteForDocument(docId);
+        Notes.NotifyNotesChanged();   // Tab Bản soạn đang mở: [n] của Note vừa xoá không còn bấm được (#295)
         Chat.DeleteHistoryFor(docId);
 #pragma warning disable CA1031 // best-effort: dọn chỉ mục, lỗi không chặn việc xoá tài liệu
         try { _documentIndex.DeleteDocument(docId); } catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.RemoveLibraryItem: xoá chỉ mục lỗi: {ex}"); }
@@ -608,9 +669,11 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Session.CurrentPage,
         CurrentDocumentTitle());
 
+    private LibraryItem? FindLibraryItem(string documentId) => Library.FirstOrDefault(i => i.DocumentId == documentId);
+
     // Tên trong Library (người dùng có thể đã đổi tên); chưa có trong Library thì lấy tên file.
     private string CurrentDocumentTitle()
-        => Library.FirstOrDefault(i => i.DocumentId == Session.DocumentId)?.Title
+        => (Session.DocumentId is { } currentId ? FindLibraryItem(currentId) : null)?.Title
             ?? System.IO.Path.GetFileNameWithoutExtension(Session.FilePath ?? string.Empty);
 
     [RelayCommand]

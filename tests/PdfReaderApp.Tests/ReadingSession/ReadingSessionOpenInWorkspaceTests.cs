@@ -18,8 +18,8 @@ public class ReadingSessionOpenInWorkspaceTests
 
         Assert.True(f.Session.IsWorkspaceSession);
         Assert.Equal(ReadingSessionFixture.WorkspaceId, f.Session.ActiveWorkspaceId);
-        Assert.Equal("M", Assert.Single(f.Session.Tabs.Tabs).DocumentId);
-        Assert.Equal("M", f.Session.Tabs.ActiveTab?.DocumentId);
+        Assert.Equal("M", Assert.Single(f.Session.Tabs.Tabs).ItemId);
+        Assert.Equal("M", f.Session.Tabs.ActiveTab?.ItemId);
         Assert.Equal("M", f.Session.DocumentId);
         Assert.Equal(["M"], f.Opened);
     }
@@ -45,7 +45,7 @@ public class ReadingSessionOpenInWorkspaceTests
 
         f.Session.OpenInWorkspace(ReadingSessionFixture.WorkspaceId, Item("M"));
 
-        Assert.Equal("M", f.Session.Tabs.ActiveTab?.DocumentId);
+        Assert.Equal("M", f.Session.Tabs.ActiveTab?.ItemId);
         Assert.Empty(f.Errors);
     }
 }

@@ -296,7 +296,7 @@ public sealed class MainViewModelChatTests : IDisposable
         vm.Session.OpenInWorkspace("ws-tabs", DocB);
 
         var saved = store.OpenSets["ws-tabs"];
-        Assert.Contains(saved, t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal));
+        Assert.Contains(saved, t => string.Equals(t.ItemId, "docB", StringComparison.Ordinal));
         Assert.Equal(vm.Session.Tabs.Tabs.Count, saved.Count);
     }
 
@@ -304,15 +304,15 @@ public sealed class MainViewModelChatTests : IDisposable
     public void OpenSet_IsSaved_WhenActiveTabChanges()
     {
         var (vm, store) = WorkspaceSessionWithDocA();
-        var tabA = vm.Session.Tabs.Tabs.First(t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal));
+        var tabA = vm.Session.Tabs.Tabs.First(t => string.Equals(t.ItemId, "docA", StringComparison.Ordinal));
         vm.Session.OpenInWorkspace("ws-tabs", DocB);
         store.OpenSets.Clear();
 
         vm.Session.Activate(tabA);
 
         var saved = store.OpenSets["ws-tabs"];
-        Assert.True(saved.Single(t => string.Equals(t.DocumentId, "docA", StringComparison.Ordinal)).IsActive);
-        Assert.False(saved.Single(t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal)).IsActive);
+        Assert.True(saved.Single(t => string.Equals(t.ItemId, "docA", StringComparison.Ordinal)).IsActive);
+        Assert.False(saved.Single(t => string.Equals(t.ItemId, "docB", StringComparison.Ordinal)).IsActive);
     }
 
     [Fact]
@@ -326,7 +326,7 @@ public sealed class MainViewModelChatTests : IDisposable
         vm.Session.Close(tabB);
 
         var saved = store.OpenSets["ws-tabs"];
-        Assert.DoesNotContain(saved, t => string.Equals(t.DocumentId, "docB", StringComparison.Ordinal));
+        Assert.DoesNotContain(saved, t => string.Equals(t.ItemId, "docB", StringComparison.Ordinal));
     }
 
     // Mở một tài liệu thật (file tạm) qua dịch vụ PDF giả để _documentId khác null.

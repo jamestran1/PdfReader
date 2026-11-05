@@ -26,6 +26,9 @@ public sealed partial class NotesViewModel : ObservableObject
 
     public ObservableCollection<Note> Items { get; } = [];
 
+    /// <summary>Một Note đã bị xoá hoặc sửa nội dung; Tab Bản soạn đang mở đọc lại nguồn của nó (#295).</summary>
+    internal event EventHandler? NotesChanged;
+
     [ObservableProperty] public partial string Draft { get; set; } = string.Empty;
     [ObservableProperty] public partial bool IsEditing { get; set; }
     [ObservableProperty] public partial string FilterText { get; set; } = string.Empty;
@@ -76,11 +79,16 @@ public sealed partial class NotesViewModel : ObservableObject
 
     public bool MatchesFilter(Note n, string? filter)
     {
-        if (FilterCurrentDocumentOnly && n.DocumentId != _currentDocumentId?.Invoke()) return false;
-        return string.IsNullOrWhiteSpace(filter)
+        if (FilterCurrentDocumentOnly && !MatchesDocument(n)) return false;
+        return MatchesText(n, filter);
+    }
+
+    private bool MatchesDocument(Note n) => n.DocumentId == _currentDocumentId?.Invoke();
+
+    private static bool MatchesText(Note n, string? filter)
+        => string.IsNullOrWhiteSpace(filter)
            || n.Content.Contains(filter, StringComparison.OrdinalIgnoreCase)
            || (n.Quote != null && n.Quote.Contains(filter, StringComparison.OrdinalIgnoreCase));
-    }
 
     public void LoadFor(string? ownerKey)
     {
@@ -131,7 +139,24 @@ public sealed partial class NotesViewModel : ObservableObject
         PendingQuote = quote;
         _pendingPageIndex = pageIndex;
         _pendingRects = rects;
-        RightTabIndex = 1; // 0=Chat, 1=Notes
+        RightTabIndex = NotesTabIndex;
+    }
+
+    /// <summary>Chỉ số tab Notes trong panel phải (0 là Chat).</summary>
+    internal const int NotesTabIndex = 1;
+
+    /// <summary>Báo Note đã đổi ngoài panel (xoá theo Document khi gỡ khỏi Library) để Tab Bản soạn đọc lại nguồn.</summary>
+    internal void NotifyNotesChanged() => NotesChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Mở panel Notes và chọn <paramref name="noteId"/>. Chỉ bỏ bộ lọc nào đang ẩn Note đó, để "chỉ tài liệu này"
+    /// vẫn bám Document gần nhất (story 39 của #289). Không tìm thấy Note thì bỏ cả hai như trước.</summary>
+    internal void ShowNote(string noteId)
+    {
+        var note = _all.Find(n => n.Id == noteId);
+        if (note is null || !MatchesText(note, FilterText)) FilterText = string.Empty;
+        if (note is null || (FilterCurrentDocumentOnly && !MatchesDocument(note))) FilterCurrentDocumentOnly = false;
+        RightTabIndex = NotesTabIndex;
+        SelectedNoteId = noteId;
     }
 
     // Tạo note trực tiếp (không qua Draft/composer). Dùng cho one-click lưu câu trả lời AI.
@@ -205,6 +230,7 @@ public sealed partial class NotesViewModel : ObservableObject
 #pragma warning restore CA1031
         if (rows == 0) { LoadFor(edit.OwnerKey); return false; } // note đã bị xóa nơi khác
         ApplyEditToLists(edit.NoteId, edit.Content, edit.NowUnixMs);
+        NotesChanged?.Invoke(this, EventArgs.Empty);
         return true;
     }
 
@@ -256,6 +282,7 @@ public sealed partial class NotesViewModel : ObservableObject
         int hi = -1;
         for (int i = 0; i < Highlights.Count; i++) if (Highlights[i].Id == note.Id) { hi = i; break; }
         if (hi >= 0) Highlights.RemoveAt(hi);
+        NotesChanged?.Invoke(this, EventArgs.Empty);
     }
 
     [RelayCommand]

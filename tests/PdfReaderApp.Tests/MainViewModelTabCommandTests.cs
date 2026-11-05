@@ -230,7 +230,7 @@ public class MainViewModelTabCommandTests
         Assert.True(vm.Session.IsWorkspaceSession);
         Assert.False(vm.DocumentsSurface.IsModalOpen);
         Assert.Equal(2, vm.Session.Tabs.Tabs.Count);                 // không tạo tab trùng
-        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.ItemId);
     }
 
     // =========================================================
@@ -267,7 +267,7 @@ public class MainViewModelTabCommandTests
         Assert.Contains("/lib/a.pdf", wsStore.GetDocumentIds(workspace.Id), StringComparer.Ordinal);
 
         var tab = Assert.Single(vm.Session.Tabs.Tabs);
-        Assert.Equal("/lib/a.pdf", tab.DocumentId);
+        Assert.Equal("/lib/a.pdf", tab.ItemId);
         Assert.Equal(7, tab.Page);
         Assert.Equal(1.5, tab.Zoom);
     }

@@ -61,8 +61,8 @@ public class MainViewModelDocumentsSurfaceTests
         vm.DocumentsSurface.AddFromLibraryCommand.Execute(item);
 
         Assert.Contains("docB", wsStore.GetDocumentIds("ws1"), StringComparer.Ordinal);
-        Assert.Equal("docB", vm.Session.Tabs.ActiveTab!.DocumentId);
-        Assert.Contains(wsStore.OpenSets["ws1"], t => t.DocumentId == "docB" && t.IsActive);
+        Assert.Equal("docB", vm.Session.Tabs.ActiveTab!.ItemId);
+        Assert.Contains(wsStore.OpenSets["ws1"], t => t.ItemId == "docB" && t.IsActive);
         Assert.False(vm.DocumentsSurface.IsModalOpen);
     }
 
@@ -81,8 +81,8 @@ public class MainViewModelDocumentsSurfaceTests
         vm.DocumentsSurface.RemoveMemberCommand.Execute(itemB);
 
         Assert.DoesNotContain("docB", wsStore.GetDocumentIds("ws1"), StringComparer.Ordinal);
-        Assert.DoesNotContain(vm.Session.Tabs.Tabs, t => t.DocumentId == "docB");
-        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.DocumentId);   // MRU promote
+        Assert.DoesNotContain(vm.Session.Tabs.Tabs, t => t.ItemId == "docB");
+        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.ItemId);   // MRU promote
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public class MainViewModelDocumentsSurfaceTests
         vm.DocumentsSurface.OpenMemberCommand.Execute(item);
 
         Assert.Single(vm.Session.Tabs.Tabs);
-        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.DocumentId);
+        Assert.Equal("docA", vm.Session.Tabs.ActiveTab!.ItemId);
         Assert.False(vm.DocumentsSurface.IsModalOpen);
     }
 
@@ -158,7 +158,7 @@ public class MainViewModelDocumentsSurfaceTests
 
         vm.RemoveLibraryItemCommand.Execute(item);
 
-        Assert.DoesNotContain(vm.Session.Tabs.Tabs, t => t.DocumentId == "docA");
+        Assert.DoesNotContain(vm.Session.Tabs.Tabs, t => t.ItemId == "docA");
     }
 
     // #88 edge case: không crash khi doc không có Tab đang mở.

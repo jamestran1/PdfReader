@@ -226,4 +226,12 @@ public class SourcePassageTests
 
         Assert.Equal(expected, passage.BelongsTo(documentId));
     }
+
+    [Fact]
+    public void SplitFragments_ValidSurrogatePair_IsKept()
+    {
+        var fragments = SourcePassage.SplitFragments("vui \U0001F600 quá");
+
+        Assert.Equal("vui \U0001F600 quá", Assert.Single(fragments));
+    }
 }
