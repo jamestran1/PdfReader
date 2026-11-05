@@ -621,6 +621,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
             {
                 // Xóa default workspace của tài liệu + notes của nó
                 _noteStore.DeleteForOwner(wsId);
+                Compositions.DeleteForOwner(wsId);   // Bản soạn cũng thuộc Workspace: không để lại mồ côi (story 60 của #289)
                 _workspaceStore.Delete(wsId);
             }
             else

@@ -61,6 +61,18 @@ public sealed class MainViewModelDefaultWorkspaceCompositionTests : IDisposable
     }
 
     [Fact]
+    public void RemovingLibraryItem_DeletesCompositionsOfItsDefaultWorkspace()
+    {
+        string wsA = ReadStandalone(0);
+        _compositions.Add(new Composition("cA", wsA, "Của A", CompositionKind.Summary, "x", "m", [], 1));
+
+        // Document của Phiên đọc lẻ lấy id từ tệp, không phải id giả của Library trong fixture.
+        _vm.RemoveLibraryItemCommand.Execute(new LibraryItem(_vm.Session.DocumentId!, "Sách A", "/docA.pdf", null, 0, 1, 1));
+
+        Assert.Empty(_compositions.GetForOwner(wsA));
+    }
+
+    [Fact]
     public void ReadingStandalone_RailShowsCompositionsOfTheDefaultWorkspace_AndSwitchesWithTheDocument()
     {
         string wsA = ReadStandalone(0);
