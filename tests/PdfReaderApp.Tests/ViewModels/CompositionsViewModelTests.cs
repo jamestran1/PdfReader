@@ -1,3 +1,4 @@
+using System.IO;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 using PdfReaderApp.Tests.Fakes;
@@ -28,11 +29,14 @@ public sealed class CompositionsViewModelTests
 
     private sealed class FakeNoteStore(params Note[] notes) : INoteStore
     {
+        /// <summary>Bật sau khi dựng Fixture để mô phỏng đọc Note lỗi (I/O).</summary>
+        public bool ThrowOnRead { get; set; }
         public void EnsureSchema() { }
         public void Add(Note note) { }
         public int Update(string id, string content, long nowUnixMs) => 0;
         public int Delete(string id) => 0;
-        public IReadOnlyList<Note> GetForOwner(string ownerKey) => [.. notes.Where(n => n.OwnerKey == ownerKey)];
+        public IReadOnlyList<Note> GetForOwner(string ownerKey)
+            => ThrowOnRead ? throw new IOException("đọc Note lỗi") : [.. notes.Where(n => n.OwnerKey == ownerKey)];
         public int ReassignOwner(string oldKey, string newKey) => 0;
         public int DeleteForOwner(string ownerKey) => 0;
         public int DeleteForDocument(string documentId) => 0;
@@ -60,12 +64,15 @@ public sealed class CompositionsViewModelTests
         public List<Composition> Opened { get; } = [];
         public List<string> Errors { get; } = [];
         public List<CompositionSourceDocument> Documents { get; } = [new("a", "Sách A"), new("b", "Sách B")];
+        public FakeNoteStore Notes { get; }
+        public bool DocumentsThrow { get; set; }
         public CompositionsViewModel Vm { get; }
 
         public Fixture(params Note[] notes)
         {
+            Notes = new FakeNoteStore(notes);
             Vm = new CompositionsViewModel(
-                Store, new FakeNoteStore(notes), Generator, () => Documents,
+                Store, Notes, Generator, () => DocumentsThrow ? throw new IOException("đọc Library lỗi") : Documents,
                 new CompositionsCallbacks { OpenComposition = (c, _) => Opened.Add(c), NotifyError = Errors.Add },
                 new FixedClock(1234));
             Vm.LoadFor("ws");
@@ -414,6 +421,61 @@ public sealed class CompositionsViewModelTests
         await f.Vm.RegenerateCommand.ExecuteAsync(old);
 
         Assert.Equal([AiErrorMessages.Describe(AiChatError.RateLimit)], f.Errors);
+        Assert.Empty(f.Store.Rows);
+    }
+
+    [Fact]
+    public async Task CreateFromDraft_WhenReadingNotesThrows_ReportsErrorAndStoresNothing()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "A"));
+        f.Notes.ThrowOnRead = true;
+
+        await f.Vm.CreateFromDraftAsync(new CompositionDraft(CompositionKind.Summary, ["a1"], null));
+
+        Assert.Equal([AiErrorMessages.Unknown], f.Errors);
+        Assert.False(f.Vm.IsGenerating);
+        Assert.Empty(f.Store.Rows);
+        Assert.Empty(f.Generator.Received);
+    }
+
+    [Fact]
+    public async Task CreateFromDraft_WhenListingWorkspaceDocumentsThrows_ReportsErrorAndStoresNothing()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "A"));
+        f.DocumentsThrow = true;
+
+        await f.Vm.CreateFromDraftAsync(new CompositionDraft(CompositionKind.Summary, ["a1"], null));
+
+        Assert.Equal([AiErrorMessages.Unknown], f.Errors);
+        Assert.False(f.Vm.IsGenerating);
+        Assert.Empty(f.Store.Rows);
+    }
+
+    [Fact]
+    public async Task Regenerate_WhenReadingNotesThrows_ReportsErrorAndStoresNothing()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "A"));
+        f.Notes.ThrowOnRead = true;
+        var old = new Composition("old", "ws", "Cũ", CompositionKind.Summary, "x", "m", ["a1"], 1);
+
+        await f.Vm.RegenerateCommand.ExecuteAsync(old);
+
+        Assert.Equal([AiErrorMessages.Unknown], f.Errors);
+        Assert.False(f.Vm.IsGenerating);
+        Assert.Empty(f.Store.Rows);
+    }
+
+    [Fact]
+    public async Task Regenerate_WhenListingWorkspaceDocumentsThrows_ReportsErrorAndStoresNothing()
+    {
+        var f = new Fixture(NoteOf("a1", "a", 0, "A"));
+        f.DocumentsThrow = true;
+        var old = new Composition("old", "ws", "Cũ", CompositionKind.Summary, "x", "m", ["a1"], 1);
+
+        await f.Vm.RegenerateCommand.ExecuteAsync(old);
+
+        Assert.Equal([AiErrorMessages.Unknown], f.Errors);
+        Assert.False(f.Vm.IsGenerating);
         Assert.Empty(f.Store.Rows);
     }
 }

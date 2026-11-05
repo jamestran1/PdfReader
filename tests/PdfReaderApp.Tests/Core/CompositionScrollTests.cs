@@ -21,4 +21,14 @@ public class CompositionScrollTests
     [InlineData(0.5, 0, 0)]
     public void ToOffset_MapsNormalizedBackToOffset(double normalized, double scrollable, double expected)
         => Assert.Equal(expected, CompositionScroll.ToOffset(normalized, scrollable));
+
+    [Theory]
+    [InlineData(true, true, 600, 120, false)]    // đang khôi phục: không ghi
+    [InlineData(false, false, 0, 120, false)]    // view ẩn (tab không active): ScrollViewer reset về 0, không ghi
+    [InlineData(false, true, 0, 120, false)]     // hiện nhưng viewport 0 (chưa layout): không ghi
+    [InlineData(false, true, 600, 0, false)]     // offset không đổi: không ghi
+    [InlineData(false, true, 600, 120, true)]    // người dùng cuộn thật: ghi
+    public void ShouldPersist_OnlyWhenVisibleLaidOutScrolledAndNotRestoring(
+        bool restoring, bool isVisible, double viewportHeight, double verticalChange, bool expected)
+        => Assert.Equal(expected, CompositionScroll.ShouldPersist(restoring, isVisible, viewportHeight, verticalChange));
 }

@@ -18,6 +18,11 @@ public partial class CompositionView : UserControl
         InitializeComponent();
         DataContextChanged += (_, _) => RestoreScroll();
         Scroller.ScrollChanged += OnScrollChanged;
+        // View ẩn rồi hiện lại không đổi DataContext nên RestoreScroll không tự chạy; phải đặt lại vị trí đã lưu.
+        IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is true) RestoreScroll();
+        };
     }
 
     private void RestoreScroll()
@@ -34,7 +39,8 @@ public partial class CompositionView : UserControl
 
     private void OnScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        if (_restoringScroll || e.VerticalChange == 0 || DataContext is not CompositionTab tab) return;
+        if (DataContext is not CompositionTab tab
+            || !CompositionScroll.ShouldPersist(_restoringScroll, IsVisible, Scroller.ViewportHeight, e.VerticalChange)) return;
         tab.ScrollNorm = CompositionScroll.ToNormalized(Scroller.VerticalOffset, Scroller.ScrollableHeight);
     }
 

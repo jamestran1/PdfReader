@@ -143,9 +143,7 @@ public sealed partial class CompositionsViewModel : ObservableObject
     internal async Task CreateFromDraftAsync(CompositionDraft draft)
     {
         if (OwnerKey is not { } owner || IsGenerating) return;
-        var wanted = new HashSet<string>(draft.NoteIds, StringComparer.Ordinal);
-        var notes = _noteStore.GetForOwner(owner).Where(n => wanted.Contains(n.Id)).ToList();
-        await GenerateAsync(owner, draft.Kind, notes, afterCompositionId: null, draft.AdditionalRequest);
+        await GenerateAsync(owner, draft.Kind, draft.NoteIds, afterCompositionId: null, draft.AdditionalRequest);
     }
 
     /// <summary>Sinh lại: Bản soạn mới cùng kiểu, cùng Note nguồn và cùng yêu cầu thêm, mở bên phải tab cũ; bản cũ giữ nguyên.</summary>
@@ -153,33 +151,35 @@ public sealed partial class CompositionsViewModel : ObservableObject
     private async Task RegenerateAsync(Composition? source)
     {
         if (source is null || OwnerKey is not { } owner || IsGenerating) return;
-        var sourceIds = new HashSet<string>(source.SourceNoteIds, StringComparer.Ordinal);
-        var notes = _noteStore.GetForOwner(owner).Where(n => sourceIds.Contains(n.Id)).ToList();
-        await GenerateAsync(owner, source.Kind, notes, source.Id, source.AdditionalRequest);
+        await GenerateAsync(owner, source.Kind, source.SourceNoteIds, source.Id, source.AdditionalRequest);
     }
 
-    private async Task GenerateAsync(string owner, CompositionKind kind, IReadOnlyList<Note> notes, string? afterCompositionId, string? additionalRequest)
+    private async Task GenerateAsync(string owner, CompositionKind kind, IEnumerable<string> noteIds, string? afterCompositionId, string? additionalRequest)
     {
-        var context = CompositionContextBuilder.Build(notes, _documentsInWorkspace(), additionalRequest);
-        if (context.SourceNoteIds.Count == 0)
-        {
-            _callbacks.NotifyError(NoNotesMessage);
-            return;
-        }
-
-        // Sinh lại đi thẳng vào đây (không qua hộp thoại) nên ngân sách phải được chặn ở đây, trước khi gửi.
-        int over = context.CharCount - _callbacks.BudgetChars();
-        if (over > 0)
-        {
-            _callbacks.NotifyError(CreateCompositionDialogViewModel.OverBudgetMessage(over));
-            return;
-        }
-
         using var generation = new CancellationTokenSource();
         _generation = generation;
         IsGenerating = true;
+        // Đọc Note và dựng context cũng là I/O: phải nằm trong try để lỗi được báo cho người dùng
+        // (đường hộp thoại bỏ task nên lỗi ném ra ngoài sẽ mất im lặng).
         try
         {
+            var wanted = new HashSet<string>(noteIds, StringComparer.Ordinal);
+            var notes = _noteStore.GetForOwner(owner).Where(n => wanted.Contains(n.Id)).ToList();
+            var context = CompositionContextBuilder.Build(notes, _documentsInWorkspace(), additionalRequest);
+            if (context.SourceNoteIds.Count == 0)
+            {
+                _callbacks.NotifyError(NoNotesMessage);
+                return;
+            }
+
+            // Sinh lại đi thẳng vào đây (không qua hộp thoại) nên ngân sách phải được chặn ở đây, trước khi gửi.
+            int over = context.CharCount - _callbacks.BudgetChars();
+            if (over > 0)
+            {
+                _callbacks.NotifyError(CreateCompositionDialogViewModel.OverBudgetMessage(over));
+                return;
+            }
+
             var generated = await _generator.GenerateAsync(kind, context, generation.Token);
             generation.Token.ThrowIfCancellationRequested();
             var composition = new Composition(
