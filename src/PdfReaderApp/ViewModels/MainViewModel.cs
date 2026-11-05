@@ -637,6 +637,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
         }
         // Dọn note neo trực tiếp tới tài liệu ở mọi nơi
         _noteStore.DeleteForDocument(docId);
+        Notes.NotifyNotesChanged();   // Tab Bản soạn đang mở: [n] của Note vừa xoá không còn bấm được (#295)
         Chat.DeleteHistoryFor(docId);
 #pragma warning disable CA1031 // best-effort: dọn chỉ mục, lỗi không chặn việc xoá tài liệu
         try { _documentIndex.DeleteDocument(docId); } catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"MainViewModel.RemoveLibraryItem: xoá chỉ mục lỗi: {ex}"); }

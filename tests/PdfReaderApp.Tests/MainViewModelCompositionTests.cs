@@ -39,7 +39,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
         public IReadOnlyList<Note> GetForOwner(string ownerKey) => [.. Rows.Where(n => n.OwnerKey == ownerKey)];
         public int ReassignOwner(string oldKey, string newKey) => 0;
         public int DeleteForOwner(string ownerKey) => Rows.RemoveAll(n => n.OwnerKey == ownerKey);
-        public int DeleteForDocument(string documentId) => 0;
+        public int DeleteForDocument(string documentId) => Rows.RemoveAll(n => n.DocumentId == documentId);
     }
 
     private sealed class RecordingGenerator : ICompositionGenerator
@@ -209,6 +209,20 @@ public sealed class MainViewModelCompositionTests : IDisposable
 
         Assert.True(tab.Sources[0].IsDeleted);
         Assert.Equal(CompositionSources.DeletedNoteText, tab.Sources[0].Content);
+        Assert.DoesNotContain(tab.RenderedBlocks.SelectMany(b => b.Spans), s => s.Source is not null);
+    }
+
+    [Fact]
+    public void RemovingLibraryItemOfASourceNote_WhileTheCompositionTabIsOpen_MarksItDeletedAndNotClickable()
+    {
+        AddNote("n1", "docA", 0, "ý A");
+        var tab = OpenCompositionTab();
+        _vm.Compositions.Sources!.Refresh(tab);
+        Assert.True(tab.Sources[0].IsClickable);
+
+        _vm.RemoveLibraryItemCommand.Execute(_vm.Library.Single(i => i.DocumentId == "docA"));
+
+        Assert.True(tab.Sources[0].IsDeleted);
         Assert.DoesNotContain(tab.RenderedBlocks.SelectMany(b => b.Spans), s => s.Source is not null);
     }
 
