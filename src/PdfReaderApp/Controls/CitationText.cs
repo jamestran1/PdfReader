@@ -53,6 +53,8 @@ public static class CitationText
     // Chip secondary-container như prototype #252-B: bo góc 6, chỉ hiện số, bấm được như link.
     private static InlineUIContainer CreateChip(CitationSpan span, ICommand? command)
     {
+        // Chip vẽ tay có chủ ý (UI-1): nó nằm giữa dòng chữ như một Inline (InlineUIContainer) của TextBlock, cần cao đúng một dòng
+        // (LineHeight dưới). Chip hay Button của MaterialDesignThemes có chiều cao tối thiểu và padding riêng nên làm giãn dòng.
         var label = new System.Windows.Controls.TextBlock
         {
             Text = span.Source!.Number.ToString(System.Globalization.CultureInfo.InvariantCulture),
