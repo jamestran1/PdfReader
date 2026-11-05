@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using Microsoft.Data.Sqlite;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;

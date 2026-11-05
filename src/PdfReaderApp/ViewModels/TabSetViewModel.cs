@@ -1,4 +1,4 @@
-﻿using PdfReaderApp.Models;
+using PdfReaderApp.Models;
 
 namespace PdfReaderApp.ViewModels;
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.Data.Sqlite;
+using Microsoft.Data.Sqlite;
 using PdfReaderApp.Models;
 
 namespace PdfReaderApp.Services;

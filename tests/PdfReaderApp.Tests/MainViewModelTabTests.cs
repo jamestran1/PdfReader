@@ -1,4 +1,4 @@
-﻿using PdfReaderApp.Models;
+using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 using PdfReaderApp.Tests.Fakes;
 using PdfReaderApp.ViewModels;
