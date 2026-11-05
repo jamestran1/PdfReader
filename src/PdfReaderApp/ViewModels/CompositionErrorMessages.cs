@@ -5,4 +5,5 @@ internal static class CompositionErrorMessages
 {
     public const string DeleteFailed = "Không xoá được Bản soạn. Thử lại sau.";
     public const string SaveFailed = "Không lưu được Bản soạn. Thử lại sau.";
+    public const string SourcesFailed = "Không đọc được ghi chú nguồn của Bản soạn. Thử lại sau.";
 }

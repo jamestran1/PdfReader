@@ -36,7 +36,9 @@ public sealed class MainViewModelCompositionTests : IDisposable
         public void Add(Note note) => Rows.Add(note);
         public int Update(string id, string content, long nowUnixMs) => 0;
         public int Delete(string id) => Rows.RemoveAll(n => n.Id == id);
-        public IReadOnlyList<Note> GetForOwner(string ownerKey) => [.. Rows.Where(n => n.OwnerKey == ownerKey)];
+        public bool FailGet { get; set; }
+        public IReadOnlyList<Note> GetForOwner(string ownerKey)
+            => FailGet ? throw new InvalidOperationException("db lỗi") : [.. Rows.Where(n => n.OwnerKey == ownerKey)];
         public int ReassignOwner(string oldKey, string newKey) => 0;
         public int DeleteForOwner(string ownerKey) => Rows.RemoveAll(n => n.OwnerKey == ownerKey);
         public int DeleteForDocument(string documentId) => Rows.RemoveAll(n => n.DocumentId == documentId);
@@ -224,6 +226,19 @@ public sealed class MainViewModelCompositionTests : IDisposable
 
         Assert.True(tab.Sources[0].IsDeleted);
         Assert.DoesNotContain(tab.RenderedBlocks.SelectMany(b => b.Spans), s => s.Source is not null);
+    }
+
+    [Fact]
+    public void ActivatingACompositionTab_WhenTheNoteStoreFails_TellsTheUserInsteadOfThrowing()
+    {
+        var tab = OpenCompositionTab();
+        _vm.Session.Activate(_vm.Session.OpenComposition(new Composition("c2", _ws.Id, "T2", CompositionKind.Summary, "y", "m", [], 2)));
+        _notes.FailGet = true;
+
+        _vm.Session.Activate(tab);
+
+        Assert.True(_vm.Notifications.Current?.IsError);
+        Assert.Same(tab, _vm.Session.Tabs.ActiveTab);
     }
 
     [Fact]

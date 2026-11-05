@@ -37,7 +37,7 @@ public sealed partial class CompositionSourcesViewModel
     /// vì đổi Tab Document nạp lại trạng thái panel của Tab đó.</summary>
     internal static CompositionSourcesViewModel Create(
         INoteStore noteStore, Func<string, string?> documentTitle, Func<string, bool> isDocumentInWorkspace,
-        ReadingSessionViewModel session, NotesViewModel notes)
+        ReadingSessionViewModel session, NotesViewModel notes, Action<string> notifyError)
     {
         var viewModel = new CompositionSourcesViewModel(
             noteStore, documentTitle, isDocumentInWorkspace,
@@ -47,9 +47,21 @@ public sealed partial class CompositionSourcesViewModel
                 notes.ShowNote(entry.NoteId);
             },
             entry => notes.ShowNote(entry.NoteId));
+        // Ranh giới sự kiện: lỗi đọc Note không được văng ra chỗ kích hoạt tab; Refresh vẫn ném để chỗ gọi trực tiếp thấy lỗi.
         void RefreshOnCompositionTab(OpenTab? tab)
         {
-            if (tab is CompositionTab compositionTab) viewModel.Refresh(compositionTab);
+            if (tab is not CompositionTab compositionTab) return;
+            try
+            {
+                viewModel.Refresh(compositionTab);
+            }
+#pragma warning disable CA1031 // ranh giới sự kiện: lỗi đọc Note được ghi log và báo người dùng, không làm sập việc kích hoạt tab
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.TraceWarning($"CompositionSourcesViewModel: đọc lại nguồn Bản soạn lỗi: {ex}");
+                notifyError(CompositionErrorMessages.SourcesFailed);
+            }
+#pragma warning restore CA1031
         }
 
         // Note nguồn bị xoá hay sửa khi Tab Bản soạn đang mở: đọc lại để [n] không còn trông bấm được mà không làm gì.

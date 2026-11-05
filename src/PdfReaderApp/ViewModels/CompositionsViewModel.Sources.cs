@@ -10,5 +10,5 @@ public sealed partial class CompositionsViewModel
     internal void AttachSources(Func<string, string?> documentTitle, ReadingSessionViewModel session, NotesViewModel notes)
         => Sources = CompositionSourcesViewModel.Create(
             _noteStore, documentTitle, id => _documentsInWorkspace().Any(d => string.Equals(d.DocumentId, id, StringComparison.Ordinal)),
-            session, notes);
+            session, notes, _callbacks.NotifyError);
 }
