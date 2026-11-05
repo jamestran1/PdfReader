@@ -173,12 +173,11 @@ FROM composition WHERE owner_key=$owner ORDER BY created_at DESC, rowid DESC";
     private static List<string> ParseSources(string json)
     {
         try { return JsonSerializer.Deserialize<List<string>>(json) ?? []; }
-#pragma warning disable CA1031 // degrade: JSON nguồn hỏng thì Bản soạn vẫn đọc được, chỉ mất liên kết [n]
-        catch (Exception ex)
+        catch (JsonException ex)
         {
+            // JSON nguồn hỏng thì Bản soạn vẫn đọc được, chỉ mất liên kết [n]
             System.Diagnostics.Trace.TraceWarning($"SqliteCompositionStore: JSON id Note nguồn hỏng: {ex}");
             return [];
         }
-#pragma warning restore CA1031
     }
 }
