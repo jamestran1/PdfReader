@@ -10,10 +10,12 @@ namespace PdfReaderApp.Services;
 /// </summary>
 internal static class CompositionContextBuilder
 {
-    private const int FreeGroup = 2;
+    internal const int WorkspaceGroup = 0;
+    internal const int LibraryGroup = 1;
+    internal const int FreeGroup = 2;
 
     // Nhóm xếp thứ tự: Document trong Workspace, Document ngoài Workspace nhưng còn trong Library, Note tự do.
-    private sealed record Placed(Note Note, int Group, int DocumentOrder, string? Title);
+    internal sealed record Placed(Note Note, int Group, int DocumentOrder, string? Title);
 
     public static CompositionContext Build(
         IReadOnlyList<Note> notes, IReadOnlyList<CompositionSourceDocument> documentsInOrder, CompositionContextOptions? options = null)
@@ -21,17 +23,7 @@ internal static class CompositionContextBuilder
         ArgumentNullException.ThrowIfNull(notes);
         ArgumentNullException.ThrowIfNull(documentsInOrder);
 
-        var documentIndex = new Dictionary<string, int>(StringComparer.Ordinal);
-        for (int i = 0; i < documentsInOrder.Count; i++) documentIndex.TryAdd(documentsInOrder[i].DocumentId, i);
-
-        var ordered = notes.Where(HasText)
-            .Select(n => Place(n, documentsInOrder, documentIndex, options?.DocumentTitle))
-            .OrderBy(p => p.Group)
-            .ThenBy(p => p.DocumentOrder)
-            .ThenBy(p => p.Group == FreeGroup ? null : p.Note.DocumentId, StringComparer.Ordinal)
-            .ThenBy(p => p.Group == FreeGroup ? -1 : p.Note.PageIndex ?? -1)
-            .ThenBy(p => p.Note.CreatedAtUnixMs)
-            .ToList();
+        var ordered = Order(notes, documentsInOrder, options?.DocumentTitle);
 
         var text = new StringBuilder();
         for (int i = 0; i < ordered.Count; i++)
@@ -43,12 +35,30 @@ internal static class CompositionContextBuilder
         return new CompositionContext(text.ToString(), [.. ordered.Select(p => p.Note.Id)], options?.AdditionalRequest);
     }
 
+    /// <summary>
+    /// Thứ tự và nhóm của các Note có chữ, dùng chung cho ngữ cảnh gửi AI và cây chọn của hộp thoại để hai bên không lệch nhau.
+    /// </summary>
+    internal static IReadOnlyList<Placed> Order(
+        IReadOnlyList<Note> notes, IReadOnlyList<CompositionSourceDocument> documentsInOrder, Func<string, string?>? libraryTitle)
+    {
+        var documentIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+        for (int i = 0; i < documentsInOrder.Count; i++) documentIndex.TryAdd(documentsInOrder[i].DocumentId, i);
+
+        return [.. notes.Where(HasText)
+            .Select(n => Place(n, documentsInOrder, documentIndex, libraryTitle))
+            .OrderBy(p => p.Group)
+            .ThenBy(p => p.DocumentOrder)
+            .ThenBy(p => p.Group == FreeGroup ? null : p.Note.DocumentId, StringComparer.Ordinal)
+            .ThenBy(p => p.Group == FreeGroup ? -1 : p.Note.PageIndex ?? -1)
+            .ThenBy(p => p.Note.CreatedAtUnixMs)];
+    }
+
     private static Placed Place(
         Note note, IReadOnlyList<CompositionSourceDocument> documents, Dictionary<string, int> documentIndex, Func<string, string?>? libraryTitle)
     {
         if (note.DocumentId is not { } id) return new Placed(note, FreeGroup, 0, null);
-        if (documentIndex.TryGetValue(id, out int index)) return new Placed(note, 0, index, documents[index].Title);
-        return libraryTitle?.Invoke(id) is { } title ? new Placed(note, 1, 0, title) : new Placed(note, FreeGroup, 0, null);
+        if (documentIndex.TryGetValue(id, out int index)) return new Placed(note, WorkspaceGroup, index, documents[index].Title);
+        return libraryTitle?.Invoke(id) is { } title ? new Placed(note, LibraryGroup, 0, title) : new Placed(note, FreeGroup, 0, null);
     }
 
     internal static bool HasText(Note note) => !string.IsNullOrWhiteSpace(note.Quote) || !string.IsNullOrWhiteSpace(note.Content);

@@ -16,24 +16,17 @@ public sealed partial class NoteSelectionTree : ObservableObject
     private readonly List<NoteSelectionNode> _allNotes;
     private int _bulkDepth;
 
-    public NoteSelectionTree(IReadOnlyList<Note> notes, IReadOnlyList<CompositionSourceDocument> documentsInOrder)
+    public NoteSelectionTree(
+        IReadOnlyList<Note> notes, IReadOnlyList<CompositionSourceDocument> documentsInOrder, Func<string, string?>? documentTitle = null)
     {
         ArgumentNullException.ThrowIfNull(notes);
         ArgumentNullException.ThrowIfNull(documentsInOrder);
 
-        var usable = notes.Where(CompositionContextBuilder.HasText).ToList();
+        // Cùng hàm xếp thứ tự với CompositionContextBuilder: nhóm Workspace, nhóm Document còn trong Library, rồi Note tự do.
         var groups = new List<DocumentSelectionNode>();
-        var placed = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var document in documentsInOrder)
-        {
-            if (!placed.Add(document.DocumentId)) continue;
-            var inDocument = usable.Where(n => n.DocumentId == document.DocumentId)
-                .OrderBy(n => n.PageIndex ?? -1).ThenBy(n => n.CreatedAtUnixMs);
-            AddGroup(groups, document.Title, inDocument);
-        }
-
-        var free = usable.Where(n => n.DocumentId is null || !placed.Contains(n.DocumentId)).OrderBy(n => n.CreatedAtUnixMs);
-        AddGroup(groups, FreeNotesTitle, free);
+        var ordered = CompositionContextBuilder.Order(notes, documentsInOrder, documentTitle);
+        foreach (var run in ordered.GroupBy(p => (p.Group, DocumentId: p.Group == CompositionContextBuilder.FreeGroup ? null : p.Note.DocumentId)))
+            AddGroup(groups, run.Key.Group == CompositionContextBuilder.FreeGroup ? FreeNotesTitle : run.First().Title!, run.Select(p => p.Note));
 
         Documents = groups;
         _allNotes = [.. groups.SelectMany(g => g.Notes)];

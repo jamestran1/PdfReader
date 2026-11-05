@@ -31,7 +31,7 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
         _close = close;
         _budgetChars = budgetChars;
         _documentTitle = documentTitle;
-        Tree = new NoteSelectionTree(notes, documents);
+        Tree = new NoteSelectionTree(notes, documents, documentTitle);
         Tree.SelectionChanged += (_, _) => Recalculate();
         Recalculate();
     }

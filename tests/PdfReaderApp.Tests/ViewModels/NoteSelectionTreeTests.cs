@@ -176,4 +176,24 @@ public sealed class NoteSelectionTreeTests
 
         Assert.Equal(1, raised);
     }
+
+    // Cùng cách xếp với CompositionContextBuilder: Document đã ra khỏi Workspace nhưng còn trong Library có nhóm riêng mang tên Library.
+    [Fact]
+    public void NoteOfLibraryDocumentOutsideWorkspace_GetsOwnGroupBetweenWorkspaceAndFree_UnknownStaysFree()
+    {
+        var tree = new NoteSelectionTree(
+            [
+                NoteOf("free", null, null, "tự do", created: 1),
+                NoteOf("ghost", "zz", 0, "mồ côi", created: 2),
+                NoteOf("l2", "y", 5, "Ý y hai", created: 3),
+                NoteOf("l1", "y", 1, "Ý y một", created: 4),
+                NoteOf("a1", "a", 0, "Ý một"),
+            ],
+            Documents,
+            id => id == "y" ? "Sách Y" : null);
+
+        Assert.Equal(["Sách A", "Sách Y", "Note không gắn Document"], [.. tree.Documents.Select(d => d.Title)]);
+        Assert.Equal(["l1", "l2"], [.. tree.Documents[1].Notes.Select(n => n.Note.Id)]);
+        Assert.Equal(["free", "ghost"], [.. tree.Documents[2].Notes.Select(n => n.Note.Id)]);
+    }
 }
