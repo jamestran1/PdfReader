@@ -144,10 +144,10 @@ public partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Tab Strip hiện: Workspace có tên (luôn), Default Workspace (đọc lẻ) khi có từ hai tab (ADR 0009).</summary>
     public bool IsTabStripVisible => IsReadingDocument && (Session.IsWorkspaceSession || Session.IsLightTabStripVisible);
 
-    /// <summary>Rail trái hiện khi đang đọc một Workspace có tên, hoặc đọc lẻ một Document (rail chỉ có mục Bản soạn).</summary>
     /// <summary>Vùng host tab (viewer mỗi tab, Tab Bản soạn) hiện ở Workspace có tên, hoặc ở đọc lẻ khi Tab Bản soạn đang active; còn lại viewer standalone hiện.</summary>
     public bool IsTabHostVisible => Session.IsWorkspaceSession || Session.IsCompositionTabActive;
 
+    /// <summary>Rail trái hiện khi đang đọc một Workspace có tên, hoặc đọc lẻ một Document (rail chỉ có mục Bản soạn).</summary>
     public bool IsRailVisible => IsReadingDocument && (Session.IsWorkspaceSession || Session.HasDocument);
 
     // Đích điều hướng đang active trên nav rail; suy ra từ trạng thái màn (Library/Workspaces loại trừ nhau).
