@@ -164,7 +164,7 @@ public sealed class AiCompositionGeneratorTests
 
         Assert.Contains("Yêu cầu thêm của người dùng", system, StringComparison.Ordinal);
         Assert.Contains("ưu tiên hơn bố cục và giọng văn mặc định", system, StringComparison.Ordinal);
-        Assert.Contains("không bao giờ bỏ quy tắc gắn [n]", system, StringComparison.Ordinal);
+        Assert.Contains("không bao giờ bỏ quy tắc dòng đầu là tiêu đề, quy tắc gắn [n] và quy tắc chỉ dựa vào Note", system, StringComparison.Ordinal);
     }
 
     [Fact]
