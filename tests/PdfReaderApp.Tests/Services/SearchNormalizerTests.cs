@@ -116,4 +116,53 @@ public class SearchNormalizerTests
         Assert.Equal("", folded);
         Assert.Empty(map);
     }
+
+    // PDFium chèn U+FFFE vào vùng chọn tại chỗ gạch nối mềm; string.Normalize ném ArgumentException với nó.
+    [Fact]
+    public void Fold_NoncharacterFromPdfium_IsDropped()
+    {
+        Assert.Equal("paraphrase", SearchNormalizer.Fold("para￾phrase"));
+    }
+
+    [Fact]
+    public void Fold_LoneSurrogate_IsDropped()
+    {
+        Assert.Equal("ab cd", SearchNormalizer.Fold("a\uD83Db c\uDE00d"));
+    }
+
+    [Fact]
+    public void Fold_ValidSurrogatePair_IsKept()
+    {
+        Assert.Equal("vui \U0001F600 qua", SearchNormalizer.Fold("Vui \U0001F600 quá"));
+    }
+
+    [Fact]
+    public void FoldWithMap_NoncharacterFromPdfium_IsDroppedAndMapStaysAligned()
+    {
+        const string s = "Para￾phrase";
+        var (folded, map) = SearchNormalizer.FoldWithMap(s);
+
+        Assert.Equal("paraphrase", folded);
+        Assert.Equal(folded.Length, map.Length);
+        Assert.Equal(3, map[3]); // 'a' cuối của "para"
+        Assert.Equal(5, map[4]); // 'p' của "phrase" nằm sau ký tự U+FFFE
+    }
+
+    [Fact]
+    public void FoldWithMap_LoneSurrogate_IsDropped()
+    {
+        var (folded, map) = SearchNormalizer.FoldWithMap("a\uD83Db");
+
+        Assert.Equal("ab", folded);
+        Assert.Equal([0, 2], map);
+    }
+
+    [Fact]
+    public void FoldWithMap_ValidSurrogatePair_IsKeptAsOneUnitMappedToItsFirstChar()
+    {
+        var (folded, map) = SearchNormalizer.FoldWithMap("a\U0001F600b");
+
+        Assert.Equal("a\U0001F600b", folded);
+        Assert.Equal([0, 1, 1, 3], map); // mỗi nửa surrogate map về ký tự đầu của cặp
+    }
 }

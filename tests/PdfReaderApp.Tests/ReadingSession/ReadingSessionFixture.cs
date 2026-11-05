@@ -25,7 +25,8 @@ internal sealed class ReadingSessionFixture
             Loader, Store, Search, Chat, Notes, Indexing, Surface, Errors.Add,
             DispatcherProvider: () => null,   // null: lưu Open Set ngay, tất định
             MarkDocumentOpened: RecordOpened,
-            FindDocument: id => Library.GetValueOrDefault(id)));
+            FindDocument: id => Library.GetValueOrDefault(id),
+            FindComposition: (_, id) => Compositions.GetValueOrDefault(id)));
     }
 
     /// <summary>Id Document đã được ghi thời điểm mở vào Library.</summary>
@@ -50,6 +51,9 @@ internal sealed class ReadingSessionFixture
     public FakeSessionSurface Surface { get; }
     public List<string> Errors { get; } = [];
     public Dictionary<string, LibraryItem> Library { get; } = [];
+
+    /// <summary>Bản soạn còn tồn tại theo id (Bản soạn đã xoá thì không có trong đây).</summary>
+    public Dictionary<string, Composition> Compositions { get; } = [];
     public ReadingSessionViewModel Session { get; }
 
     public static string PathOf(string documentId) => $"/docs/{documentId}.pdf";

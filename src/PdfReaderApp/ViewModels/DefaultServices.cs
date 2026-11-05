@@ -27,7 +27,8 @@ public static class DefaultServices
             CreateNoteStore(dataDir),
             CreateWorkspaceStore(dataDir),
             CreateThemeService(),
-            CreateLibrary(dataDir));
+            CreateLibrary(dataDir),
+            CompositionStore: CreateCompositionStore(dataDir));
     }
 
     public static SqliteDocumentIndex CreateDocumentIndex(string dataDir) => new(
@@ -37,6 +38,8 @@ public static class DefaultServices
     public static IChatHistoryStore CreateChatHistory(string dataDir) => new SqliteChatHistoryStore(Path.Combine(dataDir, "chats.db"));
 
     public static INoteStore CreateNoteStore(string dataDir) => new SqliteNoteStore(Path.Combine(dataDir, "notes.db"));
+
+    public static ICompositionStore CreateCompositionStore(string dataDir) => new SqliteCompositionStore(Path.Combine(dataDir, "compositions.db"));
 
     public static IWorkspaceStore CreateWorkspaceStore(string dataDir) => new SqliteWorkspaceStore(Path.Combine(dataDir, "workspaces.db"));
 

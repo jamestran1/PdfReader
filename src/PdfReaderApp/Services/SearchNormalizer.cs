@@ -17,6 +17,9 @@ public static class SearchNormalizer
     {
         if (string.IsNullOrEmpty(s)) return "";
 
+        // Step 0: bỏ ký tự mà string.Normalize từ chối (nếu không sẽ ném ArgumentException)
+        s = DropInvalidCodePoints(s);
+
         // Step 1: replace Vietnamese d-stroke before NFD so it survives decomposition
         s = s.Replace('đ', 'd').Replace('Đ', 'D');
 
@@ -46,23 +49,18 @@ public static class SearchNormalizer
     {
         if (string.IsNullOrEmpty(s)) return ("", System.Array.Empty<int>());
 
-        // Phase 1: fold theo tung ky tu goc, ghi nho chi so nguon.
+        // Phase 1: fold theo từng đơn vị mã (cặp surrogate hợp lệ là một đơn vị), ghi nhớ chỉ số nguồn.
         var chars = new List<char>(s.Length);
         var src = new List<int>(s.Length);
         for (int i = 0; i < s.Length; i++)
         {
-            char c0 = s[i];
-            if (c0 == 'đ') c0 = 'd';
-            else if (c0 == 'Đ') c0 = 'D';
-
-            string decomposed = c0.ToString().Normalize(NormalizationForm.FormD);
-            foreach (char d in decomposed)
+            int length = char.IsHighSurrogate(s[i]) && i + 1 < s.Length && char.IsLowSurrogate(s[i + 1]) ? 2 : 1;
+            foreach (char d in FoldUnit(s.Substring(i, length)))
             {
-                if (CharUnicodeInfo.GetUnicodeCategory(d) == UnicodeCategory.NonSpacingMark)
-                    continue;
-                chars.Add(char.ToLowerInvariant(d));
+                chars.Add(d);
                 src.Add(i);
             }
+            i += length - 1;
         }
 
         // Phase 2: gộp chuỗi whitespace thành 1 space, trim hai đầu (khớp Whitespace.Replace + Trim).
@@ -91,4 +89,60 @@ public static class SearchNormalizer
 
         return (sb.ToString(), map.ToArray());
     }
+
+    // Fold một đơn vị mã (một char hoặc một cặp surrogate): bỏ ký tự không hợp lệ, đổi đ, bỏ dấu, hạ chữ thường.
+    private static IEnumerable<char> FoldUnit(string unit)
+    {
+        unit = DropInvalidCodePoints(unit);
+        if (unit.Length == 0) yield break;
+
+        // Đ/đ không tách được bằng NFD nên đổi trước
+        if (unit[0] == 'đ') unit = "d";
+        else if (unit[0] == 'Đ') unit = "D";
+
+        foreach (char d in unit.Normalize(NormalizationForm.FormD))
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(d) != UnicodeCategory.NonSpacingMark)
+                yield return char.ToLowerInvariant(d);
+        }
+    }
+
+    /// <summary>
+    /// Bỏ surrogate lẻ và noncharacter (U+FFFE, U+FFFF mỗi plane, U+FDD0..U+FDEF): <c>string.Normalize</c> ném
+    /// ArgumentException với chúng. PDFium dùng U+FFFE đánh dấu gạch nối mềm trong vùng chọn nên bỏ đi
+    /// để "para-phrase" khớp "paraphrase" trên trang.
+    /// </summary>
+    private static string DropInvalidCodePoints(string s)
+    {
+        int firstBad = -1;
+        for (int i = 0; i < s.Length && firstBad < 0; i++)
+        {
+            if (IsInvalidAt(s, i, out int length)) firstBad = i;
+            else i += length - 1;
+        }
+        if (firstBad < 0) return s;
+
+        var sb = new StringBuilder(s.Length);
+        for (int i = 0; i < s.Length; i++)
+        {
+            bool bad = IsInvalidAt(s, i, out int length);
+            if (!bad) sb.Append(s, i, length);
+            i += length - 1;
+        }
+        return sb.ToString();
+    }
+
+    private static bool IsInvalidAt(string s, int index, out int length)
+    {
+        if (char.IsHighSurrogate(s[index]) && index + 1 < s.Length && char.IsLowSurrogate(s[index + 1]))
+        {
+            length = 2;
+            return IsNoncharacter(char.ConvertToUtf32(s[index], s[index + 1]));
+        }
+        length = 1;
+        return char.IsSurrogate(s[index]) || IsNoncharacter(s[index]);
+    }
+
+    private static bool IsNoncharacter(int codePoint) =>
+        codePoint is >= 0xFDD0 and <= 0xFDEF || (codePoint & 0xFFFE) == 0xFFFE;
 }

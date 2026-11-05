@@ -131,6 +131,6 @@ public class ReadingSessionActivateTests
 
         var saved = f.Store.GetOpenTabs(ReadingSessionFixture.WorkspaceId);
         Assert.Equal(2, saved.Count);
-        Assert.Equal("A", saved.Single(t => t.IsActive).DocumentId);
+        Assert.Equal("A", saved.Single(t => t.IsActive).ItemId);
     }
 }

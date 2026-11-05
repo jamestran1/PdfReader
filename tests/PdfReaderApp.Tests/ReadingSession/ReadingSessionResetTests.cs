@@ -43,6 +43,6 @@ public class ReadingSessionResetTests
 
         f.Session.Reset();
 
-        Assert.Equal("A", Assert.Single(f.Store.GetOpenTabs(ReadingSessionFixture.WorkspaceId)).DocumentId);
+        Assert.Equal("A", Assert.Single(f.Store.GetOpenTabs(ReadingSessionFixture.WorkspaceId)).ItemId);
     }
 }

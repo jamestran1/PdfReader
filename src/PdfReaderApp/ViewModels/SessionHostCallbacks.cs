@@ -5,8 +5,10 @@ namespace PdfReaderApp.ViewModels;
 /// <param name="NotifyError">Báo lỗi cho người dùng.</param>
 /// <param name="MarkDocumentOpened">Ghi thời điểm mở của Document vào Library.</param>
 /// <param name="FindDocument">Tìm Document trong Library của MainViewModel theo id.</param>
+/// <param name="FindComposition">Tìm Bản soạn của Workspace theo id, null khi đã bị xoá.</param>
 internal sealed record SessionHostCallbacks(
     Action RefreshNotesDocumentContext,
     Action<string> NotifyError,
     Action<string> MarkDocumentOpened,
-    LibraryDocumentLookup FindDocument);
+    LibraryDocumentLookup FindDocument,
+    CompositionLookup FindComposition);

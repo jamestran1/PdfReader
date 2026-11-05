@@ -55,4 +55,13 @@ public class AccentInsensitiveRegexTests
         Assert.Equal(AccentInsensitiveRegex.BuildPattern("kinh"), AccentInsensitiveRegex.BuildAlternation([" ", "kinh"]));
         Assert.Equal("", AccentInsensitiveRegex.BuildAlternation([" "]));
     }
+
+    // Câu trích lưu từ vùng chọn PDFium có U+FFFE giữa "para" và "phrase"; trang thật chỉ có "paraphrase".
+    [Fact]
+    public void BuildAlternation_QuoteWithPdfiumNoncharacter_MatchesPageText()
+    {
+        string pattern = AccentInsensitiveRegex.BuildAlternation(["the para￾phrase of “x”"]);
+
+        Assert.Matches(pattern, "the paraphrase of “x”");
+    }
 }
