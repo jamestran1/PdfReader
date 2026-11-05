@@ -16,17 +16,6 @@ internal sealed class AiCompositionGenerator(ISettingsService settings, IChatCli
         "Mặc định trả lời bằng tiếng Việt. " +
         "Dòng đầu tiên là tiêu đề ngắn (một dòng, không ký hiệu Markdown), cách một dòng trống, rồi tới nội dung viết bằng Markdown.";
 
-    private const string SummarySystemPrompt =
-        "Bạn viết một bản tóm tắt từ các ghi chú (Note) của người dùng: ngắn gọn, nêu các ý chính. " + CommonRules;
-
-    private const string OutlineSystemPrompt =
-        "Bạn lập một outline (dàn ý có cấu trúc) từ các ghi chú (Note) của người dùng: nhóm các ý thành mục và mục con " +
-        "bằng tiêu đề và gạch đầu dòng Markdown, mỗi mục chỉ một dòng ngắn. " + CommonRules;
-
-    private const string DraftSystemPrompt =
-        "Bạn soạn một bản thảo hoàn chỉnh từ các ghi chú (Note) của người dùng: văn xuôi mạch lạc, có mở đầu, thân bài và kết, " +
-        "nối các ý thành bài viết liền mạch. " + CommonRules;
-
     private const string AdditionalRequestLabel = "Yêu cầu thêm của người dùng: ";
 
     public async Task<GeneratedComposition> GenerateAsync(CompositionKind kind, CompositionContext context, CancellationToken cancellationToken)
@@ -89,13 +78,9 @@ internal sealed class AiCompositionGenerator(ISettingsService settings, IChatCli
             ? context.Text
             : $"{context.Text}\n\n{AdditionalRequestLabel}{context.AdditionalRequest}";
 
-    private static string SystemPromptFor(CompositionKind kind) => kind switch
-    {
-        CompositionKind.Summary => SummarySystemPrompt,
-        CompositionKind.Outline => OutlineSystemPrompt,
-        CompositionKind.Draft => DraftSystemPrompt,
-        _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, "Kiểu Bản soạn chưa được hỗ trợ."),
-    };
+    private static string SystemPromptFor(CompositionKind kind)
+        => (CompositionKinds.Find(kind) ?? throw new ArgumentOutOfRangeException(nameof(kind), kind, "Kiểu Bản soạn chưa được hỗ trợ."))
+            .PromptInstructions + CommonRules;
 
-    private static string FallbackTitleFor(CompositionKind kind) => CompositionKindLabels.For(kind);
+    private static string FallbackTitleFor(CompositionKind kind) => CompositionKinds.LabelFor(kind);
 }

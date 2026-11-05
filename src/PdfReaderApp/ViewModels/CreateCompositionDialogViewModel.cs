@@ -37,11 +37,7 @@ public sealed partial class CreateCompositionDialogViewModel : ObservableObject
 
     /// <summary>Các kiểu để chọn, theo thứ tự hiển thị.</summary>
     public IReadOnlyList<CompositionKindOption> Kinds { get; } =
-    [
-        new(CompositionKind.Summary, CompositionKindLabels.Summary, "Các ý chính, ngắn gọn"),
-        new(CompositionKind.Outline, CompositionKindLabels.Outline, "Dàn ý theo mục và mục con"),
-        new(CompositionKind.Draft, CompositionKindLabels.Draft, "Bản thảo văn xuôi hoàn chỉnh"),
-    ];
+        [.. CompositionKinds.All.Select(k => new CompositionKindOption(k.Kind, k.Label, k.Description))];
 
     [ObservableProperty]
     public partial CompositionKind Kind { get; set; } = CompositionKind.Summary;

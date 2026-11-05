@@ -18,5 +18,5 @@ public sealed record Composition(
     long? UpdatedAtUnixMs = null)
 {
     /// <summary>Nhãn kiểu để hiện trên rail và chip.</summary>
-    public string KindLabel => CompositionKindLabels.For(Kind);
+    public string KindLabel => CompositionKinds.LabelFor(Kind);
 }
