@@ -1,4 +1,5 @@
 using System.IO;
+using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 using PdfReaderApp.Tests.Fakes;
@@ -34,7 +35,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
         public void EnsureSchema() { }
         public void Add(Note note) => Rows.Add(note);
         public int Update(string id, string content, long nowUnixMs) => 0;
-        public int Delete(string id) => 0;
+        public int Delete(string id) => Rows.RemoveAll(n => n.Id == id);
         public IReadOnlyList<Note> GetForOwner(string ownerKey) => [.. Rows.Where(n => n.OwnerKey == ownerKey)];
         public int ReassignOwner(string oldKey, string newKey) => 0;
         public int DeleteForOwner(string ownerKey) => Rows.RemoveAll(n => n.OwnerKey == ownerKey);
@@ -193,6 +194,22 @@ public sealed class MainViewModelCompositionTests : IDisposable
         _vm.Compositions.LoadFor(_ws.Id);
         _vm.Compositions.OpenCommand.Execute(_vm.Compositions.Items.Single());
         return Assert.IsType<CompositionTab>(_vm.Session.Tabs.ActiveTab);
+    }
+
+    [Fact]
+    public void DeletingASourceNoteWhileTheCompositionTabIsOpen_MarksItDeletedAndNotClickable()
+    {
+        AddNote("n1", "docA", 0, "ý A");
+        var tab = OpenCompositionTab();
+        _vm.Notes.LoadFor(_ws.Id);
+        _vm.Compositions.Sources!.Refresh(tab);
+        Assert.True(tab.Sources[0].IsClickable);
+
+        _vm.Notes.DeleteCommand.Execute(_vm.Notes.Items.Single());
+
+        Assert.True(tab.Sources[0].IsDeleted);
+        Assert.Equal(CompositionSources.DeletedNoteText, tab.Sources[0].Content);
+        Assert.DoesNotContain(tab.RenderedBlocks.SelectMany(b => b.Spans), s => s.Source is not null);
     }
 
     [Fact]

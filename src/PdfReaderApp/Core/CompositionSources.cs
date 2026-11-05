@@ -13,12 +13,17 @@ public static class CompositionSources
     public const string FreeNoteLabel = "Note tự do";
     public const string UnknownDocumentLabel = "Tài liệu không còn trong thư viện";
 
+    /// <summary>Dựng nguồn từ Note hiện tại. <paramref name="isDocumentInWorkspace"/> cho biết Document có thuộc Workspace của
+    /// Bản soạn không: Note trỏ tới Document ngoài Workspace được coi là Note tự do, đúng như <c>CompositionContextBuilder</c>
+    /// đã gửi cho AI (không dòng "Tài liệu:").</summary>
     public static IReadOnlyList<CompositionSourceEntry> Resolve(
-        Composition composition, IReadOnlyList<Note> currentNotes, Func<string, string?> documentTitle)
+        Composition composition, IReadOnlyList<Note> currentNotes, Func<string, string?> documentTitle,
+        Func<string, bool> isDocumentInWorkspace)
     {
         ArgumentNullException.ThrowIfNull(composition);
         ArgumentNullException.ThrowIfNull(currentNotes);
         ArgumentNullException.ThrowIfNull(documentTitle);
+        ArgumentNullException.ThrowIfNull(isDocumentInWorkspace);
 
         var byId = currentNotes.GroupBy(n => n.Id, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         var entries = new List<CompositionSourceEntry>(composition.SourceNoteIds.Count);
@@ -31,8 +36,9 @@ public static class CompositionSources
                 continue;
             }
 
-            string? title = note.DocumentId is { } documentId ? documentTitle(documentId) : null;
-            entries.Add(new CompositionSourceEntry(i + 1, noteId, note.DocumentId, title, note.PageIndex, note.Quote, note.Content, false));
+            string? documentId = note.DocumentId is { } id && isDocumentInWorkspace(id) ? id : null;
+            string? title = documentId is null ? null : documentTitle(documentId);
+            entries.Add(new CompositionSourceEntry(i + 1, noteId, documentId, title, note.PageIndex, note.Quote, note.Content, false));
         }
 
         return entries;

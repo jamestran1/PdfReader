@@ -13,6 +13,7 @@ public sealed partial class CompositionSourcesViewModel
 {
     private readonly INoteStore _noteStore;
     private readonly Func<string, string?> _documentTitle;
+    private readonly Func<string, bool> _isDocumentInWorkspace;
     private readonly Action<CompositionSourceEntry> _openDocumentNote;
     private readonly Action<CompositionSourceEntry> _selectFreeNote;
     private readonly Dictionary<string, CompositionSourceEntry> _entriesByNoteId = new(StringComparer.Ordinal);
@@ -20,11 +21,13 @@ public sealed partial class CompositionSourcesViewModel
     internal CompositionSourcesViewModel(
         INoteStore noteStore,
         Func<string, string?> documentTitle,
+        Func<string, bool> isDocumentInWorkspace,
         Action<CompositionSourceEntry> openDocumentNote,
         Action<CompositionSourceEntry> selectFreeNote)
     {
         _noteStore = noteStore;
         _documentTitle = documentTitle;
+        _isDocumentInWorkspace = isDocumentInWorkspace;
         _openDocumentNote = openDocumentNote;
         _selectFreeNote = selectFreeNote;
     }
@@ -33,10 +36,11 @@ public sealed partial class CompositionSourcesViewModel
     /// Cross-doc jump (tô đoạn Note trích nếu có), của Note tự do thì không nhảy. Cả hai chọn Note ở panel Notes sau cùng,
     /// vì đổi Tab Document nạp lại trạng thái panel của Tab đó.</summary>
     internal static CompositionSourcesViewModel Create(
-        INoteStore noteStore, Func<string, string?> documentTitle, ReadingSessionViewModel session, NotesViewModel notes)
+        INoteStore noteStore, Func<string, string?> documentTitle, Func<string, bool> isDocumentInWorkspace,
+        ReadingSessionViewModel session, NotesViewModel notes)
     {
         var viewModel = new CompositionSourcesViewModel(
-            noteStore, documentTitle,
+            noteStore, documentTitle, isDocumentInWorkspace,
             entry =>
             {
                 session.JumpFromCitation(new RagSource(entry.Number, entry.DocumentId!, entry.DocumentTitle ?? string.Empty, entry.PageIndex ?? 0, entry.Quote), null);
@@ -48,6 +52,8 @@ public sealed partial class CompositionSourcesViewModel
             if (tab is CompositionTab compositionTab) viewModel.Refresh(compositionTab);
         }
 
+        // Note nguồn bị xoá hay sửa khi Tab Bản soạn đang mở: đọc lại để [n] không còn trông bấm được mà không làm gì.
+        notes.NotesChanged += (_, _) => RefreshOnCompositionTab(session.CurrentTabs.ActiveTab);
         session.Tabs.ActiveTabChanged += RefreshOnCompositionTab;
         session.LightTabs.ActiveTabChanged += RefreshOnCompositionTab;   // Default Workspace có Tab Bản soạn riêng
         return viewModel;
@@ -57,7 +63,8 @@ public sealed partial class CompositionSourcesViewModel
     public void Refresh(CompositionTab tab)
     {
         ArgumentNullException.ThrowIfNull(tab);
-        var entries = CompositionSources.Resolve(tab.Composition, _noteStore.GetForOwner(tab.Composition.OwnerKey), _documentTitle);
+        var entries = CompositionSources.Resolve(
+            tab.Composition, _noteStore.GetForOwner(tab.Composition.OwnerKey), _documentTitle, _isDocumentInWorkspace);
         foreach (var entry in entries)
         {
             if (entry.IsClickable) _entriesByNoteId[entry.NoteId] = entry;

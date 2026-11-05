@@ -53,6 +53,59 @@ public class NotesViewModelTests
         Action<string>? notifyError = null)
         => new NotesViewModel(store, () => page, idx => onJump?.Invoke(idx), currentDocumentId, openDocument, notifyError);
 
+    private static NotesViewModel MakeForShowNote(FakeNoteStore store)
+    {
+        store.Rows.Add(new Note("nB", "ws", "docB", 0, null, "abc", 1, 1));
+        store.Rows.Add(new Note("nA", "ws", "docA", 0, null, "abc", 1, 1));
+        store.Rows.Add(new Note("nFree", "ws", null, null, null, "abc", 1, 1));
+        var vm = Make(store, page: 1, currentDocumentId: () => "docB");
+        vm.LoadFor("ws");
+        vm.FilterCurrentDocumentOnly = true;
+        vm.FilterText = "ab";
+        return vm;
+    }
+
+    [Fact]
+    public void ShowNote_NoteVisibleUnderFilters_KeepsBothFilters()
+    {
+        var vm = MakeForShowNote(new FakeNoteStore());
+
+        vm.ShowNote("nB");
+
+        Assert.True(vm.FilterCurrentDocumentOnly);
+        Assert.Equal("ab", vm.FilterText);
+        Assert.Equal("nB", vm.SelectedNoteId);
+        Assert.Equal(NotesViewModel.NotesTabIndex, vm.RightTabIndex);
+    }
+
+    [Theory]
+    [InlineData("nA")]
+    [InlineData("nFree")]
+    public void ShowNote_NoteHiddenByDocumentOnlyFilter_TurnsThatFilterOffButKeepsMatchingText(string noteId)
+    {
+        var vm = MakeForShowNote(new FakeNoteStore());
+
+        vm.ShowNote(noteId);
+
+        Assert.False(vm.FilterCurrentDocumentOnly);
+        Assert.Equal("ab", vm.FilterText);
+        Assert.Contains(vm.Items, n => n.Id == noteId);
+    }
+
+    [Fact]
+    public void ShowNote_NoteHiddenByText_ClearsTextButKeepsDocumentOnlyFilter()
+    {
+        var store = new FakeNoteStore();
+        var vm = MakeForShowNote(store);
+        vm.FilterText = "không khớp";
+
+        vm.ShowNote("nB");
+
+        Assert.Equal(string.Empty, vm.FilterText);
+        Assert.True(vm.FilterCurrentDocumentOnly);
+        Assert.Contains(vm.Items, n => n.Id == "nB");
+    }
+
     private static NotesViewModel MakeWithError(FakeNoteStore store, List<string> errors)
     {
         var vm = Make(store, page: 1, notifyError: errors.Add);

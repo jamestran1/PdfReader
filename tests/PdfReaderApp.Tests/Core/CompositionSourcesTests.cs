@@ -15,12 +15,24 @@ public class CompositionSourcesTests
     private static string? TitleOf(string documentId) => documentId == "docB" ? "Báo cáo" : null;
 
     [Fact]
+    public void Resolve_NoteOfDocumentOutsideWorkspace_IsTreatedAsFreeNote()
+    {
+        var entries = CompositionSources.Resolve(
+            CompositionOf("x", "n1"), [NoteOf("n1", "docOut", 3, "a")], TitleOf, id => id != "docOut");
+
+        var entry = Assert.Single(entries);
+        Assert.True(entry.IsFree);
+        Assert.Null(entry.DocumentId);
+        Assert.Equal(CompositionSources.FreeNoteLabel, entry.Location);
+    }
+
+    [Fact]
     public void Resolve_NumbersSourcesInCompositionOrder_WithDocumentPageAndContent()
     {
         var composition = CompositionOf("x", "n2", "n1");
         var notes = new[] { NoteOf("n1", "docA", 3, "ghi chú một"), NoteOf("n2", "docB", 6, "ghi chú hai", "câu trích") };
 
-        var entries = CompositionSources.Resolve(composition, notes, TitleOf);
+        var entries = CompositionSources.Resolve(composition, notes, TitleOf, _ => true);
 
         Assert.Equal(2, entries.Count);
         Assert.Equal(1, entries[0].Number);
@@ -37,7 +49,7 @@ public class CompositionSourcesTests
     [Fact]
     public void Resolve_NoteNoLongerExists_IsMarkedDeleted()
     {
-        var entries = CompositionSources.Resolve(CompositionOf("x", "n1", "gone"), [NoteOf("n1", "docA", 0, "a")], TitleOf);
+        var entries = CompositionSources.Resolve(CompositionOf("x", "n1", "gone"), [NoteOf("n1", "docA", 0, "a")], TitleOf, _ => true);
 
         Assert.False(entries[0].IsDeleted);
         Assert.True(entries[1].IsDeleted);
@@ -48,7 +60,7 @@ public class CompositionSourcesTests
     [Fact]
     public void Resolve_NoteEditedAfterGeneration_UsesCurrentContent()
     {
-        var entries = CompositionSources.Resolve(CompositionOf("x", "n1"), [NoteOf("n1", "docA", 0, "đã sửa")], TitleOf);
+        var entries = CompositionSources.Resolve(CompositionOf("x", "n1"), [NoteOf("n1", "docA", 0, "đã sửa")], TitleOf, _ => true);
 
         Assert.Equal("đã sửa", entries[0].Content);
         Assert.True(entries[0].IsClickable);
@@ -57,7 +69,7 @@ public class CompositionSourcesTests
     [Fact]
     public void Resolve_FreeNote_HasNoDocumentAndIsFree()
     {
-        var entries = CompositionSources.Resolve(CompositionOf("x", "n1"), [NoteOf("n1", null, null, "tự do")], TitleOf);
+        var entries = CompositionSources.Resolve(CompositionOf("x", "n1"), [NoteOf("n1", null, null, "tự do")], TitleOf, _ => true);
 
         Assert.True(entries[0].IsFree);
         Assert.Null(entries[0].DocumentId);
@@ -141,7 +153,7 @@ public class CompositionSourcesTests
     [Fact]
     public void ParseCitations_LiveSource_BecomesClickableNumberLink()
     {
-        var entries = CompositionSources.Resolve(CompositionOf("x", "n1", "n2"), [NoteOf("n1", "docA", 3, "a"), NoteOf("n2", "docB", 6, "b")], TitleOf);
+        var entries = CompositionSources.Resolve(CompositionOf("x", "n1", "n2"), [NoteOf("n1", "docA", 3, "a"), NoteOf("n2", "docB", 6, "b")], TitleOf, _ => true);
 
         var spans = CompositionSources.ParseCitations("Ý chính [2] và [1, 2].", entries);
 
@@ -154,7 +166,7 @@ public class CompositionSourcesTests
     [Fact]
     public void ParseCitations_DeletedSource_StaysPlainText_AndContentUnchanged()
     {
-        var entries = CompositionSources.Resolve(CompositionOf("x", "n1", "gone"), [NoteOf("n1", "docA", 0, "a")], TitleOf);
+        var entries = CompositionSources.Resolve(CompositionOf("x", "n1", "gone"), [NoteOf("n1", "docA", 0, "a")], TitleOf, _ => true);
 
         var spans = CompositionSources.ParseCitations("Có [1] và [2].", entries);
 

@@ -33,7 +33,7 @@ public sealed class CompositionSourcesViewModelTests
         public Fixture(params Note[] notes)
         {
             Notes = new FakeNoteStore(notes);
-            Vm = new CompositionSourcesViewModel(Notes, id => id == "docB" ? "Báo cáo" : "Hợp đồng", DocumentJumps.Add, FreeSelections.Add);
+            Vm = new CompositionSourcesViewModel(Notes, id => id == "docB" ? "Báo cáo" : "Hợp đồng", id => id != "outside", DocumentJumps.Add, FreeSelections.Add);
         }
 
         public static CompositionTab TabWith(string content, params string[] noteIds)
@@ -111,6 +111,19 @@ public sealed class CompositionSourcesViewModelTests
 
         Assert.Equal(9, Assert.Single(f.DocumentJumps).PageIndex);
         Assert.Equal("đã sửa", tab.Sources[0].Content);
+    }
+
+    [Fact]
+    public void OpenCitation_NoteOfDocumentOutsideWorkspace_SelectsItInNotesPanelWithoutJumping()
+    {
+        var f = new Fixture(NoteOf("n4", "outside", 2));
+        var tab = Fixture.TabWith("Ý [1].", "n4");
+        f.Vm.Refresh(tab);
+
+        f.Vm.OpenCitationCommand.Execute(Fixture.LinkOf(tab, "[1]"));
+
+        Assert.Equal("n4", Assert.Single(f.FreeSelections).NoteId);
+        Assert.Empty(f.DocumentJumps);
     }
 
     [Fact]
