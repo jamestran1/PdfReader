@@ -8,7 +8,7 @@ namespace PdfReaderApp.Services;
 /// Danh sách id Note nguồn lưu dạng mảng JSON để giữ đúng thứ tự đánh số <c>[n]</c>.</summary>
 public sealed class SqliteCompositionStore : ICompositionStore
 {
-    private const long SchemaVersion = 3;
+    private const long SchemaVersion = 1;
     private readonly string _connectionString;
     private readonly Lock _lock = new();
 
@@ -39,11 +39,11 @@ CREATE TABLE IF NOT EXISTS composition (
   content TEXT NOT NULL,
   chat_model TEXT NOT NULL,
   source_note_ids TEXT NOT NULL,
-  created_at INTEGER NOT NULL);
+  created_at INTEGER NOT NULL,
+  additional_request TEXT NULL,
+  updated_at INTEGER);
 CREATE INDEX IF NOT EXISTS ix_composition_owner ON composition(owner_key);";
             cmd.ExecuteNonQuery();
-            AddAdditionalRequestColumnIfMissing(conn);
-            AddUpdatedAtColumnIfMissing(conn);
 
             using var ver = conn.CreateCommand();
             ver.CommandText = "PRAGMA user_version;";
@@ -59,27 +59,6 @@ CREATE INDEX IF NOT EXISTS ix_composition_owner ON composition(owner_key);";
         }
     }
 
-    // Chuỗi migration tuyến tính: v1 (bảng gốc) -> v2 (additional_request, #292) -> v3 (updated_at, #294).
-    // CREATE TABLE IF NOT EXISTS không thêm cột vào bảng cũ nên mỗi bước tự kiểm cột (chạy lại vẫn an toàn).
-    private static void AddAdditionalRequestColumnIfMissing(SqliteConnection conn)
-        => AddColumnIfMissing(conn, "additional_request", "TEXT NULL");
-
-    private static void AddUpdatedAtColumnIfMissing(SqliteConnection conn)
-        => AddColumnIfMissing(conn, "updated_at", "INTEGER");
-
-    private static void AddColumnIfMissing(SqliteConnection conn, string column, string type)
-    {
-        using var probe = conn.CreateCommand();
-        probe.CommandText = "SELECT COUNT(*) FROM pragma_table_info('composition') WHERE name=$name";
-        probe.Parameters.AddWithValue("$name", column);
-        if ((long)(probe.ExecuteScalar() ?? 0L) > 0) return;
-
-        using var alter = conn.CreateCommand();
-#pragma warning disable S2077 // DDL không nhận tham số; column và type là hằng của lớp này
-        alter.CommandText = $"ALTER TABLE composition ADD COLUMN {column} {type}";
-#pragma warning restore S2077
-        alter.ExecuteNonQuery();
-    }
 
     public void Add(Composition composition)
     {
