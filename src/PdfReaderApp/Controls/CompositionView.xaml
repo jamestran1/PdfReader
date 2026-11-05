@@ -122,7 +122,9 @@
                 <!-- Đổi tên tại chỗ: Enter hoặc rời ô để lưu, Esc để bỏ -->
                 <TextBox Text="{Binding RenameText, UpdateSourceTrigger=PropertyChanged}" FontSize="21" TextWrapping="Wrap"
                          Margin="0,0,0,4" materialDesign:HintAssist.Hint="Tên Bản soạn"
-                         LostKeyboardFocus="RenameBox_LostKeyboardFocus" IsVisibleChanged="RenameBox_IsVisibleChanged">
+                         controls:LostKeyboardFocusCommand.Command="{Binding DataContext.Compositions.CommitRenameCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                         controls:LostKeyboardFocusCommand.CommandParameter="{Binding}"
+                         IsVisibleChanged="RenameBox_IsVisibleChanged">
                     <TextBox.InputBindings>
                         <KeyBinding Key="Enter"
                                     Command="{Binding DataContext.Compositions.CommitRenameCommand, RelativeSource={RelativeSource AncestorType=Window}}"

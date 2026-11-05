@@ -1,10 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Threading;
 using PdfReaderApp.Core;
 using PdfReaderApp.Models;
-using PdfReaderApp.ViewModels;
 
 namespace PdfReaderApp.Controls;
 
@@ -56,11 +54,5 @@ public partial class CompositionView : UserControl
             box.Focus();
             box.SelectAll();
         }, DispatcherPriority.Input);
-    }
-
-    private void RenameBox_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
-    {
-        if (DataContext is CompositionTab tab && Window.GetWindow(this)?.DataContext is MainViewModel host)
-            host.Compositions.CommitRenameCommand.Execute(tab);
     }
 }
