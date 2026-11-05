@@ -40,8 +40,11 @@ public sealed class CompositionToolbarTests
         public IReadOnlyList<Composition> GetForOwner(string ownerKey) => [.. Rows.Where(c => c.OwnerKey == ownerKey)];
         public int DeleteForOwner(string ownerKey) => Rows.RemoveAll(c => c.OwnerKey == ownerKey);
 
+        public bool FailUpdate { get; set; }
+
         public int Update(string id, string title, string content, long updatedAtUnixMs)
         {
+            if (FailUpdate) throw new InvalidOperationException("db lỗi");
             int i = Rows.FindIndex(c => c.Id == id);
             if (i < 0) return 0;
             Rows[i] = Rows[i] with { Title = title, Content = content, UpdatedAtUnixMs = updatedAtUnixMs };
@@ -285,9 +288,24 @@ public sealed class CompositionToolbarTests
 
         f.Vm.DeleteCommand.Execute(tab.Composition);
 
-        Assert.Single(f.Errors);
+        Assert.Equal([CompositionErrorMessages.DeleteFailed], f.Errors);
         Assert.Contains(f.Vm.Items, c => c.Id == "c1");
         Assert.Contains(tab, f.OpenTabs);
+    }
+
+    [Fact]
+    public void Rename_WhenTheStoreFails_SaysTheCompositionWasNotSavedNotThatAiFailed()
+    {
+        var f = new Fixture();
+        var tab = f.Add("c1");
+        f.Vm.StartRenameCommand.Execute(tab);
+        tab.RenameText = "Tên mới";
+        f.Store.FailUpdate = true;
+
+        f.Vm.CommitRenameCommand.Execute(tab);
+
+        Assert.Equal([CompositionErrorMessages.SaveFailed], f.Errors);
+        Assert.Equal("Do AI đặt", f.Vm.Items.Single().Title);
     }
 
     [Fact]

@@ -1,6 +1,5 @@
 using CommunityToolkit.Mvvm.Input;
 using PdfReaderApp.Models;
-using PdfReaderApp.Services;
 
 namespace PdfReaderApp.ViewModels;
 
@@ -116,7 +115,7 @@ public sealed partial class CompositionsViewModel
         catch (Exception ex)
         {
             System.Diagnostics.Trace.TraceWarning($"CompositionsViewModel: xoá Bản soạn lỗi: {ex}");
-            _callbacks.NotifyError(AiErrorMessages.Unknown);
+            _callbacks.NotifyError(CompositionErrorMessages.DeleteFailed);
             return;   // db còn bản ghi: rail và tab giữ nguyên để không lệch với db
         }
 #pragma warning restore CA1031
@@ -152,7 +151,7 @@ public sealed partial class CompositionsViewModel
         catch (Exception ex)
         {
             System.Diagnostics.Trace.TraceWarning($"CompositionsViewModel: lưu Bản soạn lỗi: {ex}");
-            _callbacks.NotifyError(AiErrorMessages.Unknown);
+            _callbacks.NotifyError(CompositionErrorMessages.SaveFailed);
             return;
         }
 #pragma warning restore CA1031
