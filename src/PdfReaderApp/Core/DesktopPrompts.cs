@@ -12,7 +12,7 @@ internal static class DesktopPrompts
             $"Xoá Bản soạn “{title}”? Không thể hoàn tác.",
             "Xoá Bản soạn", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
 
-    /// <summary>Đặt văn bản lên clipboard. Clipboard có thể đang bị app khác giữ: thử lại ngắn rồi bỏ qua, không làm sập app.</summary>
+    /// <summary>Đặt văn bản lên clipboard. Clipboard có thể đang bị app khác giữ: WPF thử lại vài lần bên trong; vẫn lỗi thì ghi log và bỏ qua, không làm sập app.</summary>
     internal static void CopyText(string text)
     {
         try
