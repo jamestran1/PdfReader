@@ -574,6 +574,18 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Session.SaveOpenSetNow();
     }
 
+    /// <summary>Tab có kéo được không (Tab Document của Tab Strip nhẹ bị ghim ở đầu). Gọi từ code-behind kéo-thả của cửa sổ.</summary>
+    public bool CanDragTab(Models.OpenTab tab) => Session.CanDrag(tab);
+
+    /// <summary>Khe thả nhỏ nhất của Tab Strip (1 khi tab đầu bị ghim).</summary>
+    public int FirstDropSlot => Session.FirstDropSlot;
+
+    /// <summary>Thả <paramref name="tab"/> vào khe <paramref name="slot"/> không đổi thứ tự (để ẩn thanh chỉ báo).</summary>
+    public bool IsNoOpDrop(Models.OpenTab tab, int slot) => Session.IsNoOpDrop(tab, slot);
+
+    /// <summary>Kéo-thả sắp lại Tab Strip: thả <paramref name="tab"/> vào khe <paramref name="slot"/>. Trả về false khi không có gì đổi.</summary>
+    public bool MoveTab(Models.OpenTab tab, int slot) => Session.MoveToSlot(tab, slot);
+
     // Đóng tab (chỉ gỡ khỏi Open Set, KHÔNG gỡ khỏi workspace membership).
     [RelayCommand]
     private void CloseTab(Models.OpenTab? tab)

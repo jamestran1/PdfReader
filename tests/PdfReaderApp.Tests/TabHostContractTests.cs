@@ -116,6 +116,71 @@ public abstract class TabHostContractTests
     }
 
     [Fact]
+    public void Move_ReordersCompositionTabsAmongThemselves()
+    {
+        var host = CreateHostWithDocument(out _);
+        var x = Compose(host, "X");
+        var y = Compose(host, "Y");
+
+        host.Move(x, 2);
+        Assert.Equal("A,Y,X", Order(host));
+
+        host.Move(y, 2);
+        Assert.Equal("A,X,Y", Order(host));
+    }
+
+    [Fact]
+    public void Move_KeepsTheActiveTabAndTheMostRecentlyUsedOrder()
+    {
+        var host = CreateHostWithDocument(out _);
+        var x = Compose(host, "X");
+        var y = Compose(host, "Y");
+        host.ActivateTab(x);
+        int activeChanges = 0;
+        host.ActiveTabChanged += _ => activeChanges++;
+
+        host.Move(x, 0);   // thứ tự hiển thị X,A,Y; MRU vẫn X,Y,A
+
+        Assert.Equal(0, activeChanges);
+        Assert.Same(x, host.ActiveTab);
+
+        // Đóng X: MRU chọn Y dù A mới là tab kề bên trong thứ tự hiển thị.
+        host.Close(x);
+        Assert.Same(y, host.ActiveTab);
+        Assert.Equal("A,Y", Order(host));
+    }
+
+    [Fact]
+    public void Move_RaisesTabsChangedOnceOnlyWhenTheOrderChanges()
+    {
+        var host = CreateHostWithDocument(out _);
+        var x = Compose(host, "X");
+        Compose(host, "Y");
+        int changes = 0;
+        host.TabsChanged += () => changes++;
+
+        host.Move(x, 1);
+        Assert.Equal(0, changes);
+
+        host.Move(x, 2);
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
+    public void Move_ClampsTheTargetIndexAndIgnoresUnknownTabs()
+    {
+        var host = CreateHostWithDocument(out _);
+        var x = Compose(host, "X");
+        Compose(host, "Y");
+        var stranger = new CompositionTab(new Composition("Z", "ws", "Bản Z", CompositionKind.Summary, "# z", "m", [], 1));
+
+        host.Move(x, 99);
+        host.Move(stranger, 0);
+
+        Assert.Equal("A,Y,X", Order(host));
+    }
+
+    [Fact]
     public void Reset_EmptiesTheHostAndClearsTheActiveTab()
     {
         var host = CreateHostWithDocument(out _);
