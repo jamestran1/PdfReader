@@ -64,6 +64,21 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         set => SetValue(KeepZoomOnLoadProperty, value);
     }
 
+    // Vị trí cuộn trong trang hiện tại (OpenTab.ScrollNorm, 0..1): viewer ghi khi cuộn, và áp lại khi nạp tài liệu (#261).
+    public static readonly DependencyProperty ScrollNormProperty =
+        DependencyProperty.Register(nameof(ScrollNorm), typeof(double), typeof(PdfViewerControl),
+            new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public double ScrollNorm
+    {
+        get => (double)GetValue(ScrollNormProperty);
+        set => SetValue(ScrollNormProperty, value);
+    }
+
+    // ScrollNorm cần áp cho CurrentPage trong lượt cuộn-sau-nạp hiện tại; 0 = đầu trang. Chỉ dùng khi ScrollSettle đang pending.
+    private double _loadScrollNorm;
+    private string? _lastLoadedPath;
+
     public static readonly DependencyProperty ZoomLevelProperty =
         DependencyProperty.Register("ZoomLevel", typeof(double), typeof(PdfViewerControl),
             new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnZoomLevelChanged));
@@ -204,6 +219,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         if (d is PdfViewerControl c && c._currentDocument != null)
         {
             c.RefreshLayout(keepCache: false);
+            c._loadScrollNorm = 0;   // đổi chế độ xem về đầu trang, không áp lại ScrollNorm của lần nạp
             // Single-unit modes show one unit at Y=0; reset scroll so it is in view after switching.
             // Chế độ cuộn liên tục: giữ trang hiện tại (RefreshLayout dựng lại slot nên offset cũ map sai,
             // thường về cover) -> cuộn lại tới CurrentPage.
@@ -370,6 +386,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         DisposeCurrentDocument();
         _slots.Clear();
         _zoomOnLoad.OnEvicted(path);
+        _loadScrollNorm = 0;
         LoadingOverlay.Visibility = Visibility.Collapsed;
         skiaCanvas.InvalidateVisual();
     }
@@ -415,6 +432,12 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
             CurrentPage = System.Math.Clamp(CurrentPage, 1, _session.PageCount);
+            // Viewer đọc lẻ dùng lại cho tài liệu khác: ScrollNorm cũ thuộc tài liệu trước. Viewer per-tab luôn nạp một path
+            // nên không bao giờ reset (ghi 0 sẽ đè ScrollNorm đã lưu của tab qua binding).
+            if (_lastLoadedPath is not null && !string.Equals(_lastLoadedPath, path, StringComparison.OrdinalIgnoreCase))
+                ScrollNorm = 0;
+            _lastLoadedPath = path;
+            _loadScrollNorm = ScrollNorm;
 
             // Bật GUARD pending NGAY (trước FitToViewport/RefreshLayout): các bước layout đó phát ScrollChanged
             // đồng bộ scroll->trang (kéo CurrentPage về trang đang hiển thị) -> guard chặn ghi đè trang đích.
@@ -514,7 +537,11 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             || passage.PageIndex != pageIndex
             || !passage.BelongsTo(CurrentDocumentId))
         {
-            return slot.Y;
+            // Chỉ trong lượt cuộn-sau-nạp: offset từ ScrollNorm tính trên slot hiện tại nên phải đọc lại sau khi zoom đã ổn định
+            // (timer gọi lại mỗi tick); ngoài lượt đó (Trang sau, Trang trước) về đầu trang.
+            return ScrollSettle.IsPending && pageIndex == CurrentPage - 1
+                ? Core.ViewerScrollPosition.ToOffset(slot.Y, slot.Height, _loadScrollNorm)
+                : slot.Y;
         }
 
         return Core.OverlayGeometry.PassageScrollOffset(
@@ -551,8 +578,9 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     private void ArmPendingScrollGuard()
     {
         // Slot chưa dựng nên chưa biết offset đích; trang 1 có Đoạn nguồn sẽ được Schedule bắt sau layout.
-        ScrollSettle.Arm(Core.ScrollAfterLoadPolicy.NeedsScroll(IsContinuousView, CurrentPage, targetOffset: null)
-            ? CurrentPage : 0);
+        bool needsScroll = Core.ScrollAfterLoadPolicy.NeedsScroll(IsContinuousView, CurrentPage, targetOffset: null)
+            || (IsContinuousView && _loadScrollNorm > 0);   // trang 1 có ScrollNorm cũng phải chờ cuộn
+        ScrollSettle.Arm(needsScroll ? CurrentPage : 0);
     }
 
     private bool IsContinuousView => ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing;
@@ -594,11 +622,15 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
 
         skiaCanvas.InvalidateVisual();
 
-        double middleY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
+        double offset = PagesScrollViewer.VerticalOffset;
+        double middleY = offset + PagesScrollViewer.ViewportHeight / 2;
         if (Core.SlotHitTester.AtOffset(_slots, middleY) is { } slot)
         {
             int newPage = slot.PageIndex + 1;
             if (CurrentPage != newPage) CurrentPage = newPage;
+
+            if (Core.ViewerScrollPosition.ShouldPersist(IsVisible, PagesScrollViewer.ViewportHeight, ScrollSettle.IsPending, IsContinuousView))
+                ScrollNorm = Core.ViewerScrollPosition.ToScrollNorm(offset, slot.Y, slot.Height);
         }
     }
 

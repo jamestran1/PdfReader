@@ -203,6 +203,32 @@ public class TabSetViewModelTests
         Assert.Same(tabA, vm.ActiveTab);
     }
 
+    // #261: ScrollNorm cũ thuộc trang khác; nhảy tới trang đích thì mở ở đầu trang đó, không cuộn lệch.
+    [Fact]
+    public void OpenOrActivate_WithInitialPage_ResetsScrollNormOfExistingTab()
+    {
+        var vm = Make();
+        var tabA = vm.OpenOrActivate("docA", "A", "/a.pdf");
+        tabA.ScrollNorm = 0.6;
+
+        vm.OpenOrActivate("docA", "A", "/a.pdf", initialPage: 9);
+
+        Assert.Equal(0, tabA.ScrollNorm);
+    }
+
+    [Fact]
+    public void OpenOrActivate_WithoutInitialPage_KeepsScrollNormOfExistingTab()
+    {
+        var vm = Make();
+        var tabA = vm.OpenOrActivate("docA", "A", "/a.pdf");
+        tabA.ScrollNorm = 0.6;
+        vm.OpenOrActivate("docB", "B", "/b.pdf");
+
+        vm.OpenOrActivate("docA", "A", "/a.pdf");
+
+        Assert.Equal(0.6, tabA.ScrollNorm);
+    }
+
     // =========================================================
     // S2: RestoreTabs khôi phục tất cả tab theo thứ tự, kích hoạt đúng tab được chỉ định,
     //     chỉ phát đúng một ActiveTabChanged (-> đúng một HydrateTab), và giữ view-state.

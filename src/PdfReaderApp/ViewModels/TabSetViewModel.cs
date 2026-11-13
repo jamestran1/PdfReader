@@ -33,7 +33,11 @@ public sealed class TabSetViewModel : TabHost
             if (existing is DocumentTab doc && doc.DocumentId == documentId)
             {
                 // Đặt trang TRƯỚC khi kích hoạt để viewer (per-tab) nạp thẳng tại trang đích.
-                if (initialPage is int pe) doc.Page = pe;
+                if (initialPage is int pe)
+                {
+                    doc.Page = pe;
+                    doc.ScrollNorm = 0;   // vị trí cuộn cũ thuộc trang khác; đích mới là đầu trang
+                }
                 ActivateTab(doc);
                 return doc;
             }
