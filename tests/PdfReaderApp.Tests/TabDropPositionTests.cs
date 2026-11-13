@@ -28,6 +28,15 @@ public sealed class TabDropPositionTests
     public void SlotAt_NeverReturnsAGapBeforeTheFirstDroppableSlot(double pointerX, int expectedSlot)
         => Assert.Equal(expectedSlot, TabDropPosition.SlotAt(Widths, pointerX, firstSlot: 1));
 
+    [Theory]
+    [InlineData(0, 0, 4, 4, false)]     // chưa nhúc nhích: thả chuột là click, kích hoạt tab
+    [InlineData(3, 3, 4, 4, false)]     // dưới ngưỡng cả hai chiều
+    [InlineData(4, 0, 4, 4, true)]      // đủ ngưỡng ngang: bắt đầu kéo
+    [InlineData(-5, 0, 4, 4, true)]     // kéo sang trái
+    [InlineData(0, 4, 4, 4, true)]      // đủ ngưỡng dọc
+    public void IsDragGesture_WhenThePointerMovedPastTheSystemThreshold(double dx, double dy, double minX, double minY, bool expected)
+        => Assert.Equal(expected, TabDropPosition.IsDragGesture(dx, dy, minX, minY));
+
     [Fact]
     public void SlotAt_WithNoTabs_IsSlotZero()
         => Assert.Equal(0, TabDropPosition.SlotAt([], 50));

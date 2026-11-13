@@ -26,6 +26,13 @@ public static class TabDropPosition
         return tabWidths.Count;
     }
 
+    /// <summary>
+    /// Con trỏ đã dịch đủ xa kể từ lúc nhấn chuột để coi là kéo (theo ngưỡng của hệ thống). Chưa đủ xa thì khi thả chuột
+    /// đó là một click: tab được kích hoạt ở lúc thả, nên kéo không làm đổi Tab active.
+    /// </summary>
+    public static bool IsDragGesture(double deltaX, double deltaY, double minimumHorizontal, double minimumVertical)
+        => Math.Abs(deltaX) >= minimumHorizontal || Math.Abs(deltaY) >= minimumVertical;
+
     /// <summary>Toạ độ ngang của khe <paramref name="slot"/> (chỗ vẽ chỉ báo thả), gốc là mép trái tab đầu.</summary>
     public static double SlotOffset(IReadOnlyList<double> tabWidths, int slot)
     {
