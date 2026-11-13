@@ -77,7 +77,6 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
 
     // ScrollNorm cần áp cho CurrentPage trong lượt cuộn-sau-nạp hiện tại; 0 = đầu trang. Chỉ dùng khi ScrollSettle đang pending.
     private double _loadScrollNorm;
-    private string? _lastLoadedPath;
 
     public static readonly DependencyProperty ZoomLevelProperty =
         DependencyProperty.Register("ZoomLevel", typeof(double), typeof(PdfViewerControl),
@@ -432,12 +431,11 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
             CurrentPage = System.Math.Clamp(CurrentPage, 1, _session.PageCount);
-            // Viewer đọc lẻ dùng lại cho tài liệu khác: ScrollNorm cũ thuộc tài liệu trước. Viewer per-tab luôn nạp một path
-            // nên không bao giờ reset (ghi 0 sẽ đè ScrollNorm đã lưu của tab qua binding).
-            if (_lastLoadedPath is not null && !string.Equals(_lastLoadedPath, path, StringComparison.OrdinalIgnoreCase))
-                ScrollNorm = 0;
-            _lastLoadedPath = path;
-            _loadScrollNorm = ScrollNorm;
+            // Viewer đọc lẻ không bind ScrollNorm: giá trị cục bộ là dư lượng của lần cuộn trước nên xoá, không áp.
+            // Viewer per-tab (có binding) không bị ghi 0 để khỏi đè ScrollNorm đã lưu của tab.
+            bool isBound = System.Windows.Data.BindingOperations.IsDataBound(this, ScrollNormProperty);
+            _loadScrollNorm = Viewer.ViewerScrollOnLoad.NormToApply(isBound, ScrollNorm);
+            if (!isBound && ScrollNorm != 0) ScrollNorm = 0;
 
             // Bật GUARD pending NGAY (trước FitToViewport/RefreshLayout): các bước layout đó phát ScrollChanged
             // đồng bộ scroll->trang (kéo CurrentPage về trang đang hiển thị) -> guard chặn ghi đè trang đích.
