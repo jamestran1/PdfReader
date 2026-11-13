@@ -19,6 +19,15 @@ public sealed class TabDropPositionTests
     public void SlotAt_PicksTheGapNearestToThePointer(double pointerX, int expectedSlot)
         => Assert.Equal(expectedSlot, TabDropPosition.SlotAt(Widths, pointerX));
 
+    [Theory]
+    [InlineData(-30, 1)]    // trước tab đầu bị ghim: kẹp về khe 1
+    [InlineData(10, 1)]
+    [InlineData(60, 1)]
+    [InlineData(140, 2)]
+    [InlineData(900, 3)]
+    public void SlotAt_NeverReturnsAGapBeforeTheFirstDroppableSlot(double pointerX, int expectedSlot)
+        => Assert.Equal(expectedSlot, TabDropPosition.SlotAt(Widths, pointerX, firstSlot: 1));
+
     [Fact]
     public void SlotAt_WithNoTabs_IsSlotZero()
         => Assert.Equal(0, TabDropPosition.SlotAt([], 50));

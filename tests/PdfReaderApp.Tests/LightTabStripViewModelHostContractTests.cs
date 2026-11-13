@@ -63,6 +63,40 @@ public sealed class LightTabStripViewModelHostContractTests : TabHostContractTes
         Assert.False(document.IsHydrated);
     }
 
+    [Fact]
+    public void DocumentTab_IsPinnedFirst_CannotBeMoved()
+    {
+        var host = new LightTabStripViewModel();
+        var document = host.EnsureDocumentTab(new DocumentRef("A", "A", "/a.pdf"));
+        Compose(host, "X");
+        Compose(host, "Y");
+        int changes = 0;
+        host.TabsChanged += () => changes++;
+
+        host.Move(document, 2);
+
+        Assert.False(host.CanMove(document));
+        Assert.Equal("A,X,Y", Order(host));
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
+    public void Move_NeverPutsACompositionTabAheadOfTheDocumentTab()
+    {
+        var host = new LightTabStripViewModel();
+        host.EnsureDocumentTab(new DocumentRef("A", "A", "/a.pdf"));
+        Compose(host, "X");
+        var y = Compose(host, "Y");
+
+        host.Move(y, 0);
+        Assert.Equal("A,Y,X", Order(host));
+
+        host.Move(y, -3);
+        Assert.Equal("A,Y,X", Order(host));
+        Assert.Equal(1, host.FirstMovableIndex);
+        Assert.True(host.CanMove(y));
+    }
+
     private static CompositionTab Compose(TabHost host, string id)
         => host.OpenOrActivateComposition(new Composition(id, "ws", $"Bản {id}", CompositionKind.Summary, "# x", "m", [], 1));
 

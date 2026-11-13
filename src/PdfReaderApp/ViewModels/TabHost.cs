@@ -120,12 +120,21 @@ public abstract class TabHost : ObservableObject
     /// </summary>
     internal void Move(OpenTab tab, int newIndex)
     {
+        if (!CanMove(tab)) return;
         int oldIndex = _tabItems.IndexOf(tab);
-        if (oldIndex < 0) return;
-        int target = Math.Clamp(newIndex, 0, _tabItems.Count - 1);
+        int target = Math.Clamp(newIndex, FirstMovableIndex, _tabItems.Count - 1);
         if (target == oldIndex) return;
         _tabItems.Move(oldIndex, target);
     }
+
+    /// <summary>Chỉ số nhỏ nhất một tab được đưa tới: 1 khi tab đầu bị ghim, không thì 0.</summary>
+    public int FirstMovableIndex => _tabItems.Count > 0 && IsPinnedFirst(_tabItems[0]) ? 1 : 0;
+
+    /// <summary>Tab có kéo được không: nằm trong Tabs và không phải tab bị ghim ở đầu.</summary>
+    public bool CanMove(OpenTab tab) => _tabItems.Contains(tab) && !IsPinnedFirst(tab);
+
+    /// <summary>Tab bị ghim ở đầu strip: không kéo được và không tab nào đứng trước nó. Mặc định không có tab nào bị ghim.</summary>
+    protected virtual bool IsPinnedFirst(OpenTab tab) => false;
 
     /// <summary>
     /// Kích hoạt tab đã tồn tại (dùng cho ActivateTabCommand). Không làm gì nếu tab không nằm trong Tabs.

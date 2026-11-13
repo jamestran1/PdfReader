@@ -12,13 +12,14 @@ public static class TabDropPosition
     /// </summary>
     /// <param name="tabWidths">Bề rộng từng tab theo thứ tự hiển thị.</param>
     /// <param name="pointerX">Toạ độ ngang của con trỏ, gốc là mép trái tab đầu.</param>
-    public static int SlotAt(IReadOnlyList<double> tabWidths, double pointerX)
+    /// <param name="firstSlot">Khe nhỏ nhất được thả vào; 1 khi tab đầu bị ghim (Tab Document của Tab Strip nhẹ).</param>
+    public static int SlotAt(IReadOnlyList<double> tabWidths, double pointerX, int firstSlot = 0)
     {
         ArgumentNullException.ThrowIfNull(tabWidths);
         double left = 0;
         for (int index = 0; index < tabWidths.Count; index++)
         {
-            if (pointerX < left + (tabWidths[index] / 2)) return index;
+            if (pointerX < left + (tabWidths[index] / 2)) return Math.Max(index, firstSlot);
             left += tabWidths[index];
         }
 

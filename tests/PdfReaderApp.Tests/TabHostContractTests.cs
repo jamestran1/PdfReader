@@ -116,17 +116,17 @@ public abstract class TabHostContractTests
     }
 
     [Fact]
-    public void Move_ReordersTabsAndInterleavesDocumentWithCompositionTabs()
+    public void Move_ReordersCompositionTabsAmongThemselves()
     {
-        var host = CreateHostWithDocument(out var document);
+        var host = CreateHostWithDocument(out _);
         var x = Compose(host, "X");
-        Compose(host, "Y");
-
-        host.Move(document, 2);
-        Assert.Equal("X,Y,A", Order(host));
+        var y = Compose(host, "Y");
 
         host.Move(x, 2);
-        Assert.Equal("Y,A,X", Order(host));
+        Assert.Equal("A,Y,X", Order(host));
+
+        host.Move(y, 2);
+        Assert.Equal("A,X,Y", Order(host));
     }
 
     [Fact]
@@ -153,31 +153,31 @@ public abstract class TabHostContractTests
     [Fact]
     public void Move_RaisesTabsChangedOnceOnlyWhenTheOrderChanges()
     {
-        var host = CreateHostWithDocument(out var document);
-        Compose(host, "X");
+        var host = CreateHostWithDocument(out _);
+        var x = Compose(host, "X");
+        Compose(host, "Y");
         int changes = 0;
         host.TabsChanged += () => changes++;
 
-        host.Move(document, 0);
+        host.Move(x, 1);
         Assert.Equal(0, changes);
 
-        host.Move(document, 1);
+        host.Move(x, 2);
         Assert.Equal(1, changes);
     }
 
     [Fact]
     public void Move_ClampsTheTargetIndexAndIgnoresUnknownTabs()
     {
-        var host = CreateHostWithDocument(out var document);
-        Compose(host, "X");
+        var host = CreateHostWithDocument(out _);
+        var x = Compose(host, "X");
+        Compose(host, "Y");
         var stranger = new CompositionTab(new Composition("Z", "ws", "Bản Z", CompositionKind.Summary, "# z", "m", [], 1));
 
-        host.Move(document, 99);
-        Assert.Equal("X,A", Order(host));
-
-        host.Move(document, -5);
+        host.Move(x, 99);
         host.Move(stranger, 0);
-        Assert.Equal("A,X", Order(host));
+
+        Assert.Equal("A,Y,X", Order(host));
     }
 
     [Fact]

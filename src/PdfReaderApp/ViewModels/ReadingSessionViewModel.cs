@@ -250,6 +250,28 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         CurrentTabs.Move(tab, newIndex);
     }
 
+    /// <summary>Tab có kéo được không (Tab Document của Tab Strip nhẹ bị ghim ở đầu).</summary>
+    public bool CanDrag(OpenTab tab) => CurrentTabs.CanMove(tab);
+
+    /// <summary>Khe thả nhỏ nhất của Tab Strip hiện tại: 1 khi tab đầu bị ghim. Khe là chỗ giữa hai tab, khe N sau tab cuối.</summary>
+    public int FirstDropSlot => CurrentTabs.FirstMovableIndex;
+
+    /// <summary>Thả <paramref name="tab"/> vào <paramref name="slot"/> không đổi thứ tự (khe sát chính nó, hoặc tab không kéo được).</summary>
+    public bool IsNoOpDrop(OpenTab tab, int slot)
+    {
+        int dragIndex = CurrentTabs.Tabs.IndexOf(tab);
+        return !CurrentTabs.CanMove(tab) || TabDropPosition.IsNoOp(dragIndex, Math.Max(slot, FirstDropSlot));
+    }
+
+    /// <summary>Intent: thả <paramref name="tab"/> vào khe <paramref name="slot"/> của Tab Strip. Trả về false khi không có gì đổi.</summary>
+    public bool MoveToSlot(OpenTab tab, int slot)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        if (IsNoOpDrop(tab, slot)) return false;
+        Move(tab, TabDropPosition.TargetIndex(CurrentTabs.Tabs.IndexOf(tab), Math.Max(slot, FirstDropSlot)));
+        return true;
+    }
+
     /// <summary>Intent: đóng Tab của <paramref name="documentId"/> nếu Document đang mở thành Tab; không thì không làm gì.</summary>
     public void CloseDocument(string documentId)
     {

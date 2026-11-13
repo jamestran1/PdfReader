@@ -53,6 +53,58 @@ public class ReadingSessionTabReorderTests
     }
 
     [Fact]
+    public void MoveToSlot_ConvertsTheDropGapToTheFinalIndexAndSaves()
+    {
+        var (f, a, _, _) = NamedWorkspaceWithMixedTabs();   // A,B,X
+
+        bool moved = f.Session.MoveToSlot(a, 3);   // thả sau tab cuối
+
+        Assert.True(moved);
+        Assert.Equal("B,X,A", Order(f));
+        Assert.Equal("B,X,A", SavedOrder(f, WorkspaceId));
+    }
+
+    [Theory]
+    [InlineData(0)]   // khe ngay trước chính nó
+    [InlineData(1)]   // khe ngay sau chính nó
+    public void MoveToSlot_BesideTheDraggedTab_IsANoOpAndDoesNotSave(int slot)
+    {
+        var (f, a, _, _) = NamedWorkspaceWithMixedTabs();
+        f.Store.OpenSets.Clear();
+
+        bool moved = f.Session.MoveToSlot(a, slot);
+
+        Assert.False(moved);
+        Assert.True(f.Session.IsNoOpDrop(a, slot));
+        Assert.Equal("A,B,X", Order(f));
+        Assert.Empty(f.Store.OpenSets);
+    }
+
+    [Fact]
+    public void LightStrip_DocumentTabIsPinned_AndDropsBeforeItLandRightAfterIt()
+    {
+        var f = new ReadingSessionFixture().InLibrary("A");
+        f.Session.Open(ReadingSessionFixture.PathOf("A"));
+        string workspaceId = f.Store.All.Single(w => w.IsDefault && w.DefaultDocumentId == "A").Id;
+        foreach (string id in new[] { "X", "Y" })
+        {
+            f.Compositions[id] = Make(id, workspaceId);
+            f.Session.OpenComposition(f.Compositions[id]);
+        }
+
+        var document = f.Session.CurrentTabs.Tabs[0];
+        var y = f.Session.FindCompositionTab("Y")!;
+
+        Assert.False(f.Session.CanDrag(document));
+        Assert.Equal(1, f.Session.FirstDropSlot);
+        Assert.False(f.Session.MoveToSlot(document, 2));
+
+        Assert.True(f.Session.MoveToSlot(y, 0));   // khe 0 bị kẹp về khe 1
+        Assert.Equal("A,Y,X", Order(f));
+        Assert.True(f.Session.IsNoOpDrop(y, 0));
+    }
+
+    [Fact]
     public void Move_InDefaultWorkspace_SavesTheCompositionTabsInTheirNewOrder()
     {
         var f = new ReadingSessionFixture().InLibrary("A").InLibrary("B");

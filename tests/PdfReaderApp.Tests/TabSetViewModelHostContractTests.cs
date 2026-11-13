@@ -12,4 +12,18 @@ public sealed class TabSetViewModelHostContractTests : TabHostContractTests
         document = host.OpenOrActivate("A", "A", "/a.pdf");
         return host;
     }
+
+    [Fact]
+    public void NamedWorkspace_EveryTabIsFreeToMoveToTheFront()
+    {
+        var host = new TabSetViewModel();
+        host.OpenOrActivate("A", "A", "/a.pdf");
+        var b = host.OpenOrActivate("B", "B", "/b.pdf");
+
+        host.Move(b, 0);
+
+        Assert.Equal(0, host.FirstMovableIndex);
+        Assert.True(host.CanMove(b));
+        Assert.Equal("B,A", string.Join(",", host.Tabs.Select(t => t.ItemId)));
+    }
 }
