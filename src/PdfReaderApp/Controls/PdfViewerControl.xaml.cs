@@ -53,6 +53,17 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         set => SetValue(TotalPagesProperty, value);
     }
 
+    // Tab khôi phục mang zoom đã lưu (OpenTab.HasSavedZoom): lần nạp đầu giữ ZoomLevel thay vì fit vừa khung (#263).
+    public static readonly DependencyProperty KeepZoomOnLoadProperty =
+        DependencyProperty.Register(nameof(KeepZoomOnLoad), typeof(bool), typeof(PdfViewerControl),
+            new PropertyMetadata(false));
+
+    public bool KeepZoomOnLoad
+    {
+        get => (bool)GetValue(KeepZoomOnLoadProperty);
+        set => SetValue(KeepZoomOnLoadProperty, value);
+    }
+
     public static readonly DependencyProperty ZoomLevelProperty =
         DependencyProperty.Register("ZoomLevel", typeof(double), typeof(PdfViewerControl),
             new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnZoomLevelChanged));
@@ -410,7 +421,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             ArmPendingScrollGuard();
 
             _session.ResetEditState();
-            if (_zoomOnLoad.ShouldFitOnLoad(path)) FitToViewport();
+            if (_zoomOnLoad.ShouldFitOnLoad(path, KeepZoomOnLoad)) FitToViewport();
             RefreshLayout();
 
             // Phát cuộn-đích SAU khi RefreshLayout xong: nếu cuộn giữa chừng rồi RefreshLayout chạy sau sẽ

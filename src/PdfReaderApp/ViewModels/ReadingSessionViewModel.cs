@@ -377,6 +377,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
                 Page = state.Page,
                 Zoom = state.Zoom,
                 ScrollNorm = state.ScrollNorm,
+                HasSavedZoom = true,
             });
         }
 
