@@ -15,7 +15,7 @@ internal sealed class ViewerZoomOnLoad
     /// Trả về true nếu phải fit; tiêu thụ dấu evict nên lần nạp sau quay về hành vi thường.
     /// <paramref name="hasSavedZoom"/>: tab mang zoom đã lưu từ lần trước nên không bao giờ fit đè.
     /// </summary>
-    public bool ShouldFitOnLoad(string path, bool hasSavedZoom = false)
+    public bool ShouldFitOnLoad(string path, bool hasSavedZoom)
     {
         bool isRehydrate = string.Equals(path, _evictedPath, StringComparison.OrdinalIgnoreCase);
         _evictedPath = null;

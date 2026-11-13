@@ -5,6 +5,8 @@ namespace PdfReaderApp.Tests.Core;
 /// <summary>#261: phép đổi offset cuộn của viewer thành ScrollNorm của tab và ngược lại.</summary>
 public class ViewerScrollPositionTests
 {
+    private static PageSlot Slot(double y, double height) => new(PageIndex: 0, X: 0, Y: y, Width: 600, Height: height);
+
     [Theory]
     [InlineData(1000, 1000, 800, 0)]      // đầu slot
     [InlineData(1400, 1000, 800, 0.5)]    // giữa slot
@@ -13,7 +15,7 @@ public class ViewerScrollPositionTests
     [InlineData(2500, 1000, 800, 1)]      // offset dưới slot kẹp về 1
     [InlineData(1400, 1000, 0, 0)]        // slot suy biến
     public void ToScrollNorm_ClampsFractionOfSlotScrolledPast(double offset, double slotY, double slotHeight, double expected)
-        => Assert.Equal(expected, ViewerScrollPosition.ToScrollNorm(offset, slotY, slotHeight), precision: 9);
+        => Assert.Equal(expected, ViewerScrollPosition.ToScrollNorm(offset, Slot(slotY, slotHeight)), precision: 9);
 
     [Theory]
     [InlineData(1000, 800, 0, 1000)]
@@ -23,15 +25,15 @@ public class ViewerScrollPositionTests
     [InlineData(1000, 800, 7, 1800)]
     [InlineData(1000, 800, double.NaN, 1000)]
     public void ToOffset_ClampsScrollNormIntoSlot(double slotY, double slotHeight, double norm, double expected)
-        => Assert.Equal(expected, ViewerScrollPosition.ToOffset(slotY, slotHeight, norm), precision: 9);
+        => Assert.Equal(expected, ViewerScrollPosition.ToOffset(Slot(slotY, slotHeight), norm), precision: 9);
 
     // Chuẩn hoá theo chiều cao slot nên đổi zoom (slot to gấp đôi) vẫn về cùng điểm tương đối trong trang.
     [Fact]
     public void RoundTrip_AfterZoomChange_LandsAtSameRelativePointInPage()
     {
-        double norm = ViewerScrollPosition.ToScrollNorm(offset: 1200, slotY: 1000, slotHeight: 800);
+        double norm = ViewerScrollPosition.ToScrollNorm(offset: 1200, Slot(1000, 800));
 
-        double offsetAtDoubleZoom = ViewerScrollPosition.ToOffset(slotY: 2000, slotHeight: 1600, norm);
+        double offsetAtDoubleZoom = ViewerScrollPosition.ToOffset(Slot(2000, 1600), norm);
 
         Assert.Equal(2400, offsetAtDoubleZoom, precision: 9);
     }
@@ -45,5 +47,5 @@ public class ViewerScrollPositionTests
     [InlineData(true, 800, false, false, false)]   // ngoài chế độ cuộn liên tục
     public void ShouldPersist_OnlyWhenVisibleSettledAndContinuous(
         bool isVisible, double viewportHeight, bool isSettlePending, bool isContinuous, bool expected)
-        => Assert.Equal(expected, ViewerScrollPosition.ShouldPersist(isVisible, viewportHeight, isSettlePending, isContinuous));
+        => Assert.Equal(expected, ViewerScrollPosition.ShouldPersist(new ScrollPersistContext(isVisible, viewportHeight, isSettlePending, isContinuous)));
 }

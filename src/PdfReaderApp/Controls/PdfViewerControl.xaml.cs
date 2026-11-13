@@ -538,7 +538,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             // Chỉ trong lượt cuộn-sau-nạp: offset từ ScrollNorm tính trên slot hiện tại nên phải đọc lại sau khi zoom đã ổn định
             // (timer gọi lại mỗi tick); ngoài lượt đó (Trang sau, Trang trước) về đầu trang.
             return ScrollSettle.IsPending && pageIndex == CurrentPage - 1
-                ? Core.ViewerScrollPosition.ToOffset(slot.Y, slot.Height, _loadScrollNorm)
+                ? Core.ViewerScrollPosition.ToOffset(slot, _loadScrollNorm)
                 : slot.Y;
         }
 
@@ -576,9 +576,8 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     private void ArmPendingScrollGuard()
     {
         // Slot chưa dựng nên chưa biết offset đích; trang 1 có Đoạn nguồn sẽ được Schedule bắt sau layout.
-        bool needsScroll = Core.ScrollAfterLoadPolicy.NeedsScroll(IsContinuousView, CurrentPage, targetOffset: null)
-            || (IsContinuousView && _loadScrollNorm > 0);   // trang 1 có ScrollNorm cũng phải chờ cuộn
-        ScrollSettle.Arm(needsScroll ? CurrentPage : 0);
+        ScrollSettle.Arm(Core.ScrollAfterLoadPolicy.NeedsGuardBeforeLayout(IsContinuousView, CurrentPage, _loadScrollNorm)
+            ? CurrentPage : 0);
     }
 
     private bool IsContinuousView => ViewMode is Core.PdfViewMode.Continuous or Core.PdfViewMode.ContinuousFacing;
@@ -627,8 +626,10 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             int newPage = slot.PageIndex + 1;
             if (CurrentPage != newPage) CurrentPage = newPage;
 
-            if (Core.ViewerScrollPosition.ShouldPersist(IsVisible, PagesScrollViewer.ViewportHeight, ScrollSettle.IsPending, IsContinuousView))
-                ScrollNorm = Core.ViewerScrollPosition.ToScrollNorm(offset, slot.Y, slot.Height);
+            var persistContext = new Core.ScrollPersistContext(
+                IsVisible, PagesScrollViewer.ViewportHeight, ScrollSettle.IsPending, IsContinuousView);
+            if (Core.ViewerScrollPosition.ShouldPersist(persistContext))
+                ScrollNorm = Core.ViewerScrollPosition.ToScrollNorm(offset, slot);
         }
     }
 

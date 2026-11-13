@@ -9,7 +9,7 @@ public class ViewerZoomOnLoadTests
     {
         var zoom = new ViewerZoomOnLoad();
 
-        Assert.True(zoom.ShouldFitOnLoad("/a.pdf"));
+        Assert.True(zoom.ShouldFitOnLoad("/a.pdf", hasSavedZoom: false));
     }
 
     [Fact]
@@ -18,7 +18,7 @@ public class ViewerZoomOnLoadTests
         var zoom = new ViewerZoomOnLoad();
         zoom.OnEvicted("/a.pdf");
 
-        Assert.False(zoom.ShouldFitOnLoad("/a.pdf"));
+        Assert.False(zoom.ShouldFitOnLoad("/a.pdf", hasSavedZoom: false));
     }
 
     // Viewer đọc lẻ nhả tài liệu khi vào Workspace; mở tài liệu khác sau đó vẫn phải fit, không kế thừa zoom cũ.
@@ -28,7 +28,7 @@ public class ViewerZoomOnLoadTests
         var zoom = new ViewerZoomOnLoad();
         zoom.OnEvicted("/a.pdf");
 
-        Assert.True(zoom.ShouldFitOnLoad("/b.pdf"));
+        Assert.True(zoom.ShouldFitOnLoad("/b.pdf", hasSavedZoom: false));
     }
 
     [Fact]
@@ -36,9 +36,9 @@ public class ViewerZoomOnLoadTests
     {
         var zoom = new ViewerZoomOnLoad();
         zoom.OnEvicted("/a.pdf");
-        zoom.ShouldFitOnLoad("/a.pdf");
+        zoom.ShouldFitOnLoad("/a.pdf", hasSavedZoom: false);
 
-        Assert.True(zoom.ShouldFitOnLoad("/a.pdf"));
+        Assert.True(zoom.ShouldFitOnLoad("/a.pdf", hasSavedZoom: false));
     }
 
     // #263: tab khôi phục từ Open Set mang zoom đã lưu, lần nạp đầu không fit đè.
