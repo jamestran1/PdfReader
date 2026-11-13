@@ -242,6 +242,14 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         CurrentTabs.Close(tab);   // tab không đóng được (Tab Document của Tab Strip nhẹ) do TabHost bỏ qua
     }
 
+    /// <summary>Intent: sắp lại Tab Strip, đưa <paramref name="tab"/> tới vị trí <paramref name="newIndex"/>. Không đổi Tab active
+    /// hay Phiên đọc; thứ tự mới được lưu cùng Open Set.</summary>
+    public void Move(OpenTab tab, int newIndex)
+    {
+        ArgumentNullException.ThrowIfNull(tab);
+        CurrentTabs.Move(tab, newIndex);
+    }
+
     /// <summary>Intent: đóng Tab của <paramref name="documentId"/> nếu Document đang mở thành Tab; không thì không làm gì.</summary>
     public void CloseDocument(string documentId)
     {

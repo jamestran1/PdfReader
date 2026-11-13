@@ -574,6 +574,9 @@ public partial class MainViewModel : ObservableObject, IDisposable
         Session.SaveOpenSetNow();
     }
 
+    /// <summary>Kéo-thả sắp lại Tab Strip: đưa <paramref name="tab"/> tới <paramref name="newIndex"/>. Gọi từ code-behind của cửa sổ.</summary>
+    public void MoveTab(Models.OpenTab tab, int newIndex) => Session.Move(tab, newIndex);
+
     // Đóng tab (chỉ gỡ khỏi Open Set, KHÔNG gỡ khỏi workspace membership).
     [RelayCommand]
     private void CloseTab(Models.OpenTab? tab)
