@@ -17,6 +17,12 @@ public sealed partial class DocumentTab : OpenTab
     public string Path { get; }
 
     /// <summary>
+    /// Zoom của tab là giá trị đã lưu từ lần trước (tab khôi phục từ Open Set): viewer giữ nguyên thay vì fit vừa khung.
+    /// Tab mới mở thì false, viewer fit lần nạp đầu.
+    /// </summary>
+    public bool HasSavedZoom { get; init; }
+
+    /// <summary>
     /// Tab được giữ handle PDFium sống (active hoặc trong nhóm MRU ấm, #48).
     /// false: viewer của tab nhả tài liệu, chỉ còn header + view-state; nạp lại khi kích hoạt.
     /// </summary>

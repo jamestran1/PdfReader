@@ -654,6 +654,8 @@
                                     CurrentPage="{Binding Page, Mode=TwoWay}"
                                     TotalPages="{Binding TotalPages, Mode=OneWayToSource}"
                                     ZoomLevel="{Binding Zoom, Mode=TwoWay}"
+                                    ScrollNorm="{Binding ScrollNorm, Mode=TwoWay}"
+                                    KeepZoomOnLoad="{Binding HasSavedZoom, Mode=OneWay}"
                                     CurrentDocumentId="{Binding DocumentId}"
                                     HighlightQuery="{Binding DataContext.Search.SelectedQuery, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                     MatchSource="{Binding DataContext.Session.MatchSource, RelativeSource={RelativeSource AncestorType=ItemsControl}}"

@@ -12,4 +12,11 @@ public static class ScrollAfterLoadPolicy
     /// <param name="pageTop">Y của slot trang đích, hoặc null khi slot chưa dựng.</param>
     public static bool NeedsScroll(bool isContinuous, int currentPage, double? targetOffset, double? pageTop = null) =>
         isContinuous && (currentPage > 1 || targetOffset > (pageTop ?? 0));
+
+    /// <summary>
+    /// Có phải bật guard chờ cuộn TRƯỚC khi layout (slot chưa dựng nên chưa biết offset đích) hay không.
+    /// Ngoài trang sau trang 1, trang 1 có <paramref name="scrollNorm"/> dương cũng cuộn xuống giữa trang.
+    /// </summary>
+    public static bool NeedsGuardBeforeLayout(bool isContinuous, int currentPage, double scrollNorm) =>
+        NeedsScroll(isContinuous, currentPage, targetOffset: null) || (isContinuous && scrollNorm > 0);
 }

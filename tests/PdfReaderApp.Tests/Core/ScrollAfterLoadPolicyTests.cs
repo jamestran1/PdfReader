@@ -7,6 +7,17 @@ namespace PdfReaderApp.Tests.Core;
 /// </summary>
 public class ScrollAfterLoadPolicyTests
 {
+    // #261: trang 1 có ScrollNorm dương cũng cần guard trước layout để ScrollChanged trung gian không ghi đè ScrollNorm.
+    [Theory]
+    [InlineData(true, 1, 0.4, true)]
+    [InlineData(true, 1, 0, false)]
+    [InlineData(true, 5, 0, true)]
+    [InlineData(false, 1, 0.4, false)]
+    [InlineData(false, 5, 0.4, false)]
+    public void NeedsGuardBeforeLayout_PageOneNeedsGuardOnlyWithPositiveScrollNorm(
+        bool isContinuous, int currentPage, double scrollNorm, bool expected)
+        => Assert.Equal(expected, ScrollAfterLoadPolicy.NeedsGuardBeforeLayout(isContinuous, currentPage, scrollNorm));
+
     [Fact]
     public void NeedsScroll_PageOneWithPassageBelowTop_ReturnsTrue()
     {

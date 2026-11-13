@@ -53,6 +53,31 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         set => SetValue(TotalPagesProperty, value);
     }
 
+    // Tab khôi phục mang zoom đã lưu (OpenTab.HasSavedZoom): lần nạp đầu giữ ZoomLevel thay vì fit vừa khung (#263).
+    public static readonly DependencyProperty KeepZoomOnLoadProperty =
+        DependencyProperty.Register(nameof(KeepZoomOnLoad), typeof(bool), typeof(PdfViewerControl),
+            new PropertyMetadata(false));
+
+    public bool KeepZoomOnLoad
+    {
+        get => (bool)GetValue(KeepZoomOnLoadProperty);
+        set => SetValue(KeepZoomOnLoadProperty, value);
+    }
+
+    // Vị trí cuộn trong trang hiện tại (OpenTab.ScrollNorm, 0..1): viewer ghi khi cuộn, và áp lại khi nạp tài liệu (#261).
+    public static readonly DependencyProperty ScrollNormProperty =
+        DependencyProperty.Register(nameof(ScrollNorm), typeof(double), typeof(PdfViewerControl),
+            new FrameworkPropertyMetadata(0.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault));
+
+    public double ScrollNorm
+    {
+        get => (double)GetValue(ScrollNormProperty);
+        set => SetValue(ScrollNormProperty, value);
+    }
+
+    // ScrollNorm cần áp cho CurrentPage trong lượt cuộn-sau-nạp hiện tại; 0 = đầu trang. Chỉ dùng khi ScrollSettle đang pending.
+    private double _loadScrollNorm;
+
     public static readonly DependencyProperty ZoomLevelProperty =
         DependencyProperty.Register("ZoomLevel", typeof(double), typeof(PdfViewerControl),
             new FrameworkPropertyMetadata(1.0, FrameworkPropertyMetadataOptions.BindsTwoWayByDefault, OnZoomLevelChanged));
@@ -193,6 +218,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         if (d is PdfViewerControl c && c._currentDocument != null)
         {
             c.RefreshLayout(keepCache: false);
+            c._loadScrollNorm = 0;   // đổi chế độ xem về đầu trang, không áp lại ScrollNorm của lần nạp
             // Single-unit modes show one unit at Y=0; reset scroll so it is in view after switching.
             // Chế độ cuộn liên tục: giữ trang hiện tại (RefreshLayout dựng lại slot nên offset cũ map sai,
             // thường về cover) -> cuộn lại tới CurrentPage.
@@ -359,6 +385,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
         DisposeCurrentDocument();
         _slots.Clear();
         _zoomOnLoad.OnEvicted(path);
+        _loadScrollNorm = 0;
         LoadingOverlay.Visibility = Visibility.Collapsed;
         skiaCanvas.InvalidateVisual();
     }
@@ -404,13 +431,18 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             // Honor trang đích do VM đặt trước khi nạp (vd cross-doc jump mở thẳng tại trang neo);
             // mặc định VM đặt 1 cho lần mở thường nên vẫn về trang đầu.
             CurrentPage = System.Math.Clamp(CurrentPage, 1, _session.PageCount);
+            // Viewer đọc lẻ không bind ScrollNorm: giá trị cục bộ là dư lượng của lần cuộn trước nên xoá, không áp.
+            // Viewer per-tab (có binding) không bị ghi 0 để khỏi đè ScrollNorm đã lưu của tab.
+            bool isBound = System.Windows.Data.BindingOperations.IsDataBound(this, ScrollNormProperty);
+            _loadScrollNorm = Viewer.ViewerScrollOnLoad.NormToApply(isBound, ScrollNorm);
+            if (!isBound && ScrollNorm != 0) ScrollNorm = 0;
 
             // Bật GUARD pending NGAY (trước FitToViewport/RefreshLayout): các bước layout đó phát ScrollChanged
             // đồng bộ scroll->trang (kéo CurrentPage về trang đang hiển thị) -> guard chặn ghi đè trang đích.
             ArmPendingScrollGuard();
 
             _session.ResetEditState();
-            if (_zoomOnLoad.ShouldFitOnLoad(path)) FitToViewport();
+            if (_zoomOnLoad.ShouldFitOnLoad(path, KeepZoomOnLoad)) FitToViewport();
             RefreshLayout();
 
             // Phát cuộn-đích SAU khi RefreshLayout xong: nếu cuộn giữa chừng rồi RefreshLayout chạy sau sẽ
@@ -503,7 +535,11 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
             || passage.PageIndex != pageIndex
             || !passage.BelongsTo(CurrentDocumentId))
         {
-            return slot.Y;
+            // Chỉ trong lượt cuộn-sau-nạp: offset từ ScrollNorm tính trên slot hiện tại nên phải đọc lại sau khi zoom đã ổn định
+            // (timer gọi lại mỗi tick); ngoài lượt đó (Trang sau, Trang trước) về đầu trang.
+            return ScrollSettle.IsPending && pageIndex == CurrentPage - 1
+                ? Core.ViewerScrollPosition.ToOffset(slot, _loadScrollNorm)
+                : slot.Y;
         }
 
         return Core.OverlayGeometry.PassageScrollOffset(
@@ -540,7 +576,7 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
     private void ArmPendingScrollGuard()
     {
         // Slot chưa dựng nên chưa biết offset đích; trang 1 có Đoạn nguồn sẽ được Schedule bắt sau layout.
-        ScrollSettle.Arm(Core.ScrollAfterLoadPolicy.NeedsScroll(IsContinuousView, CurrentPage, targetOffset: null)
+        ScrollSettle.Arm(Core.ScrollAfterLoadPolicy.NeedsGuardBeforeLayout(IsContinuousView, CurrentPage, _loadScrollNorm)
             ? CurrentPage : 0);
     }
 
@@ -583,11 +619,17 @@ public partial class PdfViewerControl : UserControl, IDisposable, Viewer.IViewer
 
         skiaCanvas.InvalidateVisual();
 
-        double middleY = PagesScrollViewer.VerticalOffset + PagesScrollViewer.ViewportHeight / 2;
+        double offset = PagesScrollViewer.VerticalOffset;
+        double middleY = offset + PagesScrollViewer.ViewportHeight / 2;
         if (Core.SlotHitTester.AtOffset(_slots, middleY) is { } slot)
         {
             int newPage = slot.PageIndex + 1;
             if (CurrentPage != newPage) CurrentPage = newPage;
+
+            var persistContext = new Core.ScrollPersistContext(
+                IsVisible, PagesScrollViewer.ViewportHeight, ScrollSettle.IsPending, IsContinuousView);
+            if (Core.ViewerScrollPosition.ShouldPersist(persistContext))
+                ScrollNorm = Core.ViewerScrollPosition.ToScrollNorm(offset, slot);
         }
     }
 

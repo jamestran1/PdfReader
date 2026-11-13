@@ -51,6 +51,31 @@ public class ReadingSessionRestoreOpenSetTests
         Assert.Equal(Target, f.Session.ActiveWorkspaceId);
     }
 
+    // #263: tab khôi phục (cả active lẫn không active) mang zoom đã lưu nên viewer không fit đè.
+    [Fact]
+    public void RestoreOpenSet_RestoredDocumentTabs_AreMarkedAsHavingSavedZoom()
+    {
+        var f = new ReadingSessionFixture();
+        foreach (var id in new[] { "A", "B" }) f.InLibrary(id);
+        Save(f, Target, Saved("A", 0, zoom: 1.5), Saved("B", 1, active: true, zoom: 2.0));
+
+        f.Session.RestoreOpenSet(Target);
+
+        Assert.All(f.Session.Tabs.Tabs.OfType<DocumentTab>(), t => Assert.True(t.HasSavedZoom));
+    }
+
+    // #263: tab mới mở từ danh sách tài liệu vẫn fit vừa khung.
+    [Fact]
+    public void OpenTab_NewlyOpenedDocumentTab_IsNotMarkedAsHavingSavedZoom()
+    {
+        var f = new ReadingSessionFixture().InWorkspace();
+        f.InLibrary("A");
+
+        f.OpenTab("A");
+
+        Assert.False(f.Session.Tabs.Tabs.OfType<DocumentTab>().Single().HasSavedZoom);
+    }
+
     [Fact]
     public void RestoreOpenSet_DoesNotWriteBuildInProgressStateAndSavesOnceWhenDone()
     {
