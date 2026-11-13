@@ -498,7 +498,13 @@
                     Background="{DynamicResource TriThu.Brush.SurfaceTonalLow}">
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <StackPanel Orientation="Horizontal">
-                        <ItemsControl ItemsSource="{Binding Session.CurrentTabs.Tabs}">
+                        <!-- Kéo-thả sắp lại Tab (#262): chip bắt đầu kéo, ItemsControl nhận thả, thanh chỉ báo vẽ đè lên khe thả -->
+                        <Grid>
+                        <ItemsControl x:Name="TabStripItems" ItemsSource="{Binding Session.CurrentTabs.Tabs}"
+                                      AllowDrop="True"
+                                      DragOver="TabStrip_DragOver"
+                                      DragLeave="TabStrip_DragLeave"
+                                      Drop="TabStrip_Drop">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal"/>
@@ -506,7 +512,9 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border ToolTip="{Binding Title}">
+                                    <Border ToolTip="{Binding Title}"
+                                            PreviewMouseLeftButtonDown="TabChip_PreviewMouseLeftButtonDown"
+                                            MouseMove="TabChip_MouseMove">
                                         <!-- Active chip = secondary-container (như segmented control top bar) -->
                                         <Border.Style>
                                             <Style TargetType="Border" BasedOn="{StaticResource TriThu.DocTab.Chip}">
@@ -570,6 +578,11 @@
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+                        <Border x:Name="TabDropIndicator" Width="3" Margin="0,6" CornerRadius="1.5"
+                                HorizontalAlignment="Left" VerticalAlignment="Stretch"
+                                Background="{DynamicResource MaterialDesign.Brush.Primary}"
+                                IsHitTestVisible="False" Visibility="Collapsed"/>
+                        </Grid>
                         <!-- Nút "+" cuối strip: mở Workspace Documents surface (#47) để thêm tài liệu -->
                         <Button Style="{StaticResource TriThu.DocTab.Add}"
                                 Visibility="{Binding Session.IsWorkspaceSession, Converter={StaticResource BooleanToVisibilityConverter}}"
