@@ -53,7 +53,7 @@ public abstract class TabHost : ObservableObject
     public event Action<OpenTab?>? ActiveTabChanged;
 #pragma warning restore MA0046
 
-    /// <summary>Phát khi tập Tab đổi (thêm, bỏ, xoá hết); không phát khi chỉ đổi Tab active. Che kiểu collection bên trong khỏi người nghe.</summary>
+    /// <summary>Phát khi tập Tab hoặc thứ tự Tab đổi (thêm, bỏ, xoá hết, sắp lại); không phát khi chỉ đổi Tab active. Che kiểu collection bên trong khỏi người nghe.</summary>
 #pragma warning disable MA0046 // cùng lý do với ActiveTabChanged
     public event Action? TabsChanged;
 #pragma warning restore MA0046
@@ -111,6 +111,20 @@ public abstract class TabHost : ObservableObject
         }
 
         OnPropertyChanged(nameof(HasTabs));
+    }
+
+    /// <summary>
+    /// Sắp lại thứ tự: đưa <paramref name="tab"/> tới vị trí <paramref name="newIndex"/> (chỉ số cuối cùng trong <see cref="Tabs"/>,
+    /// kẹp vào khoảng hợp lệ). Không đổi ActiveTab và MRU; phát <see cref="TabsChanged"/> để lưu Open Set.
+    /// Tab không nằm trong Tabs hoặc vị trí không đổi thì không làm gì.
+    /// </summary>
+    internal void Move(OpenTab tab, int newIndex)
+    {
+        int oldIndex = _tabItems.IndexOf(tab);
+        if (oldIndex < 0) return;
+        int target = Math.Clamp(newIndex, 0, _tabItems.Count - 1);
+        if (target == oldIndex) return;
+        _tabItems.Move(oldIndex, target);
     }
 
     /// <summary>
