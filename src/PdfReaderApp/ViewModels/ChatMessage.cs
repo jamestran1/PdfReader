@@ -7,10 +7,12 @@ namespace PdfReaderApp.ViewModels;
 public partial class ChatMessage : ObservableObject
 {
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MarkdownSpans))]
     public partial string Role { get; set; } = "User";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Spans))]
+    [NotifyPropertyChangedFor(nameof(MarkdownSpans))]
     public partial string Content { get; set; } = string.Empty;
 
     public DateTime Timestamp { get; } = DateTime.Now;
@@ -22,4 +24,11 @@ public partial class ChatMessage : ObservableObject
     /// <summary>Nội dung tách thành chữ thường và trích dẫn bấm được. Tính lại từ <see cref="Content"/> mỗi lần
     /// đổi nên trích dẫn bị chia giữa hai chunk stream chỉ thành link khi đã đủ <c>[n]</c>.</summary>
     public IReadOnlyList<CitationSpan> Spans => CitationParser.Parse(Content, Sources);
+
+    /// <summary>Mô hình hiển thị Markdown inline chỉ dùng cho tin AI; tin người dùng vẫn đi qua <see cref="Spans"/>
+    /// như chữ thường. Dữ liệu gốc giữ Markdown raw.</summary>
+    public IReadOnlyList<MarkdownInlineSpan> MarkdownSpans =>
+        string.Equals(Role, "AI", StringComparison.OrdinalIgnoreCase)
+            ? MarkdownPresentation.ParseInline(Content)
+            : [];
 }
