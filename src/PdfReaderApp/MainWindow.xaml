@@ -1011,7 +1011,8 @@
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
                                                 <controls:MarkdownTextBlock TextWrapping="Wrap" Margin="0,4,0,0"
-                                                                            InlineSpans="{Binding MarkdownSpans}">
+                                                                            InlineSpans="{Binding MarkdownSpans}"
+                                                                            CitationCommand="{Binding DataContext.Chat.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                                                     <controls:MarkdownTextBlock.Style>
                                                         <Style TargetType="{x:Type controls:MarkdownTextBlock}">
                                                             <Style.Triggers>

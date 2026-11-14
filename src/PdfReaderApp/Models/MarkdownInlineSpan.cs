@@ -4,7 +4,9 @@ namespace PdfReaderApp.Models;
 /// <param name="Text">Chữ hiển thị, đã escape khỏi cú pháp Markdown.</param>
 /// <param name="Styles">Kiểu chữ áp dụng cho cả đoạn này.</param>
 /// <param name="Url">URL ngoài http/https an toàn; null với chữ thường hoặc link bị từ chối.</param>
+/// <param name="Citation">Trích dẫn RAG sẽ thay link ngoài khi số khớp bảng nguồn.</param>
 public sealed record MarkdownInlineSpan(
     string Text,
     MarkdownInlineStyles Styles = MarkdownInlineStyles.None,
-    string? Url = null);
+    string? Url = null,
+    CitationSpan? Citation = null);
