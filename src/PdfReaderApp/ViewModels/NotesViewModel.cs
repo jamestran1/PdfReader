@@ -19,6 +19,7 @@ public sealed partial class NotesViewModel : ObservableObject
     private readonly Func<string?>? _currentDocumentId;
     private readonly Action<string, int?>? _openDocument;
     private readonly Action<string>? _notifyError;
+    private readonly Action<string> _copyToClipboard;
 
     private readonly List<Note> _all = []; // nguồn đầy đủ; Items là phần đã lọc/sắp
     private string? _ownerKey;
@@ -50,9 +51,10 @@ public sealed partial class NotesViewModel : ObservableObject
 
     public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex,
         Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null,
-        Action<string>? notifyError = null)
+        Action<string>? notifyError = null, Action<string>? copyToClipboard = null)
     {
         _notifyError = notifyError;
+        _copyToClipboard = copyToClipboard ?? (_ => { });
         _store = store;
         _currentPageIndex = currentPageIndex;
         _jumpToPageIndex = jumpToPageIndex;
@@ -265,6 +267,12 @@ public sealed partial class NotesViewModel : ObservableObject
         IsEditing = false;
         PendingQuote = null;
         _pendingRects = null;
+    }
+
+    [RelayCommand]
+    private void Copy(Note? note)
+    {
+        if (note is not null) _copyToClipboard(note.Content);
     }
 
     [RelayCommand]

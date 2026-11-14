@@ -1010,9 +1010,33 @@
                                                             HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignConverter}}">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
+                                                <controls:MarkdownPresenter Margin="0,4,0,0"
+                                                                          Blocks="{Binding MarkdownBlocks}"
+                                                                           FallbackInlineSpans="{Binding MarkdownSpans}"
+                                                                           CitationCommand="{Binding DataContext.Chat.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                                    <controls:MarkdownPresenter.Style>
+                                                        <Style TargetType="{x:Type controls:MarkdownPresenter}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Role}" Value="AI">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </controls:MarkdownPresenter.Style>
+                                                </controls:MarkdownPresenter>
                                                 <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
                                                            controls:CitationText.Command="{Binding DataContext.Chat.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                           controls:CitationText.Spans="{Binding Spans}"/>
+                                                           controls:CitationText.Spans="{Binding Spans}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Role}" Value="AI">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                                 <Button HorizontalAlignment="Right" Margin="0,2,0,0"
                                                         Width="28" Height="28" Padding="0"
                                                         ToolTip="Lưu thành ghi chú"
@@ -1163,10 +1187,11 @@
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
 
                                                 <!-- Chip nhãn tài liệu (chỉ hiện khi workspace có >1 tài liệu) -->
-                                                <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                                                <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="4"
                                                         Margin="0,0,0,4" HorizontalAlignment="Left"
                                                         Background="{Binding DocumentId, Converter={StaticResource DocumentIdToBrushConverter}}"
                                                         CornerRadius="10" Padding="6,2"
@@ -1187,7 +1212,7 @@
                                                 </Border>
 
                                                 <!-- Khối trích dẫn (ẩn nếu null) -->
-                                                <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3"
+                                                <Border Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="4"
                                                         BorderBrush="{DynamicResource MaterialDesignDivider}" BorderThickness="3,0,0,0"
                                                         Padding="6,0" Margin="0,0,0,4"
                                                         Visibility="{Binding Quote, Converter={StaticResource NullToCollapsedConverter}}">
@@ -1195,23 +1220,31 @@
                                                                TextWrapping="Wrap" MaxHeight="60" TextTrimming="CharacterEllipsis"/>
                                                 </Border>
 
-                                                <!-- Nội dung: click để nhảy trang -->
-                                                <TextBlock Grid.Row="2" Grid.Column="0" Text="{Binding Content}"
-                                                           TextWrapping="Wrap" Cursor="Hand">
-                                                    <TextBlock.InputBindings>
+                                                <!-- Nội dung: Markdown ở chế độ đọc; click để nhảy trang -->
+                                                <controls:MarkdownPresenter Grid.Row="2" Grid.Column="0"
+                                                                           Blocks="{Binding MarkdownBlocks}"
+                                                                           FallbackInlineSpans="{Binding MarkdownSpans}"
+                                                                           Cursor="Hand">
+                                                    <controls:MarkdownPresenter.InputBindings>
                                                         <MouseBinding MouseAction="LeftClick"
                                                             Command="{Binding DataContext.Notes.OpenCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                             CommandParameter="{Binding}"/>
-                                                    </TextBlock.InputBindings>
-                                                </TextBlock>
+                                                    </controls:MarkdownPresenter.InputBindings>
+                                                </controls:MarkdownPresenter>
 
                                                 <Button Grid.Row="2" Grid.Column="1" Style="{StaticResource MaterialDesignIconButton}"
+                                                        Width="28" Height="28" ToolTip="Sao chép Markdown"
+                                                        Command="{Binding DataContext.Notes.CopyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}">
+                                                    <materialDesign:PackIcon Kind="ContentCopy" Width="16" Height="16"/>
+                                                </Button>
+                                                <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource MaterialDesignIconButton}"
                                                         Width="28" Height="28" ToolTip="Sửa"
                                                         Command="{Binding DataContext.Notes.BeginEditCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}">
                                                     <materialDesign:PackIcon Kind="Pencil" Width="16" Height="16"/>
                                                 </Button>
-                                                <Button Grid.Row="2" Grid.Column="2" Style="{StaticResource MaterialDesignIconButton}"
+                                                <Button Grid.Row="2" Grid.Column="3" Style="{StaticResource MaterialDesignIconButton}"
                                                         Width="28" Height="28" ToolTip="Xóa"
                                                         Command="{Binding DataContext.Notes.DeleteCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}">
@@ -1219,7 +1252,7 @@
                                                 </Button>
 
                                                 <!-- Badge trang (PageIndex 0-based -> hiển thị +1); ẩn nếu null -->
-                                                <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3"
+                                                <TextBlock Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="4"
                                                            Margin="0,4,0,0" FontSize="11" Opacity="0.7"
                                                            Text="{Binding PageIndex, Converter={StaticResource PageBadgeConverter}}"
                                                            Visibility="{Binding PageIndex, Converter={StaticResource NullToCollapsedConverter}}"/>

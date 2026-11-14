@@ -257,7 +257,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             idx => Session.CurrentPage = idx + 1,
             () => Session.DocumentId,
             OpenDocumentForNote,
-            NotifyError);
+            NotifyError,
+            DesktopPrompts.CopyText);
         Compositions = CompositionsViewModel.Create(services, this);
         Search = new SearchViewModel(
             _documentIndex, () => Session.DocumentId, page => Session.CurrentPage = page, NotifyError,

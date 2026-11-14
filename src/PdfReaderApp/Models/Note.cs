@@ -13,4 +13,10 @@ public sealed record Note(
     long CreatedAtUnixMs,
     long UpdatedAtUnixMs,
     IReadOnlyList<HighlightRect>? Rects = null,
-    string? Color = null);
+    string? Color = null)
+{
+    /// <summary>Presentation dùng chung với Chat AI; Quote vẫn là dữ liệu nguyên văn của PDF.</summary>
+    public IReadOnlyList<MarkdownPresentationBlock> MarkdownBlocks => MarkdownPresentation.ParseBlocks(Content);
+
+    public IReadOnlyList<MarkdownInlineSpan> MarkdownSpans => MarkdownPresentation.ParseInline(Content);
+}
