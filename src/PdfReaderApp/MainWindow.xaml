@@ -1012,7 +1012,8 @@
                                                 <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
                                                 <controls:MarkdownPresenter Margin="0,4,0,0"
                                                                           Blocks="{Binding MarkdownBlocks}"
-                                                                          FallbackInlineSpans="{Binding MarkdownSpans}">
+                                                                           FallbackInlineSpans="{Binding MarkdownSpans}"
+                                                                           CitationCommand="{Binding DataContext.Chat.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
                                                     <controls:MarkdownPresenter.Style>
                                                         <Style TargetType="{x:Type controls:MarkdownPresenter}">
                                                             <Style.Triggers>

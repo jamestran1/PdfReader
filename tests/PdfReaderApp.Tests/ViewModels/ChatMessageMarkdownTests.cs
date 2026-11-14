@@ -59,4 +59,20 @@ public sealed class ChatMessageMarkdownTests
         MarkdownInlineSpan span = Assert.Single(message.MarkdownSpans);
         Assert.Equal(new MarkdownInlineSpan(content), span);
     }
+
+    [Fact]
+    public void Content_KnownCitationInsideMarkdownLinkAndEmphasis_WinsExternalLink()
+    {
+        var source = new RagSource(1, "doc-a", "Hợp đồng", 2, "đoạn nguồn");
+        var citation = CitationSpan.ForSource(source);
+        var message = new ChatMessage
+        {
+            Role = "AI",
+            Content = "**[1](https://example.com/source)**",
+            Sources = [source],
+        };
+
+        MarkdownInlineSpan span = Assert.Single(message.MarkdownSpans);
+        Assert.Equal(new MarkdownInlineSpan("📖 Hợp đồng - Tr.3", MarkdownInlineStyles.Bold, null, citation), span);
+    }
 }

@@ -31,11 +31,11 @@ public partial class ChatMessage : ObservableObject
     /// như chữ thường. Dữ liệu gốc giữ Markdown raw.</summary>
     public IReadOnlyList<MarkdownInlineSpan> MarkdownSpans =>
         string.Equals(Role, "AI", StringComparison.OrdinalIgnoreCase)
-            ? MarkdownPresentation.ParseInline(Content)
+            ? MarkdownPresentation.ParseInline(Content, Sources)
             : [];
 
     public IReadOnlyList<MarkdownPresentationBlock> MarkdownBlocks =>
         string.Equals(Role, "AI", StringComparison.OrdinalIgnoreCase)
-            ? MarkdownPresentation.ParseBlocks(Content)
+            ? MarkdownPresentation.ParseBlocks(Content, Sources)
             : [];
 }
