@@ -6,6 +6,25 @@ namespace PdfReaderApp.Tests.ViewModels;
 public sealed class ChatMessageMarkdownTests
 {
     [Fact]
+    public void Content_AIWithGfm_ExposesBlockPresentation()
+    {
+        const string content = """
+            | Cột | Giá trị |
+            | ---: | :--- |
+            | Tên | Trí Thư |
+
+            - [x] đọc bảng
+            """;
+        var message = new ChatMessage { Role = "AI", Content = content };
+
+        IReadOnlyList<MarkdownPresentationBlock> blocks = message.MarkdownBlocks;
+
+        Assert.Equal(2, blocks.Count);
+        _ = Assert.IsType<MarkdownTableBlock>(blocks[0]);
+        _ = Assert.IsType<MarkdownTaskListBlock>(blocks[1]);
+    }
+
+    [Fact]
     public void Content_AIWithMarkdown_ExposesSafeInlinePresentation()
     {
         var message = new ChatMessage { Role = "AI", Content = "**Trả lời** `cú pháp` [Open](https://example.com)" };
@@ -27,6 +46,7 @@ public sealed class ChatMessageMarkdownTests
         var message = new ChatMessage { Role = "User", Content = content };
 
         Assert.Empty(message.MarkdownSpans);
+        Assert.Empty(message.MarkdownBlocks);
         Assert.Equal([new CitationSpan(content)], message.Spans);
     }
 

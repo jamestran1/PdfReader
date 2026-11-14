@@ -34,6 +34,8 @@ public sealed class MarkdownTextBlock : System.Windows.Controls.TextBlock
         if (span.Styles.HasFlag(MarkdownInlineStyles.Bold)) run.FontWeight = FontWeights.Bold;
         if (span.Styles.HasFlag(MarkdownInlineStyles.Italic)) run.FontStyle = FontStyles.Italic;
         if (span.Styles.HasFlag(MarkdownInlineStyles.Code)) run.FontFamily = new FontFamily("Consolas");
+        if (span.Styles.HasFlag(MarkdownInlineStyles.Strikethrough))
+            run.TextDecorations = System.Windows.TextDecorations.Strikethrough;
 
         if (span.Url is null) return run;
 

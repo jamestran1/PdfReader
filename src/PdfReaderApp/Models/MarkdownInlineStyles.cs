@@ -7,4 +7,5 @@ public enum MarkdownInlineStyles
     Bold = 1,
     Italic = 2,
     Code = 4,
+    Strikethrough = 8,
 }
