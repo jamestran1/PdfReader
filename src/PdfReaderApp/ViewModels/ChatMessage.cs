@@ -8,11 +8,13 @@ public partial class ChatMessage : ObservableObject
 {
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MarkdownSpans))]
+    [NotifyPropertyChangedFor(nameof(MarkdownBlocks))]
     public partial string Role { get; set; } = "User";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Spans))]
     [NotifyPropertyChangedFor(nameof(MarkdownSpans))]
+    [NotifyPropertyChangedFor(nameof(MarkdownBlocks))]
     public partial string Content { get; set; } = string.Empty;
 
     public DateTime Timestamp { get; } = DateTime.Now;
@@ -30,5 +32,11 @@ public partial class ChatMessage : ObservableObject
     public IReadOnlyList<MarkdownInlineSpan> MarkdownSpans =>
         string.Equals(Role, "AI", StringComparison.OrdinalIgnoreCase)
             ? MarkdownPresentation.ParseInline(Content)
+            : [];
+
+    /// <summary>Mô hình hiển thị khối CommonMark cho tin AI; mỗi chunk stream làm thuộc tính này báo UI vẽ lại.</summary>
+    public IReadOnlyList<MarkdownPresentationBlock> MarkdownBlocks =>
+        string.Equals(Role, "AI", StringComparison.OrdinalIgnoreCase)
+            ? MarkdownPresentation.ParseBlocks(Content)
             : [];
 }

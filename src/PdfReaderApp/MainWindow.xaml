@@ -45,6 +45,58 @@
         <converters:WindowStateToMaximizeIconConverter x:Key="WindowStateToMaximizeIconConverter"/>
         <converters:NotificationIconConverter x:Key="NotificationIconConverter"/>
         <converters:BoolToThemeIconConverter x:Key="BoolToThemeIconConverter"/>
+        <converters:MarkdownListLevelToMarginConverter x:Key="MarkdownListLevelToMarginConverter"/>
+        <DataTemplate x:Key="MarkdownHeadingTemplate" DataType="{x:Type models:MarkdownPresentationBlock}">
+            <controls:MarkdownTextBlock TextWrapping="Wrap" InlineSpans="{Binding InlineSpans}"
+                                        Foreground="{DynamicResource MaterialDesign.Brush.Primary}">
+                <controls:MarkdownTextBlock.Style>
+                    <Style TargetType="{x:Type controls:MarkdownTextBlock}">
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="FontSize" Value="14"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Level}" Value="1">
+                                <Setter Property="FontSize" Value="20"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="2">
+                                <Setter Property="FontSize" Value="18"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="3">
+                                <Setter Property="FontSize" Value="16"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="4">
+                                <Setter Property="FontSize" Value="15"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="5">
+                                <Setter Property="FontSize" Value="14"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="6">
+                                <Setter Property="FontSize" Value="13.5"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </controls:MarkdownTextBlock.Style>
+            </controls:MarkdownTextBlock>
+        </DataTemplate>
+        <DataTemplate x:Key="MarkdownListItemTemplate" DataType="{x:Type models:MarkdownPresentationBlock}">
+            <StackPanel Orientation="Horizontal"
+                        Margin="{Binding Level, Converter={StaticResource MarkdownListLevelToMarginConverter}}">
+                <TextBlock Text="{Binding ListMarker}" Margin="0,0,6,0" VerticalAlignment="Top"/>
+                <controls:MarkdownTextBlock TextWrapping="Wrap" InlineSpans="{Binding InlineSpans}"/>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="MarkdownQuoteTemplate" DataType="{x:Type models:MarkdownPresentationBlock}">
+            <Border BorderThickness="3,0,0,0" Padding="10,2,0,2" Margin="0,4"
+                    BorderBrush="{DynamicResource MaterialDesign.Brush.Primary}">
+                <controls:MarkdownTextBlock TextWrapping="Wrap" InlineSpans="{Binding InlineSpans}" FontStyle="Italic"/>
+            </Border>
+        </DataTemplate>
+        <DataTemplate x:Key="MarkdownCodeTemplate" DataType="{x:Type models:MarkdownPresentationBlock}">
+            <Border Background="{DynamicResource TriThu.Brush.SurfaceTonal}"
+                    BorderBrush="{DynamicResource TriThu.Brush.OutlineVariant}"
+                    BorderThickness="1" CornerRadius="4" Padding="8" Margin="0,4">
+                <TextBlock Text="{Binding Text}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="12.5"/>
+            </Border>
+        </DataTemplate>
     </Window.Resources>
     <Window.DataContext>
         <viewmodels:MainViewModel />
@@ -1010,18 +1062,49 @@
                                                             HorizontalAlignment="{Binding Role, Converter={StaticResource RoleToAlignConverter}}">
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Role}" FontWeight="Bold" FontSize="10" Opacity="0.7"/>
-                                                <controls:MarkdownTextBlock TextWrapping="Wrap" Margin="0,4,0,0"
-                                                                            InlineSpans="{Binding MarkdownSpans}">
-                                                    <controls:MarkdownTextBlock.Style>
-                                                        <Style TargetType="{x:Type controls:MarkdownTextBlock}">
+                                                <ItemsControl ItemsSource="{Binding MarkdownBlocks}" Margin="0,4,0,0">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <ContentControl Content="{Binding}">
+                                                                <ContentControl.Style>
+                                                                    <Style TargetType="ContentControl">
+                                                                        <Setter Property="ContentTemplate" Value="{StaticResource MarkdownHeadingTemplate}"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Kind}" Value="Paragraph">
+                                                                                <Setter Property="ContentTemplate">
+                                                                                    <Setter.Value>
+                                                                                        <DataTemplate>
+                                                                                            <controls:MarkdownTextBlock TextWrapping="Wrap"
+                                                                                                                        InlineSpans="{Binding InlineSpans}"/>
+                                                                                        </DataTemplate>
+                                                                                    </Setter.Value>
+                                                                                </Setter>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Kind}" Value="ListItem">
+                                                                                <Setter Property="ContentTemplate" Value="{StaticResource MarkdownListItemTemplate}"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Kind}" Value="Quote">
+                                                                                <Setter Property="ContentTemplate" Value="{StaticResource MarkdownQuoteTemplate}"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Kind}" Value="Code">
+                                                                                <Setter Property="ContentTemplate" Value="{StaticResource MarkdownCodeTemplate}"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </ContentControl.Style>
+                                                            </ContentControl>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                    <ItemsControl.Style>
+                                                        <Style TargetType="ItemsControl">
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding Role}" Value="AI">
                                                                     <Setter Property="Visibility" Value="Visible"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
-                                                    </controls:MarkdownTextBlock.Style>
-                                                </controls:MarkdownTextBlock>
+                                                    </ItemsControl.Style>
+                                                </ItemsControl>
                                                 <TextBlock TextWrapping="Wrap" Margin="0,4,0,0"
                                                            controls:CitationText.Command="{Binding DataContext.Chat.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                            controls:CitationText.Spans="{Binding Spans}">
