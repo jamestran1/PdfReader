@@ -395,12 +395,18 @@ public sealed class MainViewModelChatTests : IDisposable
     public void OpenDocument_WithStoredHistory_ShowsStoredMessagesInsteadOfGreeting()
     {
         var seeded = new FakeChatHistoryStore();
+        var source = new RagSource(1, "docSource", "Hợp đồng", 2, "đoạn nguồn");
         seeded.Stored.Add(new ChatHistoryEntry("docOpen", "User", "Câu hỏi cũ", 1));
-        seeded.Stored.Add(new ChatHistoryEntry("docOpen", "AI", "Trả lời cũ", 1));
+        seeded.Stored.Add(new ChatHistoryEntry("docOpen", "AI", "# Trả lời cũ [1]", 1, [source]));
 
         var (vm, _) = OpenedDocumentVm(DocumentIndexStatus.None, seeded);
 
-        Assert.Equal(["Câu hỏi cũ", "Trả lời cũ"], vm.Chat.Messages.Select(m => m.Content), StringComparer.Ordinal);
+        Assert.Equal(["Câu hỏi cũ", "# Trả lời cũ [1]"], vm.Chat.Messages.Select(m => m.Content), StringComparer.Ordinal);
+        var answer = vm.Chat.Messages.Single(message => message.Role == "AI");
+        Assert.Contains(
+            answer.MarkdownBlocks,
+            block => block.Kind == MarkdownPresentationBlockKind.Heading
+                && block.InlineSpans.Any(span => span.Citation?.Text == "📖 Hợp đồng - Tr.3"));
     }
 
     [Fact]

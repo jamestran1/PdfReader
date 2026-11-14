@@ -12,7 +12,6 @@ public sealed partial class CompositionTab : OpenTab
         : base(composition?.Id ?? throw new ArgumentNullException(nameof(composition)), composition.Title)
     {
         Composition = composition;
-        Blocks = MarkdownBlockParser.Parse(composition.Content);
         clock ??= TimeProvider.System;
         WhenText = CompositionSources.FormatWhen(composition.CreatedAtUnixMs, clock.GetUtcNow(), clock.LocalTimeZone);
         ApplySources([]);
@@ -28,9 +27,9 @@ public sealed partial class CompositionTab : OpenTab
     [NotifyPropertyChangedFor(nameof(SourcesMetaText))]
     public partial Composition Composition { get; private set; }
 
-    /// <summary>Nội dung đã tách khối để hiển thị Markdown chỉ đọc.</summary>
+    /// <summary>Presentation dùng chung với Chat AI và Note; citation đã gắn nguồn hiện tại.</summary>
     [ObservableProperty]
-    public partial IReadOnlyList<MarkdownBlock> Blocks { get; private set; }
+    public partial IReadOnlyList<MarkdownPresentationBlock> MarkdownBlocks { get; private set; } = [];
 
     /// <summary>Đang ở chế độ Sửa (ô văn bản Markdown thay cho bản đọc).</summary>
     [ObservableProperty]
@@ -48,10 +47,6 @@ public sealed partial class CompositionTab : OpenTab
     [ObservableProperty]
     public partial string RenameText { get; set; } = string.Empty;
 
-    /// <summary>Khối kèm trích dẫn <c>[n]</c> đã tách; số nguồn chưa biết hoặc đã xoá là chữ thường.</summary>
-    [ObservableProperty]
-    public partial IReadOnlyList<CompositionBlockView> RenderedBlocks { get; private set; } = [];
-
     /// <summary>Danh sách nguồn theo Note hiện tại, hiện ở cuối văn bản.</summary>
     [ObservableProperty]
     public partial IReadOnlyList<CompositionSourceEntry> Sources { get; private set; } = [];
@@ -66,7 +61,10 @@ public sealed partial class CompositionTab : OpenTab
     public void ApplySources(IReadOnlyList<CompositionSourceEntry> sources)
     {
         Sources = sources;
-        RenderedBlocks = [.. Blocks.Select(b => new CompositionBlockView(b, CompositionSources.ParseCitations(b.Text, sources)))];
+        MarkdownBlocks = MarkdownPresentation.ParseBlocks(
+            Composition.Content,
+            CompositionSources.ToRagSources(sources),
+            source => $"[{source.Number}]");
     }
 
     /// <summary>Nhãn kiểu Bản soạn trên chip.</summary>
@@ -80,7 +78,6 @@ public sealed partial class CompositionTab : OpenTab
     {
         Composition = saved;
         Title = saved.Title;
-        Blocks = MarkdownBlockParser.Parse(saved.Content);
         ApplySources(Sources);
     }
 }

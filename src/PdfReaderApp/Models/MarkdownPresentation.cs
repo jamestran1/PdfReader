@@ -44,9 +44,10 @@ public static partial class MarkdownPresentation
 
     public static IReadOnlyList<MarkdownPresentationBlock> ParseBlocks(
         string markdown,
-        IReadOnlyList<RagSource> sources)
+        IReadOnlyList<RagSource> sources,
+        Func<RagSource, string>? citationLabel = null)
     {
-        (string protectedMarkdown, var citations) = ProtectCitations(markdown, sources);
+        (string protectedMarkdown, var citations) = ProtectCitations(markdown, sources, citationLabel);
         MarkdownDocument document = Markdown.Parse(protectedMarkdown, Pipeline);
         var blocks = new List<MarkdownPresentationBlock>();
         foreach (Block block in document)
@@ -152,7 +153,7 @@ public static partial class MarkdownPresentation
         return new MarkdownTableBlock(alignments.Take(header.Count).ToArray(), header, rows);
     }
 
-    private static IReadOnlyList<MarkdownInlineSpan> CreateCell(
+    private static MarkdownInlineSpan[] CreateCell(
         TableCell cell,
         IReadOnlyDictionary<string, CitationSpan> citations) =>
         cell.Descendants<LeafBlock>()
@@ -193,7 +194,8 @@ public static partial class MarkdownPresentation
 
     private static (string Markdown, Dictionary<string, CitationSpan> Citations) ProtectCitations(
         string markdown,
-        IReadOnlyList<RagSource> sources)
+        IReadOnlyList<RagSource> sources,
+        Func<RagSource, string>? citationLabel = null)
     {
         if (sources.Count == 0) return (markdown, []);
 
@@ -209,7 +211,9 @@ public static partial class MarkdownPresentation
             }
 
             string placeholder = $"{PlaceholderStart}{index++}{PlaceholderEnd}";
-            citations.Add(placeholder, citation);
+            citations.Add(placeholder, citation.Source is { } source
+                ? new CitationSpan(citationLabel?.Invoke(source) ?? citation.Text, source, citation.Quote)
+                : citation);
             builder.Append(placeholder);
         }
 

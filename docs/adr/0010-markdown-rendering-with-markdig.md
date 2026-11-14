@@ -16,6 +16,6 @@ Chat AI và nội dung Note cần hiển thị Markdown gần chuẩn CommonMark
 
 ## Consequences
 
-- Thay thế dần `MarkdownBlockParser` tự viết; không bảo trì hai parser cho cùng một ngôn ngữ hiển thị.
+- `MarkdownBlockParser` tự viết đã bị xoá; Chat AI, Chat history, Note và Bản soạn dùng chung `MarkdownPresentation` và `MarkdownPresenter`.
 - Streaming render lại tin AI sau mỗi chunk. Block chưa hoàn chỉnh có thể hiển thị gần raw cho tới khi cú pháp đủ điều kiện parse.
 - Test phải phủ các cấu trúc CommonMark + GFM chính, loại bỏ HTML/image, precedence của citation `[n]`, và hành vi raw Markdown khi lưu, sửa, copy.

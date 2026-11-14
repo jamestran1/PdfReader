@@ -131,7 +131,9 @@ public sealed class CompositionToolbarTests
         Assert.Equal(("Nội dung đã sửa [1]", (long?)5000), (saved.Content, saved.UpdatedAtUnixMs));
         Assert.Equal("Nội dung đã sửa [1]", tab.Composition.Content);
         Assert.Equal("Nội dung đã sửa [1]", f.Vm.Items.Single().Content);
-        Assert.Contains(tab.Blocks, b => b.Text.Contains("đã sửa"));
+        Assert.Contains(
+            tab.MarkdownBlocks,
+            block => block.InlineSpans.Any(span => span.Text.Contains("đã sửa", StringComparison.Ordinal)));
     }
 
     [Fact]
