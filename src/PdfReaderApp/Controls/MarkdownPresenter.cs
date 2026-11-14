@@ -1,7 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using PdfReaderApp.Models;
+using WpfTextBlock = System.Windows.Controls.TextBlock;
+using WpfThickness = System.Windows.Thickness;
 
 namespace PdfReaderApp.Controls;
 
@@ -65,7 +68,11 @@ public sealed class MarkdownPresenter : ContentControl
             {
                 MarkdownTableBlock table => CreateTable(table, CitationCommand),
                 MarkdownTaskListBlock taskList => CreateTaskList(taskList, CitationCommand),
-                _ => new FrameworkElement(),
+                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.Heading } heading => CreateHeading(heading, CitationCommand),
+                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.ListItem } listItem => CreateListItem(listItem, CitationCommand),
+                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.Quote } quote => CreateQuote(quote, CitationCommand),
+                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.Code } code => CreateCode(code),
+                MarkdownPresentationBlock paragraph => CreateInline(paragraph.InlineSpans, TextWrapping.Wrap, citationCommand: CitationCommand),
             };
             panel.Children.Add(element);
         }
@@ -166,6 +173,80 @@ public sealed class MarkdownPresenter : ContentControl
             FontWeight = isHeader ? FontWeights.Bold : FontWeights.Normal,
         };
         return text;
+    }
+
+    private static MarkdownTextBlock CreateHeading(
+        MarkdownPresentationBlock heading,
+        ICommand? citationCommand)
+    {
+        var text = CreateInline(heading.InlineSpans, TextWrapping.Wrap, citationCommand: citationCommand);
+        text.FontWeight = FontWeights.SemiBold;
+        text.FontSize = heading.Level switch
+        {
+            1 => 20,
+            2 => 18,
+            3 => 16,
+            4 => 15,
+            5 => 14,
+            _ => 13.5,
+        };
+        text.SetResourceReference(Control.ForegroundProperty, "MaterialDesign.Brush.Primary");
+        return text;
+    }
+
+    private static DockPanel CreateListItem(
+        MarkdownPresentationBlock listItem,
+        ICommand? citationCommand)
+    {
+        var marker = new WpfTextBlock
+        {
+            Text = listItem.ListMarker,
+            Margin = new WpfThickness(0, 2, 6, 0),
+            VerticalAlignment = VerticalAlignment.Top,
+        };
+        var content = CreateInline(listItem.InlineSpans, TextWrapping.Wrap, citationCommand: citationCommand);
+        var row = new DockPanel { Margin = new WpfThickness(listItem.Level * 18, 2, 0, 2) };
+        DockPanel.SetDock(marker, Dock.Left);
+        row.Children.Add(marker);
+        row.Children.Add(content);
+        return row;
+    }
+
+    private static Border CreateQuote(
+        MarkdownPresentationBlock quote,
+        ICommand? citationCommand)
+    {
+        var border = new Border
+        {
+            Child = CreateInline(quote.InlineSpans, TextWrapping.Wrap, citationCommand: citationCommand),
+            BorderThickness = new WpfThickness(3, 0, 0, 0),
+            Padding = new WpfThickness(10, 2, 0, 2),
+            Margin = new WpfThickness(0, 4, 0, 4),
+        };
+        border.SetResourceReference(Border.BorderBrushProperty, "MaterialDesign.Brush.Primary");
+        if (border.Child is MarkdownTextBlock text) text.FontStyle = FontStyles.Italic;
+        return border;
+    }
+
+    private static Border CreateCode(MarkdownPresentationBlock code)
+    {
+        var border = new Border
+        {
+            Child = new WpfTextBlock
+            {
+                Text = code.Text,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = new FontFamily("Consolas"),
+                FontSize = 12.5,
+            },
+            BorderThickness = new WpfThickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new WpfThickness(8),
+            Margin = new WpfThickness(0, 4, 0, 4),
+        };
+        border.SetResourceReference(Border.BackgroundProperty, "TriThu.Brush.SurfaceTonal");
+        border.SetResourceReference(Border.BorderBrushProperty, "TriThu.Brush.OutlineVariant");
+        return border;
     }
 
     private static System.Windows.HorizontalAlignment CellHorizontalAlignment(MarkdownTableAlignment alignment) =>

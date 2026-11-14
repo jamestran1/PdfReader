@@ -1,4 +1,5 @@
 using System.Text;
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Markdig;
 using Markdig.Extensions.EmphasisExtras;
@@ -58,10 +59,70 @@ public static partial class MarkdownPresentation
                 case ListBlock list when list.Descendants<TaskList>().Any():
                     blocks.Add(CreateTaskList(list, citations));
                     break;
+                case HeadingBlock heading when heading.Inline is not null:
+                    blocks.Add(new MarkdownPresentationBlock(
+                        MarkdownPresentationBlockKind.Heading,
+                        CreateSpans(heading.Inline, citations),
+                        heading.Level));
+                    break;
+                case ListBlock list:
+                    ParseList(list, 0, blocks, citations);
+                    break;
+                case QuoteBlock quote:
+                    foreach (ParagraphBlock paragraph in quote.Descendants<ParagraphBlock>())
+                    {
+                        if (paragraph.Inline is null) continue;
+                        blocks.Add(new MarkdownPresentationBlock(
+                            MarkdownPresentationBlockKind.Quote,
+                            CreateSpans(paragraph.Inline, citations)));
+                    }
+                    break;
+                case FencedCodeBlock code:
+                    blocks.Add(new MarkdownPresentationBlock(
+                        MarkdownPresentationBlockKind.Code,
+                        [],
+                        Text: NormalizeNewlines(code.Lines.ToString()).TrimEnd('\n'),
+                        IsComplete: code.ClosingFencedCharCount > 0));
+                    break;
+                case ParagraphBlock paragraph when paragraph.Inline is not null:
+                    blocks.Add(new MarkdownPresentationBlock(
+                        MarkdownPresentationBlockKind.Paragraph,
+                        CreateSpans(paragraph.Inline, citations)));
+                    break;
             }
         }
 
         return blocks;
+    }
+
+    private static void ParseList(
+        ListBlock list,
+        int level,
+        List<MarkdownPresentationBlock> blocks,
+        IReadOnlyDictionary<string, CitationSpan> citations)
+    {
+        int number = int.TryParse(list.OrderedStart, NumberStyles.Integer, CultureInfo.InvariantCulture, out int orderedStart)
+            ? orderedStart
+            : 1;
+        foreach (ListItemBlock item in list.OfType<ListItemBlock>())
+        {
+            blocks.Add(new MarkdownPresentationBlock(
+                MarkdownPresentationBlockKind.ListItem,
+                ParseItemText(item, citations),
+                level,
+                list.IsOrdered ? $"{number}." : "•"));
+            foreach (ListBlock nestedList in item.OfType<ListBlock>())
+                ParseList(nestedList, level + 1, blocks, citations);
+            if (list.IsOrdered) number++;
+        }
+    }
+
+    private static List<MarkdownInlineSpan> ParseItemText(
+        ListItemBlock item,
+        IReadOnlyDictionary<string, CitationSpan> citations)
+    {
+        ParagraphBlock? paragraph = item.OfType<ParagraphBlock>().FirstOrDefault();
+        return paragraph?.Inline is null ? [] : CreateSpans(paragraph.Inline, citations);
     }
 
     private static MarkdownTableBlock CreateTable(Table table, IReadOnlyDictionary<string, CitationSpan> citations)
@@ -255,6 +316,8 @@ public static partial class MarkdownPresentation
         emphasis.DelimiterChar == '~'
             ? MarkdownInlineStyles.Strikethrough
             : EmphasisStyle(emphasis.DelimiterCount);
+
+    private static string NormalizeNewlines(string text) => text.Replace("\r\n", "\n").Replace('\r', '\n');
 
     private static string? SafeExternalUrl(string? url) =>
         Uri.TryCreate(url, UriKind.Absolute, out Uri? parsed) &&

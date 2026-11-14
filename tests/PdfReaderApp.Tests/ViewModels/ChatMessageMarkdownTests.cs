@@ -40,6 +40,30 @@ public sealed class ChatMessageMarkdownTests
     }
 
     [Fact]
+    public void Content_AIWithBlocks_ExposesBlockPresentation()
+    {
+        var message = new ChatMessage { Role = "AI", Content = "## Tiêu đề\n\n> Trích dẫn" };
+
+        Assert.Equal(
+        [
+            new MarkdownPresentationBlock(MarkdownPresentationBlockKind.Heading, [new MarkdownInlineSpan("Tiêu đề")], Level: 2),
+            new MarkdownPresentationBlock(MarkdownPresentationBlockKind.Quote, [new MarkdownInlineSpan("Trích dẫn")]),
+        ], message.MarkdownBlocks);
+    }
+
+    [Fact]
+    public void Content_AIStreamingChunk_RaisesMarkdownBlocksChanged()
+    {
+        var message = new ChatMessage { Role = "AI", Content = "# Tiêu" };
+        var events = new List<string?>();
+        message.PropertyChanged += (_, eventArgs) => events.Add(eventArgs.PropertyName);
+
+        message.Content += " đề";
+
+        Assert.Contains(nameof(ChatMessage.MarkdownBlocks), events, StringComparer.Ordinal);
+    }
+
+    [Fact]
     public void Content_UserWithMarkdownSyntax_StaysPlain()
     {
         const string content = "**Không render** [Open](https://example.com)";
