@@ -273,6 +273,26 @@ public sealed class MainViewModelChatTests : IDisposable
         Assert.Null(vm.Session.ActiveWorkspaceId);
     }
 
+    [Fact]
+    public void SaveAnswerAsNote_PersistsRawMarkdownAndReloadsPresentation()
+    {
+        const string raw = "# Kết luận\n- **điểm chính**";
+        var (vm, _) = OpenedDocumentVm(DocumentIndexStatus.None);
+        var answer = new PdfReaderApp.ViewModels.ChatMessage { Role = "AI", Content = raw };
+
+        vm.SaveAnswerAsNoteCommand.Execute(answer);
+        var saved = vm.Notes.Items.Single(note => note.Content == raw);
+        vm.Notes.LoadFor(saved.OwnerKey);
+
+        var reloaded = vm.Notes.Items.Single(note => note.Content == raw);
+        Assert.Equal(raw, reloaded.Content);
+        Assert.Contains(reloaded.MarkdownBlocks, block => block.Kind == MarkdownPresentationBlockKind.Heading);
+        Assert.Contains(
+            reloaded.MarkdownBlocks,
+            block => block.Kind == MarkdownPresentationBlockKind.ListItem
+                && block.InlineSpans.Any(span => span.Styles == MarkdownInlineStyles.Bold));
+    }
+
     private static readonly LibraryItem DocB = new("docB", "B", "/lib/b.pdf", ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1);
 
     private (MainViewModel vm, FakeWorkspaceStore store) WorkspaceSessionWithDocA()

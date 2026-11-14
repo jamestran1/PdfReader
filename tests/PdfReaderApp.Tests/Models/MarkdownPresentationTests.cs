@@ -11,6 +11,45 @@ public sealed class MarkdownPresentationTests
     ];
 
     [Fact]
+    public void NoteMarkdownPresentation_RendersContentWithoutInterpretingQuote()
+    {
+        var note = new Note(
+            "n1", "doc", "doc", 1,
+            Quote: "# Trích PDF không render",
+            Content: "# Ghi chú\n- **quan trọng**",
+            CreatedAtUnixMs: 1,
+            UpdatedAtUnixMs: 1);
+
+        Assert.Equal(
+        [
+            new MarkdownPresentationBlock(
+                MarkdownPresentationBlockKind.Heading,
+                [new MarkdownInlineSpan("Ghi chú")],
+                Level: 1),
+            new MarkdownPresentationBlock(
+                MarkdownPresentationBlockKind.ListItem,
+                [new MarkdownInlineSpan("quan trọng", MarkdownInlineStyles.Bold)],
+                ListMarker: "•"),
+        ], note.MarkdownBlocks);
+        Assert.Equal("# Trích PDF không render", note.Quote);
+        Assert.Equal("# Ghi chú\n- **quan trọng**", note.Content);
+    }
+
+    [Fact]
+    public void NoteMarkdownPresentation_KeepsPlainAndQuoteOnlyNotesReadable()
+    {
+        var legacy = new Note("n1", "doc", "doc", 1, null, "Ghi chú cũ", 1, 1);
+        var quoteOnly = new Note("n2", "doc", "doc", 1, "# Trích PDF", "", 1, 1);
+
+        var paragraph = Assert.Single(legacy.MarkdownBlocks);
+        Assert.Equal(MarkdownPresentationBlockKind.Paragraph, paragraph.Kind);
+        Assert.Equal([new MarkdownInlineSpan("Ghi chú cũ", MarkdownInlineStyles.None)], paragraph.InlineSpans);
+        Assert.Empty(quoteOnly.MarkdownBlocks);
+        Assert.Empty(quoteOnly.MarkdownSpans);
+        Assert.Equal("# Trích PDF", quoteOnly.Quote);
+    }
+
+    [Fact]
     public void ParseBlocks_BuildsSafeGfmPresentationInOrder()
     {
         const string markdown = """
