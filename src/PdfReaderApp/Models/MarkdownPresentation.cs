@@ -213,22 +213,109 @@ public static partial class MarkdownPresentation
         var builder = new StringBuilder();
         var citations = new Dictionary<string, CitationSpan>(StringComparer.Ordinal);
         int index = 0;
-        foreach (CitationSpan citation in CitationParser.Parse(markdown, sources))
+        foreach ((string segment, bool isFencedCode) in SplitOutsideFencedCode(markdown))
         {
-            if (citation.Source is not { } source)
+            if (isFencedCode)
             {
-                builder.Append(citation.Text);
-                continue;
+                builder.Append(segment);
             }
+            else
+            {
+                foreach (CitationSpan citation in CitationParser.Parse(segment, sources))
+                {
+                    if (citation.Source is not { } source)
+                    {
+                        builder.Append(citation.Text);
+                        continue;
+                    }
 
-            string placeholder = $"{PlaceholderStart}{index++}{PlaceholderEnd}";
-            citations.Add(placeholder, new CitationSpan(
-                citationLabel?.Invoke(source) ?? citation.Text, source, citation.Quote));
-            builder.Append(placeholder);
+                    string placeholder = $"{PlaceholderStart}{index++}{PlaceholderEnd}";
+                    citations.Add(placeholder, new CitationSpan(
+                        citationLabel?.Invoke(source) ?? citation.Text, source, citation.Quote));
+                    builder.Append(placeholder);
+                }
+            }
         }
 
         RemoveMarkdownLinkDestinations(builder, citations);
         return (builder.ToString(), citations);
+    }
+
+    private static IEnumerable<(string Text, bool IsFencedCode)> SplitOutsideFencedCode(string markdown)
+    {
+        var current = new StringBuilder();
+        bool inFencedCode = false;
+        char fenceChar = '\0';
+        int fenceLength = 0;
+        int lineStart = 0;
+
+        while (lineStart < markdown.Length)
+        {
+            int lineEnd = markdown.IndexOf('\n', lineStart);
+            int nextLineStart = lineEnd < 0 ? markdown.Length : lineEnd + 1;
+            string line = markdown[lineStart..nextLineStart];
+
+            if (!inFencedCode && TryGetOpeningFence(line, out char openingChar, out int openingLength))
+            {
+                yield return (current.ToString(), false);
+                current.Clear();
+                inFencedCode = true;
+                fenceChar = openingChar;
+                fenceLength = openingLength;
+                current.Append(line);
+            }
+            else
+            {
+                current.Append(line);
+                if (inFencedCode && IsClosingFence(line, fenceChar, fenceLength))
+                {
+                    yield return (current.ToString(), true);
+                    current.Clear();
+                    inFencedCode = false;
+                }
+            }
+
+            lineStart = nextLineStart;
+        }
+
+        yield return (current.ToString(), inFencedCode);
+    }
+
+    private static bool TryGetOpeningFence(string line, out char fenceChar, out int fenceLength)
+    {
+        fenceChar = '\0';
+        fenceLength = 0;
+        int start = CountLeadingSpaces(line);
+        if (start >= line.Length) return false;
+
+        char candidate = line[start];
+        if (candidate is not ('`' or '~')) return false;
+
+        int end = start;
+        while (end < line.Length && line[end] == candidate) end++;
+        fenceLength = end - start;
+        if (fenceLength < 3) return false;
+
+        string info = line[end..].TrimEnd('\r');
+        if (candidate == '`' && info.Contains('`')) return false;
+
+        fenceChar = candidate;
+        return true;
+    }
+
+    private static bool IsClosingFence(string line, char fenceChar, int fenceLength)
+    {
+        int start = CountLeadingSpaces(line);
+        int end = start;
+        while (end < line.Length && line[end] == fenceChar) end++;
+        return end - start >= fenceLength && line[end..].TrimEnd('\r', ' ', '\t').Length == 0;
+    }
+
+    private static int CountLeadingSpaces(string line)
+    {
+        int start = 0;
+        while (start < line.Length && start < 3 && line[start] == ' ') start++;
+        return start;
     }
 
     private static void RemoveMarkdownLinkDestinations(

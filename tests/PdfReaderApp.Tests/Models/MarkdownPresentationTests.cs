@@ -307,6 +307,7 @@ public sealed class MarkdownPresentationTests
 
             ```
             arr[0]
+            arr[1]
             ```
             """,
             Sources);
@@ -321,7 +322,34 @@ public sealed class MarkdownPresentationTests
             paragraph.InlineSpans);
         var code = Assert.IsType<MarkdownPresentationBlock>(blocks[2]);
         Assert.Equal(MarkdownPresentationBlockKind.Code, code.Kind);
-        Assert.Equal("arr[0]", code.Text);
+        Assert.Equal("arr[0]\narr[1]", code.Text);
+    }
+
+    [Fact]
+    public void ParseBlocks_RagSources_KeepFencedCodeWithMatchingCitationNumber()
+    {
+        IReadOnlyList<MarkdownBlock> blocks = MarkdownPresentation.ParseBlocks(
+            """
+            Kết luận [1].
+
+            ```
+            arr[1]
+            ```
+            """,
+            Sources);
+
+        Assert.Equal(2, blocks.Count);
+        var paragraph = Assert.IsType<MarkdownPresentationBlock>(blocks[0]);
+        Assert.Equal(
+            [
+                new MarkdownInlineSpan("Kết luận "),
+                new MarkdownInlineSpan("📖 Hợp đồng - Tr.3", Citation: CitationSpan.ForSource(Sources[0])),
+                new MarkdownInlineSpan("."),
+            ],
+            paragraph.InlineSpans);
+        var code = Assert.IsType<MarkdownPresentationBlock>(blocks[1]);
+        Assert.Equal(MarkdownPresentationBlockKind.Code, code.Kind);
+        Assert.Equal("arr[1]", code.Text);
     }
 
     [Fact]
