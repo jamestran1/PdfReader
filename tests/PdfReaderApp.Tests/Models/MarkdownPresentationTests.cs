@@ -296,6 +296,47 @@ public sealed class MarkdownPresentationTests
         ], spans);
     }
 
+    [Fact]
+    public void ParseBlocks_RagSources_PreserveTaskListMarkdownLinkAndFencedCode()
+    {
+        IReadOnlyList<MarkdownBlock> blocks = MarkdownPresentation.ParseBlocks(
+            """
+            - [x] xong
+
+            [Open](https://example.com)
+
+            ```
+            arr[0]
+            ```
+            """,
+            Sources);
+
+        Assert.Equal(3, blocks.Count);
+        var taskList = Assert.IsType<MarkdownTaskListBlock>(blocks[0]);
+        MarkdownTaskListItem checkedItem = Assert.Single(taskList.Items);
+        Assert.True(checkedItem.IsChecked);
+        var paragraph = Assert.IsType<MarkdownPresentationBlock>(blocks[1]);
+        Assert.Equal(
+            [new MarkdownInlineSpan("Open", Styles: MarkdownInlineStyles.None, Url: "https://example.com/")],
+            paragraph.InlineSpans);
+        var code = Assert.IsType<MarkdownPresentationBlock>(blocks[2]);
+        Assert.Equal(MarkdownPresentationBlockKind.Code, code.Kind);
+        Assert.Equal("arr[0]", code.Text);
+    }
+
+    [Fact]
+    public void ParseInline_RagSources_KeepSafeLinkAndUnknownCitationLiteral()
+    {
+        IReadOnlyList<MarkdownInlineSpan> spans = MarkdownPresentation.ParseInline(
+            "[Open](https://example.com) và [9].", Sources);
+
+        Assert.Equal(
+        [
+            new MarkdownInlineSpan("Open", Styles: MarkdownInlineStyles.None, Url: "https://example.com/"),
+            new MarkdownInlineSpan(" và [9]."),
+        ], spans);
+    }
+
     [Theory]
     [InlineData("### **[1](https://example.com/source)**")]
     [InlineData("- **[1](https://example.com/source)**")]

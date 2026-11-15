@@ -215,50 +215,20 @@ public static partial class MarkdownPresentation
         int index = 0;
         foreach (CitationSpan citation in CitationParser.Parse(markdown, sources))
         {
-            if (citation.Source is null)
+            if (citation.Source is not { } source)
             {
-                ProtectPlainBrackets(citation.Text, citations, builder, ref index);
+                builder.Append(citation.Text);
                 continue;
             }
 
             string placeholder = $"{PlaceholderStart}{index++}{PlaceholderEnd}";
-            citations.Add(placeholder, citation.Source is { } source
-                ? new CitationSpan(citationLabel?.Invoke(source) ?? citation.Text, source, citation.Quote)
-                : citation);
+            citations.Add(placeholder, new CitationSpan(
+                citationLabel?.Invoke(source) ?? citation.Text, source, citation.Quote));
             builder.Append(placeholder);
         }
 
         RemoveMarkdownLinkDestinations(builder, citations);
         return (builder.ToString(), citations);
-    }
-
-    private static void ProtectPlainBrackets(
-        string text,
-        Dictionary<string, CitationSpan> citations,
-        StringBuilder builder,
-        ref int index)
-    {
-        int start = -1;
-        int cursor = 0;
-        for (int position = 0; position < text.Length; position++)
-        {
-            if (text[position] == '[')
-            {
-                if (start < 0) start = position;
-            }
-            else if (text[position] == ']' && start >= 0)
-            {
-                builder.Append(text[cursor..start]);
-                string bracketText = text[start..(position + 1)];
-                string placeholder = $"{PlaceholderStart}{index++}{PlaceholderEnd}";
-                citations.Add(placeholder, new CitationSpan(bracketText));
-                builder.Append(placeholder);
-                cursor = position + 1;
-                start = -1;
-            }
-        }
-
-        builder.Append(text[cursor..]);
     }
 
     private static void RemoveMarkdownLinkDestinations(
@@ -358,7 +328,22 @@ public static partial class MarkdownPresentation
 
         private void FlushPlain(StringBuilder plain)
         {
-            if (plain.Length > 0) spans.Add(new MarkdownInlineSpan(plain.ToString(), Styles, Url));
+            if (plain.Length > 0)
+            {
+                string text = plain.ToString();
+                if (spans.Count > 0 &&
+                    spans[^1] is { Citation: null, Styles: var lastStyles, Url: var lastUrl } &&
+                    lastStyles == Styles &&
+                    lastUrl == Url &&
+                    (spans[^1].Text.EndsWith('[') || text.StartsWith('[')))
+                {
+                    spans[^1] = spans[^1] with { Text = spans[^1].Text + text };
+                }
+                else
+                {
+                    spans.Add(new MarkdownInlineSpan(text, Styles, Url));
+                }
+            }
             plain.Clear();
         }
     }
