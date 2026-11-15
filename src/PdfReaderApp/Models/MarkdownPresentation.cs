@@ -213,52 +213,109 @@ public static partial class MarkdownPresentation
         var builder = new StringBuilder();
         var citations = new Dictionary<string, CitationSpan>(StringComparer.Ordinal);
         int index = 0;
-        foreach (CitationSpan citation in CitationParser.Parse(markdown, sources))
+        foreach ((string segment, bool isFencedCode) in SplitOutsideFencedCode(markdown))
         {
-            if (citation.Source is null)
+            if (isFencedCode)
             {
-                ProtectPlainBrackets(citation.Text, citations, builder, ref index);
-                continue;
+                builder.Append(segment);
             }
+            else
+            {
+                foreach (CitationSpan citation in CitationParser.Parse(segment, sources))
+                {
+                    if (citation.Source is not { } source)
+                    {
+                        builder.Append(citation.Text);
+                        continue;
+                    }
 
-            string placeholder = $"{PlaceholderStart}{index++}{PlaceholderEnd}";
-            citations.Add(placeholder, citation.Source is { } source
-                ? new CitationSpan(citationLabel?.Invoke(source) ?? citation.Text, source, citation.Quote)
-                : citation);
-            builder.Append(placeholder);
+                    string placeholder = $"{PlaceholderStart}{index++}{PlaceholderEnd}";
+                    citations.Add(placeholder, new CitationSpan(
+                        citationLabel?.Invoke(source) ?? citation.Text, source, citation.Quote));
+                    builder.Append(placeholder);
+                }
+            }
         }
 
         RemoveMarkdownLinkDestinations(builder, citations);
         return (builder.ToString(), citations);
     }
 
-    private static void ProtectPlainBrackets(
-        string text,
-        Dictionary<string, CitationSpan> citations,
-        StringBuilder builder,
-        ref int index)
+    private static IEnumerable<(string Text, bool IsFencedCode)> SplitOutsideFencedCode(string markdown)
     {
-        int start = -1;
-        int cursor = 0;
-        for (int position = 0; position < text.Length; position++)
+        var current = new StringBuilder();
+        bool inFencedCode = false;
+        char fenceChar = '\0';
+        int fenceLength = 0;
+        int lineStart = 0;
+
+        while (lineStart < markdown.Length)
         {
-            if (text[position] == '[')
+            int lineEnd = markdown.IndexOf('\n', lineStart);
+            int nextLineStart = lineEnd < 0 ? markdown.Length : lineEnd + 1;
+            string line = markdown[lineStart..nextLineStart];
+
+            if (!inFencedCode && TryGetOpeningFence(line, out char openingChar, out int openingLength))
             {
-                if (start < 0) start = position;
+                yield return (current.ToString(), false);
+                current.Clear();
+                inFencedCode = true;
+                fenceChar = openingChar;
+                fenceLength = openingLength;
+                current.Append(line);
             }
-            else if (text[position] == ']' && start >= 0)
+            else
             {
-                builder.Append(text[cursor..start]);
-                string bracketText = text[start..(position + 1)];
-                string placeholder = $"{PlaceholderStart}{index++}{PlaceholderEnd}";
-                citations.Add(placeholder, new CitationSpan(bracketText));
-                builder.Append(placeholder);
-                cursor = position + 1;
-                start = -1;
+                current.Append(line);
+                if (inFencedCode && IsClosingFence(line, fenceChar, fenceLength))
+                {
+                    yield return (current.ToString(), true);
+                    current.Clear();
+                    inFencedCode = false;
+                }
             }
+
+            lineStart = nextLineStart;
         }
 
-        builder.Append(text[cursor..]);
+        yield return (current.ToString(), inFencedCode);
+    }
+
+    private static bool TryGetOpeningFence(string line, out char fenceChar, out int fenceLength)
+    {
+        fenceChar = '\0';
+        fenceLength = 0;
+        int start = CountLeadingSpaces(line);
+        if (start >= line.Length) return false;
+
+        char candidate = line[start];
+        if (candidate is not ('`' or '~')) return false;
+
+        int end = start;
+        while (end < line.Length && line[end] == candidate) end++;
+        fenceLength = end - start;
+        if (fenceLength < 3) return false;
+
+        string info = line[end..].TrimEnd('\r');
+        if (candidate == '`' && info.Contains('`')) return false;
+
+        fenceChar = candidate;
+        return true;
+    }
+
+    private static bool IsClosingFence(string line, char fenceChar, int fenceLength)
+    {
+        int start = CountLeadingSpaces(line);
+        int end = start;
+        while (end < line.Length && line[end] == fenceChar) end++;
+        return end - start >= fenceLength && line[end..].TrimEnd('\r', ' ', '\t').Length == 0;
+    }
+
+    private static int CountLeadingSpaces(string line)
+    {
+        int start = 0;
+        while (start < line.Length && start < 3 && line[start] == ' ') start++;
+        return start;
     }
 
     private static void RemoveMarkdownLinkDestinations(
@@ -358,7 +415,22 @@ public static partial class MarkdownPresentation
 
         private void FlushPlain(StringBuilder plain)
         {
-            if (plain.Length > 0) spans.Add(new MarkdownInlineSpan(plain.ToString(), Styles, Url));
+            if (plain.Length > 0)
+            {
+                string text = plain.ToString();
+                if (spans.Count > 0 &&
+                    spans[^1] is { Citation: null, Styles: var lastStyles, Url: var lastUrl } &&
+                    lastStyles == Styles &&
+                    lastUrl == Url &&
+                    (spans[^1].Text.EndsWith('[') || text.StartsWith('[')))
+                {
+                    spans[^1] = spans[^1] with { Text = spans[^1].Text + text };
+                }
+                else
+                {
+                    spans.Add(new MarkdownInlineSpan(text, Styles, Url));
+                }
+            }
             plain.Clear();
         }
     }
