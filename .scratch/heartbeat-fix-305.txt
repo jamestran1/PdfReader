@@ -1,3 +1,0 @@
-2026-11-15 RED: focused regressions started.
-2026-11-15 RESUME: continuing from uncommitted work; three parser regressions remain before full validation.
-2026-11-15 GREEN: focused 91/91, full 1406/1406, and scripts/check.ps1 passed.
