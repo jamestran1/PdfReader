@@ -31,7 +31,6 @@
         <local:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibilityConverter" />
         <local:CountToInverseVisibilityConverter x:Key="CountToInverseVisibilityConverter" />
         <local:UnixToDateConverter x:Key="UnixToDateConverter" />
-        <local:PathToImageConverter x:Key="PathToImageConverter" />
         <local:PageBadgeConverter x:Key="PageBadgeConverter"/>
         <local:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
         <local:DocumentIdToBrushConverter x:Key="DocumentIdToBrushConverter"/>

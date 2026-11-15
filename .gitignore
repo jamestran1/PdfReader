@@ -499,3 +499,6 @@ devcert.pfx
 # Agent skills (loaded globally, do not commit to repo)
 .agents/
 skills-lock.json
+
+# Worktree cục bộ của Claude Code
+.claude/worktrees/
