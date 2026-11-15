@@ -17,7 +17,7 @@ public sealed class ChatMessageMarkdownTests
             """;
         var message = new ChatMessage { Role = "AI", Content = content };
 
-        IReadOnlyList<MarkdownPresentationBlock> blocks = message.MarkdownBlocks;
+        IReadOnlyList<MarkdownBlock> blocks = message.MarkdownBlocks;
 
         Assert.Equal(2, blocks.Count);
         _ = Assert.IsType<MarkdownTableBlock>(blocks[0]);

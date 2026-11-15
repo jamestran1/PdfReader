@@ -289,8 +289,9 @@ public sealed class MainViewModelChatTests : IDisposable
         Assert.Contains(reloaded.MarkdownBlocks, block => block.Kind == MarkdownPresentationBlockKind.Heading);
         Assert.Contains(
             reloaded.MarkdownBlocks,
-            block => block.Kind == MarkdownPresentationBlockKind.ListItem
-                && block.InlineSpans.Any(span => span.Styles == MarkdownInlineStyles.Bold));
+            block => block is MarkdownPresentationBlock presentation
+                && presentation.Kind == MarkdownPresentationBlockKind.ListItem
+                && presentation.InlineSpans.Any(span => span.Styles == MarkdownInlineStyles.Bold));
     }
 
     private static readonly LibraryItem DocB = new("docB", "B", "/lib/b.pdf", ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1);
@@ -405,8 +406,9 @@ public sealed class MainViewModelChatTests : IDisposable
         var answer = vm.Chat.Messages.Single(message => message.Role == "AI");
         Assert.Contains(
             answer.MarkdownBlocks,
-            block => block.Kind == MarkdownPresentationBlockKind.Heading
-                && block.InlineSpans.Any(span => span.Citation?.Text == "📖 Hợp đồng - Tr.3"));
+            block => block is MarkdownPresentationBlock presentation
+                && presentation.Kind == MarkdownPresentationBlockKind.Heading
+                && presentation.InlineSpans.Any(span => span.Citation?.Text == "📖 Hợp đồng - Tr.3"));
     }
 
     [Fact]

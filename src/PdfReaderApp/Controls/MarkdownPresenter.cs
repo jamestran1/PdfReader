@@ -1,7 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
+using MaterialDesignThemes.Wpf;
 using PdfReaderApp.Models;
 using WpfTextBlock = System.Windows.Controls.TextBlock;
 using WpfThickness = System.Windows.Thickness;
@@ -13,9 +13,9 @@ public sealed class MarkdownPresenter : ContentControl
 {
     public static readonly DependencyProperty BlocksProperty = DependencyProperty.Register(
         nameof(Blocks),
-        typeof(IReadOnlyList<MarkdownPresentationBlock>),
+        typeof(IReadOnlyList<MarkdownBlock>),
         typeof(MarkdownPresenter),
-        new PropertyMetadata(Array.Empty<MarkdownPresentationBlock>(), OnPresentationChanged));
+        new PropertyMetadata(Array.Empty<MarkdownBlock>(), OnPresentationChanged));
 
     public static readonly DependencyProperty FallbackInlineSpansProperty = DependencyProperty.Register(
         nameof(FallbackInlineSpans),
@@ -23,15 +23,15 @@ public sealed class MarkdownPresenter : ContentControl
         typeof(MarkdownPresenter),
         new PropertyMetadata(Array.Empty<MarkdownInlineSpan>(), OnPresentationChanged));
 
-    public static readonly DependencyProperty CitationCommandProperty = DependencyProperty.Register(
-        nameof(CitationCommand),
-        typeof(ICommand),
+    public static readonly DependencyProperty RenderContextProperty = DependencyProperty.Register(
+        nameof(RenderContext),
+        typeof(MarkdownRenderContext),
         typeof(MarkdownPresenter),
         new PropertyMetadata(null, OnPresentationChanged));
 
-    public IReadOnlyList<MarkdownPresentationBlock> Blocks
+    public IReadOnlyList<MarkdownBlock> Blocks
     {
-        get => (IReadOnlyList<MarkdownPresentationBlock>)GetValue(BlocksProperty);
+        get => (IReadOnlyList<MarkdownBlock>)GetValue(BlocksProperty);
         set => SetValue(BlocksProperty, value);
     }
 
@@ -41,10 +41,10 @@ public sealed class MarkdownPresenter : ContentControl
         set => SetValue(FallbackInlineSpansProperty, value);
     }
 
-    public ICommand? CitationCommand
+    public MarkdownRenderContext? RenderContext
     {
-        get => (ICommand?)GetValue(CitationCommandProperty);
-        set => SetValue(CitationCommandProperty, value);
+        get => (MarkdownRenderContext?)GetValue(RenderContextProperty);
+        set => SetValue(RenderContextProperty, value);
     }
 
     private static void OnPresentationChanged(DependencyObject dependencyObject, DependencyPropertyChangedEventArgs eventArgs)
@@ -57,22 +57,23 @@ public sealed class MarkdownPresenter : ContentControl
     {
         if (Blocks.Count == 0)
         {
-            Content = CreateInline(FallbackInlineSpans, TextWrapping.Wrap, citationCommand: CitationCommand);
+            Content = CreateInline(FallbackInlineSpans, TextWrapping.Wrap, context: RenderContext);
             return;
         }
 
         var panel = new StackPanel();
-        foreach (MarkdownPresentationBlock block in Blocks)
+        foreach (MarkdownBlock block in Blocks)
         {
             FrameworkElement element = block switch
             {
-                MarkdownTableBlock table => CreateTable(table, CitationCommand),
-                MarkdownTaskListBlock taskList => CreateTaskList(taskList, CitationCommand),
-                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.Heading } heading => CreateHeading(heading, CitationCommand),
-                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.ListItem } listItem => CreateListItem(listItem, CitationCommand),
-                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.Quote } quote => CreateQuote(quote, CitationCommand),
+                MarkdownTableBlock table => CreateTable(table, RenderContext),
+                MarkdownTaskListBlock taskList => CreateTaskList(taskList, RenderContext),
+                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.Heading } heading => CreateHeading(heading, RenderContext),
+                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.ListItem } listItem => CreateListItem(listItem, RenderContext),
+                MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.Quote } quote => CreateQuote(quote, RenderContext),
                 MarkdownPresentationBlock { Kind: MarkdownPresentationBlockKind.Code } code => CreateCode(code),
-                MarkdownPresentationBlock paragraph => CreateInline(paragraph.InlineSpans, TextWrapping.Wrap, citationCommand: CitationCommand),
+                MarkdownPresentationBlock paragraph => CreateInline(paragraph.InlineSpans, TextWrapping.Wrap, context: RenderContext),
+                _ => throw new InvalidOperationException($"Không hỗ trợ khối Markdown {block.GetType().Name}."),
             };
             panel.Children.Add(element);
         }
@@ -80,7 +81,7 @@ public sealed class MarkdownPresenter : ContentControl
         Content = panel;
     }
 
-    private static ScrollViewer CreateTable(MarkdownTableBlock table, ICommand? citationCommand)
+    private static ScrollViewer CreateTable(MarkdownTableBlock table, MarkdownRenderContext? context)
     {
         int columnCount = Math.Max(
             table.Header.Count,
@@ -89,11 +90,11 @@ public sealed class MarkdownPresenter : ContentControl
         for (int column = 0; column < columnCount; column++)
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        AddTableRow(grid, table.Header, 0, table.Alignments, isHeader: true, citationCommand);
+        AddTableRow(grid, table.Header, 0, table.Alignments, isHeader: true, context);
         int rowIndex = 1;
         foreach (IReadOnlyList<IReadOnlyList<MarkdownInlineSpan>> row in table.Rows)
         {
-            AddTableRow(grid, row, rowIndex, table.Alignments, isHeader: false, citationCommand);
+            AddTableRow(grid, row, rowIndex, table.Alignments, isHeader: false, context);
             rowIndex++;
         }
 
@@ -102,7 +103,7 @@ public sealed class MarkdownPresenter : ContentControl
             Content = grid,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Margin = new Thickness(0, 4, 0, 4),
+            Margin = new WpfThickness(0, 4, 0, 4),
         };
     }
 
@@ -112,19 +113,19 @@ public sealed class MarkdownPresenter : ContentControl
         int row,
         IReadOnlyList<MarkdownTableAlignment> alignments,
         bool isHeader,
-        ICommand? citationCommand)
+        MarkdownRenderContext? context)
     {
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         for (int column = 0; column < cells.Count; column++)
         {
-            var cell = new Border
+            var cell = new System.Windows.Controls.Border
             {
-                Child = CreateInline(cells[column], TextWrapping.NoWrap, isHeader, citationCommand),
-                Padding = new Thickness(8, 4, 8, 4),
-                BorderThickness = new Thickness(1),
+                Child = CreateInline(cells[column], TextWrapping.NoWrap, isHeader, context),
+                Padding = new WpfThickness(8, 4, 8, 4),
+                BorderThickness = new WpfThickness(1),
             };
-            cell.SetResourceReference(Border.BorderBrushProperty, "TriThu.Brush.OutlineVariant");
-            if (isHeader) cell.SetResourceReference(Border.BackgroundProperty, "TriThu.Brush.SurfaceTonalHighest");
+            cell.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "TriThu.Brush.OutlineVariant");
+            if (isHeader) cell.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "TriThu.Brush.SurfaceTonalHighest");
             Grid.SetRow(cell, row);
             Grid.SetColumn(cell, column);
             grid.Children.Add(cell);
@@ -136,9 +137,9 @@ public sealed class MarkdownPresenter : ContentControl
         }
     }
 
-    private static StackPanel CreateTaskList(MarkdownTaskListBlock taskList, ICommand? citationCommand)
+    private static StackPanel CreateTaskList(MarkdownTaskListBlock taskList, MarkdownRenderContext? context)
     {
-        var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 4) };
+        var panel = new StackPanel { Margin = new WpfThickness(0, 4, 0, 4) };
         foreach (MarkdownTaskListItem item in taskList.Items)
         {
             var checkbox = new CheckBox
@@ -148,8 +149,8 @@ public sealed class MarkdownPresenter : ContentControl
                 Focusable = false,
                 VerticalAlignment = VerticalAlignment.Top,
             };
-            var content = CreateInline(item.Spans, TextWrapping.Wrap, citationCommand: citationCommand);
-            var row = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
+            var content = CreateInline(item.Spans, TextWrapping.Wrap, context: context);
+            var row = new DockPanel { Margin = new WpfThickness(0, 0, 0, 2) };
             DockPanel.SetDock(checkbox, Dock.Left);
             row.Children.Add(checkbox);
             row.Children.Add(content);
@@ -163,23 +164,22 @@ public sealed class MarkdownPresenter : ContentControl
         IReadOnlyList<MarkdownInlineSpan> spans,
         TextWrapping textWrapping,
         bool isHeader = false,
-        ICommand? citationCommand = null)
+        MarkdownRenderContext? context = null)
     {
-        var text = new MarkdownTextBlock
+        return new MarkdownTextBlock
         {
             InlineSpans = spans,
             TextWrapping = textWrapping,
-            CitationCommand = citationCommand,
+            RenderContext = context,
             FontWeight = isHeader ? FontWeights.Bold : FontWeights.Normal,
         };
-        return text;
     }
 
     private static MarkdownTextBlock CreateHeading(
         MarkdownPresentationBlock heading,
-        ICommand? citationCommand)
+        MarkdownRenderContext? context)
     {
-        var text = CreateInline(heading.InlineSpans, TextWrapping.Wrap, citationCommand: citationCommand);
+        var text = CreateInline(heading.InlineSpans, TextWrapping.Wrap, context: context);
         text.FontWeight = FontWeights.SemiBold;
         text.FontSize = heading.Level switch
         {
@@ -196,7 +196,7 @@ public sealed class MarkdownPresenter : ContentControl
 
     private static DockPanel CreateListItem(
         MarkdownPresentationBlock listItem,
-        ICommand? citationCommand)
+        MarkdownRenderContext? context)
     {
         var marker = new WpfTextBlock
         {
@@ -204,7 +204,7 @@ public sealed class MarkdownPresenter : ContentControl
             Margin = new WpfThickness(0, 2, 6, 0),
             VerticalAlignment = VerticalAlignment.Top,
         };
-        var content = CreateInline(listItem.InlineSpans, TextWrapping.Wrap, citationCommand: citationCommand);
+        var content = CreateInline(listItem.InlineSpans, TextWrapping.Wrap, context: context);
         var row = new DockPanel { Margin = new WpfThickness(listItem.Level * 18, 2, 0, 2) };
         DockPanel.SetDock(marker, Dock.Left);
         row.Children.Add(marker);
@@ -212,41 +212,41 @@ public sealed class MarkdownPresenter : ContentControl
         return row;
     }
 
-    private static Border CreateQuote(
-        MarkdownPresentationBlock quote,
-        ICommand? citationCommand)
+    private static Card CreateQuote(MarkdownPresentationBlock quote, MarkdownRenderContext? context)
     {
-        var border = new Border
+        var text = CreateInline(quote.InlineSpans, TextWrapping.Wrap, context: context);
+        text.FontStyle = FontStyles.Italic;
+        var card = new Card
         {
-            Child = CreateInline(quote.InlineSpans, TextWrapping.Wrap, citationCommand: citationCommand),
-            BorderThickness = new WpfThickness(3, 0, 0, 0),
-            Padding = new WpfThickness(10, 2, 0, 2),
+            Content = text,
+            Padding = new WpfThickness(10, 2, 10, 2),
             Margin = new WpfThickness(0, 4, 0, 4),
+            UniformCornerRadius = 6,
         };
-        border.SetResourceReference(Border.BorderBrushProperty, "MaterialDesign.Brush.Primary");
-        if (border.Child is MarkdownTextBlock text) text.FontStyle = FontStyles.Italic;
-        return border;
+        card.SetResourceReference(Control.BackgroundProperty, "TriThu.Brush.SurfaceTonal");
+        return card;
     }
 
-    private static Border CreateCode(MarkdownPresentationBlock code)
+    private static Card CreateCode(MarkdownPresentationBlock code)
     {
-        var border = new Border
+        string text = code.IsComplete
+            ? code.Text
+            : $"```{code.Language}\n{code.Text}\n```";
+        var card = new Card
         {
-            Child = new WpfTextBlock
+            Content = new WpfTextBlock
             {
-                Text = code.Text,
+                Text = text,
                 TextWrapping = TextWrapping.Wrap,
                 FontFamily = new FontFamily("Consolas"),
                 FontSize = 12.5,
             },
-            BorderThickness = new WpfThickness(1),
-            CornerRadius = new CornerRadius(4),
             Padding = new WpfThickness(8),
             Margin = new WpfThickness(0, 4, 0, 4),
+            UniformCornerRadius = 6,
         };
-        border.SetResourceReference(Border.BackgroundProperty, "TriThu.Brush.SurfaceTonal");
-        border.SetResourceReference(Border.BorderBrushProperty, "TriThu.Brush.OutlineVariant");
-        return border;
+        card.SetResourceReference(Control.BackgroundProperty, "TriThu.Brush.SurfaceTonal");
+        return card;
     }
 
     private static System.Windows.HorizontalAlignment CellHorizontalAlignment(MarkdownTableAlignment alignment) =>

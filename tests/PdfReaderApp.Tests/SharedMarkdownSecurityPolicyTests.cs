@@ -17,7 +17,7 @@ public sealed class SharedMarkdownSecurityPolicyTests
         Assert.Equal(chat.MarkdownBlocks, note.MarkdownBlocks);
         Assert.Equal(chat.MarkdownBlocks, composition.MarkdownBlocks);
         Assert.DoesNotContain(
-            chat.MarkdownBlocks.SelectMany(block => block.InlineSpans),
+            chat.MarkdownBlocks.SelectMany(MarkdownTestContent.InlineSpans),
             span => span.Url is not null || span.Text.Contains("<script>", StringComparison.Ordinal));
     }
 }

@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Documents;
-using System.Windows.Input;
 using System.Windows.Media;
 using PdfReaderApp.Models;
 
@@ -16,9 +15,9 @@ public sealed class MarkdownTextBlock : System.Windows.Controls.TextBlock
         typeof(MarkdownTextBlock),
         new PropertyMetadata(Array.Empty<MarkdownInlineSpan>(), OnInlineSpansChanged));
 
-    public static readonly DependencyProperty CitationCommandProperty = DependencyProperty.Register(
-        nameof(CitationCommand),
-        typeof(ICommand),
+    public static readonly DependencyProperty RenderContextProperty = DependencyProperty.Register(
+        nameof(RenderContext),
+        typeof(MarkdownRenderContext),
         typeof(MarkdownTextBlock),
         new PropertyMetadata(null, OnInlineSpansChanged));
 
@@ -28,10 +27,10 @@ public sealed class MarkdownTextBlock : System.Windows.Controls.TextBlock
         set => SetValue(InlineSpansProperty, value);
     }
 
-    public ICommand? CitationCommand
+    public MarkdownRenderContext? RenderContext
     {
-        get => (ICommand?)GetValue(CitationCommandProperty);
-        set => SetValue(CitationCommandProperty, value);
+        get => (MarkdownRenderContext?)GetValue(RenderContextProperty);
+        set => SetValue(RenderContextProperty, value);
     }
 
     private static void OnInlineSpansChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
@@ -39,10 +38,10 @@ public sealed class MarkdownTextBlock : System.Windows.Controls.TextBlock
         var block = (MarkdownTextBlock)d;
         block.Inlines.Clear();
         foreach (MarkdownInlineSpan span in block.InlineSpans)
-            block.Inlines.Add(CreateInline(span, block.CitationCommand));
+            block.Inlines.Add(CreateInline(span, block.RenderContext));
     }
 
-    private static Inline CreateInline(MarkdownInlineSpan span, ICommand? citationCommand)
+    private static Inline CreateInline(MarkdownInlineSpan span, MarkdownRenderContext? context)
     {
         var run = new Run(span.Text);
         if (span.Styles.HasFlag(MarkdownInlineStyles.Bold)) run.FontWeight = FontWeights.Bold;
@@ -53,14 +52,7 @@ public sealed class MarkdownTextBlock : System.Windows.Controls.TextBlock
 
         if (span.Citation is { } citation)
         {
-            var citationLink = new Hyperlink(run)
-            {
-                Command = citationCommand,
-                CommandParameter = citation,
-                ToolTip = CitationTooltip.For(citation),
-            };
-            citationLink.SetResourceReference(TextElement.ForegroundProperty, "MaterialDesign.Brush.Primary");
-            return citationLink;
+            return MarkdownCitation.Create(span, context);
         }
 
         if (span.Url is null) return run;

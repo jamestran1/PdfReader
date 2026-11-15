@@ -41,7 +41,7 @@ public sealed class MarkdownPresentationTests
         var legacy = new Note("n1", "doc", "doc", 1, null, "Ghi chú cũ", 1, 1);
         var quoteOnly = new Note("n2", "doc", "doc", 1, "# Trích PDF", "", 1, 1);
 
-        var paragraph = Assert.Single(legacy.MarkdownBlocks);
+        var paragraph = Assert.IsType<MarkdownPresentationBlock>(Assert.Single(legacy.MarkdownBlocks));
         Assert.Equal(MarkdownPresentationBlockKind.Paragraph, paragraph.Kind);
         Assert.Equal([new MarkdownInlineSpan("Ghi chú cũ", MarkdownInlineStyles.None)], paragraph.InlineSpans);
         Assert.Empty(quoteOnly.MarkdownBlocks);
@@ -62,7 +62,7 @@ public sealed class MarkdownPresentationTests
             - [ ] nhiệm vụ còn lại
             """;
 
-        IReadOnlyList<MarkdownPresentationBlock> blocks = MarkdownPresentation.ParseBlocks(markdown);
+        IReadOnlyList<MarkdownBlock> blocks = MarkdownPresentation.ParseBlocks(markdown);
 
         Assert.Equal(2, blocks.Count);
         var table = Assert.IsType<MarkdownTableBlock>(blocks[0]);
@@ -109,7 +109,7 @@ public sealed class MarkdownPresentationTests
     [Fact]
     public void ParseBlocks_Headings_ProvideLevelsAndSafeInlineSpans()
     {
-        IReadOnlyList<MarkdownPresentationBlock> blocks =
+        IReadOnlyList<MarkdownBlock> blocks =
             MarkdownPresentation.ParseBlocks("# Một\n\n## Hai\n\n### Ba\n\n#### Bốn\n\n##### Năm\n\n###### Sáu");
 
         Assert.Equal(
@@ -127,7 +127,7 @@ public sealed class MarkdownPresentationTests
     [Fact]
     public void ParseBlocks_NestedBulletAndOrderedList_PreservesNestingAndNumbers()
     {
-        IReadOnlyList<MarkdownPresentationBlock> blocks = MarkdownPresentation.ParseBlocks(
+        IReadOnlyList<MarkdownBlock> blocks = MarkdownPresentation.ParseBlocks(
             """
             - một
               1. con
@@ -177,7 +177,7 @@ public sealed class MarkdownPresentationTests
     [Fact]
     public void ParseBlocks_Blockquote_BecomesDistinctBlockWithSafeInlineSpans()
     {
-        IReadOnlyList<MarkdownPresentationBlock> blocks = MarkdownPresentation.ParseBlocks(
+        IReadOnlyList<MarkdownBlock> blocks = MarkdownPresentation.ParseBlocks(
             """
             Đoạn thường
 
@@ -209,7 +209,7 @@ public sealed class MarkdownPresentationTests
     [Fact]
     public void ParseBlocks_FencedCode_PreservesMultilineText()
     {
-        IReadOnlyList<MarkdownPresentationBlock> blocks = MarkdownPresentation.ParseBlocks(
+        IReadOnlyList<MarkdownBlock> blocks = MarkdownPresentation.ParseBlocks(
             """
             ```csharp
             var text = "dài";
@@ -217,7 +217,7 @@ public sealed class MarkdownPresentationTests
             ```
             """);
 
-        MarkdownPresentationBlock block = Assert.Single(blocks);
+        MarkdownPresentationBlock block = Assert.IsType<MarkdownPresentationBlock>(Assert.Single(blocks));
         Assert.Equal(MarkdownPresentationBlockKind.Code, block.Kind);
         Assert.Equal("var text = \"dài\";\nConsole.WriteLine(text);", block.Text);
     }
@@ -228,23 +228,32 @@ public sealed class MarkdownPresentationTests
         const string firstChunk = "# Tiêu đề\n\n- mục một\n\n```csharp\nConsole";
         const string secondChunk = ".WriteLine(\"x\");\n```";
 
-        IReadOnlyList<MarkdownPresentationBlock> beforeClose = MarkdownPresentation.ParseBlocks(firstChunk);
-        IReadOnlyList<MarkdownPresentationBlock> afterClose = MarkdownPresentation.ParseBlocks(firstChunk + secondChunk);
+        IReadOnlyList<MarkdownBlock> beforeClose = MarkdownPresentation.ParseBlocks(firstChunk);
+        IReadOnlyList<MarkdownBlock> afterClose = MarkdownPresentation.ParseBlocks(firstChunk + secondChunk);
 
         Assert.Equal(
             [
                 new MarkdownPresentationBlock(MarkdownPresentationBlockKind.Heading, [new MarkdownInlineSpan("Tiêu đề")], Level: 1),
                 new MarkdownPresentationBlock(MarkdownPresentationBlockKind.ListItem, [new MarkdownInlineSpan("mục một")], ListMarker: "•"),
-                new MarkdownPresentationBlock(MarkdownPresentationBlockKind.Code, [], Text: "Console", IsComplete: false),
+                new MarkdownPresentationBlock(MarkdownPresentationBlockKind.Code, [], Text: "Console", IsComplete: false, Language: "csharp"),
             ],
             beforeClose);
         Assert.Equal(
             [
                 new MarkdownPresentationBlock(MarkdownPresentationBlockKind.Heading, [new MarkdownInlineSpan("Tiêu đề")], Level: 1),
                 new MarkdownPresentationBlock(MarkdownPresentationBlockKind.ListItem, [new MarkdownInlineSpan("mục một")], ListMarker: "•"),
-                new MarkdownPresentationBlock(MarkdownPresentationBlockKind.Code, [], Text: "Console.WriteLine(\"x\");"),
+                new MarkdownPresentationBlock(MarkdownPresentationBlockKind.Code, [], Text: "Console.WriteLine(\"x\");", Language: "csharp"),
             ],
             afterClose);
+    }
+
+    [Fact]
+    public void ParseInline_LegacyPlainText_PreservesBreaksAndDecodesEntities()
+    {
+        IReadOnlyList<MarkdownInlineSpan> spans = MarkdownPresentation.ParseInline(
+            "Dòng một\nDòng hai\n\nAT&amp;T");
+
+        Assert.Equal("Dòng một\nDòng hai\n\nAT&T", string.Concat(spans.Select(span => span.Text)));
     }
 
     [Fact]

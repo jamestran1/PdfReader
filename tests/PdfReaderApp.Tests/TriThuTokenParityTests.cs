@@ -25,19 +25,9 @@ public class TriThuTokenParityTests
         "TriThu.Brush.OnSurface",
     };
 
-    private static string RepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "PdfReaderApp.slnx")))
-            directory = directory.Parent;
-        if (directory == null)
-            throw new InvalidOperationException("Không tìm thấy gốc repo (PdfReaderApp.slnx).");
-        return directory.FullName;
-    }
-
     private static HashSet<string> BrushKeysOf(string themeFileName)
     {
-        var path = Path.Combine(RepoRoot(), "src", "PdfReaderApp", "Themes", themeFileName);
+        var path = Path.Combine(TestPaths.RepoRoot(), "src", "PdfReaderApp", "Themes", themeFileName);
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         return XDocument.Load(path).Descendants()
             .Select(element => (string?)element.Attribute(x + "Key"))
@@ -48,7 +38,7 @@ public class TriThuTokenParityTests
 
     private static HashSet<string> AllTriThuKeysOf(string themeFileName)
     {
-        var path = Path.Combine(RepoRoot(), "src", "PdfReaderApp", "Themes", themeFileName);
+        var path = Path.Combine(TestPaths.RepoRoot(), "src", "PdfReaderApp", "Themes", themeFileName);
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         return XDocument.Load(path).Descendants()
             .Select(element => (string?)element.Attribute(x + "Key"))

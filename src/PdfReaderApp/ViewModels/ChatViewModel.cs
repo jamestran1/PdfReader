@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PdfReaderApp.Core;
 using PdfReaderApp.Models;
 using PdfReaderApp.Services;
 
@@ -195,7 +196,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable, IRead
 
     private void ShowGreeting() => Messages.Add(new ChatMessage
     {
-        Role = "AI",
+        Role = ChatRoles.Assistant,
         Content = "Xin chào! Tôi có thể giúp gì cho bạn về tài liệu này?"
     });
 
@@ -208,7 +209,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable, IRead
 
     internal static bool IsMemoryUsable(string role, string content)
     {
-        if (role != "AI") return true;
+        if (role != ChatRoles.Assistant) return true;
         if (string.IsNullOrEmpty(content)) return false;
         if (content.Contains(AiChatService.InterruptedSentinel, StringComparison.Ordinal)) return false;
         return !NonMemoryAiMessages.Contains(content);
@@ -260,14 +261,14 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable, IRead
             if (!_chatService.IsConfigured)
             {
                 string notConfigured = AiErrorMessages.NotConfigured(_chatService.ChatProvider);
-                Messages.Add(new ChatMessage { Role = "AI", Content = notConfigured });
+                Messages.Add(new ChatMessage { Role = ChatRoles.Assistant, Content = notConfigured });
                 PersistTurn(owner, question, notConfigured);
                 return;
             }
 
             AnswerContext built = await BuildAnswerContextAsync(question, cts.Token);
 
-            aiMessage = new ChatMessage { Role = "AI", Content = string.Empty, Sources = built.Sources };
+            aiMessage = new ChatMessage { Role = ChatRoles.Assistant, Content = string.Empty, Sources = built.Sources };
             Messages.Add(aiMessage);
 
             await StreamAnswerAsync(aiMessage, question, built.Text, cts.Token);
@@ -293,7 +294,7 @@ public sealed partial class ChatViewModel : ObservableObject, IDisposable, IRead
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             _chatHistory.Append(owner, "User", question, now);
-            _chatHistory.Append(owner, "AI", answer, now, sources);
+            _chatHistory.Append(owner, ChatRoles.Assistant, answer, now, sources);
         }
 #pragma warning disable CA1031 // best-effort: lưu lịch sử lỗi không được chặn chat
         catch (Exception ex) { System.Diagnostics.Trace.TraceWarning($"ChatViewModel.PersistTurn: lưu lịch sử chat lỗi: {ex}"); /* không chặn chat khi lưu lỗi */ }

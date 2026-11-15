@@ -1013,7 +1013,10 @@
                                                 <controls:MarkdownPresenter Margin="0,4,0,0"
                                                                           Blocks="{Binding MarkdownBlocks}"
                                                                            FallbackInlineSpans="{Binding MarkdownSpans}"
-                                                                           CitationCommand="{Binding DataContext.Chat.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                                                    >
+                                                                        <controls:MarkdownPresenter.RenderContext>
+                                                                            <controls:MarkdownRenderContext CitationCommand="{Binding DataContext.Chat.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"/>
+                                                                        </controls:MarkdownPresenter.RenderContext>
                                                     <controls:MarkdownPresenter.Style>
                                                         <Style TargetType="{x:Type controls:MarkdownPresenter}">
                                                             <Style.Triggers>

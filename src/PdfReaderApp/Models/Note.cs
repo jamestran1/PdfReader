@@ -16,7 +16,7 @@ public sealed record Note(
     string? Color = null)
 {
     /// <summary>Presentation dùng chung với Chat AI; Quote vẫn là dữ liệu nguyên văn của PDF.</summary>
-    public IReadOnlyList<MarkdownPresentationBlock> MarkdownBlocks => MarkdownPresentation.ParseBlocks(Content);
+    public IReadOnlyList<MarkdownBlock> MarkdownBlocks => MarkdownPresentation.ParseBlocks(Content);
 
     public IReadOnlyList<MarkdownInlineSpan> MarkdownSpans => MarkdownPresentation.ParseInline(Content);
 }

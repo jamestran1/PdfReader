@@ -216,7 +216,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
 
         Assert.True(tab.Sources[0].IsDeleted);
         Assert.Equal(CompositionSources.DeletedNoteText, tab.Sources[0].Content);
-        Assert.DoesNotContain(tab.MarkdownBlocks.SelectMany(block => block.InlineSpans), span => span.Citation?.Source is not null);
+        Assert.DoesNotContain(tab.MarkdownBlocks.SelectMany(MarkdownTestContent.InlineSpans), span => span.Citation?.Source is not null);
     }
 
     [Fact]
@@ -230,7 +230,7 @@ public sealed class MainViewModelCompositionTests : IDisposable
         _vm.RemoveLibraryItemCommand.Execute(_vm.Library.Single(i => i.DocumentId == "docA"));
 
         Assert.True(tab.Sources[0].IsDeleted);
-        Assert.DoesNotContain(tab.MarkdownBlocks.SelectMany(block => block.InlineSpans), span => span.Citation?.Source is not null);
+        Assert.DoesNotContain(tab.MarkdownBlocks.SelectMany(MarkdownTestContent.InlineSpans), span => span.Citation?.Source is not null);
     }
 
     [Fact]

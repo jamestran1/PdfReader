@@ -165,6 +165,25 @@ public class NotesViewModelTests
     }
 
     [Fact]
+    public void Save_UpdatingNote_PreservesRawMarkdownExactly()
+    {
+        const string raw = "\n  # Tiêu đề  \n";
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+        vm.LoadFor("ws");
+        vm.Draft = "Gốc";
+        vm.SaveCommand.Execute(null);
+        var note = vm.Items.Single();
+        vm.BeginEditCommand.Execute(note);
+        vm.Draft = raw;
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Equal(raw, store.Rows.Single().Content);
+        Assert.Equal(raw, vm.Items.Single().Content);
+    }
+
+    [Fact]
     public void Delete_StoreFails_NotifiesUserAndKeepsNote()
     {
         var store = new FakeNoteStore();

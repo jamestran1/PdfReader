@@ -4,4 +4,7 @@ namespace PdfReaderApp.Models;
 public sealed record MarkdownTableBlock(
     IReadOnlyList<MarkdownTableAlignment> Alignments,
     IReadOnlyList<IReadOnlyList<MarkdownInlineSpan>> Header,
-    IReadOnlyList<IReadOnlyList<IReadOnlyList<MarkdownInlineSpan>>> Rows) : MarkdownPresentationBlock;
+    IReadOnlyList<IReadOnlyList<IReadOnlyList<MarkdownInlineSpan>>> Rows) : MarkdownBlock
+{
+    public override MarkdownPresentationBlockKind Kind => MarkdownPresentationBlockKind.Table;
+}

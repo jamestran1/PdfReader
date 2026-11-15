@@ -133,7 +133,7 @@ public sealed class CompositionToolbarTests
         Assert.Equal("Nội dung đã sửa [1]", f.Vm.Items.Single().Content);
         Assert.Contains(
             tab.MarkdownBlocks,
-            block => block.InlineSpans.Any(span => span.Text.Contains("đã sửa", StringComparison.Ordinal)));
+            block => MarkdownTestContent.InlineSpans(block).Any(span => span.Text.Contains("đã sửa", StringComparison.Ordinal)));
     }
 
     [Fact]

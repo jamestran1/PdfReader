@@ -9,7 +9,7 @@ public partial class ChatMessage : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(MarkdownSpans))]
     [NotifyPropertyChangedFor(nameof(MarkdownBlocks))]
-    public partial string Role { get; set; } = "User";
+    public partial string Role { get; set; } = ChatRoles.User;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Spans))]
@@ -27,15 +27,17 @@ public partial class ChatMessage : ObservableObject
     /// đổi nên trích dẫn bị chia giữa hai chunk stream chỉ thành link khi đã đủ <c>[n]</c>.</summary>
     public IReadOnlyList<CitationSpan> Spans => CitationParser.Parse(Content, Sources);
 
+    public bool IsAssistant => string.Equals(Role, ChatRoles.Assistant, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Mô hình hiển thị Markdown inline chỉ dùng cho tin AI; tin người dùng vẫn đi qua <see cref="Spans"/>
     /// như chữ thường. Dữ liệu gốc giữ Markdown raw.</summary>
     public IReadOnlyList<MarkdownInlineSpan> MarkdownSpans =>
-        string.Equals(Role, "AI", StringComparison.OrdinalIgnoreCase)
+        IsAssistant
             ? MarkdownPresentation.ParseInline(Content, Sources)
             : [];
 
-    public IReadOnlyList<MarkdownPresentationBlock> MarkdownBlocks =>
-        string.Equals(Role, "AI", StringComparison.OrdinalIgnoreCase)
+    public IReadOnlyList<MarkdownBlock> MarkdownBlocks =>
+        IsAssistant
             ? MarkdownPresentation.ParseBlocks(Content, Sources)
             : [];
 }

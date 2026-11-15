@@ -7,4 +7,6 @@ public enum MarkdownPresentationBlockKind
     ListItem,
     Quote,
     Code,
+    Table,
+    TaskList,
 }

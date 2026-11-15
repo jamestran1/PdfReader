@@ -29,7 +29,7 @@ public sealed partial class CompositionTab : OpenTab
 
     /// <summary>Presentation dùng chung với Chat AI và Note; citation đã gắn nguồn hiện tại.</summary>
     [ObservableProperty]
-    public partial IReadOnlyList<MarkdownPresentationBlock> MarkdownBlocks { get; private set; } = [];
+    public partial IReadOnlyList<MarkdownBlock> MarkdownBlocks { get; private set; } = [];
 
     /// <summary>Đang ở chế độ Sửa (ô văn bản Markdown thay cho bản đọc).</summary>
     [ObservableProperty]

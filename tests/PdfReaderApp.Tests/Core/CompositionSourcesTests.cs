@@ -160,7 +160,7 @@ public class CompositionSourcesTests
         var spans = MarkdownPresentation.ParseBlocks(
             "Ý chính [2] và [1, 2].",
             CompositionSources.ToRagSources(entries),
-            source => $"[{source.Number}]").SelectMany(block => block.InlineSpans);
+            source => $"[{source.Number}]").SelectMany(MarkdownTestContent.InlineSpans);
 
         var links = spans.Where(s => s.Citation?.Source is not null).ToList();
         Assert.Equal(["[2]", "[1]", "[2]"], [.. links.Select(s => s.Text)]);
@@ -176,7 +176,7 @@ public class CompositionSourcesTests
         var spans = MarkdownPresentation.ParseBlocks(
             "Có [1] và [2].",
             CompositionSources.ToRagSources(entries),
-            source => $"[{source.Number}]").SelectMany(block => block.InlineSpans);
+            source => $"[{source.Number}]").SelectMany(MarkdownTestContent.InlineSpans);
 
         Assert.Equal(["[1]"], [.. spans.Where(s => s.Citation?.Source is not null).Select(s => s.Text)]);
         Assert.Equal("Có [1] và [2].", string.Concat(spans.Select(s => s.Text)));
@@ -185,7 +185,7 @@ public class CompositionSourcesTests
     [Fact]
     public void SharedMarkdown_NoEntries_ReturnsTextAsOnePlainSpan()
     {
-        var spans = MarkdownPresentation.ParseBlocks("Có [1].").SelectMany(block => block.InlineSpans);
+        var spans = MarkdownPresentation.ParseBlocks("Có [1].").SelectMany(MarkdownTestContent.InlineSpans);
 
         Assert.Equal("Có [1].", string.Concat(spans.Select(span => span.Text)));
         Assert.All(spans, span => Assert.Null(span.Citation));

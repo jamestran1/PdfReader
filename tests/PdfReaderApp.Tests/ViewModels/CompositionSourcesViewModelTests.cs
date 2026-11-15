@@ -46,13 +46,7 @@ public sealed class CompositionSourcesViewModelTests
     private static IEnumerable<MarkdownInlineSpan> InlineSpans(CompositionTab tab) =>
         tab.MarkdownBlocks.SelectMany(InlineSpans);
 
-    private static IEnumerable<MarkdownInlineSpan> InlineSpans(MarkdownPresentationBlock block) => block switch
-    {
-        MarkdownTableBlock table => table.Header.SelectMany(cell => cell)
-            .Concat(table.Rows.SelectMany(row => row.SelectMany(cell => cell))),
-        MarkdownTaskListBlock taskList => taskList.Items.SelectMany(item => item.Spans),
-        _ => block.InlineSpans,
-    };
+    private static IEnumerable<MarkdownInlineSpan> InlineSpans(MarkdownBlock block) => MarkdownTestContent.InlineSpans(block);
 
     [Fact]
     public void Refresh_FillsSourcesAndTurnsNumbersIntoLinks()
@@ -67,13 +61,15 @@ public sealed class CompositionSourcesViewModelTests
         Assert.NotNull(Fixture.LinkOf(tab, "[2]"));
         Assert.Contains(
             tab.MarkdownBlocks,
-            block => block.Kind == MarkdownPresentationBlockKind.Heading
-                && block.InlineSpans.Any(span => span.Citation?.Text == "[2]"));
+            block => block is MarkdownPresentationBlock presentation
+                && presentation.Kind == MarkdownPresentationBlockKind.Heading
+                && presentation.InlineSpans.Any(span => span.Citation?.Text == "[2]"));
         Assert.Contains(
             tab.MarkdownBlocks,
-            block => block.Kind == MarkdownPresentationBlockKind.ListItem
-                && block.InlineSpans.Any(span => span.Text == "điểm" && span.Styles == MarkdownInlineStyles.Bold)
-                && block.InlineSpans.Any(span => span.Citation?.Text == "[1]"));
+            block => block is MarkdownPresentationBlock presentation
+                && presentation.Kind == MarkdownPresentationBlockKind.ListItem
+                && presentation.InlineSpans.Any(span => span.Text == "điểm" && span.Styles == MarkdownInlineStyles.Bold)
+                && presentation.InlineSpans.Any(span => span.Citation?.Text == "[1]"));
     }
 
     [Fact]
@@ -164,7 +160,7 @@ public sealed class CompositionSourcesViewModelTests
     {
         var tab = Fixture.TabWith("Ý [1].", "n1");
 
-        var block = Assert.Single(tab.MarkdownBlocks);
+        var block = Assert.IsType<MarkdownPresentationBlock>(Assert.Single(tab.MarkdownBlocks));
         Assert.All(block.InlineSpans, s => Assert.Null(s.Citation?.Source));
         Assert.Equal("Ý [1].", string.Concat(block.InlineSpans.Select(s => s.Text)));
     }

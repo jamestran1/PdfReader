@@ -11,7 +11,7 @@ public sealed class MainWindowNotesMarkdownTests
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
         XNamespace controls = "clr-namespace:PdfReaderApp.Controls";
-        string path = Path.Combine(RepoRoot(), "src", "PdfReaderApp", "MainWindow.xaml");
+        string path = Path.Combine(TestPaths.RepoRoot(), "src", "PdfReaderApp", "MainWindow.xaml");
         var xaml = XDocument.Load(path, LoadOptions.None);
 
         var notePresenters = xaml.Descendants(controls + "MarkdownPresenter")
@@ -30,7 +30,7 @@ public sealed class MainWindowNotesMarkdownTests
     {
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XNamespace presentation = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
-        string path = Path.Combine(RepoRoot(), "src", "PdfReaderApp", "MainWindow.xaml");
+        string path = Path.Combine(TestPaths.RepoRoot(), "src", "PdfReaderApp", "MainWindow.xaml");
         var xaml = XDocument.Load(path, LoadOptions.None);
 
         var copyButton = Assert.Single(xaml.Descendants(presentation + "Button"), element =>
@@ -41,11 +41,4 @@ public sealed class MainWindowNotesMarkdownTests
         Assert.Equal("28", (string?)copyButton.Attribute("Height"));
     }
 
-    private static string RepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "PdfReaderApp.slnx")))
-            directory = directory.Parent;
-        return directory?.FullName ?? throw new InvalidOperationException("Không tìm thấy gốc repo.");
-    }
 }

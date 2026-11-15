@@ -146,7 +146,11 @@
                 </StackPanel>
 
                 <controls:MarkdownPresenter Blocks="{Binding MarkdownBlocks}"
-                                            CitationCommand="{Binding DataContext.Compositions.Sources.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=Window}}">
+                                            >
+                    <controls:MarkdownPresenter.RenderContext>
+                        <controls:MarkdownRenderContext CitationCommand="{Binding DataContext.Compositions.Sources.OpenCitationCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        RenderCitationsAsChips="True"/>
+                    </controls:MarkdownPresenter.RenderContext>
                     <controls:MarkdownPresenter.Style>
                         <Style TargetType="controls:MarkdownPresenter">
                             <Style.Triggers>

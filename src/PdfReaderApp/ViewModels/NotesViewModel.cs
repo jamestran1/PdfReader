@@ -166,8 +166,8 @@ public sealed partial class NotesViewModel : ObservableObject
     public bool AddNote(string content, string? quote, int? pageIndex)
     {
         if (_ownerKey == null) return false;
-        string text = (content ?? string.Empty).Trim();
-        if (text.Length == 0) return false;
+        string text = content ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text)) return false;
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         string? docId = _currentDocumentId?.Invoke();
         var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, docId, pageIndex, quote, text, now, now);
@@ -184,9 +184,9 @@ public sealed partial class NotesViewModel : ObservableObject
     private void Save()
     {
         StatusMessage = string.Empty;
-        string content = (Draft ?? string.Empty).Trim();
+        string content = Draft ?? string.Empty;
         bool hasQuote = !string.IsNullOrEmpty(PendingQuote);
-        if (content.Length == 0 && !hasQuote) return;   // cho phép quote-only
+        if (string.IsNullOrWhiteSpace(content) && !hasQuote) return;   // cho phép quote-only
         if (_ownerKey == null) return;
         if (content.Length > MaxNoteLength)
         {
