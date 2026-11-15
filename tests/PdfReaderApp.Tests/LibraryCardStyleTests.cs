@@ -6,21 +6,11 @@ namespace PdfReaderApp.Tests;
 
 public class LibraryCardStyleTests
 {
-    private static string RepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "PdfReaderApp.slnx")))
-            directory = directory.Parent;
-        if (directory == null)
-            throw new InvalidOperationException("Không tìm thấy gốc repo (PdfReaderApp.slnx).");
-        return directory.FullName;
-    }
-
     private static string DictPath()
-        => Path.Combine(RepoRoot(), "src", "PdfReaderApp", "Themes", "LibraryCard.xaml");
+        => Path.Combine(TestPaths.RepoRoot(), "src", "PdfReaderApp", "Themes", "LibraryCard.xaml");
 
     private static string MainWindowPath()
-        => Path.Combine(RepoRoot(), "src", "PdfReaderApp", "MainWindow.xaml");
+        => Path.Combine(TestPaths.RepoRoot(), "src", "PdfReaderApp", "MainWindow.xaml");
 
     [Fact]
     public void LibraryCard_DefinesCardHeaderAndOverlayStyles()

@@ -273,6 +273,27 @@ public sealed class MainViewModelChatTests : IDisposable
         Assert.Null(vm.Session.ActiveWorkspaceId);
     }
 
+    [Fact]
+    public void SaveAnswerAsNote_PersistsRawMarkdownAndReloadsPresentation()
+    {
+        const string raw = "# Kết luận\n- **điểm chính**";
+        var (vm, _) = OpenedDocumentVm(DocumentIndexStatus.None);
+        var answer = new PdfReaderApp.ViewModels.ChatMessage { Role = "AI", Content = raw };
+
+        vm.SaveAnswerAsNoteCommand.Execute(answer);
+        var saved = vm.Notes.Items.Single(note => note.Content == raw);
+        vm.Notes.LoadFor(saved.OwnerKey);
+
+        var reloaded = vm.Notes.Items.Single(note => note.Content == raw);
+        Assert.Equal(raw, reloaded.Content);
+        Assert.Contains(reloaded.MarkdownBlocks, block => block.Kind == MarkdownPresentationBlockKind.Heading);
+        Assert.Contains(
+            reloaded.MarkdownBlocks,
+            block => block is MarkdownPresentationBlock presentation
+                && presentation.Kind == MarkdownPresentationBlockKind.ListItem
+                && presentation.InlineSpans.Any(span => span.Styles == MarkdownInlineStyles.Bold));
+    }
+
     private static readonly LibraryItem DocB = new("docB", "B", "/lib/b.pdf", ThumbPath: null, PageCount: 0, ImportedAtUnix: 1, LastOpenedAtUnix: 1);
 
     private (MainViewModel vm, FakeWorkspaceStore store) WorkspaceSessionWithDocA()
@@ -375,12 +396,19 @@ public sealed class MainViewModelChatTests : IDisposable
     public void OpenDocument_WithStoredHistory_ShowsStoredMessagesInsteadOfGreeting()
     {
         var seeded = new FakeChatHistoryStore();
+        var source = new RagSource(1, "docSource", "Hợp đồng", 2, "đoạn nguồn");
         seeded.Stored.Add(new ChatHistoryEntry("docOpen", "User", "Câu hỏi cũ", 1));
-        seeded.Stored.Add(new ChatHistoryEntry("docOpen", "AI", "Trả lời cũ", 1));
+        seeded.Stored.Add(new ChatHistoryEntry("docOpen", "AI", "# Trả lời cũ [1]", 1, [source]));
 
         var (vm, _) = OpenedDocumentVm(DocumentIndexStatus.None, seeded);
 
-        Assert.Equal(["Câu hỏi cũ", "Trả lời cũ"], vm.Chat.Messages.Select(m => m.Content), StringComparer.Ordinal);
+        Assert.Equal(["Câu hỏi cũ", "# Trả lời cũ [1]"], vm.Chat.Messages.Select(m => m.Content), StringComparer.Ordinal);
+        var answer = vm.Chat.Messages.Single(message => message.Role == "AI");
+        Assert.Contains(
+            answer.MarkdownBlocks,
+            block => block is MarkdownPresentationBlock presentation
+                && presentation.Kind == MarkdownPresentationBlockKind.Heading
+                && presentation.InlineSpans.Any(span => span.Citation?.Text == "📖 Hợp đồng - Tr.3"));
     }
 
     [Fact]

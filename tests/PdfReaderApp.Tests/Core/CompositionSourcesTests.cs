@@ -153,36 +153,41 @@ public class CompositionSourcesTests
     }
 
     [Fact]
-    public void ParseCitations_LiveSource_BecomesClickableNumberLink()
+    public void SharedMarkdown_LiveSource_BecomesClickableNumberLink()
     {
         var entries = CompositionSources.Resolve(CompositionOf("x", "n1", "n2"), [NoteOf("n1", "docA", 3, "a"), NoteOf("n2", "docB", 6, "b")], TitleOf, _ => true);
 
-        var spans = CompositionSources.ParseCitations("Ý chính [2] và [1, 2].", entries);
+        var spans = MarkdownPresentation.ParseBlocks(
+            "Ý chính [2] và [1, 2].",
+            CompositionSources.ToRagSources(entries),
+            source => $"[{source.Number}]").SelectMany(MarkdownTestContent.InlineSpans);
 
-        var links = spans.Where(s => s.Source is not null).ToList();
+        var links = spans.Where(s => s.Citation?.Source is not null).ToList();
         Assert.Equal(["[2]", "[1]", "[2]"], [.. links.Select(s => s.Text)]);
-        Assert.Equal(["n2", "n1", "n2"], [.. links.Select(s => s.Source!.DocumentId)]);
-        Assert.Equal("Ý chính ", spans[0].Text);
+        Assert.Equal(["n2", "n1", "n2"], [.. links.Select(s => s.Citation!.Source!.DocumentId)]);
+        Assert.Equal("Ý chính ", spans.First().Text);
     }
 
     [Fact]
-    public void ParseCitations_DeletedSource_StaysPlainText_AndContentUnchanged()
+    public void SharedMarkdown_DeletedSource_StaysPlainText_AndContentUnchanged()
     {
         var entries = CompositionSources.Resolve(CompositionOf("x", "n1", "gone"), [NoteOf("n1", "docA", 0, "a")], TitleOf, _ => true);
 
-        var spans = CompositionSources.ParseCitations("Có [1] và [2].", entries);
+        var spans = MarkdownPresentation.ParseBlocks(
+            "Có [1] và [2].",
+            CompositionSources.ToRagSources(entries),
+            source => $"[{source.Number}]").SelectMany(MarkdownTestContent.InlineSpans);
 
-        Assert.Equal(["[1]"], [.. spans.Where(s => s.Source is not null).Select(s => s.Text)]);
+        Assert.Equal(["[1]"], [.. spans.Where(s => s.Citation?.Source is not null).Select(s => s.Text)]);
         Assert.Equal("Có [1] và [2].", string.Concat(spans.Select(s => s.Text)));
     }
 
     [Fact]
-    public void ParseCitations_NoEntries_ReturnsTextAsOnePlainSpan()
+    public void SharedMarkdown_NoEntries_ReturnsTextAsOnePlainSpan()
     {
-        var spans = CompositionSources.ParseCitations("Có [1].", []);
+        var spans = MarkdownPresentation.ParseBlocks("Có [1].").SelectMany(MarkdownTestContent.InlineSpans);
 
-        var span = Assert.Single(spans);
-        Assert.Equal("Có [1].", span.Text);
-        Assert.Null(span.Source);
+        Assert.Equal("Có [1].", string.Concat(spans.Select(span => span.Text)));
+        Assert.All(spans, span => Assert.Null(span.Citation));
     }
 }

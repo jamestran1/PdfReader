@@ -165,6 +165,25 @@ public class NotesViewModelTests
     }
 
     [Fact]
+    public void Save_UpdatingNote_PreservesRawMarkdownExactly()
+    {
+        const string raw = "\n  # Tiêu đề  \n";
+        var store = new FakeNoteStore();
+        var vm = Make(store, page: 1);
+        vm.LoadFor("ws");
+        vm.Draft = "Gốc";
+        vm.SaveCommand.Execute(null);
+        var note = vm.Items.Single();
+        vm.BeginEditCommand.Execute(note);
+        vm.Draft = raw;
+
+        vm.SaveCommand.Execute(null);
+
+        Assert.Equal(raw, store.Rows.Single().Content);
+        Assert.Equal(raw, vm.Items.Single().Content);
+    }
+
+    [Fact]
     public void Delete_StoreFails_NotifiesUserAndKeepsNote()
     {
         var store = new FakeNoteStore();
@@ -240,6 +259,31 @@ public class NotesViewModelTests
         Assert.Equal("đã sửa", store.Rows[0].Content);
         Assert.Single(vm.Items);
         Assert.Equal("đã sửa", vm.Items[0].Content);
+        Assert.False(vm.IsEditing);
+    }
+
+    [Fact]
+    public void MarkdownNote_EditSaveAndCopy_UseRawContent()
+    {
+        var store = new FakeNoteStore();
+        var copied = new List<string>();
+        const string raw = "# Ghi chú\n- **quan trọng**";
+        store.Rows.Add(new Note("n1", "doc1", "doc1", 1, "# Trích PDF", raw, 1, 1));
+        var vm = new NotesViewModel(store, () => 1, _ => { }, copyToClipboard: copied.Add);
+        vm.LoadFor("doc1");
+
+        vm.BeginEditCommand.Execute(vm.Items.Single());
+        Assert.True(vm.IsEditing);
+        Assert.Equal(raw, vm.Draft);
+
+        vm.Draft = raw + "\n```csharp\nConsole.WriteLine();\n```";
+        vm.SaveCommand.Execute(null);
+        vm.CopyCommand.Execute(vm.Items.Single());
+
+        string editedRaw = raw + "\n```csharp\nConsole.WriteLine();\n```";
+        Assert.Equal(editedRaw, store.Rows.Single().Content);
+        Assert.Equal(editedRaw, vm.Items.Single().Content);
+        Assert.Equal([editedRaw], copied);
         Assert.False(vm.IsEditing);
     }
 

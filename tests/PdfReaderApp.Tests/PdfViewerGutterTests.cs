@@ -4,18 +4,8 @@ namespace PdfReaderApp.Tests;
 
 public class PdfViewerGutterTests
 {
-    private static string RepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "PdfReaderApp.slnx")))
-            directory = directory.Parent;
-        if (directory == null)
-            throw new InvalidOperationException("Khong tim thay goc repo (PdfReaderApp.slnx).");
-        return directory.FullName;
-    }
-
     private static string XamlPath()
-        => Path.Combine(RepoRoot(), "src", "PdfReaderApp", "Controls", "PdfViewerControl.xaml");
+        => Path.Combine(TestPaths.RepoRoot(), "src", "PdfReaderApp", "Controls", "PdfViewerControl.xaml");
 
     [Fact]
     public void PdfViewerControl_GutterUsesSurfaceTonalLowToken()

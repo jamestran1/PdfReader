@@ -54,7 +54,7 @@ public sealed class AiChatService : IDisposable
         _history.Add(new ChatMessage(ChatRole.System, SystemPrompt));
         foreach (var (role, content) in turns)
         {
-            var chatRole = role == "AI" ? ChatRole.Assistant : ChatRole.User;
+            var chatRole = role == ChatRoles.Assistant ? ChatRole.Assistant : ChatRole.User;
             if (chatRole == ChatRole.Assistant) AddAssistantTurn(content);
             else _history.Add(new ChatMessage(chatRole, content));
         }

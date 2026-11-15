@@ -6,18 +6,8 @@ namespace PdfReaderApp.Tests;
 
 public class TitleBarStyleTests
 {
-    private static string RepoRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "PdfReaderApp.slnx")))
-            directory = directory.Parent;
-        if (directory == null)
-            throw new InvalidOperationException("Không tìm thấy gốc repo (PdfReaderApp.slnx).");
-        return directory.FullName;
-    }
-
     private static string DictPath()
-        => Path.Combine(RepoRoot(), "src", "PdfReaderApp", "Themes", "TitleBar.xaml");
+        => Path.Combine(TestPaths.RepoRoot(), "src", "PdfReaderApp", "Themes", "TitleBar.xaml");
 
     [Fact]
     public void TitleBar_DefinesCaptionAndCloseButtonStyles()

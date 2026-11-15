@@ -40,20 +40,36 @@ public sealed class CompositionSourcesViewModelTests
             => new(new Composition("c1", "ws", "Tóm tắt", CompositionKind.Summary, content, "model-x", noteIds, 0));
 
         public static CitationSpan LinkOf(CompositionTab tab, string label)
-            => tab.RenderedBlocks.SelectMany(b => b.Spans).First(s => s.Source is not null && s.Text == label);
+            => InlineSpans(tab).First(s => s.Citation?.Source is not null && s.Text == label).Citation!;
     }
+
+    private static IEnumerable<MarkdownInlineSpan> InlineSpans(CompositionTab tab) =>
+        tab.MarkdownBlocks.SelectMany(InlineSpans);
+
+    private static IEnumerable<MarkdownInlineSpan> InlineSpans(MarkdownBlock block) => MarkdownTestContent.InlineSpans(block);
 
     [Fact]
     public void Refresh_FillsSourcesAndTurnsNumbersIntoLinks()
     {
         var f = new Fixture(NoteOf("n1", "docA", 3), NoteOf("n2", "docB", 6));
-        var tab = Fixture.TabWith("Ý chính [2].", "n1", "n2");
+        var tab = Fixture.TabWith("# Ý chính [2].\n- **điểm** [1]", "n1", "n2");
 
         f.Vm.Refresh(tab);
 
         Assert.Equal(2, tab.Sources.Count);
         Assert.Equal("Báo cáo, Tr.7", tab.Sources[1].Location);
         Assert.NotNull(Fixture.LinkOf(tab, "[2]"));
+        Assert.Contains(
+            tab.MarkdownBlocks,
+            block => block is MarkdownPresentationBlock presentation
+                && presentation.Kind == MarkdownPresentationBlockKind.Heading
+                && presentation.InlineSpans.Any(span => span.Citation?.Text == "[2]"));
+        Assert.Contains(
+            tab.MarkdownBlocks,
+            block => block is MarkdownPresentationBlock presentation
+                && presentation.Kind == MarkdownPresentationBlockKind.ListItem
+                && presentation.InlineSpans.Any(span => span.Text == "điểm" && span.Styles == MarkdownInlineStyles.Bold)
+                && presentation.InlineSpans.Any(span => span.Citation?.Text == "[1]"));
     }
 
     [Fact]
@@ -66,7 +82,7 @@ public sealed class CompositionSourcesViewModelTests
 
         Assert.True(tab.Sources[1].IsDeleted);
         Assert.Equal(CompositionSources.DeletedNoteText, tab.Sources[1].Content);
-        Assert.DoesNotContain(tab.RenderedBlocks.SelectMany(b => b.Spans), s => s.Source is not null && s.Text == "[2]");
+        Assert.DoesNotContain(InlineSpans(tab), s => s.Citation?.Source is not null && s.Text == "[2]");
         Assert.Equal("Có [1] và [2].", tab.Composition.Content);
     }
 
@@ -80,7 +96,7 @@ public sealed class CompositionSourcesViewModelTests
 
         f.Vm.Refresh(tab);
 
-        Assert.DoesNotContain(tab.RenderedBlocks.SelectMany(b => b.Spans), s => s.Source is not null);
+        Assert.DoesNotContain(InlineSpans(tab), s => s.Citation?.Source is not null);
     }
 
     [Fact]
@@ -140,13 +156,13 @@ public sealed class CompositionSourcesViewModelTests
     }
 
     [Fact]
-    public void RenderedBlocks_BeforeRefresh_ShowNumbersAsPlainText()
+    public void MarkdownBlocks_BeforeRefresh_ShowNumbersAsPlainText()
     {
         var tab = Fixture.TabWith("Ý [1].", "n1");
 
-        var block = Assert.Single(tab.RenderedBlocks);
-        Assert.All(block.Spans, s => Assert.Null(s.Source));
-        Assert.Equal("Ý [1].", string.Concat(block.Spans.Select(s => s.Text)));
+        var block = Assert.IsType<MarkdownPresentationBlock>(Assert.Single(tab.MarkdownBlocks));
+        Assert.All(block.InlineSpans, s => Assert.Null(s.Citation?.Source));
+        Assert.Equal("Ý [1].", string.Concat(block.InlineSpans.Select(s => s.Text)));
     }
 
     private sealed class UtcClock(DateTimeOffset now) : TimeProvider

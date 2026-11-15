@@ -44,18 +44,17 @@ public static class CompositionSources
         return entries;
     }
 
-    /// <summary>Tách <paramref name="text"/> thành chữ thường và link <c>[n]</c> cho nguồn còn bấm được. Dùng chung
-    /// <see cref="CitationParser"/> với Chat: nguồn đã xoá không có trong bảng nên <c>[n]</c> của nó giữ là chữ thường.
-    /// <c>RagSource.DocumentId</c> mang id Note (Note tự do không có Document) để lệnh bấm tìm lại nguồn.</summary>
-    public static IReadOnlyList<CitationSpan> ParseCitations(string text, IReadOnlyList<CompositionSourceEntry> entries)
+    public static RagSource[] ToRagSources(IReadOnlyList<CompositionSourceEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        var sources = entries
-            .Where(e => e.IsClickable)
-            .Select(e => new RagSource(e.Number, e.NoteId, e.DocumentTitle ?? FreeNoteLabel, e.PageIndex ?? 0, e.Quote))
-            .ToList();
-        return [.. CitationParser.Parse(text, sources)
-            .Select(s => s.Source is { } source ? new CitationSpan($"[{source.Number}]", source, s.Quote) : s)];
+        return [.. entries
+            .Where(entry => entry.IsClickable)
+            .Select(entry => new RagSource(
+                entry.Number,
+                entry.NoteId,
+                entry.DocumentTitle ?? FreeNoteLabel,
+                entry.PageIndex ?? 0,
+                entry.Quote))];
     }
 
     /// <summary>Thời điểm sinh theo múi giờ <paramref name="zone"/>: "Hôm nay 14:20", "Hôm qua 21:05", "28/10 09:40", hoặc

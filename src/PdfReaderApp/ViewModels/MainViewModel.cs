@@ -257,7 +257,8 @@ public partial class MainViewModel : ObservableObject, IDisposable
             idx => Session.CurrentPage = idx + 1,
             () => Session.DocumentId,
             OpenDocumentForNote,
-            NotifyError);
+            NotifyError,
+            DesktopPrompts.CopyText);
         Compositions = CompositionsViewModel.Create(services, this);
         Search = new SearchViewModel(
             _documentIndex, () => Session.DocumentId, page => Session.CurrentPage = page, NotifyError,
@@ -734,7 +735,7 @@ public partial class MainViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void SaveAnswerAsNote(ChatMessage? msg)
     {
-        if (msg is null || msg.Role != "AI" || string.IsNullOrWhiteSpace(msg.Content)) return;
+        if (msg is null || msg.Role != ChatRoles.Assistant || string.IsNullOrWhiteSpace(msg.Content)) return;
         // Kiểm trước để AddNote lỗi store (đã tự báo) không bị thông báo "chưa mở tài liệu" ghi đè.
         if (!Notes.CanAddNote)
         {

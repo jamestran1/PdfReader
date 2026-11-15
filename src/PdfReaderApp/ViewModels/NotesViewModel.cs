@@ -19,6 +19,7 @@ public sealed partial class NotesViewModel : ObservableObject
     private readonly Func<string?>? _currentDocumentId;
     private readonly Action<string, int?>? _openDocument;
     private readonly Action<string>? _notifyError;
+    private readonly Action<string> _copyToClipboard;
 
     private readonly List<Note> _all = []; // nguồn đầy đủ; Items là phần đã lọc/sắp
     private string? _ownerKey;
@@ -50,9 +51,10 @@ public sealed partial class NotesViewModel : ObservableObject
 
     public NotesViewModel(INoteStore store, Func<int?> currentPageIndex, Action<int> jumpToPageIndex,
         Func<string?>? currentDocumentId = null, Action<string, int?>? openDocument = null,
-        Action<string>? notifyError = null)
+        Action<string>? notifyError = null, Action<string>? copyToClipboard = null)
     {
         _notifyError = notifyError;
+        _copyToClipboard = copyToClipboard ?? (_ => { });
         _store = store;
         _currentPageIndex = currentPageIndex;
         _jumpToPageIndex = jumpToPageIndex;
@@ -164,8 +166,8 @@ public sealed partial class NotesViewModel : ObservableObject
     public bool AddNote(string content, string? quote, int? pageIndex)
     {
         if (_ownerKey == null) return false;
-        string text = (content ?? string.Empty).Trim();
-        if (text.Length == 0) return false;
+        string text = content ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text)) return false;
         long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         string? docId = _currentDocumentId?.Invoke();
         var note = new Note(Guid.NewGuid().ToString("N"), _ownerKey, docId, pageIndex, quote, text, now, now);
@@ -182,9 +184,9 @@ public sealed partial class NotesViewModel : ObservableObject
     private void Save()
     {
         StatusMessage = string.Empty;
-        string content = (Draft ?? string.Empty).Trim();
+        string content = Draft ?? string.Empty;
         bool hasQuote = !string.IsNullOrEmpty(PendingQuote);
-        if (content.Length == 0 && !hasQuote) return;   // cho phép quote-only
+        if (string.IsNullOrWhiteSpace(content) && !hasQuote) return;   // cho phép quote-only
         if (_ownerKey == null) return;
         if (content.Length > MaxNoteLength)
         {
@@ -265,6 +267,12 @@ public sealed partial class NotesViewModel : ObservableObject
         IsEditing = false;
         PendingQuote = null;
         _pendingRects = null;
+    }
+
+    [RelayCommand]
+    private void Copy(Note? note)
+    {
+        if (note is not null) _copyToClipboard(note.Content);
     }
 
     [RelayCommand]
