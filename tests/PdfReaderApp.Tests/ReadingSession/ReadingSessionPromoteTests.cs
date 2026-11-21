@@ -36,6 +36,20 @@ public class ReadingSessionPromoteTests
         Assert.Equal(1.5, f.Session.ZoomLevel);
     }
 
+    // #263: viewer của Tab mới nạp sau Promote; không có cờ zoom đã lưu thì nó fit và ghi đè zoom mang theo.
+    [Fact]
+    public void Promote_MarksTheTabAsHavingSavedZoomSoTheViewerKeepsIt()
+    {
+        var f = Reading("D");
+        f.Session.ZoomLevel = 1.5;
+
+        f.Session.Promote(NewWorkspace("Luận văn"), "Tài liệu D");
+
+        var tab = Assert.IsType<DocumentTab>(Assert.Single(f.Session.Tabs.Tabs));
+        Assert.True(tab.HasSavedZoom);
+        Assert.Equal(1.5, tab.Zoom);
+    }
+
     [Fact]
     public void Promote_MakesDocumentAMemberAndSwitchesToTheNewWorkspace()
     {

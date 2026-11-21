@@ -175,14 +175,14 @@ public class TabSetViewModelTests
     }
 
     // =========================================================
-    // Cross-doc jump: initialPage được đặt TRƯỚC khi kích hoạt (để viewer mở thẳng tại trang đích).
+    // Cross-doc jump: TabOpenState.Page được đặt TRƯỚC khi kích hoạt (để viewer mở thẳng tại trang đích).
     // =========================================================
     [Fact]
     public void OpenOrActivate_WithInitialPage_SetsPageOnNewTab()
     {
         var vm = Make();
 
-        var tab = vm.OpenOrActivate("docA", "A", "/a.pdf", initialPage: 15);
+        var tab = vm.OpenOrActivate("docA", "A", "/a.pdf", new TabOpenState(Page: 15));
 
         Assert.Equal(15, tab.Page);
         Assert.Same(tab, vm.ActiveTab);
@@ -196,11 +196,58 @@ public class TabSetViewModelTests
         vm.OpenOrActivate("docB", "B", "/b.pdf"); // tabB active
 
         // Cross-doc jump quay lại docA tại trang 9
-        var again = vm.OpenOrActivate("docA", "A", "/a.pdf", initialPage: 9);
+        var again = vm.OpenOrActivate("docA", "A", "/a.pdf", new TabOpenState(Page: 9));
 
         Assert.Same(tabA, again);
         Assert.Equal(9, tabA.Page);
         Assert.Same(tabA, vm.ActiveTab);
+    }
+
+    // #261: ScrollNorm cũ thuộc trang khác; nhảy tới trang đích thì mở ở đầu trang đó, không cuộn lệch.
+    [Fact]
+    public void OpenOrActivate_WithInitialPage_ResetsScrollNormOfExistingTab()
+    {
+        var vm = Make();
+        var tabA = vm.OpenOrActivate("docA", "A", "/a.pdf");
+        tabA.ScrollNorm = 0.6;
+
+        vm.OpenOrActivate("docA", "A", "/a.pdf", new TabOpenState(Page: 9));
+
+        Assert.Equal(0, tabA.ScrollNorm);
+    }
+
+    [Fact]
+    public void OpenOrActivate_WithInitialZoom_SetsZoomAndMarksSavedZoomOnNewTab()
+    {
+        var vm = Make();
+
+        var tab = vm.OpenOrActivate("docA", "A", "/a.pdf", new TabOpenState(Zoom: 1.8, ScrollNorm: 0.4));
+
+        Assert.Equal((1.8, 0.4), (tab.Zoom, tab.ScrollNorm));
+        Assert.True(tab.HasSavedZoom);
+    }
+
+    [Fact]
+    public void OpenOrActivate_WithoutInitialZoom_DoesNotMarkSavedZoom()
+    {
+        var vm = Make();
+
+        var tab = vm.OpenOrActivate("docA", "A", "/a.pdf", new TabOpenState(Page: 3));
+
+        Assert.False(tab.HasSavedZoom);
+    }
+
+    [Fact]
+    public void OpenOrActivate_WithoutInitialPage_KeepsScrollNormOfExistingTab()
+    {
+        var vm = Make();
+        var tabA = vm.OpenOrActivate("docA", "A", "/a.pdf");
+        tabA.ScrollNorm = 0.6;
+        vm.OpenOrActivate("docB", "B", "/b.pdf");
+
+        vm.OpenOrActivate("docA", "A", "/a.pdf");
+
+        Assert.Equal(0.6, tabA.ScrollNorm);
     }
 
     // =========================================================

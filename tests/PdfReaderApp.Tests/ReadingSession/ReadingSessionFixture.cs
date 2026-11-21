@@ -69,9 +69,9 @@ internal sealed class ReadingSessionFixture
     public OpenTab OpenTab(string documentId, int page = 1)
     {
         Loader.Returns(PathOf(documentId), new LoadedDocument(documentId, [], []));
-        // Mở qua Tab Set với initialPage (phiên Workspace đã có từ InWorkspace) để Document nạp thẳng tại trang đích,
+        // Mở qua Tab Set với TabOpenState.Page (phiên Workspace đã có từ InWorkspace) để Document nạp thẳng tại trang đích,
         // giống đường Jump; gán Page sau khi nạp sẽ không tái hiện đúng thứ tự viewer thấy.
-        var tab = Session.Tabs.OpenOrActivate(documentId, documentId, PathOf(documentId), initialPage: page);
+        var tab = Session.Tabs.OpenOrActivate(documentId, documentId, PathOf(documentId), new TabOpenState(Page: page));
         Opened.Clear();
         Log.Clear();
         return tab;

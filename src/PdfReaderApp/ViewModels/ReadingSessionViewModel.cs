@@ -272,8 +272,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         {
             if (IsWorkspaceSession)
             {
-                // Activate-or-open + đặt trang đích TRƯỚC khi nạp (initialPage) -> viewer mở thẳng tại trang.
-                Tabs.OpenOrActivate(request.DocumentId, item.Title, item.StoredPath, targetPage);
+                // Activate-or-open + đặt trang đích TRƯỚC khi nạp (TabOpenState.Page) -> viewer mở thẳng tại trang.
+                Tabs.OpenOrActivate(request.DocumentId, item.Title, item.StoredPath, new TabOpenState(Page: targetPage));
             }
             else
             {
@@ -377,6 +377,7 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
                 Page = state.Page,
                 Zoom = state.Zoom,
                 ScrollNorm = state.ScrollNorm,
+                HasSavedZoom = true,
             });
         }
 
@@ -472,8 +473,8 @@ public sealed partial class ReadingSessionViewModel : ObservableObject
         ActiveWorkspaceId = workspace.Id;
         IsWorkspaceSession = true;
 
-        var tab = Tabs.OpenOrActivate(documentId, documentTitle, path, initialPage: page);
-        tab.Zoom = zoom;   // sau khi kích hoạt: Tab mới có zoom mặc định
+        // Zoom đi cùng lúc tạo Tab: viewer nạp sau đó thấy HasSavedZoom nên giữ zoom thay vì fit đè.
+        Tabs.OpenOrActivate(documentId, documentTitle, path, new TabOpenState(Page: page, Zoom: zoom));
         return true;
     }
 
