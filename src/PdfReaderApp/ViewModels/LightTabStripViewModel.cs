@@ -18,6 +18,10 @@ public sealed class LightTabStripViewModel : TabHost
         TabsChanged += () => OnPropertyChanged(nameof(IsStripVisible));
     }
 
+    // Vị trí Tab Document không được lưu (ADR 0009) và khi khôi phục luôn đứng đầu, nên ghim nó ở đầu để thứ tự trên màn hình
+    // khớp thứ tự sẽ khôi phục; chỉ các Tab Bản soạn sắp lại với nhau.
+    protected override bool IsPinnedFirst(OpenTab tab) => tab is DocumentTab;
+
     /// <summary>Tab Document của chính Document đang đọc lẻ: không đóng được.</summary>
     internal static DocumentTab CreateDocumentTab(DocumentRef document)
         => new(document.DocumentId, document.Title, document.Path) { CanClose = false };
