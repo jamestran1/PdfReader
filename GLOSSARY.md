@@ -96,23 +96,51 @@ _Avoid_: Tab bar (dùng được nhưng thống nhất "Tab Strip").
 Surface hai vùng cho Tài liệu của Workspace: (1) **thành viên**: thumbnail member doc, click → mở/kích hoạt Tab, kèm nút gỡ (**gỡ = xóa membership và đóng Tab nếu đang mở**, giữ bất biến Open Set ⊆ membership); (2) **thêm từ Library**: Add = thêm membership **và** mở Tab active. Header surface mang tên Workspace + đổi tên inline (bút chì). Cùng MỘT component ở **2 bối cảnh host**: modal nút "+" (DialogHost) và inline trong canvas khi không còn Tab nào (gộp empty-state lẫn lưới re-open). Chỉ ở named Workspace.
 _Avoid_: Thumbnail Gallery, document picker, doc grid, empty state.
 
+## Kiến trúc trên hai nền
+
+**Lõi dùng chung**:
+Phần Trí Thư chạy như nhau trên Windows và macOS: Models, Core, Services và ViewModels. Lõi không biết mình đang chạy trên nền nào; thứ chỉ có ở một nền (cửa sổ, dialog, clipboard, đường dẫn dữ liệu, nơi lưu key API, mở link) đi vào qua interface do đầu ứng dụng cung cấp: hôm nay là bản WPF, sau khi chuyển là Đầu MAUI (ADR 0011).
+_Avoid_: lõi (trơn), core, shared project, business layer.
+
+**Đầu MAUI**:
+Phần ứng dụng viết trên MAUI 11, chứa Lõi dùng chung và cung cấp cho lõi những thứ chỉ có ở từng nền. Chạy trên Windows (backend WinUI 3) và macOS (Mac Catalyst); sau khi chuyển thì bản WPF không còn (ADR 0011).
+_Avoid_: MAUI app, frontend, UI layer, shell.
+
+## Chuyển sang MAUI
+
+**Đóng băng UI**:
+Giai đoạn từ khi hết chặng 1 (Models, Core, Services, ViewModels đã nằm trong Lõi dùng chung) tới khi gỡ WPF: giao diện WPF chỉ nhận sửa lỗi, tính năng mới đi vào Lõi dùng chung, màn hình mới chờ Đầu MAUI. `main` tại điểm bắt đầu đóng băng là mức so sánh của Ma trận tính năng (ADR 0011).
+_Avoid_: feature freeze (lõi vẫn nhận tính năng mới), UI freeze (dùng được nhưng thống nhất "Đóng băng UI").
+
+**Ma trận tính năng**:
+Danh sách mọi tính năng của Trí Thư, gọi bằng thuật ngữ của glossary này, mỗi dòng ghi tính năng đó phải có trên Windows hay trên macOS, rủi ro nền của nó và cách kiểm. Là chuẩn để nói một tính năng "không break" sau khi chuyển, so với `main` tại điểm Đóng băng UI; tính năng không mang lên được phải là một quyết định ghi rõ trong ma trận.
+_Avoid_: feature parity checklist, compatibility list, test matrix.
+
 ## Phát hành (Release)
 
-**Release**:
-Một phiên bản Trí Thư đánh dấu bằng git tag `vX.Y.Z` (SemVer, tag là nguồn sự thật duy nhất của version), đóng gói MSIX x64 self-contained và phân phối tới người dùng **chỉ qua Microsoft Store**. Không có kênh tải trực tiếp.
-_Avoid_: Build, deploy, bản phát hành GitHub (GitHub Release chỉ là nơi lưu artifact + notes cho dev, không phải kênh tới user).
+**Windows Release**:
+Bản Windows của một phiên bản Trí Thư (git tag `vX.Y.Z`; SemVer; tag là nguồn sự thật duy nhất của version): đóng gói MSIX x64 và phân phối tới người dùng **chỉ qua Microsoft Store**. Không có kênh tải trực tiếp cho Windows.
+_Avoid_: Release (không nói nền), bản Windows, build, deploy, bản phát hành GitHub (GitHub Release chỉ là nơi lưu artifact + notes cho dev, không phải kênh tới user).
+
+**macOS Release**:
+Bản macOS (Apple Silicon) của cùng phiên bản Trí Thư, build từ cùng tag và chạy trên Mac Catalyst. Phát hành qua hai kênh từ cùng một mã nguồn: **tải trực tiếp** (ký Developer ID, đã notarize; app tự báo có bản mới) và **Mac App Store** (cập nhật do App Store lo); cả hai đều bật App Sandbox.
+_Avoid_: Release (không nói nền), bản Mac, Mac build.
 
 **Package Identity**:
 Danh tính MSIX (Package Name + Publisher) do Partner Center cấp khi reserve tên app — thứ Windows/Store dùng để nhận diện app, độc lập với tên hiển thị "Trí Thư".
 _Avoid_: App ID, tên app.
 
 **Submission**:
-Một lần nộp MSIX + listing lên Partner Center để Microsoft certification. Đạt thì Store tự ký package và phân phối; app không tự ký, không tự update (Store lo cả hai).
-_Avoid_: Upload, publish (mơ hồ giữa nộp và đã lên Store).
+Một lần nộp bản phát hành lên cửa hàng của nền để được duyệt: Windows nộp MSIX + listing lên Partner Center (Microsoft certification), macOS nộp bản Mac Catalyst lên App Store Connect (App Review). Đạt thì cửa hàng đứng ra ký và phân phối; cập nhật qua cửa hàng do cửa hàng lo, app không tự cập nhật. Kênh tải trực tiếp của macOS Release không có Submission.
+_Avoid_: Upload, publish (mơ hồ giữa nộp và đã lên cửa hàng).
 
 **MSIX smoke test**:
-Bước kiểm tra bắt buộc trước mỗi Submission: cài bản MSIX thật trên máy local (dev cert) và chạy checklist ngắn — vì app trong MSIX chạy khác app từ `bin/` (AppData ảo hóa, package identity), test suite không bắt được lớp lỗi này.
-_Avoid_: QA, manual test (chung chung).
+Bước kiểm tra bắt buộc trước mỗi Submission của Windows Release: cài bản MSIX thật trên máy local (dev cert) và chạy checklist ngắn, vì app trong MSIX chạy khác app từ `bin/` (AppData ảo hóa, package identity), test suite không bắt được lớp lỗi này.
+_Avoid_: QA, manual test (chung chung), smoke test (không nói nền).
+
+**macOS smoke test**:
+Bước kiểm tra bắt buộc trước khi phát ra mỗi macOS Release: cài bản đã ký đúng cách của kênh đó trên máy Mac thật và chạy checklist ngắn, vì app chạy trong App Sandbox với chữ ký và container riêng, test suite không bắt được lớp lỗi này.
+_Avoid_: QA, manual test (chung chung), smoke test (không nói nền).
 
 **Hydration / Eviction**:
 **Hydrate** = nạp PDFium + render cho một Tab khi kích hoạt. **Evict** = giải phóng để giới hạn bộ nhớ. Chính sách: tab active render đầy đủ; mọi tab inactive bỏ bitmap cache; giữ handle PDFium cho active + ~5 tab MRU, quá thì dispose handle (còn header + view-state) và re-hydrate khi click. Khôi phục khi vào Workspace là **lười**: chỉ tab active nạp doc.
